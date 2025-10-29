@@ -1,0 +1,67 @@
+/**
+ * Styles for Editable Schema Name Widget
+ * Integrates with Unfold's Tailwind CSS design system
+ */
+
+/* Override readonly state with Unfold colors */
+.editable-schema-name[readonly] {
+    background-color: rgb(243 244 246);
+    cursor: not-allowed;
+}
+
+.dark .editable-schema-name[readonly] {
+    background-color: rgb(17 24 39);
+}
+
+/* Editable state highlight */
+.editable-schema-name:not([readonly]) {
+    background-color: rgb(254 249 195) !important;
+    border-color: rgb(99 102 241) !important;
+}
+
+.dark .editable-schema-name:not([readonly]) {
+    background-color: rgb(31 41 55) !important;
+    border-color: rgb(99 102 241) !important;
+}
+
+/* Button animations */
+.edit-schema-btn,
+.confirm-schema-btn {
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.edit-schema-btn:active,
+.confirm-schema-btn:active {
+    transform: scale(0.95);
+}
+
+/* Success notification animations */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.schema-notification {
+    animation: slideInRight 0.3s ease-out;
+}
+
+.schema-notification.closing {
+    animation: slideOutRight 0.3s ease-out;
+}

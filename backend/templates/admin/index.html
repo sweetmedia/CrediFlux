@@ -1,0 +1,209 @@
+{% extends 'unfold/layouts/base_simple.html' %}
+{% load i18n unfold %}
+
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+    <div class="px-6 py-4">
+        <!-- Dashboard Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                {% if is_tenant %}
+                    {{ schema_name|title }} Dashboard
+                {% else %}
+                    System Admin Dashboard
+                {% endif %}
+            </h1>
+            <p class="text-gray-600 dark:text-gray-400">
+                {% if is_tenant %}
+                    Manage loans, customers, and payments for this tenant
+                {% else %}
+                    Manage tenants, users, and system configuration
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {% if is_tenant %}
+                <!-- Tenant Statistics -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-blue-500 bg-opacity-10">
+                            <span class="material-symbols-outlined text-blue-500" style="font-size: 24px;">account_circle</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Customers</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_customers|default:0 }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-500 bg-opacity-10">
+                            <span class="material-symbols-outlined text-green-500" style="font-size: 24px;">account_balance</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Loans</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_loans|default:0 }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-yellow-500 bg-opacity-10">
+                            <span class="material-symbols-outlined text-yellow-500" style="font-size: 24px;">schedule</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Active Loans</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ active_loans|default:0 }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-purple-500 bg-opacity-10">
+                            <span class="material-symbols-outlined text-purple-500" style="font-size: 24px;">payment</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Payments</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_payments|default:0 }}</p>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <!-- System Statistics -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-blue-500 bg-opacity-10">
+                            <span class="material-symbols-outlined text-blue-500" style="font-size: 24px;">business</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Tenants</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_tenants|default:0 }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-500 bg-opacity-10">
+                            <span class="material-symbols-outlined text-green-500" style="font-size: 24px;">check_circle</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Active Tenants</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ active_tenants|default:0 }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-purple-500 bg-opacity-10">
+                            <span class="material-symbols-outlined text-purple-500" style="font-size: 24px;">person</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Users</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_users|default:0 }}</p>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Tenant Switcher Section (Only in Public Schema) -->
+        {% if not is_tenant and tenants_list %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                        <span class="material-symbols-outlined mr-2" style="font-size: 24px;">business_center</span>
+                        Active Tenants
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {% for tenant in tenants_list %}
+                            <a href="http://{{ tenant.domain }}:8000/admin/"
+                               class="block p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                <div class="flex items-center">
+                                    <span class="material-symbols-outlined text-primary-600 dark:text-primary-400 mr-3" style="font-size: 32px;">account_balance</span>
+                                    <div>
+                                        <h3 class="font-semibold text-gray-900 dark:text-white">{{ tenant.business_name|default:tenant.name }}</h3>
+                                        <p class="text-sm text-gray-600 dark:text-gray-400">{{ tenant.domain }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">Schema: {{ tenant.schema_name }}</p>
+                                    </div>
+                                </div>
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                    <span class="material-symbols-outlined mr-2" style="font-size: 24px;">bolt</span>
+                    Quick Actions
+                </h2>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {% if is_tenant %}
+                        <a href="{% url 'admin:loans_customer_add' %}"
+                           class="flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 mr-3" style="font-size: 28px;">person_add</span>
+                            <span class="font-medium text-blue-900 dark:text-blue-100">Add Customer</span>
+                        </a>
+
+                        <a href="{% url 'admin:loans_loan_add' %}"
+                           class="flex items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-green-600 dark:text-green-400 mr-3" style="font-size: 28px;">add_circle</span>
+                            <span class="font-medium text-green-900 dark:text-green-100">Create Loan</span>
+                        </a>
+
+                        <a href="{% url 'admin:loans_loanpayment_add' %}"
+                           class="flex items-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 mr-3" style="font-size: 28px;">payments</span>
+                            <span class="font-medium text-purple-900 dark:text-purple-100">Record Payment</span>
+                        </a>
+
+                        <a href="{% url 'admin:loans_loan_changelist' %}"
+                           class="flex items-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 mr-3" style="font-size: 28px;">list</span>
+                            <span class="font-medium text-yellow-900 dark:text-yellow-100">View All Loans</span>
+                        </a>
+                    {% else %}
+                        <a href="{% url 'admin:tenants_tenant_add' %}"
+                           class="flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 mr-3" style="font-size: 28px;">business_center</span>
+                            <span class="font-medium text-blue-900 dark:text-blue-100">Add Tenant</span>
+                        </a>
+
+                        <a href="{% url 'admin:users_user_add' %}"
+                           class="flex items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-green-600 dark:text-green-400 mr-3" style="font-size: 28px;">person_add</span>
+                            <span class="font-medium text-green-900 dark:text-green-100">Add User</span>
+                        </a>
+
+                        <a href="{% url 'admin:tenants_tenant_changelist' %}"
+                           class="flex items-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 mr-3" style="font-size: 28px;">list</span>
+                            <span class="font-medium text-purple-900 dark:text-purple-100">View All Tenants</span>
+                        </a>
+
+                        <a href="{% url 'admin:users_user_changelist' %}"
+                           class="flex items-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 mr-3" style="font-size: 28px;">group</span>
+                            <span class="font-medium text-yellow-900 dark:text-yellow-100">View All Users</span>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

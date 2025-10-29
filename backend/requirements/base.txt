@@ -1,0 +1,54 @@
+# Core Django
+Django==5.0.9
+djangorestframework==3.15.2
+django-cors-headers==4.4.0
+
+# Multi-tenant
+django-tenants==3.6.1
+
+# Database
+psycopg2==2.9.11
+dj-database-url==2.2.0
+
+# Authentication
+django-allauth==0.63.6
+dj-rest-auth==6.0.0
+djangorestframework-simplejwt==5.3.1
+requests==2.32.5
+
+# Admin Interface
+django-unfold==0.29.0
+
+# API Documentation
+drf-yasg==1.21.7
+
+# Configuration
+django-constance[database]==4.1.2
+
+# Environment variables
+python-decouple==3.8
+
+# Celery & Redis
+celery==5.4.0
+redis==5.0.8
+django-redis==5.4.0
+
+# Utilities
+python-dateutil==2.9.0
+pillow==10.4.0
+phonenumbers==8.13.45
+django-phonenumber-field==8.0.0
+
+# Celery Beat (for scheduled tasks)
+django-celery-beat==2.7.0
+
+# Money and Financial
+django-money==3.5.2
+
+# Reporting & Excel
+openpyxl==3.1.5
+xlsxwriter==3.2.0
+
+# Security
+django-ratelimit==4.1.0
+django-filter==24.3
