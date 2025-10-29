@@ -60,3 +60,7 @@ build/
 #internal
 /screenshots/
 /screenshot/
+
+# Cloudflare Tunnel
+.cloudflare/
+*.json.bak
