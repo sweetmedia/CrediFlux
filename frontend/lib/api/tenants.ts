@@ -65,6 +65,10 @@ export const tenantsAPI = {
     const token = localStorage.getItem('accessToken');
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+    console.log('Uploading to:', `${apiUrl}/api/tenants/settings/`);
+    console.log('File:', file.name, file.size, file.type);
+    console.log('Token exists:', !!token);
+
     try {
       const response = await fetch(`${apiUrl}/api/tenants/settings/`, {
         method: 'PATCH',
@@ -74,12 +78,17 @@ export const tenantsAPI = {
         body: formData,
       });
 
+      console.log('Response status:', response.status, response.statusText);
+
       if (!response.ok) {
         let error;
         try {
           error = await response.json();
+          console.log('Error response:', error);
         } catch (e) {
           // If response is not JSON, use status text
+          const text = await response.text();
+          console.log('Error response (text):', text);
           error = { detail: response.statusText || 'Error desconocido' };
         }
 
@@ -92,8 +101,11 @@ export const tenantsAPI = {
         throw err;
       }
 
-      return response.json();
+      const result = await response.json();
+      console.log('Upload success:', result);
+      return result;
     } catch (error: any) {
+      console.error('Upload error:', error);
       // Re-throw with better error information
       if (error.response) {
         throw error;
