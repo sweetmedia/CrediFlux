@@ -12,11 +12,16 @@ export interface User {
   job_title: string | null;
   department: string | null;
   role: 'admin' | 'manager' | 'loan_officer' | 'accountant' | 'cashier' | 'viewer';
+  tenant?: number;
+  tenant_name?: string;
+  is_tenant_owner: boolean;
+  is_staff: boolean;
+  is_superuser: boolean;
   is_active: boolean;
   email_verified: boolean;
   receive_notifications: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
   last_login_at: string | null;
 }
 
@@ -80,6 +85,7 @@ export interface Loan {
   payment_amount: number;
   application_date: string;
   approval_date?: string;
+  rejection_date?: string;
   disbursement_date?: string;
   first_payment_date?: string;
   maturity_date?: string;
@@ -90,6 +96,11 @@ export interface Loan {
   late_fees: number;
   loan_officer?: string;
   loan_officer_name?: string;
+  approved_by?: string;
+  approved_by_name?: string;
+  rejected_by?: string;
+  rejected_by_name?: string;
+  approval_notes?: string;
   purpose?: string;
   notes?: string;
   terms_accepted: boolean;
@@ -178,13 +189,7 @@ export interface LoginCredentials {
 export interface TenantLoginResponse {
   access_token: string;
   refresh_token: string;
-  user: User & {
-    tenant: number;
-    tenant_name: string;
-    is_tenant_owner: boolean;
-    is_staff: boolean;
-    is_superuser: boolean;
-  };
+  user: User;
   tenant: Tenant;
   message: string;
 }

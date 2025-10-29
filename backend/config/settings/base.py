@@ -115,6 +115,7 @@ DATABASE_ROUTERS = (
 TENANT_MODEL = "tenants.Tenant"
 TENANT_DOMAIN_MODEL = "tenants.Domain"
 PUBLIC_SCHEMA_NAME = 'public'
+PUBLIC_SCHEMA_URLCONF = 'config.urls_public'  # URLs accessible without tenant
 TENANT_BASE_DOMAIN = config('TENANT_BASE_DOMAIN', default='localhost')
 
 # Password validation

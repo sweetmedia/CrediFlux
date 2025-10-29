@@ -62,7 +62,7 @@ export const tenantsAPI = {
     const formData = new FormData();
     formData.append('logo', file);
 
-    const token = localStorage.getItem('accessToken');
+    const token = localStorage.getItem('access_token');
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
     console.log('Uploading to:', `${apiUrl}/api/tenants/settings/`);

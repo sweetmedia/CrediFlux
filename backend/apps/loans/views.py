@@ -16,6 +16,7 @@ from .serializers import (
     LoanSerializer, LoanListSerializer, LoanCreateSerializer,
     LoanScheduleSerializer, LoanPaymentSerializer, CollateralSerializer
 )
+from .permissions import CanApproveLoan, CanManageLoans
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -97,22 +98,35 @@ class LoanViewSet(viewsets.ModelViewSet):
         loan.outstanding_balance = loan.principal_amount
         loan.save()
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
     def approve(self, request, pk=None):
-        """Approve a loan"""
+        """
+        Approve a loan.
+        Only admin, manager, or loan_officer can approve loans.
+        """
         loan = self.get_object()
 
         if loan.status != 'pending':
             return Response(
-                {'error': 'Only pending loans can be approved'},
+                {'error': 'Solo se pueden aprobar préstamos pendientes'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Get approval notes from request
+        approval_notes = request.data.get('notes', '')
+
+        # Update loan
         loan.status = 'approved'
         loan.approval_date = timezone.now().date()
+        loan.approved_by = request.user
+        loan.approval_notes = approval_notes
         loan.save()
 
-        return Response({'status': 'loan approved'})
+        serializer = self.get_serializer(loan)
+        return Response({
+            'message': 'Préstamo aprobado exitosamente',
+            'loan': serializer.data
+        })
 
     @action(detail=True, methods=['post'])
     def disburse(self, request, pk=None):
@@ -135,21 +149,40 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         return Response({'status': 'loan disbursed'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
     def reject(self, request, pk=None):
-        """Reject a loan"""
+        """
+        Reject a loan.
+        Only admin, manager, or loan_officer can reject loans.
+        """
         loan = self.get_object()
 
         if loan.status not in ['draft', 'pending']:
             return Response(
-                {'error': 'Only draft or pending loans can be rejected'},
+                {'error': 'Solo se pueden rechazar préstamos en borrador o pendientes'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Get rejection notes from request (required)
+        rejection_notes = request.data.get('notes', '')
+        if not rejection_notes:
+            return Response(
+                {'error': 'Se requiere una nota explicando el motivo del rechazo'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update loan
         loan.status = 'rejected'
+        loan.rejection_date = timezone.now().date()
+        loan.rejected_by = request.user
+        loan.approval_notes = rejection_notes
         loan.save()
 
-        return Response({'status': 'loan rejected'})
+        serializer = self.get_serializer(loan)
+        return Response({
+            'message': 'Préstamo rechazado',
+            'loan': serializer.data
+        })
 
     @action(detail=True, methods=['get'])
     def schedule(self, request, pk=None):

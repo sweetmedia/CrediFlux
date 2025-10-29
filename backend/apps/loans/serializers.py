@@ -191,6 +191,8 @@ class LoanSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     customer_details = CustomerListSerializer(source='customer', read_only=True)
     loan_officer_name = serializers.CharField(source='loan_officer.get_full_name', read_only=True)
+    approved_by_name = serializers.CharField(source='approved_by.get_full_name', read_only=True, allow_null=True)
+    rejected_by_name = serializers.CharField(source='rejected_by.get_full_name', read_only=True, allow_null=True)
 
     # Convert Money fields to decimal for frontend
     principal_amount = serializers.DecimalField(source='principal_amount.amount', max_digits=14, decimal_places=2, read_only=True)
@@ -212,10 +214,12 @@ class LoanSerializer(serializers.ModelSerializer):
             'id', 'loan_number', 'customer', 'customer_name', 'customer_details',
             'loan_type', 'principal_amount', 'interest_rate', 'term_months',
             'payment_frequency', 'payment_amount', 'application_date',
-            'approval_date', 'disbursement_date', 'first_payment_date',
+            'approval_date', 'rejection_date', 'disbursement_date', 'first_payment_date',
             'maturity_date', 'status', 'outstanding_balance', 'total_paid',
             'total_interest_paid', 'late_fees', 'loan_officer',
-            'loan_officer_name', 'purpose', 'notes', 'terms_accepted',
+            'loan_officer_name', 'approved_by', 'approved_by_name',
+            'rejected_by', 'rejected_by_name', 'approval_notes',
+            'purpose', 'notes', 'terms_accepted',
             'contract_document', 'total_amount', 'is_overdue',
             'collaterals', 'payment_schedules', 'recent_payments',
             'created_at', 'updated_at'

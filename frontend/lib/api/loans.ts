@@ -49,8 +49,8 @@ export const loansAPI = {
   },
 
   // Approve loan
-  async approveLoan(id: string): Promise<{ status: string }> {
-    return apiClient.post<{ status: string }>(`/api/loans/${id}/approve/`);
+  async approveLoan(id: string, notes?: string): Promise<{ message: string; loan: Loan }> {
+    return apiClient.post<{ message: string; loan: Loan }>(`/api/loans/${id}/approve/`, { notes });
   },
 
   // Disburse loan
@@ -59,8 +59,8 @@ export const loansAPI = {
   },
 
   // Reject loan
-  async rejectLoan(id: string): Promise<{ status: string }> {
-    return apiClient.post<{ status: string }>(`/api/loans/${id}/reject/`);
+  async rejectLoan(id: string, notes: string): Promise<{ message: string; loan: Loan }> {
+    return apiClient.post<{ message: string; loan: Loan }>(`/api/loans/${id}/reject/`, { notes });
   },
 
   // Get loan schedule

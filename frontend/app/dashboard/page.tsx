@@ -144,7 +144,11 @@ export default function DashboardPage() {
             <div className="flex items-center space-x-3">
               {tenant?.logo ? (
                 <img
-                  src={tenant.logo}
+                  src={
+                    tenant.logo.startsWith('http')
+                      ? tenant.logo
+                      : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${tenant.logo}`
+                  }
                   alt={tenant.business_name}
                   className="h-10 w-auto object-contain"
                 />

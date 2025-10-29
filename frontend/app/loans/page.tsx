@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { loansAPI } from '@/lib/api/loans';
+import { Loan } from '@/types';
+import LoanApprovalDialog from '@/components/loans/LoanApprovalDialog';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -30,11 +32,12 @@ import {
   ChevronRight,
   Eye,
   AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
 
 export default function LoansListPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [loans, setLoans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -46,6 +49,17 @@ export default function LoansListPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loanTypeFilter, setLoanTypeFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Approval dialog state
+  const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+
+  // Check if user can approve loans
+  const canApproveLoan = user && (
+    user.is_superuser ||
+    user.is_tenant_owner ||
+    ['admin', 'manager', 'loan_officer'].includes(user.role)
+  );
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -107,6 +121,41 @@ export default function LoansListPage() {
     setCurrentPage(1);
   };
 
+  const handleOpenApprovalDialog = (loan: Loan) => {
+    setSelectedLoan(loan);
+    setApprovalDialogOpen(true);
+  };
+
+  const handleApprove = async (notes?: string) => {
+    if (!selectedLoan) return;
+
+    try {
+      await loansAPI.approveLoan(selectedLoan.id, notes);
+      // Refresh loans list
+      await loadLoans();
+      setApprovalDialogOpen(false);
+      setSelectedLoan(null);
+    } catch (err: any) {
+      console.error('Error approving loan:', err);
+      throw err; // Re-throw to let dialog handle the error
+    }
+  };
+
+  const handleReject = async (notes: string) => {
+    if (!selectedLoan) return;
+
+    try {
+      await loansAPI.rejectLoan(selectedLoan.id, notes);
+      // Refresh loans list
+      await loadLoans();
+      setApprovalDialogOpen(false);
+      setSelectedLoan(null);
+    } catch (err: any) {
+      console.error('Error rejecting loan:', err);
+      throw err; // Re-throw to let dialog handle the error
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -129,6 +178,7 @@ export default function LoansListPage() {
       approved: 'bg-blue-50 text-blue-700 border-blue-200',
       paid: 'bg-gray-50 text-gray-700 border-gray-200',
       defaulted: 'bg-red-50 text-red-700 border-red-200',
+      rejected: 'bg-red-50 text-red-700 border-red-200',
       completed: 'bg-green-50 text-green-700 border-green-200',
     };
 
@@ -138,6 +188,7 @@ export default function LoansListPage() {
       approved: 'Aprobado',
       paid: 'Pagado',
       defaulted: 'Moroso',
+      rejected: 'Rechazado',
       completed: 'Completado',
     };
 
@@ -249,6 +300,7 @@ export default function LoansListPage() {
                       <option value="">Todos los estados</option>
                       <option value="pending">Pendiente</option>
                       <option value="approved">Aprobado</option>
+                      <option value="rejected">Rechazado</option>
                       <option value="active">Activo</option>
                       <option value="paid">Pagado</option>
                       <option value="defaulted">Moroso</option>
@@ -458,6 +510,19 @@ export default function LoansListPage() {
                         <Eye className="mr-2 h-4 w-4" />
                         Ver Detalles
                       </Button>
+                      {loan.status === 'pending' && canApproveLoan && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenApprovalDialog(loan);
+                          }}
+                        >
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Gestionar
+                        </Button>
+                      )}
                       {loan.status === 'active' && (
                         <Button
                           size="sm"
@@ -511,6 +576,15 @@ export default function LoansListPage() {
             )}
           </div>
         )}
+
+        {/* Loan Approval/Rejection Dialog */}
+        <LoanApprovalDialog
+          loan={selectedLoan}
+          open={approvalDialogOpen}
+          onOpenChange={setApprovalDialogOpen}
+          onApprove={handleApprove}
+          onReject={handleReject}
+        />
       </div>
     </div>
   );

@@ -325,8 +325,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
     def validate_phone(self, value):
         """Validate phone number format"""
-        if value and not value.is_valid():
-            raise serializers.ValidationError("Invalid phone number format.")
+        # PhoneNumberField handles validation automatically
+        # Just return the value, Django will handle the conversion
         return value
 
 

@@ -13,6 +13,7 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<TenantLoginResponse>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  refreshTenant: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -112,6 +113,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshTenant = async () => {
+    try {
+      // Import tenantsAPI dynamically to avoid circular dependency
+      const { tenantsAPI } = await import('@/lib/api/tenants');
+      const freshTenant = await tenantsAPI.getSettings();
+      setTenant(freshTenant);
+
+      // Update localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('tenant', JSON.stringify(freshTenant));
+      }
+    } catch (error) {
+      console.error('Failed to refresh tenant:', error);
+      throw error;
+    }
+  };
+
   const value: AuthContextType = {
     user,
     tenant,
@@ -120,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login: handleLogin,
     logout: handleLogout,
     refreshUser,
+    refreshTenant,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

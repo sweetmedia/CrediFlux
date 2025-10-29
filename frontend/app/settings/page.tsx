@@ -8,6 +8,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { tenantsAPI, Tenant, TenantUpdateData } from '@/lib/api/tenants';
+import { authAPI } from '@/lib/api/auth';
+import { ProfileUpdateData, PasswordChangeData } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -18,6 +20,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Loader2,
@@ -32,7 +35,11 @@ import {
   CheckCircle2,
   Image as ImageIcon,
   Upload,
-  X
+  X,
+  User as UserIcon,
+  Lock,
+  Bell,
+  Briefcase
 } from 'lucide-react';
 
 const tenantSettingsSchema = z.object({
@@ -48,11 +55,32 @@ const tenantSettingsSchema = z.object({
   primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color debe ser formato hexadecimal (ej: #6366f1)').optional(),
 });
 
+const profileSchema = z.object({
+  first_name: z.string().min(2, 'Nombre debe tener al menos 2 caracteres'),
+  last_name: z.string().min(2, 'Apellido debe tener al menos 2 caracteres'),
+  phone: z.string().optional(),
+  job_title: z.string().optional(),
+  department: z.string().optional(),
+  bio: z.string().optional(),
+  receive_notifications: z.boolean().optional(),
+});
+
+const passwordChangeSchema = z.object({
+  current_password: z.string().min(1, 'Contraseña actual requerida'),
+  new_password: z.string().min(8, 'La nueva contraseña debe tener al menos 8 caracteres'),
+  confirm_password: z.string().min(8, 'Confirmación requerida'),
+}).refine((data) => data.new_password === data.confirm_password, {
+  message: "Las contraseñas no coinciden",
+  path: ["confirm_password"],
+});
+
 type TenantSettingsFormData = z.infer<typeof tenantSettingsSchema>;
+type ProfileFormData = z.infer<typeof profileSchema>;
+type PasswordChangeFormData = z.infer<typeof passwordChangeSchema>;
 
 export default function TenantSettingsPage() {
   const router = useRouter();
-  const { user, tenant: authTenant, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, tenant: authTenant, isAuthenticated, isLoading: authLoading, refreshTenant, refreshUser } = useAuth();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,6 +89,18 @@ export default function TenantSettingsPage() {
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
+  // Profile states
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string>('');
+  const [profileSuccess, setProfileSuccess] = useState<string>('');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+  // Password change states
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string>('');
+  const [passwordSuccess, setPasswordSuccess] = useState<string>('');
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -68,6 +108,7 @@ export default function TenantSettingsPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
+  // Tenant settings form
   const {
     register,
     handleSubmit,
@@ -75,6 +116,27 @@ export default function TenantSettingsPage() {
     formState: { errors },
   } = useForm<TenantSettingsFormData>({
     resolver: zodResolver(tenantSettingsSchema),
+  });
+
+  // Profile form
+  const {
+    register: registerProfile,
+    handleSubmit: handleSubmitProfile,
+    setValue: setValueProfile,
+    watch: watchProfile,
+    formState: { errors: profileErrors },
+  } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
+  });
+
+  // Password change form
+  const {
+    register: registerPassword,
+    handleSubmit: handleSubmitPassword,
+    reset: resetPassword,
+    formState: { errors: passwordErrors },
+  } = useForm<PasswordChangeFormData>({
+    resolver: zodResolver(passwordChangeSchema),
   });
 
   // Load tenant settings
@@ -104,8 +166,14 @@ export default function TenantSettingsPage() {
       setValue('postal_code', data.postal_code || '');
       setValue('primary_color', data.primary_color || '#6366f1');
 
-      // Set logo preview
-      setLogoPreview(data.logo || null);
+      // Set logo preview - prepend API URL if logo is a relative path
+      if (data.logo) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const logoUrl = data.logo.startsWith('http') ? data.logo : `${apiUrl}${data.logo}`;
+        setLogoPreview(logoUrl);
+      } else {
+        setLogoPreview(null);
+      }
     } catch (err: any) {
       console.error('Error loading tenant settings:', err);
       setError('Error al cargar la configuración del tenant');
@@ -136,6 +204,9 @@ export default function TenantSettingsPage() {
       const response = await tenantsAPI.updateSettings(updateData);
       setTenant(response.tenant);
       setSuccessMessage('Configuración actualizada exitosamente');
+
+      // Refresh tenant in auth context
+      await refreshTenant();
 
       // Clear success message after 5 seconds
       setTimeout(() => setSuccessMessage(''), 5000);
@@ -193,8 +264,22 @@ export default function TenantSettingsPage() {
 
       const response = await tenantsAPI.uploadLogo(file);
       setTenant(response.tenant);
-      setLogoPreview(response.tenant.logo || null);
+
+      // Set logo preview - prepend API URL if logo is a relative path
+      if (response.tenant.logo) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const logoUrl = response.tenant.logo.startsWith('http')
+          ? response.tenant.logo
+          : `${apiUrl}${response.tenant.logo}`;
+        setLogoPreview(logoUrl);
+      } else {
+        setLogoPreview(null);
+      }
+
       setSuccessMessage('Logo actualizado exitosamente');
+
+      // Refresh tenant in auth context so logo appears in dashboard header
+      await refreshTenant();
 
       // Clear success message after 5 seconds
       setTimeout(() => setSuccessMessage(''), 5000);
@@ -252,6 +337,9 @@ export default function TenantSettingsPage() {
       setLogoPreview(null);
       setSuccessMessage('Logo eliminado exitosamente');
 
+      // Refresh tenant in auth context
+      await refreshTenant();
+
       // Clear success message after 5 seconds
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err: any) {
@@ -267,8 +355,161 @@ export default function TenantSettingsPage() {
       }
 
       setError('Error al eliminar el logo');
-    } finally {
+    } finally{
       setIsUploadingLogo(false);
+    }
+  };
+
+  // Load user profile
+  useEffect(() => {
+    if (user) {
+      setValueProfile('first_name', user.first_name);
+      setValueProfile('last_name', user.last_name);
+      setValueProfile('phone', user.phone || '');
+      setValueProfile('job_title', user.job_title || '');
+      setValueProfile('department', user.department || '');
+      setValueProfile('bio', user.bio || '');
+      setValueProfile('receive_notifications', user.receive_notifications);
+
+      // Set avatar preview
+      if (user.avatar) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const avatarUrl = user.avatar.startsWith('http') ? user.avatar : `${apiUrl}${user.avatar}`;
+        setAvatarPreview(avatarUrl);
+      }
+    }
+  }, [user]);
+
+  // Handle profile update
+  const onProfileSubmit = async (data: ProfileFormData) => {
+    try {
+      setIsSavingProfile(true);
+      setProfileError('');
+      setProfileSuccess('');
+
+      const updateData: ProfileUpdateData = {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone || undefined,
+        job_title: data.job_title || undefined,
+        department: data.department || undefined,
+        bio: data.bio || undefined,
+        receive_notifications: data.receive_notifications,
+      };
+
+      await authAPI.updateProfile(updateData);
+      await refreshUser();
+      setProfileSuccess('Perfil actualizado exitosamente');
+      setTimeout(() => setProfileSuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error updating profile:', err);
+      setProfileError(err.response?.data?.error || 'Error al actualizar el perfil');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // Handle avatar upload
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setProfileError('Por favor selecciona un archivo de imagen válido');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileError('La imagen debe ser menor a 5MB');
+      return;
+    }
+
+    try {
+      setIsUploadingAvatar(true);
+      setProfileError('');
+      setProfileSuccess('');
+
+      await authAPI.updateProfile({ avatar: file });
+      await refreshUser();
+
+      // Update preview
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const freshUser = await authAPI.getProfile();
+      if (freshUser.avatar) {
+        const avatarUrl = freshUser.avatar.startsWith('http')
+          ? freshUser.avatar
+          : `${apiUrl}${freshUser.avatar}`;
+        setAvatarPreview(avatarUrl);
+      }
+
+      setProfileSuccess('Avatar actualizado exitosamente');
+      setTimeout(() => setProfileSuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error uploading avatar:', err);
+      setProfileError('Error al subir el avatar');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  // Handle avatar remove
+  const handleAvatarRemove = async () => {
+    if (!confirm('¿Estás seguro de que deseas eliminar tu foto de perfil?')) {
+      return;
+    }
+
+    try {
+      setIsUploadingAvatar(true);
+      setProfileError('');
+      setProfileSuccess('');
+
+      await authAPI.updateProfile({ avatar: null });
+      await refreshUser();
+      setAvatarPreview(null);
+      setProfileSuccess('Foto de perfil eliminada exitosamente');
+      setTimeout(() => setProfileSuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error removing avatar:', err);
+      setProfileError('Error al eliminar la foto de perfil');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  // Handle password change
+  const onPasswordSubmit = async (data: PasswordChangeFormData) => {
+    try {
+      setIsChangingPassword(true);
+      setPasswordError('');
+      setPasswordSuccess('');
+
+      await authAPI.changePassword({
+        current_password: data.current_password,
+        new_password: data.new_password,
+        confirm_password: data.confirm_password,
+      });
+
+      setPasswordSuccess('Contraseña cambiada exitosamente');
+      resetPassword();
+      setTimeout(() => setPasswordSuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error changing password:', err);
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        if (errorData.current_password) {
+          setPasswordError(`Contraseña actual: ${errorData.current_password[0]}`);
+        } else if (errorData.new_password) {
+          setPasswordError(`Nueva contraseña: ${errorData.new_password[0]}`);
+        } else if (errorData.error) {
+          setPasswordError(errorData.error);
+        } else {
+          setPasswordError('Error al cambiar la contraseña');
+        }
+      } else {
+        setPasswordError('Error al conectar con el servidor');
+      }
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -349,8 +590,315 @@ export default function TenantSettingsPage() {
             <p className="text-gray-600">Cargando configuración...</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="space-y-6">
+          <div className="space-y-6">
+            {/* Personal Profile */}
+            <form onSubmit={handleSubmitProfile(onProfileSubmit)}>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserIcon className="h-5 w-5 text-blue-600" />
+                    Perfil Personal
+                  </CardTitle>
+                  <CardDescription>
+                    Tu información personal y preferencias
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Profile Success/Error Messages */}
+                  {profileSuccess && (
+                    <Alert className="bg-green-50 border-green-200">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800">
+                        {profileSuccess}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {profileError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{profileError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Avatar Section */}
+                  <div className="flex items-start gap-6">
+                    <div className="flex-shrink-0">
+                      {avatarPreview ? (
+                        <div className="relative">
+                          <img
+                            src={avatarPreview}
+                            alt="Avatar"
+                            className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
+                          />
+                          {!isUploadingAvatar && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute -top-1 -right-1 h-6 w-6 rounded-full p-0"
+                              onClick={handleAvatarRemove}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center border-2 border-gray-200">
+                          <UserIcon className="h-12 w-12 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Label>Foto de Perfil</Label>
+                      <div className="flex gap-2">
+                        <label htmlFor="avatar-upload">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isUploadingAvatar}
+                            onClick={() => document.getElementById('avatar-upload')?.click()}
+                          >
+                            {isUploadingAvatar ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Subiendo...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="mr-2 h-4 w-4" />
+                                {avatarPreview ? 'Cambiar Foto' : 'Subir Foto'}
+                              </>
+                            )}
+                          </Button>
+                        </label>
+                        <input
+                          id="avatar-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarUpload}
+                          disabled={isUploadingAvatar}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        PNG, JPG o GIF. Máximo 5MB.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Name Fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="first_name">
+                        Nombre <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="first_name"
+                        {...registerProfile('first_name')}
+                        disabled={isSavingProfile}
+                      />
+                      {profileErrors.first_name && (
+                        <p className="text-sm text-red-500">{profileErrors.first_name.message}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="last_name">
+                        Apellido <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="last_name"
+                        {...registerProfile('last_name')}
+                        disabled={isSavingProfile}
+                      />
+                      {profileErrors.last_name && (
+                        <p className="text-sm text-red-500">{profileErrors.last_name.message}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Email (read-only) */}
+                  <div className="space-y-2">
+                    <Label htmlFor="profile_email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="profile_email"
+                        type="email"
+                        value={user?.email || ''}
+                        className="pl-10 bg-gray-50"
+                        disabled
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      El email no puede ser modificado
+                    </p>
+                  </div>
+
+                  {/* Phone & Job Info */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="profile_phone">Teléfono</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="profile_phone"
+                          type="tel"
+                          placeholder="+58 212 1234567"
+                          className="pl-10"
+                          {...registerProfile('phone')}
+                          disabled={isSavingProfile}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="job_title">Cargo / Puesto</Label>
+                      <div className="relative">
+                        <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="job_title"
+                          placeholder="Ej: Gerente General"
+                          className="pl-10"
+                          {...registerProfile('job_title')}
+                          disabled={isSavingProfile}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Department & Bio */}
+                  <div className="space-y-2">
+                    <Label htmlFor="department">Departamento</Label>
+                    <Input
+                      id="department"
+                      placeholder="Ej: Administración"
+                      {...registerProfile('department')}
+                      disabled={isSavingProfile}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Biografía</Label>
+                    <Textarea
+                      id="bio"
+                      placeholder="Cuéntanos sobre ti..."
+                      rows={3}
+                      {...registerProfile('bio')}
+                      disabled={isSavingProfile}
+                    />
+                  </div>
+
+                  {/* Notifications */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="receive_notifications"
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      {...registerProfile('receive_notifications')}
+                      disabled={isSavingProfile}
+                    />
+                    <Label htmlFor="receive_notifications" className="flex items-center gap-2 cursor-pointer">
+                      <Bell className="h-4 w-4 text-gray-600" />
+                      Recibir notificaciones por email
+                    </Label>
+                  </div>
+
+                  {/* Profile Actions */}
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={isSavingProfile}>
+                      {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Save className="mr-2 h-4 w-4" />
+                      Guardar Perfil
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </form>
+
+            {/* Change Password */}
+            <form onSubmit={handleSubmitPassword(onPasswordSubmit)}>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Lock className="h-5 w-5 text-blue-600" />
+                    Cambiar Contraseña
+                  </CardTitle>
+                  <CardDescription>
+                    Actualiza tu contraseña para mayor seguridad
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Password Success/Error Messages */}
+                  {passwordSuccess && (
+                    <Alert className="bg-green-50 border-green-200">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800">
+                        {passwordSuccess}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {passwordError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{passwordError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="current_password">Contraseña Actual</Label>
+                    <Input
+                      id="current_password"
+                      type="password"
+                      {...registerPassword('current_password')}
+                      disabled={isChangingPassword}
+                    />
+                    {passwordErrors.current_password && (
+                      <p className="text-sm text-red-500">{passwordErrors.current_password.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="new_password">Nueva Contraseña</Label>
+                    <Input
+                      id="new_password"
+                      type="password"
+                      {...registerPassword('new_password')}
+                      disabled={isChangingPassword}
+                    />
+                    {passwordErrors.new_password && (
+                      <p className="text-sm text-red-500">{passwordErrors.new_password.message}</p>
+                    )}
+                    <p className="text-xs text-gray-500">
+                      Mínimo 8 caracteres
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm_password">Confirmar Nueva Contraseña</Label>
+                    <Input
+                      id="confirm_password"
+                      type="password"
+                      {...registerPassword('confirm_password')}
+                      disabled={isChangingPassword}
+                    />
+                    {passwordErrors.confirm_password && (
+                      <p className="text-sm text-red-500">{passwordErrors.confirm_password.message}</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={isChangingPassword}>
+                      {isChangingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Lock className="mr-2 h-4 w-4" />
+                      Cambiar Contraseña
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </form>
+
+            {/* Tenant Settings Form */}
+            <form onSubmit={handleSubmit(onSubmit)}>
               {/* Business Information */}
               <Card>
                 <CardHeader>
@@ -662,21 +1210,21 @@ export default function TenantSettingsPage() {
                 </Card>
               )}
 
-              {/* Actions */}
-              <div className="flex justify-end gap-3">
-                <Link href="/dashboard">
-                  <Button type="button" variant="outline" disabled={isSaving}>
-                    Cancelar
+                {/* Actions */}
+                <div className="flex justify-end gap-3">
+                  <Link href="/dashboard">
+                    <Button type="button" variant="outline" disabled={isSaving}>
+                      Cancelar
+                    </Button>
+                  </Link>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Save className="mr-2 h-4 w-4" />
+                    Guardar Cambios del Tenant
                   </Button>
-                </Link>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar Cambios
-                </Button>
-              </div>
+                </div>
+              </form>
             </div>
-          </form>
         )}
       </div>
     </div>

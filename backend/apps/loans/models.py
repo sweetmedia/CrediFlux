@@ -180,6 +180,7 @@ class Loan(UUIDModel, AuditModel):
     # Dates
     application_date = models.DateField(default=timezone.now)
     approval_date = models.DateField(blank=True, null=True)
+    rejection_date = models.DateField(blank=True, null=True)
     disbursement_date = models.DateField(blank=True, null=True)
     first_payment_date = models.DateField(blank=True, null=True)
     maturity_date = models.DateField(blank=True, null=True)
@@ -231,6 +232,25 @@ class Loan(UUIDModel, AuditModel):
         related_name='managed_loans'
     )
 
+    # Approval/Rejection tracking
+    approved_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_loans',
+        help_text='User who approved this loan'
+    )
+    rejected_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rejected_loans',
+        help_text='User who rejected this loan'
+    )
+    approval_notes = models.TextField(blank=True, null=True, help_text='Notes from approval/rejection')
+
     # Additional Information
     purpose = models.TextField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
@@ -277,6 +297,8 @@ class Loan(UUIDModel, AuditModel):
             self.loan_number = f"LN-{timezone.now().year}-{uuid.uuid4().hex[:8].upper()}"
         if self.status == 'approved' and not self.approval_date:
             self.approval_date = timezone.now().date()
+        if self.status == 'rejected' and not self.rejection_date:
+            self.rejection_date = timezone.now().date()
         super().save(*args, **kwargs)
 
     @property
