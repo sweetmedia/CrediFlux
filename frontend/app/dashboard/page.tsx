@@ -21,6 +21,7 @@ import {
   Building2,
   FileText,
   CreditCard,
+  Settings,
 } from 'lucide-react';
 import type { LoanStatistics, Loan, LoanPayment } from '@/types';
 
@@ -167,11 +168,20 @@ export default function DashboardPage() {
                 Préstamos
               </Link>
               <Link
-                href="/loans/customers"
+                href="/customers"
                 className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
               >
                 Clientes
               </Link>
+              {(user?.is_tenant_owner || user?.role === 'admin') && (
+                <Link
+                  href="/settings"
+                  className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1"
+                >
+                  <Settings className="h-3 w-3" />
+                  Configuración
+                </Link>
+              )}
             </nav>
 
             <div className="flex items-center space-x-4">
@@ -411,19 +421,23 @@ export default function DashboardPage() {
                   <span>Nuevo Préstamo</span>
                 </Link>
               </Button>
-              <Button variant="outline" className="h-24 flex-col">
-                <DollarSign className="h-6 w-6 mb-2" />
-                <span>Registrar Pago</span>
+              <Button variant="outline" className="h-24 flex-col" asChild>
+                <Link href="/payments/new">
+                  <DollarSign className="h-6 w-6 mb-2" />
+                  <span>Registrar Pago</span>
+                </Link>
               </Button>
               <Button variant="outline" className="h-24 flex-col" asChild>
-                <Link href="/loans/customers/new">
+                <Link href="/customers/new">
                   <Users className="h-6 w-6 mb-2" />
                   <span>Agregar Cliente</span>
                 </Link>
               </Button>
-              <Button variant="outline" className="h-24 flex-col">
-                <AlertCircle className="h-6 w-6 mb-2" />
-                <span>Ver Morosos</span>
+              <Button variant="outline" className="h-24 flex-col" asChild>
+                <Link href="/loans/overdue">
+                  <AlertCircle className="h-6 w-6 mb-2" />
+                  <span>Ver Morosos</span>
+                </Link>
               </Button>
             </div>
           </CardContent>

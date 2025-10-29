@@ -13,6 +13,9 @@ def update_loan_on_payment(sender, instance, created, **kwargs):
     Update loan balances and schedules when a payment is made
     """
     if created and instance.status == 'completed':
+        from moneyed import Money
+        from decimal import Decimal
+
         loan = instance.loan
 
         # Update total paid
@@ -22,10 +25,11 @@ def update_loan_on_payment(sender, instance, created, **kwargs):
         # Update outstanding balance
         loan.outstanding_balance -= instance.principal_paid
 
-        # Check if loan is fully paid
-        if loan.outstanding_balance <= 0:
+        # Check if loan is fully paid - compare with Money object
+        zero_amount = Money(Decimal('0'), loan.outstanding_balance.currency)
+        if loan.outstanding_balance <= zero_amount:
             loan.status = 'paid'
-            loan.outstanding_balance = 0
+            loan.outstanding_balance = zero_amount
 
         loan.save()
 
@@ -37,8 +41,11 @@ def update_loan_on_payment(sender, instance, created, **kwargs):
             if schedule.paid_amount >= schedule.total_amount:
                 schedule.status = 'paid'
                 schedule.paid_date = instance.payment_date
-            elif schedule.paid_amount > 0:
-                schedule.status = 'partial'
+            else:
+                # Compare with Money object
+                zero_schedule = Money(Decimal('0'), schedule.paid_amount.currency)
+                if schedule.paid_amount > zero_schedule:
+                    schedule.status = 'partial'
 
             schedule.save()
 

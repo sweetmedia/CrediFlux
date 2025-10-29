@@ -272,9 +272,41 @@ class TenantSerializer(serializers.ModelSerializer):
             'id', 'name', 'schema_name', 'business_name', 'tax_id',
             'email', 'phone', 'address', 'city', 'state', 'country',
             'postal_code', 'is_active', 'max_users', 'subscription_plan',
-            'created_on', 'updated_on'
+            'primary_color', 'created_on', 'updated_on'
         ]
         read_only_fields = ['id', 'schema_name', 'created_on', 'updated_on']
+
+
+class TenantUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating tenant settings"""
+
+    class Meta:
+        model = Tenant
+        fields = [
+            'business_name', 'tax_id', 'email', 'phone',
+            'address', 'city', 'state', 'country', 'postal_code',
+            'primary_color'
+        ]
+
+    def validate_email(self, value):
+        """Validate email format"""
+        if not value:
+            raise serializers.ValidationError("Email is required.")
+        return value
+
+    def validate_business_name(self, value):
+        """Validate business name"""
+        if not value or len(value.strip()) < 2:
+            raise serializers.ValidationError("Business name must be at least 2 characters long.")
+        return value
+
+    def validate_primary_color(self, value):
+        """Validate hex color format"""
+        if value:
+            import re
+            if not re.match(r'^#[0-9A-Fa-f]{6}$', value):
+                raise serializers.ValidationError("Primary color must be a valid hex color (e.g., #6366f1).")
+        return value
 
 
 class TenantLoginSerializer(serializers.Serializer):

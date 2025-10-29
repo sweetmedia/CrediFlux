@@ -12,10 +12,10 @@ app_name = 'loans'
 
 router = DefaultRouter()
 router.register(r'customers', CustomerViewSet, basename='customer')
-router.register(r'', LoanViewSet, basename='loan')
 router.register(r'payments', LoanPaymentViewSet, basename='payment')
 router.register(r'schedules', LoanScheduleViewSet, basename='schedule')
 router.register(r'collaterals', CollateralViewSet, basename='collateral')
+router.register(r'', LoanViewSet, basename='loan')  # Root viewset must be last
 
 urlpatterns = [
     path('', include(router.urls)),

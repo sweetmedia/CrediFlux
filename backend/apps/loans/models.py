@@ -144,8 +144,7 @@ class Loan(UUIDModel, AuditModel):
     principal_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
-        validators=[MinValueValidator(Decimal('0.01'))]
+        default_currency='USD'
     )
     interest_rate = models.DecimalField(
         max_digits=5,
@@ -254,6 +253,24 @@ class Loan(UUIDModel, AuditModel):
     def __str__(self):
         return f"{self.loan_number} - {self.customer.get_full_name()}"
 
+    def clean(self):
+        """Validate Money fields"""
+        from django.core.exceptions import ValidationError
+        from decimal import Decimal
+
+        errors = {}
+
+        # Validate principal_amount
+        if self.principal_amount and self.principal_amount.amount <= Decimal('0'):
+            errors['principal_amount'] = 'Principal amount must be greater than 0'
+
+        # Validate payment_amount
+        if self.payment_amount and self.payment_amount.amount <= Decimal('0'):
+            errors['payment_amount'] = 'Payment amount must be greater than 0'
+
+        if errors:
+            raise ValidationError(errors)
+
     def save(self, *args, **kwargs):
         if not self.loan_number:
             # Generate unique loan number
@@ -265,7 +282,18 @@ class Loan(UUIDModel, AuditModel):
     @property
     def total_amount(self):
         """Calculate total amount to be repaid (principal + interest)"""
-        return self.principal_amount * (1 + (self.interest_rate / 100) * (self.term_months / 12))
+        from decimal import Decimal
+        # Convert all operations to Decimal to avoid float/Decimal mixing
+        interest_rate_decimal = Decimal(str(self.interest_rate))
+        term_months_decimal = Decimal(str(self.term_months))
+
+        # Calculate: principal * (1 + (rate/100) * (months/12))
+        interest_multiplier = Decimal('1') + (interest_rate_decimal / Decimal('100')) * (term_months_decimal / Decimal('12'))
+
+        # For Money objects, multiply the amount and keep the currency
+        from moneyed import Money
+        total = Money(self.principal_amount.amount * interest_multiplier, self.principal_amount.currency)
+        return total
 
     @property
     def is_overdue(self):
@@ -362,8 +390,7 @@ class LoanPayment(UUIDModel, AuditModel):
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
-        validators=[MinValueValidator(Decimal('0.01'))]
+        default_currency='USD'
     )
 
     # Amount allocation
@@ -420,6 +447,20 @@ class LoanPayment(UUIDModel, AuditModel):
 
     def __str__(self):
         return f"{self.payment_number} - {self.amount}"
+
+    def clean(self):
+        """Validate Money fields"""
+        from django.core.exceptions import ValidationError
+        from decimal import Decimal
+
+        errors = {}
+
+        # Validate amount
+        if self.amount and self.amount.amount <= Decimal('0'):
+            errors['amount'] = 'Payment amount must be greater than 0'
+
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         if not self.payment_number:

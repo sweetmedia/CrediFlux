@@ -265,6 +265,13 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
     ordering_fields = ['payment_date', 'created_at', 'amount']
     ordering = ['-payment_date']
 
+    def get_serializer_class(self):
+        """Use different serializers for create vs read"""
+        from .serializers import LoanPaymentCreateSerializer
+        if self.action in ['create', 'update', 'partial_update']:
+            return LoanPaymentCreateSerializer
+        return LoanPaymentSerializer
+
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 

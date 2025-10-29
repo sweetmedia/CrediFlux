@@ -11,6 +11,9 @@ class CustomerSerializer(serializers.ModelSerializer):
     total_loans = serializers.SerializerMethodField()
     active_loans = serializers.SerializerMethodField()
 
+    # Convert Money fields to decimal for frontend
+    monthly_income = serializers.SerializerMethodField()
+
     class Meta:
         model = Customer
         fields = [
@@ -30,6 +33,9 @@ class CustomerSerializer(serializers.ModelSerializer):
     def get_active_loans(self, obj):
         return obj.loans.filter(status='active').count()
 
+    def get_monthly_income(self, obj):
+        return float(obj.monthly_income.amount) if obj.monthly_income else None
+
 
 class CustomerListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for customer list"""
@@ -45,6 +51,9 @@ class CustomerListSerializer(serializers.ModelSerializer):
 
 class CollateralSerializer(serializers.ModelSerializer):
     """Serializer for Collateral model"""
+    # Convert Money fields to decimal for frontend
+    estimated_value = serializers.DecimalField(source='estimated_value.amount', max_digits=14, decimal_places=2)
+    appraisal_value = serializers.DecimalField(source='appraisal_value.amount', max_digits=14, decimal_places=2, allow_null=True, required=False)
 
     class Meta:
         model = Collateral
@@ -59,12 +68,12 @@ class CollateralSerializer(serializers.ModelSerializer):
 
 class LoanScheduleSerializer(serializers.ModelSerializer):
     """Serializer for LoanSchedule model"""
-    balance = serializers.DecimalField(
-        source='balance.amount',
-        max_digits=14,
-        decimal_places=2,
-        read_only=True
-    )
+    # Convert Money fields to decimal for frontend
+    total_amount = serializers.DecimalField(source='total_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    principal_amount = serializers.DecimalField(source='principal_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    interest_amount = serializers.DecimalField(source='interest_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    paid_amount = serializers.DecimalField(source='paid_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    balance = serializers.DecimalField(source='balance.amount', max_digits=14, decimal_places=2, read_only=True)
 
     class Meta:
         model = LoanSchedule
@@ -78,9 +87,15 @@ class LoanScheduleSerializer(serializers.ModelSerializer):
 
 
 class LoanPaymentSerializer(serializers.ModelSerializer):
-    """Serializer for LoanPayment model"""
+    """Serializer for LoanPayment model (read-only)"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
+
+    # Convert Money fields to decimal for frontend
+    amount = serializers.DecimalField(source='amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    principal_paid = serializers.DecimalField(source='principal_paid.amount', max_digits=14, decimal_places=2, read_only=True)
+    interest_paid = serializers.DecimalField(source='interest_paid.amount', max_digits=14, decimal_places=2, read_only=True)
+    late_fee_paid = serializers.DecimalField(source='late_fee_paid.amount', max_digits=14, decimal_places=2, read_only=True)
 
     class Meta:
         model = LoanPayment
@@ -94,17 +109,87 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'payment_number', 'created_at', 'updated_at']
 
 
+class LoanPaymentCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating LoanPayment (write-only)"""
+
+    class Meta:
+        model = LoanPayment
+        fields = [
+            'loan', 'schedule', 'payment_date', 'amount',
+            'principal_paid', 'interest_paid', 'late_fee_paid',
+            'payment_method', 'reference_number', 'status', 'notes'
+        ]
+
+    def validate_amount(self, value):
+        """Validate that amount is positive"""
+        from decimal import Decimal
+        if value.amount <= Decimal('0'):
+            raise serializers.ValidationError("Payment amount must be greater than 0")
+        return value
+
+    def create(self, validated_data):
+        """Calculate principal_paid and interest_paid automatically"""
+        from moneyed import Money
+        from decimal import Decimal
+
+        loan = validated_data['loan']
+        amount = validated_data['amount']
+        schedule = validated_data.get('schedule')
+
+        # If schedule is provided, use it to determine interest vs principal
+        if schedule:
+            # Calculate remaining amounts in the schedule
+            paid_amount = schedule.paid_amount if schedule.paid_amount else Money(0, schedule.total_amount.currency)
+            remaining_total = schedule.total_amount - paid_amount
+
+            # Calculate what portion is interest vs principal in this payment
+            if remaining_total.amount > 0:
+                interest_ratio = schedule.interest_amount.amount / schedule.total_amount.amount
+                payment_interest = Money(min(amount.amount * interest_ratio, schedule.interest_amount.amount), amount.currency)
+                payment_principal = Money(amount.amount - payment_interest.amount, amount.currency)
+            else:
+                # Schedule already paid, everything goes to principal
+                payment_interest = Money(0, amount.currency)
+                payment_principal = amount
+
+            validated_data['interest_paid'] = payment_interest
+            validated_data['principal_paid'] = payment_principal
+        else:
+            # No schedule - calculate interest based on outstanding balance and rate
+            # Simple calculation: pay interest first based on monthly rate
+            monthly_rate = loan.interest_rate / Decimal('100') / Decimal('12')
+            interest_amount = loan.outstanding_balance.amount * monthly_rate
+
+            if amount.amount >= interest_amount:
+                validated_data['interest_paid'] = Money(interest_amount, amount.currency)
+                validated_data['principal_paid'] = Money(amount.amount - interest_amount, amount.currency)
+            else:
+                # Payment doesn't cover all interest
+                validated_data['interest_paid'] = amount
+                validated_data['principal_paid'] = Money(0, amount.currency)
+
+        # Set late_fee_paid to 0 if not provided
+        if 'late_fee_paid' not in validated_data:
+            validated_data['late_fee_paid'] = Money(0, amount.currency)
+
+        return super().create(validated_data)
+
+
 class LoanSerializer(serializers.ModelSerializer):
     """Full serializer for Loan model"""
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     customer_details = CustomerListSerializer(source='customer', read_only=True)
     loan_officer_name = serializers.CharField(source='loan_officer.get_full_name', read_only=True)
-    total_amount = serializers.DecimalField(
-        source='total_amount.amount',
-        max_digits=14,
-        decimal_places=2,
-        read_only=True
-    )
+
+    # Convert Money fields to decimal for frontend
+    principal_amount = serializers.DecimalField(source='principal_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    payment_amount = serializers.DecimalField(source='payment_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    outstanding_balance = serializers.DecimalField(source='outstanding_balance.amount', max_digits=14, decimal_places=2, read_only=True)
+    total_paid = serializers.DecimalField(source='total_paid.amount', max_digits=14, decimal_places=2, read_only=True)
+    total_interest_paid = serializers.DecimalField(source='total_interest_paid.amount', max_digits=14, decimal_places=2, read_only=True)
+    late_fees = serializers.DecimalField(source='late_fees.amount', max_digits=14, decimal_places=2, read_only=True)
+    total_amount = serializers.DecimalField(source='total_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+
     is_overdue = serializers.BooleanField(read_only=True)
     collaterals = CollateralSerializer(many=True, read_only=True)
     payment_schedules = LoanScheduleSerializer(many=True, read_only=True)
@@ -139,13 +224,27 @@ class LoanListSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
 
+    # Use SerializerMethodField to convert Money to decimal
+    principal_amount = serializers.SerializerMethodField()
+    outstanding_balance = serializers.SerializerMethodField()
+    total_paid = serializers.SerializerMethodField()
+
     class Meta:
         model = Loan
         fields = [
             'id', 'loan_number', 'customer_name', 'loan_type',
-            'principal_amount', 'outstanding_balance', 'status',
+            'principal_amount', 'interest_rate', 'outstanding_balance', 'total_paid', 'status',
             'disbursement_date', 'is_overdue', 'created_at'
         ]
+
+    def get_principal_amount(self, obj):
+        return float(obj.principal_amount.amount) if obj.principal_amount else 0
+
+    def get_outstanding_balance(self, obj):
+        return float(obj.outstanding_balance.amount) if obj.outstanding_balance else 0
+
+    def get_total_paid(self, obj):
+        return float(obj.total_paid.amount) if obj.total_paid else 0
 
 
 class LoanCreateSerializer(serializers.ModelSerializer):
@@ -161,8 +260,12 @@ class LoanCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
+        from decimal import Decimal
+        from moneyed import Money
+
         # Add custom validation here
-        if attrs['principal_amount'] <= 0:
+        # For Money fields, compare with Money objects or use .amount attribute
+        if attrs['principal_amount'].amount <= 0:
             raise serializers.ValidationError("Principal amount must be greater than 0")
 
         if attrs['interest_rate'] < 0 or attrs['interest_rate'] > 100:

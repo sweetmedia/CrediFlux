@@ -4,10 +4,15 @@ API views for Tenant management
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from .serializers import TenantRegistrationSerializer, TenantSerializer, TenantLoginSerializer
+from .serializers import (
+    TenantRegistrationSerializer,
+    TenantSerializer,
+    TenantLoginSerializer,
+    TenantUpdateSerializer
+)
 
 
 class TenantRegistrationView(APIView):
@@ -283,6 +288,173 @@ class TenantLoginView(APIView):
             )
 
         # Return validation errors
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class TenantSettingsView(APIView):
+    """
+    Endpoint for retrieving and updating current tenant settings.
+
+    **GET:** Get current tenant information
+    **PUT/PATCH:** Update current tenant settings
+
+    **Authentication:** Required (user must be logged in)
+    **Permissions:** User must belong to a tenant
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_id='get_tenant_settings',
+        operation_description='Get current tenant information and settings',
+        responses={
+            200: openapi.Response(
+                description='Tenant information retrieved successfully',
+                schema=TenantSerializer
+            ),
+            403: openapi.Response(
+                description='User does not belong to a tenant',
+                examples={
+                    'application/json': {
+                        'error': 'You do not belong to any tenant.'
+                    }
+                }
+            )
+        },
+        tags=['Tenant Settings']
+    )
+    def get(self, request):
+        """
+        Get current tenant information.
+
+        Returns all tenant details including business information, address, and settings.
+        """
+        # Get user's tenant
+        user = request.user
+
+        if not user.tenant:
+            return Response(
+                {'error': 'You do not belong to any tenant.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = TenantSerializer(user.tenant)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        operation_id='update_tenant_settings',
+        operation_description='Update current tenant settings',
+        request_body=TenantUpdateSerializer,
+        responses={
+            200: openapi.Response(
+                description='Tenant settings updated successfully',
+                schema=TenantSerializer
+            ),
+            400: openapi.Response(
+                description='Validation error',
+                examples={
+                    'application/json': {
+                        'email': ['This field is required.'],
+                        'business_name': ['Business name must be at least 2 characters long.']
+                    }
+                }
+            ),
+            403: openapi.Response(
+                description='Permission denied',
+                examples={
+                    'application/json': {
+                        'error': 'You do not have permission to update tenant settings.'
+                    }
+                }
+            )
+        },
+        tags=['Tenant Settings']
+    )
+    def put(self, request):
+        """
+        Update current tenant settings (full update).
+
+        Example request body:
+        ```json
+        {
+            "business_name": "Updated Company Name",
+            "tax_id": "12-3456789",
+            "email": "contact@company.com",
+            "phone": "+1234567890",
+            "address": "123 Main St",
+            "city": "New York",
+            "state": "NY",
+            "country": "USA",
+            "postal_code": "10001",
+            "primary_color": "#6366f1"
+        }
+        ```
+        """
+        return self._update_tenant(request, partial=False)
+
+    @swagger_auto_schema(
+        operation_id='partial_update_tenant_settings',
+        operation_description='Partially update current tenant settings',
+        request_body=TenantUpdateSerializer,
+        responses={
+            200: openapi.Response(
+                description='Tenant settings updated successfully',
+                schema=TenantSerializer
+            ),
+            400: 'Validation error',
+            403: 'Permission denied'
+        },
+        tags=['Tenant Settings']
+    )
+    def patch(self, request):
+        """
+        Partially update current tenant settings.
+
+        You can update only the fields you want to change.
+        """
+        return self._update_tenant(request, partial=True)
+
+    def _update_tenant(self, request, partial=False):
+        """Helper method to update tenant"""
+        user = request.user
+
+        # Check if user belongs to a tenant
+        if not user.tenant:
+            return Response(
+                {'error': 'You do not belong to any tenant.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Check if user has permission (owner or admin)
+        if not (user.is_tenant_owner or user.role == 'admin'):
+            return Response(
+                {'error': 'You do not have permission to update tenant settings.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Update tenant
+        serializer = TenantUpdateSerializer(
+            user.tenant,
+            data=request.data,
+            partial=partial
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+
+            # Return updated tenant data
+            response_serializer = TenantSerializer(user.tenant)
+            return Response(
+                {
+                    'message': 'Tenant settings updated successfully.',
+                    'tenant': response_serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+
         return Response(
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
