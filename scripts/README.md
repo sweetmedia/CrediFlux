@@ -2,106 +2,118 @@
 
 Este directorio contiene scripts útiles para configurar y gestionar tu aplicación CrediFlux.
 
-## 🚀 Cloudflare Tunnel - Exponer tu App Online
+## 🚀 Cloudflare Quick Tunnel - Túnel GRATIS
 
-### 🎯 DOS OPCIONES DISPONIBLES:
+Expón tu aplicación online instantáneamente **sin cuenta, sin dominio, sin configuración**.
 
-#### Opción 1: Quick Tunnel GRATIS ⚡ (RECOMENDADO para testing)
+### ⚡ Inicio Super Rápido
 
 ```bash
 cd scripts
 ./quick-tunnel-free.sh
 ```
 
-**✅ NO requiere cuenta, NO requiere dominio, 100% GRATIS**
-- URL aleatoria tipo: `https://random-123.trycloudflare.com`
-- Temporal (mientras corre el script)
-- Ideal para testing rápido y demos
+### 🎯 Características
 
-**Ver documentación:** [QUICK_TUNNEL_FREE.md](QUICK_TUNNEL_FREE.md)
+- ✅ **100% GRATIS** - Sin costo alguno
+- ✅ **Sin cuenta** - No necesitas registrarte en Cloudflare
+- ✅ **Sin dominio** - No necesitas comprar dominio
+- ✅ **Sin configuración** - Zero setup, funciona inmediatamente
+- ✅ **URL aleatoria** - Tipo: `https://random-words-123.trycloudflare.com`
+- ✅ **Temporal** - Funciona mientras el script esté corriendo
 
-#### Opción 2: Tunnel Permanente con Tu Dominio 🏢
+### 📋 Ejemplo de Uso
 
 ```bash
-cd scripts
-./quick-tunnel.sh
+$ cd scripts
+$ ./quick-tunnel-free.sh
+
+╔═══════════════════════════════════════════════════════════╗
+║      CloudFlare Quick Tunnel - GRATIS y TEMPORAL         ║
+╚═══════════════════════════════════════════════════════════╝
+
+✓ Frontend corriendo en http://localhost:3000
+✓ Backend corriendo en http://localhost:8000
+
+¿Qué servicio quieres exponer?
+  1) Frontend (Next.js)
+  2) Backend (Django API)
+  3) Ambos
+  4) Cancelar
+
+Selecciona: 1
+
+Iniciando túnel para FRONTEND...
+Your quick Tunnel has been created! Visit it at:
+https://amazing-voice-123.trycloudflare.com
+
+✓ Listo! Comparte esta URL con quien quieras!
 ```
 
-Este script interactivo te guiará paso a paso:
-1. ✅ Instala cloudflared
-2. ✅ Te autentica con Cloudflare
-3. ✅ Crea el túnel
-4. ✅ Configura tus dominios
-5. ✅ Inicia el túnel
+### 🎨 Opciones Disponibles
 
-**Requiere:** Cuenta de Cloudflare + Dominio propio
-**Ideal para:** Producción, demos profesionales, URLs permanentes
+**Opción 1: Solo Frontend**
+- Expone tu interfaz Next.js en una URL pública
+- Ideal para mostrar la UI a clientes o testers
 
-**Ver documentación:** [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)
+**Opción 2: Solo Backend**
+- Expone tu API Django en una URL pública
+- Perfecto para testing de webhooks o integraciones
 
-### Scripts Disponibles
+**Opción 3: Ambos Servicios**
+- Crea 2 túneles separados (frontend + backend)
+- Obtienes 2 URLs diferentes
+- Se abren en terminales separadas
 
-#### `quick-tunnel-free.sh` - Túnel Gratis Temporal ⚡ (NUEVO)
-Túnel sin cuenta, sin dominio. URL aleatoria instantánea.
+### 📝 Requisitos Previos
+
+1. **Tener Docker corriendo:**
+   ```bash
+   docker-compose up
+   ```
+
+2. **cloudflared instalado** (el script lo instala automáticamente si no lo tienes)
+
+### 🔧 Configuración para Ambos Servicios
+
+Si expones frontend y backend por separado, actualiza las variables de entorno:
+
+**Frontend (.env.local):**
+```env
+NEXT_PUBLIC_API_URL=https://tu-backend-url.trycloudflare.com
+```
+
+**Backend (.env):**
+```env
+CORS_ALLOWED_ORIGINS=https://tu-frontend-url.trycloudflare.com
+```
+
+Luego reinicia los servicios:
 ```bash
-./quick-tunnel-free.sh
+docker-compose restart
 ```
 
-#### `quick-tunnel.sh` - Todo en uno con Dominio ⭐
-Setup interactivo completo con menú de opciones (requiere cuenta).
+### 💡 Casos de Uso Ideales
+
+- 🎯 **Testing rápido** - Prueba con amigos o clientes sin desplegar
+- 📱 **Testing móvil** - Prueba en tu teléfono sin estar en la misma red
+- 🔗 **Webhooks** - Testing de APIs que necesitan URLs públicas
+- 👨‍💻 **Demos** - Comparte tu trabajo en progreso
+- 🐛 **Debug** - Reproduce problemas específicos con URLs públicas
+
+### ⚠️ Importante
+
+- La URL es **temporal** - Solo funciona mientras el script corre
+- La URL es **aleatoria** - Cambia cada vez que ejecutas el script
+- Para detener: Presiona `Ctrl+C`
+
+### 🔍 Troubleshooting
+
+**"Connection refused"**
 ```bash
-./quick-tunnel.sh
+# Tu servicio no está corriendo, inicia Docker:
+docker-compose up
 ```
-
-#### `setup-cloudflare-tunnel.sh` - Setup Manual
-Instala cloudflared y crea la configuración base.
-```bash
-./setup-cloudflare-tunnel.sh
-```
-
-#### `start-tunnel.sh` - Iniciar Túnel
-Inicia el túnel de Cloudflare (generado automáticamente).
-```bash
-./start-tunnel.sh
-```
-
-#### `tunnel-info.sh` - Ver Información
-Muestra información sobre túneles configurados.
-```bash
-./tunnel-info.sh
-```
-
-#### `cleanup-cloudflare-tunnel.sh` - Desinstalar
-Elimina completamente el túnel y su configuración.
-```bash
-./cleanup-cloudflare-tunnel.sh
-```
-
-### ¿Qué necesitas?
-
-- Una cuenta de Cloudflare (gratis): https://dash.cloudflare.com/sign-up
-- Un dominio agregado a Cloudflare
-- Docker Compose corriendo (tu app local)
-
-### Flujo de Trabajo
-
-```
-1. Configura una vez:
-   ./quick-tunnel.sh
-
-2. Cada vez que quieras exponer tu app:
-   ./start-tunnel.sh
-
-3. Tu app estará en:
-   https://tu-dominio.com
-
-4. Para detener: Ctrl+C
-
-5. Para limpiar todo:
-   ./cleanup-cloudflare-tunnel.sh
-```
-
-### Solución de Problemas
 
 **"cloudflared: command not found"**
 ```bash
@@ -113,70 +125,29 @@ wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudfla
 sudo dpkg -i cloudflared-linux-amd64.deb
 ```
 
-**"tunnel credentials file not found"**
-```bash
-# Copia manualmente las credenciales
-cp ~/.cloudflared/<UUID>.json .cloudflare/credentials.json
-```
-
 **CORS errors**
-Asegúrate de actualizar el backend .env:
-```env
-CORS_ALLOWED_ORIGINS=https://tu-dominio.com,http://localhost:3000
+```bash
+# Actualiza CORS_ALLOWED_ORIGINS en backend con la URL del túnel
 ```
 
-### Documentación Completa
-
-Para más detalles, ver: [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)
-
----
-
-## 📁 Estructura de Archivos
-
-Después de configurar el túnel:
-
+**"ERR_NAME_NOT_RESOLVED"**
+```bash
+# Espera 10-15 segundos, Cloudflare tarda en activar la URL
 ```
-scripts/
-├── README.md                          # Este archivo
-├── CLOUDFLARE_TUNNEL.md               # Documentación completa
-├── quick-tunnel.sh                    # ⭐ Setup interactivo
-├── setup-cloudflare-tunnel.sh         # Setup paso a paso
-├── cleanup-cloudflare-tunnel.sh       # Desinstalar
-├── start-tunnel.sh                    # Generado: inicia túnel
-└── tunnel-info.sh                     # Generado: info del túnel
 
-../.cloudflare/                        # Git ignored
-├── config.yml                         # Configuración de rutas
-└── credentials.json                   # Credenciales (NO COMMITEAR)
+### 📚 Documentación Completa
+
+Ver [QUICK_TUNNEL_FREE.md](QUICK_TUNNEL_FREE.md) para documentación detallada.
+
+### 🎉 ¡Listo!
+
+Ahora puedes compartir tu aplicación con cualquiera, en cualquier lugar, sin configuración compleja.
+
+```bash
+# Ejecuta y obtén tu URL en segundos:
+./quick-tunnel-free.sh
 ```
 
 ---
 
-## 🔒 Seguridad
-
-- ✅ Las credenciales están en `.gitignore`
-- ✅ Todo el tráfico está encriptado
-- ✅ No expones puertos localmente
-- ✅ Puedes agregar autenticación Cloudflare Access
-
----
-
-## 💡 Tips
-
-1. **Desarrollo en equipo**: Cada miembro puede usar su propio túnel
-2. **Testing de webhooks**: Ideal para APIs que necesitan URLs públicas
-3. **Demos**: Comparte tu trabajo sin desplegar
-4. **Mobile testing**: Prueba en tu teléfono sin estar en la misma red
-
----
-
-## 🆘 Ayuda
-
-¿Problemas? Revisa:
-1. [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md) - Documentación completa
-2. [Cloudflare Docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/)
-3. [cloudflared GitHub](https://github.com/cloudflare/cloudflared)
-
----
-
-**¡Disfruta de tu túnel!** 🎉
+**Hecho con ❤️ para desarrollo rápido y testing sin complicaciones**
