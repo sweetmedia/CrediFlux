@@ -4,50 +4,15 @@ Core admin configuration for dynamic settings (Constance)
 from django.contrib import admin
 from django.utils.html import format_html
 from constance import config
-from constance.admin import ConstanceAdmin, ConstanceForm
+from constance.admin import ConstanceAdmin
 from unfold.admin import ModelAdmin
 from unfold.decorators import display
-
-
-class CustomConstanceForm(ConstanceForm):
-    """
-    Custom form for Constance configuration with better styling
-    """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # Add help text and custom styling to fields
-        if 'COMPANY_NAME' in self.fields:
-            self.fields['COMPANY_NAME'].widget.attrs.update({
-                'class': 'vTextField',
-                'placeholder': 'Enter company name'
-            })
-
-        if 'DEFAULT_CURRENCY' in self.fields:
-            self.fields['DEFAULT_CURRENCY'].widget.attrs.update({
-                'class': 'vTextField',
-                'placeholder': 'USD'
-            })
-
-        if 'LOAN_INTEREST_RATE' in self.fields:
-            self.fields['LOAN_INTEREST_RATE'].widget.attrs.update({
-                'class': 'vTextField',
-                'placeholder': '10.0'
-            })
-
-        if 'LATE_PAYMENT_FEE' in self.fields:
-            self.fields['LATE_PAYMENT_FEE'].widget.attrs.update({
-                'class': 'vTextField',
-                'placeholder': '25.0'
-            })
 
 
 class CustomConstanceAdmin(ConstanceAdmin):
     """
     Custom Constance admin with Unfold styling and best practices
     """
-    form = CustomConstanceForm
-
     # Unfold specific settings
     change_form_template = 'unfold/admin/constance/change_form.html'
 
