@@ -238,11 +238,167 @@ CACHES = {
 
 # Constance - Dynamic Settings
 CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
+
 CONSTANCE_CONFIG = {
-    'COMPANY_NAME': (config('COMPANY_NAME', default='CrediFlux'), 'Company name'),
-    'DEFAULT_CURRENCY': (config('DEFAULT_CURRENCY', default='USD'), 'Default currency code'),
-    'LOAN_INTEREST_RATE': (10.0, 'Default loan interest rate (%)'),
-    'LATE_PAYMENT_FEE': (25.0, 'Late payment fee amount'),
+    # Company Settings
+    'COMPANY_NAME': (
+        config('COMPANY_NAME', default='CrediFlux'),
+        'Company name displayed throughout the application',
+        str
+    ),
+    'COMPANY_EMAIL': (
+        'info@crediflux.com',
+        'Primary company email address for notifications and contact',
+        str
+    ),
+    'COMPANY_PHONE': (
+        '+1-555-0100',
+        'Primary company phone number',
+        str
+    ),
+    'COMPANY_ADDRESS': (
+        '123 Main St, City, Country',
+        'Company physical address',
+        str
+    ),
+
+    # Currency & Financial Settings
+    'DEFAULT_CURRENCY': (
+        config('DEFAULT_CURRENCY', default='USD'),
+        'Default currency code (ISO 4217 format)',
+        str
+    ),
+    'CURRENCY_SYMBOL': (
+        '$',
+        'Currency symbol to display',
+        str
+    ),
+    'DECIMAL_PLACES': (
+        2,
+        'Number of decimal places for currency amounts',
+        int
+    ),
+
+    # Loan Settings
+    'LOAN_INTEREST_RATE': (
+        10.0,
+        'Default annual interest rate for new loans (%)',
+        float
+    ),
+    'MIN_LOAN_AMOUNT': (
+        100.0,
+        'Minimum loan amount allowed',
+        float
+    ),
+    'MAX_LOAN_AMOUNT': (
+        100000.0,
+        'Maximum loan amount allowed',
+        float
+    ),
+    'MIN_LOAN_TERM': (
+        1,
+        'Minimum loan term in months',
+        int
+    ),
+    'MAX_LOAN_TERM': (
+        60,
+        'Maximum loan term in months',
+        int
+    ),
+
+    # Payment & Fees Settings
+    'LATE_PAYMENT_FEE': (
+        25.0,
+        'Late payment fee amount charged after grace period',
+        float
+    ),
+    'LATE_PAYMENT_GRACE_DAYS': (
+        5,
+        'Number of days grace period before charging late fee',
+        int
+    ),
+    'PAYMENT_REMINDER_DAYS': (
+        3,
+        'Days before due date to send payment reminder',
+        int
+    ),
+    'EARLY_PAYMENT_DISCOUNT': (
+        0.0,
+        'Discount percentage for early payments (%)',
+        float
+    ),
+
+    # Notification Settings
+    'ENABLE_EMAIL_NOTIFICATIONS': (
+        True,
+        'Enable email notifications for important events',
+        bool
+    ),
+    'ENABLE_SMS_NOTIFICATIONS': (
+        False,
+        'Enable SMS notifications (requires SMS service configuration)',
+        bool
+    ),
+    'ADMIN_EMAIL': (
+        'admin@crediflux.com',
+        'Email address to receive admin notifications',
+        str
+    ),
+
+    # System Settings
+    'MAINTENANCE_MODE': (
+        False,
+        'Enable maintenance mode (only admins can access)',
+        bool
+    ),
+    'MAX_UPLOAD_SIZE_MB': (
+        5,
+        'Maximum file upload size in megabytes',
+        int
+    ),
+    'SESSION_TIMEOUT_MINUTES': (
+        30,
+        'User session timeout in minutes',
+        int
+    ),
+}
+
+# Constance Fieldsets - Organize settings into groups
+CONSTANCE_CONFIG_FIELDSETS = {
+    'Company Information': (
+        'COMPANY_NAME',
+        'COMPANY_EMAIL',
+        'COMPANY_PHONE',
+        'COMPANY_ADDRESS',
+    ),
+    'Currency & Financial': (
+        'DEFAULT_CURRENCY',
+        'CURRENCY_SYMBOL',
+        'DECIMAL_PLACES',
+    ),
+    'Loan Configuration': (
+        'LOAN_INTEREST_RATE',
+        'MIN_LOAN_AMOUNT',
+        'MAX_LOAN_AMOUNT',
+        'MIN_LOAN_TERM',
+        'MAX_LOAN_TERM',
+    ),
+    'Payments & Fees': (
+        'LATE_PAYMENT_FEE',
+        'LATE_PAYMENT_GRACE_DAYS',
+        'PAYMENT_REMINDER_DAYS',
+        'EARLY_PAYMENT_DISCOUNT',
+    ),
+    'Notifications': (
+        'ENABLE_EMAIL_NOTIFICATIONS',
+        'ENABLE_SMS_NOTIFICATIONS',
+        'ADMIN_EMAIL',
+    ),
+    'System Settings': (
+        'MAINTENANCE_MODE',
+        'MAX_UPLOAD_SIZE_MB',
+        'SESSION_TIMEOUT_MINUTES',
+    ),
 }
 
 # Email Configuration
