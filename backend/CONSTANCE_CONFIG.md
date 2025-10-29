@@ -156,9 +156,10 @@ docker-compose restart backend
 
 ### Custom Admin Styling
 
-The Constance admin interface has been customized with Django Unfold styling in:
-- `backend/apps/core/admin.py` - Custom admin class
-- `backend/templates/unfold/admin/constance/change_form.html` - Custom template
+The Constance admin interface uses Django Unfold's official integration:
+- Django Unfold version: 0.69.0
+- Integration: `unfold.contrib.constance` added to INSTALLED_APPS before `constance`
+- The styling is automatically applied, no manual admin registration needed
 
 ## Troubleshooting
 

@@ -17,7 +17,7 @@ djangorestframework-simplejwt==5.3.1
 requests==2.32.5
 
 # Admin Interface
-django-unfold==0.29.0
+django-unfold==0.69.0
 
 # API Documentation
 drf-yasg==1.21.7
