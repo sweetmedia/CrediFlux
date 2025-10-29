@@ -375,6 +375,8 @@ class TeamMemberListView(APIView):
     )
     def get(self, request):
         """List team members"""
+        from rest_framework.pagination import PageNumberPagination
+
         # Check if user belongs to a tenant
         if not request.user.tenant:
             return Response(
@@ -387,8 +389,13 @@ class TeamMemberListView(APIView):
             tenant=request.user.tenant
         ).order_by('-created_at')
 
-        serializer = TeamMemberListSerializer(team_members, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        # Apply pagination
+        paginator = PageNumberPagination()
+        paginator.page_size = 20  # Same as other endpoints
+        paginated_queryset = paginator.paginate_queryset(team_members, request)
+
+        serializer = TeamMemberListSerializer(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 class TeamMemberCreateView(APIView):
