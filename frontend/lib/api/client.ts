@@ -2,6 +2,10 @@ import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+console.log('🔧 API Client Configuration:');
+console.log('  - NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+console.log('  - API_URL (final):', API_URL);
+
 class APIClient {
   private client: AxiosInstance;
 
