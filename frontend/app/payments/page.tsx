@@ -427,13 +427,35 @@ export default function PaymentsListPage() {
                         </div>
                       </div>
 
-                      {/* Amount Display */}
+                      {/* Amount Display with Breakdown */}
                       <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-3">
                           <span className="text-sm text-gray-600">Monto del Pago</span>
                           <span className="text-2xl font-bold text-blue-600">
                             {formatCurrency(payment.amount)}
                           </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-blue-200">
+                          <div className="text-center">
+                            <p className="text-xs text-gray-600 mb-1">Principal</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {formatCurrency(payment.principal_paid || 0)}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-gray-600 mb-1">Interés</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {formatCurrency(payment.interest_paid || 0)}
+                            </p>
+                          </div>
+                          {payment.late_fee_paid > 0 && (
+                            <div className="text-center col-span-2">
+                              <p className="text-xs text-gray-600 mb-1">Mora</p>
+                              <p className="text-sm font-semibold text-orange-600">
+                                {formatCurrency(payment.late_fee_paid)}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

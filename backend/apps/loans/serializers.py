@@ -116,9 +116,9 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
         model = LoanPayment
         fields = [
             'loan', 'schedule', 'payment_date', 'amount',
-            'principal_paid', 'interest_paid', 'late_fee_paid',
             'payment_method', 'reference_number', 'status', 'notes'
         ]
+        # principal_paid, interest_paid, and late_fee_paid are calculated automatically
 
     def validate_amount(self, value):
         """Validate that amount is positive"""
@@ -136,6 +136,18 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
         amount = validated_data['amount']
         schedule = validated_data.get('schedule')
 
+        # Get currency from the amount
+        currency = amount.currency if hasattr(amount, 'currency') else 'USD'
+
+        # Remove any manually provided values (should not be in validated_data but just in case)
+        validated_data.pop('principal_paid', None)
+        validated_data.pop('interest_paid', None)
+        validated_data.pop('late_fee_paid', None)
+
+        # Set default status to completed if not provided
+        if 'status' not in validated_data:
+            validated_data['status'] = 'completed'
+
         # If schedule is provided, use it to determine interest vs principal
         if schedule:
             # Calculate remaining amounts in the schedule
@@ -145,11 +157,11 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
             # Calculate what portion is interest vs principal in this payment
             if remaining_total.amount > 0:
                 interest_ratio = schedule.interest_amount.amount / schedule.total_amount.amount
-                payment_interest = Money(min(amount.amount * interest_ratio, schedule.interest_amount.amount), amount.currency)
-                payment_principal = Money(amount.amount - payment_interest.amount, amount.currency)
+                payment_interest = Money(min(amount.amount * interest_ratio, schedule.interest_amount.amount), currency)
+                payment_principal = Money(amount.amount - payment_interest.amount, currency)
             else:
                 # Schedule already paid, everything goes to principal
-                payment_interest = Money(0, amount.currency)
+                payment_interest = Money(0, currency)
                 payment_principal = amount
 
             validated_data['interest_paid'] = payment_interest
@@ -161,16 +173,15 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
             interest_amount = loan.outstanding_balance.amount * monthly_rate
 
             if amount.amount >= interest_amount:
-                validated_data['interest_paid'] = Money(interest_amount, amount.currency)
-                validated_data['principal_paid'] = Money(amount.amount - interest_amount, amount.currency)
+                validated_data['interest_paid'] = Money(interest_amount, currency)
+                validated_data['principal_paid'] = Money(amount.amount - interest_amount, currency)
             else:
                 # Payment doesn't cover all interest
                 validated_data['interest_paid'] = amount
-                validated_data['principal_paid'] = Money(0, amount.currency)
+                validated_data['principal_paid'] = Money(0, currency)
 
-        # Set late_fee_paid to 0 if not provided
-        if 'late_fee_paid' not in validated_data:
-            validated_data['late_fee_paid'] = Money(0, amount.currency)
+        # Set late_fee_paid to 0
+        validated_data['late_fee_paid'] = Money(0, currency)
 
         return super().create(validated_data)
 

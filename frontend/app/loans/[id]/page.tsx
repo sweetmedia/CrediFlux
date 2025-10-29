@@ -466,22 +466,48 @@ export default function LoanDetailPage() {
                     {loan.recent_payments.map((payment) => (
                       <div
                         key={payment.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                        className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
                         onClick={() => router.push(`/payments/${payment.id}`)}
                       >
-                        <div>
-                          <p className="font-medium text-blue-600 hover:underline">{payment.payment_number}</p>
-                          <p className="text-sm text-gray-600">
-                            {formatDate(payment.payment_date)} - {payment.payment_method}
-                          </p>
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="font-medium text-blue-600 hover:underline">{payment.payment_number}</p>
+                            <p className="text-sm text-gray-600">
+                              {formatDate(payment.payment_date)} - {payment.payment_method}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-green-600">
+                              {formatCurrency(payment.amount)}
+                            </p>
+                            <p className="text-xs text-gray-600 capitalize">
+                              {payment.status}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-green-600">
-                            {formatCurrency(payment.amount)}
-                          </p>
-                          <p className="text-xs text-gray-600 capitalize">
-                            {payment.status}
-                          </p>
+
+                        {/* Payment Breakdown */}
+                        <div className="flex gap-3 text-xs pt-2 border-t border-gray-200">
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-600">Principal:</span>
+                            <span className="font-semibold text-gray-900">
+                              {formatCurrency(payment.principal_paid || 0)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-600">Interés:</span>
+                            <span className="font-semibold text-gray-900">
+                              {formatCurrency(payment.interest_paid || 0)}
+                            </span>
+                          </div>
+                          {payment.late_fee_paid > 0 && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-600">Mora:</span>
+                              <span className="font-semibold text-orange-600">
+                                {formatCurrency(payment.late_fee_paid)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
