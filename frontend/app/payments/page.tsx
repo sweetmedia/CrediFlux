@@ -50,6 +50,7 @@ export default function PaymentsListPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('');
+  const [ordering, setOrdering] = useState('-payment_date'); // Default: newest first
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -63,7 +64,7 @@ export default function PaymentsListPage() {
     if (isAuthenticated) {
       loadPayments();
     }
-  }, [isAuthenticated, currentPage, searchTerm, statusFilter, paymentMethodFilter, loanFilter]);
+  }, [isAuthenticated, currentPage, searchTerm, statusFilter, paymentMethodFilter, loanFilter, ordering]);
 
   const loadPayments = async () => {
     try {
@@ -72,6 +73,7 @@ export default function PaymentsListPage() {
 
       const params: any = {
         page: currentPage,
+        ordering: ordering, // Add ordering parameter
       };
 
       if (searchTerm) params.search = searchTerm;
@@ -169,7 +171,7 @@ export default function PaymentsListPage() {
   const totalPages = Math.ceil(totalCount / 10);
 
   // Calculate statistics
-  const totalAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  const totalAmount = payments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
   const completedPayments = payments.filter((p) => p.status === 'completed').length;
 
   // Show loading state while checking authentication
@@ -224,7 +226,7 @@ export default function PaymentsListPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="search">Buscar</Label>
                 <div className="relative">
@@ -267,6 +269,20 @@ export default function PaymentsListPage() {
                   <option value="bank_transfer">Transferencia</option>
                   <option value="card">Tarjeta</option>
                   <option value="mobile_payment">Pago Móvil</option>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ordering">Ordenar por</Label>
+                <Select
+                  id="ordering"
+                  value={ordering}
+                  onChange={(e) => setOrdering(e.target.value)}
+                >
+                  <option value="-payment_date">Más recientes primero</option>
+                  <option value="payment_date">Más antiguos primero</option>
+                  <option value="-amount">Mayor monto primero</option>
+                  <option value="amount">Menor monto primero</option>
                 </Select>
               </div>
             </div>
