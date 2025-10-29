@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .serializers import (
@@ -306,6 +307,7 @@ class TenantSettingsView(APIView):
     """
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     @swagger_auto_schema(
         operation_id='get_tenant_settings',
