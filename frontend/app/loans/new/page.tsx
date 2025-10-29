@@ -79,6 +79,18 @@ export default function NewLoanPage() {
   });
 
   const watchedFields = watch(['principal_amount', 'interest_rate', 'term_months', 'payment_frequency']);
+  const paymentFrequency = watch('payment_frequency');
+
+  // Get payment frequency label for display
+  const getPaymentFrequencyLabel = (frequency: string) => {
+    const labels: Record<string, string> = {
+      daily: 'Diario',
+      weekly: 'Semanal',
+      biweekly: 'Quincenal',
+      monthly: 'Mensual',
+    };
+    return labels[frequency] || 'Mensual';
+  };
 
   // Load customers and handle pre-selected customer from URL
   useEffect(() => {
@@ -127,17 +139,39 @@ export default function NewLoanPage() {
     loadCustomers();
   }, [isAuthenticated, searchParams, setValue]);
 
-  // Calculate payment amount
+  // Calculate payment amount based on payment frequency
   useEffect(() => {
-    const [principal, rate, term] = watchedFields;
-    if (principal && rate && term) {
+    const [principal, rate, term, frequency] = watchedFields;
+    if (principal && rate && term && frequency) {
       const P = parseFloat(principal);
-      const r = parseFloat(rate) / 100 / 12; // Monthly rate
-      const n = parseInt(term);
+      const annualRate = parseFloat(rate) / 100;
+      const termMonths = parseInt(term);
 
-      if (P > 0 && r > 0 && n > 0) {
-        // Monthly payment formula: P * [r(1+r)^n] / [(1+r)^n - 1]
-        const payment = P * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+      // Calculate number of payments based on frequency
+      let paymentsPerYear: number;
+      switch (frequency) {
+        case 'daily':
+          paymentsPerYear = 365;
+          break;
+        case 'weekly':
+          paymentsPerYear = 52;
+          break;
+        case 'biweekly':
+          paymentsPerYear = 26;
+          break;
+        case 'monthly':
+        default:
+          paymentsPerYear = 12;
+          break;
+      }
+
+      const periodicRate = annualRate / paymentsPerYear;
+      const totalPayments = Math.ceil((termMonths / 12) * paymentsPerYear);
+
+      if (P > 0 && periodicRate > 0 && totalPayments > 0) {
+        // Amortization formula: P * [r(1+r)^n] / [(1+r)^n - 1]
+        const payment = P * (periodicRate * Math.pow(1 + periodicRate, totalPayments)) /
+                       (Math.pow(1 + periodicRate, totalPayments) - 1);
         setCalculatedPayment(payment);
       } else {
         setCalculatedPayment(null);
@@ -584,7 +618,9 @@ export default function NewLoanPage() {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-center gap-2">
                       <Calculator className="h-5 w-5 text-blue-600" />
-                      <span className="font-semibold text-blue-900">Pago Mensual Estimado:</span>
+                      <span className="font-semibold text-blue-900">
+                        Pago {getPaymentFrequencyLabel(paymentFrequency)} Estimado:
+                      </span>
                       <span className="text-2xl font-bold text-blue-600">
                         ${calculatedPayment.toFixed(2)}
                       </span>
