@@ -142,6 +142,15 @@ export default function TenantSettingsPage() {
     } catch (err: any) {
       console.error('Error updating tenant settings:', err);
 
+      // Handle 401 Unauthorized - redirect to login
+      if (err.response?.status === 401) {
+        setError('Tu sesión ha expirado. Redirigiendo al login...');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+
       if (err.response?.data) {
         const errorData = err.response.data;
         if (errorData.error) {
@@ -192,6 +201,15 @@ export default function TenantSettingsPage() {
     } catch (err: any) {
       console.error('Error uploading logo:', err);
 
+      // Handle 401 Unauthorized - redirect to login
+      if (err.response?.status === 401) {
+        setError('Tu sesión ha expirado. Redirigiendo al login...');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+
       // Handle different error types
       let errorMessage = 'Error al subir el logo';
 
@@ -238,6 +256,16 @@ export default function TenantSettingsPage() {
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err: any) {
       console.error('Error removing logo:', err);
+
+      // Handle 401 Unauthorized - redirect to login
+      if (err.response?.status === 401) {
+        setError('Tu sesión ha expirado. Redirigiendo al login...');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+
       setError('Error al eliminar el logo');
     } finally {
       setIsUploadingLogo(false);
