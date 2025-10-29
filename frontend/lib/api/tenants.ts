@@ -63,20 +63,44 @@ export const tenantsAPI = {
     formData.append('logo', file);
 
     const token = localStorage.getItem('accessToken');
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/tenants/settings/`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: formData,
-    });
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw { response: { data: error } };
+    try {
+      const response = await fetch(`${apiUrl}/api/tenants/settings/`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let error;
+        try {
+          error = await response.json();
+        } catch (e) {
+          // If response is not JSON, use status text
+          error = { detail: response.statusText || 'Error desconocido' };
+        }
+
+        const err = new Error('Upload failed');
+        (err as any).response = {
+          data: error,
+          status: response.status,
+          statusText: response.statusText
+        };
+        throw err;
+      }
+
+      return response.json();
+    } catch (error: any) {
+      // Re-throw with better error information
+      if (error.response) {
+        throw error;
+      }
+      // Network error or other issues
+      throw new Error(`Error de red: ${error.message || 'No se pudo conectar con el servidor'}`);
     }
-
-    return response.json();
   },
 
   /**

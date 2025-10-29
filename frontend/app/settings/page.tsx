@@ -191,7 +191,29 @@ export default function TenantSettingsPage() {
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err: any) {
       console.error('Error uploading logo:', err);
-      setError(err.response?.data?.logo?.[0] || 'Error al subir el logo');
+
+      // Handle different error types
+      let errorMessage = 'Error al subir el logo';
+
+      if (err.response?.data) {
+        // Server validation error
+        if (err.response.data.logo) {
+          errorMessage = Array.isArray(err.response.data.logo)
+            ? err.response.data.logo[0]
+            : err.response.data.logo;
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail;
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error;
+        } else {
+          errorMessage = `Error ${err.response.status}: ${err.response.statusText}`;
+        }
+      } else if (err.message) {
+        // Network error or custom error message
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
     } finally {
       setIsUploadingLogo(false);
     }
