@@ -4,7 +4,23 @@ Este directorio contiene scripts útiles para configurar y gestionar tu aplicaci
 
 ## 🚀 Cloudflare Tunnel - Exponer tu App Online
 
-### Inicio Rápido (Recomendado)
+### 🎯 DOS OPCIONES DISPONIBLES:
+
+#### Opción 1: Quick Tunnel GRATIS ⚡ (RECOMENDADO para testing)
+
+```bash
+cd scripts
+./quick-tunnel-free.sh
+```
+
+**✅ NO requiere cuenta, NO requiere dominio, 100% GRATIS**
+- URL aleatoria tipo: `https://random-123.trycloudflare.com`
+- Temporal (mientras corre el script)
+- Ideal para testing rápido y demos
+
+**Ver documentación:** [QUICK_TUNNEL_FREE.md](QUICK_TUNNEL_FREE.md)
+
+#### Opción 2: Tunnel Permanente con Tu Dominio 🏢
 
 ```bash
 cd scripts
@@ -18,12 +34,21 @@ Este script interactivo te guiará paso a paso:
 4. ✅ Configura tus dominios
 5. ✅ Inicia el túnel
 
-**¡Todo en un solo comando!**
+**Requiere:** Cuenta de Cloudflare + Dominio propio
+**Ideal para:** Producción, demos profesionales, URLs permanentes
+
+**Ver documentación:** [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)
 
 ### Scripts Disponibles
 
-#### `quick-tunnel.sh` - Todo en uno ⭐
-Setup interactivo completo con menú de opciones.
+#### `quick-tunnel-free.sh` - Túnel Gratis Temporal ⚡ (NUEVO)
+Túnel sin cuenta, sin dominio. URL aleatoria instantánea.
+```bash
+./quick-tunnel-free.sh
+```
+
+#### `quick-tunnel.sh` - Todo en uno con Dominio ⭐
+Setup interactivo completo con menú de opciones (requiere cuenta).
 ```bash
 ./quick-tunnel.sh
 ```
