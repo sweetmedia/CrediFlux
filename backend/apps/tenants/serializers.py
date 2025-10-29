@@ -265,6 +265,7 @@ class TenantRegistrationSerializer(serializers.Serializer):
 
 class TenantSerializer(serializers.ModelSerializer):
     """Basic tenant serializer for read operations"""
+    logo = serializers.ImageField(read_only=True)
 
     class Meta:
         model = Tenant
@@ -272,20 +273,21 @@ class TenantSerializer(serializers.ModelSerializer):
             'id', 'name', 'schema_name', 'business_name', 'tax_id',
             'email', 'phone', 'address', 'city', 'state', 'country',
             'postal_code', 'is_active', 'max_users', 'subscription_plan',
-            'primary_color', 'created_on', 'updated_on'
+            'logo', 'primary_color', 'created_on', 'updated_on'
         ]
         read_only_fields = ['id', 'schema_name', 'created_on', 'updated_on']
 
 
 class TenantUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating tenant settings"""
+    logo = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = Tenant
         fields = [
             'business_name', 'tax_id', 'email', 'phone',
             'address', 'city', 'state', 'country', 'postal_code',
-            'primary_color'
+            'logo', 'primary_color'
         ]
 
     def validate_email(self, value):

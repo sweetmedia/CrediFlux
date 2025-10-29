@@ -29,7 +29,10 @@ import {
   MapPin,
   Palette,
   ArrowLeft,
-  CheckCircle2
+  CheckCircle2,
+  Image as ImageIcon,
+  Upload,
+  X
 } from 'lucide-react';
 
 const tenantSettingsSchema = z.object({
@@ -55,6 +58,8 @@ export default function TenantSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -98,6 +103,9 @@ export default function TenantSettingsPage() {
       setValue('country', data.country || '');
       setValue('postal_code', data.postal_code || '');
       setValue('primary_color', data.primary_color || '#6366f1');
+
+      // Set logo preview
+      setLogoPreview(data.logo || null);
     } catch (err: any) {
       console.error('Error loading tenant settings:', err);
       setError('Error al cargar la configuración del tenant');
@@ -150,6 +158,67 @@ export default function TenantSettingsPage() {
       }
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Por favor selecciona un archivo de imagen válido');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('La imagen debe ser menor a 5MB');
+      return;
+    }
+
+    try {
+      setIsUploadingLogo(true);
+      setError('');
+      setSuccessMessage('');
+
+      const response = await tenantsAPI.uploadLogo(file);
+      setTenant(response.tenant);
+      setLogoPreview(response.tenant.logo || null);
+      setSuccessMessage('Logo actualizado exitosamente');
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err: any) {
+      console.error('Error uploading logo:', err);
+      setError(err.response?.data?.logo?.[0] || 'Error al subir el logo');
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    if (!confirm('¿Estás seguro de que deseas eliminar el logo?')) {
+      return;
+    }
+
+    try {
+      setIsUploadingLogo(true);
+      setError('');
+      setSuccessMessage('');
+
+      const response = await tenantsAPI.removeLogo();
+      setTenant(response.tenant);
+      setLogoPreview(null);
+      setSuccessMessage('Logo eliminado exitosamente');
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err: any) {
+      console.error('Error removing logo:', err);
+      setError('Error al eliminar el logo');
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
@@ -406,7 +475,81 @@ export default function TenantSettingsPage() {
                     Personaliza la apariencia de tu tenant
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
+                  {/* Logo Section */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4" />
+                      Logo de la Empresa
+                    </Label>
+
+                    {/* Logo Preview */}
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center gap-4">
+                      {logoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={logoPreview}
+                            alt="Logo"
+                            className="max-w-xs max-h-32 object-contain"
+                          />
+                          {!isUploadingLogo && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute -top-2 -right-2"
+                              onClick={handleLogoRemove}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-gray-400">
+                          <ImageIcon className="h-12 w-12" />
+                          <p className="text-sm">No hay logo</p>
+                        </div>
+                      )}
+
+                      {/* Upload Button */}
+                      <div className="flex gap-2">
+                        <label htmlFor="logo-upload">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isUploadingLogo}
+                            onClick={() => document.getElementById('logo-upload')?.click()}
+                          >
+                            {isUploadingLogo ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Subiendo...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="mr-2 h-4 w-4" />
+                                {logoPreview ? 'Cambiar Logo' : 'Subir Logo'}
+                              </>
+                            )}
+                          </Button>
+                        </label>
+                        <input
+                          id="logo-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleLogoUpload}
+                          disabled={isUploadingLogo}
+                        />
+                      </div>
+
+                      <p className="text-xs text-gray-500 text-center">
+                        PNG, JPG o GIF. Máximo 5MB.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Color Section */}
                   <div className="space-y-2">
                     <Label htmlFor="primary_color">Color Principal</Label>
                     <div className="flex gap-3 items-center">

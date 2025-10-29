@@ -142,13 +142,23 @@ export default function DashboardPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <DollarSign className="h-8 w-8 text-blue-600" />
+              {tenant?.logo ? (
+                <img
+                  src={tenant.logo}
+                  alt={tenant.business_name}
+                  className="h-10 w-auto object-contain"
+                />
+              ) : (
+                <DollarSign className="h-8 w-8 text-blue-600" />
+              )}
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">CrediFlux</h1>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {tenant?.business_name || 'CrediFlux'}
+                </h1>
                 {tenant && (
                   <p className="text-sm text-gray-600 flex items-center gap-1">
                     <Building2 className="h-3 w-3" />
-                    {tenant.business_name}
+                    {tenant.schema_name}
                   </p>
                 )}
               </div>

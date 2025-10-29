@@ -16,6 +16,7 @@ export interface Tenant {
   is_active: boolean;
   max_users: number;
   subscription_plan: 'basic' | 'professional' | 'enterprise';
+  logo?: string;
   primary_color?: string;
   created_on: string;
   updated_on: string;
@@ -52,5 +53,36 @@ export const tenantsAPI = {
    */
   updateSettings: async (data: TenantUpdateData): Promise<TenantUpdateResponse> => {
     return apiClient.patch<TenantUpdateResponse>('/api/tenants/settings/', data);
+  },
+
+  /**
+   * Upload tenant logo
+   */
+  uploadLogo: async (file: File): Promise<TenantUpdateResponse> => {
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    const token = localStorage.getItem('accessToken');
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/tenants/settings/`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw { response: { data: error } };
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Remove tenant logo
+   */
+  removeLogo: async (): Promise<TenantUpdateResponse> => {
+    return apiClient.patch<TenantUpdateResponse>('/api/tenants/settings/', { logo: null });
   },
 };

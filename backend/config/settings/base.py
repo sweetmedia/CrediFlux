@@ -460,13 +460,13 @@ UNFOLD = {
     "ENVIRONMENT": "config.settings.utils.environment_callback",
 
     # Tenant Switcher Dropdown - Static configuration
-    "SITE_DROPDOWN": [
-        {
-            "icon": "business",
-            "title": ("Main Admin (System)"),
-            "link": "/admin/",
-        },
-    ],
+    # "SITE_DROPDOWN": [
+    #     {
+    #         "icon": "business",
+    #         "title": ("Main Admin (System)"),
+    #         "link": "/admin/",
+    #     },
+    # ],
 
     # Dashboard Callback for dynamic content
     "DASHBOARD_CALLBACK": "config.settings.utils.dashboard_callback",
