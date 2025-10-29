@@ -74,24 +74,56 @@ https://amazing-voice-123.trycloudflare.com
 
 2. **cloudflared instalado** (el script lo instala automáticamente si no lo tienes)
 
-### 🔧 Configuración para Ambos Servicios
+### 🔧 Configuración para Acceso desde Móvil
 
-Si expones frontend y backend por separado, actualiza las variables de entorno:
+**El problema:** Por defecto, el frontend intenta conectarse a tu IP local y el backend no permite CORS desde URLs externas.
 
-**Frontend (.env.local):**
-```env
-NEXT_PUBLIC_API_URL=https://tu-backend-url.trycloudflare.com
-```
+**La solución:** Usa el configurador automático!
 
-**Backend (.env):**
-```env
-CORS_ALLOWED_ORIGINS=https://tu-frontend-url.trycloudflare.com
-```
+#### Pasos para Acceso desde Móvil:
 
-Luego reinicia los servicios:
+1. **Inicia los túneles** (necesitas 2: frontend + backend)
+   ```bash
+   # Opción A: Automático (abre 2 terminales)
+   ./quick-tunnel-free.sh
+   # Selecciona opción 3 (Ambos)
+
+   # Opción B: Manual (en 2 terminales diferentes)
+   # Terminal 1:
+   ./quick-tunnel-free.sh  # Selecciona 1 (Frontend)
+
+   # Terminal 2:
+   ./quick-tunnel-free.sh  # Selecciona 2 (Backend)
+   ```
+
+2. **Copia las URLs** que aparecen en las terminales:
+   ```
+   Frontend: https://abc-123.trycloudflare.com
+   Backend:  https://xyz-456.trycloudflare.com
+   ```
+
+3. **Ejecuta el configurador:**
+   ```bash
+   ./configure-tunnel-urls.sh
+   ```
+
+   - Ingresa la URL del frontend
+   - Ingresa la URL del backend
+   - Confirma que reinicie los contenedores
+
+4. **¡Listo!** Ahora accede desde tu móvil:
+   ```
+   https://abc-123.trycloudflare.com
+   ```
+
+#### Volver a Configuración Local:
+
+Cuando termines de usar el túnel:
 ```bash
-docker-compose restart
+./restore-local-config.sh
 ```
+
+Esto restaura las URLs locales (`localhost:3000` y `localhost:8000`).
 
 ### 💡 Casos de Uso Ideales
 
