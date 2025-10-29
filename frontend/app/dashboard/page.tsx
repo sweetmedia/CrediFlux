@@ -175,6 +175,14 @@ export default function DashboardPage() {
               </Link>
               {(user?.is_tenant_owner || user?.role === 'admin') && (
                 <Link
+                  href="/users"
+                  className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
+                >
+                  Equipo
+                </Link>
+              )}
+              {(user?.is_tenant_owner || user?.role === 'admin') && (
+                <Link
                   href="/settings"
                   className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1"
                 >
