@@ -499,11 +499,40 @@ class LoanSchedule(UUIDModel, TimeStampedModel):
     )
     paid_date = models.DateField(blank=True, null=True)
 
+    # Late fee tracking (Mora)
+    actual_payment_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text='Fecha real del pago (puede diferir de due_date)'
+    )
+
+    days_overdue = models.IntegerField(
+        default=0,
+        help_text='Días de atraso (auto-calculado)'
+    )
+
+    late_fee_amount = MoneyField(
+        max_digits=14,
+        decimal_places=2,
+        default_currency='USD',
+        default=Decimal('0.00'),
+        help_text='Monto de mora acumulado'
+    )
+
+    late_fee_paid = MoneyField(
+        max_digits=14,
+        decimal_places=2,
+        default_currency='USD',
+        default=Decimal('0.00'),
+        help_text='Mora pagada'
+    )
+
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('paid', 'Paid'),
         ('overdue', 'Overdue'),
         ('partial', 'Partially Paid'),
+        ('written_off', 'Written Off'),  # Castigado/Pérdida
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
 
@@ -689,3 +718,7 @@ class Collateral(UUIDModel, AuditModel):
 
     def __str__(self):
         return f"{self.get_collateral_type_display()} - {self.loan.loan_number}"
+
+
+# Import collection models
+from .models_collections import CollectionReminder, CollectionContact

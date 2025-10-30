@@ -4,6 +4,8 @@ User models extending Django's default User model
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
+from djmoney.models.fields import MoneyField
+from decimal import Decimal
 
 
 class User(AbstractUser):
@@ -43,11 +45,30 @@ class User(AbstractUser):
         ('admin', 'Administrator'),
         ('manager', 'Manager'),
         ('loan_officer', 'Loan Officer'),
+        ('collector', 'Cobrador'),                              # NEW
+        ('collection_supervisor', 'Supervisor de Cobranza'),    # NEW
         ('accountant', 'Accountant'),
         ('cashier', 'Cashier'),
         ('viewer', 'Viewer'),
     ]
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='viewer')
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES, default='viewer')
+
+    # Collection-specific fields (for collectors and collection supervisors)
+    collection_zone = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Zona de cobranza asignada (ej: Zona Norte, Zona Este, etc.)'
+    )
+
+    daily_collection_target = MoneyField(
+        max_digits=12,
+        decimal_places=2,
+        default_currency='USD',
+        null=True,
+        blank=True,
+        help_text='Meta diaria de cobros para el cobrador'
+    )
 
     # Settings
     is_active = models.BooleanField(default=True)

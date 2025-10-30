@@ -7,6 +7,7 @@ from django.db import connection
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
+from .models_collections import CollectionReminder, CollectionContact
 
 
 def is_tenant_schema():
@@ -705,3 +706,164 @@ class CustomerDocumentAdmin(ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.select_related('customer', 'verified_by')
+
+
+@admin.register(CollectionReminder)
+class CollectionReminderAdmin(ModelAdmin):
+    """Admin interface for CollectionReminder model"""
+
+    # Unfold specific settings
+    list_fullwidth = True
+    compressed_fields = True
+
+    # List view configuration
+    list_display = [
+        'customer', 'loan', 'reminder_type', 'channel',
+        'scheduled_for', 'show_status', 'sent_at'
+    ]
+    list_filter = ['status', 'reminder_type', 'channel', 'scheduled_for']
+    search_fields = [
+        'loan__loan_number', 'customer__first_name',
+        'customer__last_name', 'message_content'
+    ]
+    readonly_fields = ['sent_at', 'sent_by', 'created_at', 'updated_at']
+    list_per_page = 50
+
+    def has_module_permission(self, request):
+        """Only show in tenant schemas"""
+        return is_tenant_schema()
+
+    def has_view_permission(self, request, obj=None):
+        """Only allow view in tenant schemas"""
+        return is_tenant_schema() and super().has_view_permission(request, obj)
+
+    def has_add_permission(self, request):
+        """Only allow add in tenant schemas"""
+        return is_tenant_schema() and super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        """Only allow change in tenant schemas"""
+        return is_tenant_schema() and super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        """Only allow delete in tenant schemas"""
+        return is_tenant_schema() and super().has_delete_permission(request, obj)
+
+    @display(description="Status", label=True)
+    def show_status(self, obj):
+        """Display status with color badge"""
+        colors = {
+            'pending': 'warning',
+            'sent': 'success',
+            'failed': 'danger',
+            'cancelled': 'info',
+        }
+        return colors.get(obj.status, 'info'), obj.get_status_display()
+
+    fieldsets = (
+        ('Reminder Information', {
+            'fields': (
+                'loan', 'loan_schedule', 'customer',
+                'reminder_type', 'channel', 'status'
+            )
+        }),
+        ('Scheduling', {
+            'fields': ('scheduled_for', 'sent_at', 'sent_by')
+        }),
+        ('Content', {
+            'fields': ('message_content', 'error_message')
+        }),
+        ('Customer Response', {
+            'fields': ('customer_response', 'response_received_at')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('loan', 'customer', 'loan_schedule', 'sent_by')
+
+
+@admin.register(CollectionContact)
+class CollectionContactAdmin(ModelAdmin):
+    """Admin interface for CollectionContact model"""
+
+    # Unfold specific settings
+    list_fullwidth = True
+    compressed_fields = True
+
+    # List view configuration
+    list_display = [
+        'customer', 'loan', 'contact_date', 'contact_type',
+        'outcome', 'show_escalation', 'contacted_by'
+    ]
+    list_filter = [
+        'contact_type', 'outcome', 'requires_escalation',
+        'promise_kept', 'contact_date'
+    ]
+    search_fields = [
+        'loan__loan_number', 'customer__first_name',
+        'customer__last_name', 'notes'
+    ]
+    readonly_fields = ['contacted_by', 'created_at', 'updated_at']
+    list_per_page = 50
+
+    def has_module_permission(self, request):
+        """Only show in tenant schemas"""
+        return is_tenant_schema()
+
+    def has_view_permission(self, request, obj=None):
+        """Only allow view in tenant schemas"""
+        return is_tenant_schema() and super().has_view_permission(request, obj)
+
+    def has_add_permission(self, request):
+        """Only allow add in tenant schemas"""
+        return is_tenant_schema() and super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        """Only allow change in tenant schemas"""
+        return is_tenant_schema() and super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        """Only allow delete in tenant schemas"""
+        return is_tenant_schema() and super().has_delete_permission(request, obj)
+
+    @display(description="Escalation", label=True)
+    def show_escalation(self, obj):
+        """Display escalation status with color badge"""
+        if obj.requires_escalation:
+            return 'danger', 'Requires Escalation'
+        return 'success', 'Normal'
+
+    fieldsets = (
+        ('Contact Information', {
+            'fields': (
+                'loan', 'customer', 'contact_date',
+                'contact_type', 'contacted_by'
+            )
+        }),
+        ('Outcome', {
+            'fields': ('outcome', 'notes')
+        }),
+        ('Promise to Pay', {
+            'fields': (
+                'promise_date', 'promise_amount', 'promise_kept'
+            )
+        }),
+        ('Follow-up', {
+            'fields': (
+                'next_contact_date', 'requires_escalation'
+            )
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('loan', 'customer', 'contacted_by')

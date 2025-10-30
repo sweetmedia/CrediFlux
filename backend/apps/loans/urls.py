@@ -5,7 +5,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     CustomerViewSet, CustomerDocumentViewSet, LoanViewSet, LoanPaymentViewSet,
-    LoanScheduleViewSet, CollateralViewSet
+    LoanScheduleViewSet, CollateralViewSet, CollectionReminderViewSet, CollectionContactViewSet
 )
 
 app_name = 'loans'
@@ -16,6 +16,8 @@ router.register(r'customer-documents', CustomerDocumentViewSet, basename='custom
 router.register(r'payments', LoanPaymentViewSet, basename='payment')
 router.register(r'schedules', LoanScheduleViewSet, basename='schedule')
 router.register(r'collaterals', CollateralViewSet, basename='collateral')
+router.register(r'collection-reminders', CollectionReminderViewSet, basename='collection-reminder')
+router.register(r'collection-contacts', CollectionContactViewSet, basename='collection-contact')
 router.register(r'', LoanViewSet, basename='loan')  # Root viewset must be last
 
 urlpatterns = [

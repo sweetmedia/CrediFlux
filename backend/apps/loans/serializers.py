@@ -3,6 +3,7 @@ Serializers for loan module
 """
 from rest_framework import serializers
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
+from .models_collections import CollectionReminder, CollectionContact
 
 
 class CustomerDocumentSerializer(serializers.ModelSerializer):
@@ -151,6 +152,8 @@ class LoanScheduleSerializer(serializers.ModelSerializer):
     interest_amount = serializers.DecimalField(source='interest_amount.amount', max_digits=14, decimal_places=2, read_only=True)
     paid_amount = serializers.DecimalField(source='paid_amount.amount', max_digits=14, decimal_places=2, read_only=True)
     balance = serializers.DecimalField(source='balance.amount', max_digits=14, decimal_places=2, read_only=True)
+    late_fee_amount = serializers.DecimalField(source='late_fee_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    late_fee_paid = serializers.DecimalField(source='late_fee_paid.amount', max_digits=14, decimal_places=2, read_only=True)
 
     class Meta:
         model = LoanSchedule
@@ -158,9 +161,10 @@ class LoanScheduleSerializer(serializers.ModelSerializer):
             'id', 'loan', 'installment_number', 'due_date',
             'total_amount', 'principal_amount', 'interest_amount',
             'paid_amount', 'paid_date', 'status', 'balance',
+            'actual_payment_date', 'days_overdue', 'late_fee_amount', 'late_fee_paid',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'days_overdue', 'created_at', 'updated_at']
 
 
 class LoanPaymentSerializer(serializers.ModelSerializer):
@@ -205,7 +209,10 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        """Calculate principal_paid and interest_paid automatically"""
+        """
+        Calculate payment distribution automatically.
+        Payment priority: Late Fees -> Interest -> Principal
+        """
         from moneyed import Money
         from decimal import Decimal
 
@@ -216,7 +223,7 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
         # Get currency from the amount
         currency = amount.currency if hasattr(amount, 'currency') else 'USD'
 
-        # Remove any manually provided values (should not be in validated_data but just in case)
+        # Remove any manually provided values
         validated_data.pop('principal_paid', None)
         validated_data.pop('interest_paid', None)
         validated_data.pop('late_fee_paid', None)
@@ -225,40 +232,66 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
         if 'status' not in validated_data:
             validated_data['status'] = 'completed'
 
-        # If schedule is provided, use it to determine interest vs principal
+        remaining_payment = amount.amount
+
+        # Initialize distribution amounts
+        late_fee_payment = Decimal('0')
+        interest_payment = Decimal('0')
+        principal_payment = Decimal('0')
+
         if schedule:
-            # Calculate remaining amounts in the schedule
-            paid_amount = schedule.paid_amount if schedule.paid_amount else Money(0, schedule.total_amount.currency)
-            remaining_total = schedule.total_amount - paid_amount
+            # STEP 1: Pay late fees first (mora)
+            late_fee_balance = schedule.late_fee_amount.amount - schedule.late_fee_paid.amount
+            if late_fee_balance > 0 and remaining_payment > 0:
+                late_fee_payment = min(remaining_payment, late_fee_balance)
+                remaining_payment -= late_fee_payment
 
-            # Calculate what portion is interest vs principal in this payment
-            if remaining_total.amount > 0:
-                interest_ratio = schedule.interest_amount.amount / schedule.total_amount.amount
-                payment_interest = Money(min(amount.amount * interest_ratio, schedule.interest_amount.amount), currency)
-                payment_principal = Money(amount.amount - payment_interest.amount, currency)
-            else:
-                # Schedule already paid, everything goes to principal
-                payment_interest = Money(0, currency)
-                payment_principal = amount
+            # STEP 2: Pay interest
+            interest_balance = schedule.interest_amount.amount - (
+                schedule.paid_amount.amount * (schedule.interest_amount.amount / schedule.total_amount.amount)
+                if schedule.paid_amount and schedule.total_amount.amount > 0 else Decimal('0')
+            )
+            if interest_balance > 0 and remaining_payment > 0:
+                interest_payment = min(remaining_payment, interest_balance)
+                remaining_payment -= interest_payment
 
-            validated_data['interest_paid'] = payment_interest
-            validated_data['principal_paid'] = payment_principal
+            # STEP 3: Pay principal
+            principal_balance = schedule.principal_amount.amount - (
+                schedule.paid_amount.amount * (schedule.principal_amount.amount / schedule.total_amount.amount)
+                if schedule.paid_amount and schedule.total_amount.amount > 0 else Decimal('0')
+            )
+            if principal_balance > 0 and remaining_payment > 0:
+                principal_payment = min(remaining_payment, principal_balance)
+                remaining_payment -= principal_payment
+
+            # If there's still money left (overpayment), add to principal
+            if remaining_payment > 0:
+                principal_payment += remaining_payment
         else:
-            # No schedule - calculate interest based on outstanding balance and rate
-            # Simple calculation: pay interest first based on monthly rate
+            # No schedule - calculate based on loan balances
+            # STEP 1: Check for any late fees in the loan
+            # (In a real system, you'd calculate this based on overdue schedules)
+            late_fee_payment = Decimal('0')  # No schedule, no late fee in this simple case
+
+            # STEP 2: Pay interest first based on monthly rate
             monthly_rate = loan.interest_rate / Decimal('100') / Decimal('12')
-            interest_amount = loan.outstanding_balance.amount * monthly_rate
+            interest_due = loan.outstanding_balance.amount * monthly_rate
 
-            if amount.amount >= interest_amount:
-                validated_data['interest_paid'] = Money(interest_amount, currency)
-                validated_data['principal_paid'] = Money(amount.amount - interest_amount, currency)
+            if remaining_payment >= interest_due:
+                interest_payment = interest_due
+                remaining_payment -= interest_payment
             else:
-                # Payment doesn't cover all interest
-                validated_data['interest_paid'] = amount
-                validated_data['principal_paid'] = Money(0, currency)
+                interest_payment = remaining_payment
+                remaining_payment = Decimal('0')
 
-        # Set late_fee_paid to 0
-        validated_data['late_fee_paid'] = Money(0, currency)
+            # STEP 3: Rest goes to principal
+            if remaining_payment > 0:
+                principal_payment = remaining_payment
+
+        # Set the distribution in validated_data
+        validated_data['late_fee_paid'] = Money(late_fee_payment, currency)
+        validated_data['interest_paid'] = Money(interest_payment, currency)
+        validated_data['principal_paid'] = Money(principal_payment, currency)
 
         return super().create(validated_data)
 
@@ -367,3 +400,113 @@ class LoanCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Term must be at least 1 month")
 
         return attrs
+
+
+class CollectionReminderSerializer(serializers.ModelSerializer):
+    """Serializer for CollectionReminder model"""
+    loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
+    customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
+    reminder_type_display = serializers.CharField(source='get_reminder_type_display', read_only=True)
+    channel_display = serializers.CharField(source='get_channel_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    sent_by_name = serializers.CharField(source='sent_by.get_full_name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = CollectionReminder
+        fields = [
+            'id', 'loan_schedule', 'loan', 'loan_number', 'customer', 'customer_name',
+            'reminder_type', 'reminder_type_display', 'channel', 'channel_display',
+            'scheduled_for', 'sent_at', 'status', 'status_display',
+            'message_content', 'sent_by', 'sent_by_name', 'error_message',
+            'customer_response', 'response_received_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'sent_at', 'sent_by', 'created_at', 'updated_at']
+
+    def validate_scheduled_for(self, value):
+        """Ensure scheduled_for is not in the past"""
+        from django.utils import timezone
+        if value < timezone.now():
+            raise serializers.ValidationError("El recordatorio no puede programarse en el pasado")
+        return value
+
+
+class CollectionReminderCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating collection reminders"""
+
+    class Meta:
+        model = CollectionReminder
+        fields = [
+            'loan_schedule', 'loan', 'customer', 'reminder_type',
+            'channel', 'scheduled_for', 'message_content'
+        ]
+
+    def validate(self, attrs):
+        """Validate that loan, customer, and schedule are related"""
+        loan = attrs.get('loan')
+        customer = attrs.get('customer')
+        loan_schedule = attrs.get('loan_schedule')
+
+        if loan and customer and loan.customer != customer:
+            raise serializers.ValidationError("El cliente no corresponde al préstamo seleccionado")
+
+        if loan_schedule and loan_schedule.loan != loan:
+            raise serializers.ValidationError("El cronograma no corresponde al préstamo seleccionado")
+
+        return attrs
+
+
+class CollectionContactSerializer(serializers.ModelSerializer):
+    """Serializer for CollectionContact model"""
+    loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
+    customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
+    contact_type_display = serializers.CharField(source='get_contact_type_display', read_only=True)
+    outcome_display = serializers.CharField(source='get_outcome_display', read_only=True)
+    contacted_by_name = serializers.CharField(source='contacted_by.get_full_name', read_only=True, allow_null=True)
+    promise_amount = serializers.DecimalField(source='promise_amount.amount', max_digits=12, decimal_places=2, read_only=True, allow_null=True)
+
+    class Meta:
+        model = CollectionContact
+        fields = [
+            'id', 'loan', 'loan_number', 'customer', 'customer_name',
+            'contact_date', 'contact_type', 'contact_type_display',
+            'contacted_by', 'contacted_by_name', 'outcome', 'outcome_display',
+            'promise_date', 'promise_amount', 'promise_kept',
+            'notes', 'next_contact_date', 'requires_escalation',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'contacted_by', 'created_at', 'updated_at']
+
+
+class CollectionContactCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating collection contacts"""
+
+    class Meta:
+        model = CollectionContact
+        fields = [
+            'loan', 'customer', 'contact_date', 'contact_type',
+            'outcome', 'promise_date', 'promise_amount', 'promise_kept',
+            'notes', 'next_contact_date', 'requires_escalation'
+        ]
+
+    def validate(self, attrs):
+        """Validate that customer belongs to the loan"""
+        loan = attrs.get('loan')
+        customer = attrs.get('customer')
+
+        if loan and customer and loan.customer != customer:
+            raise serializers.ValidationError("El cliente no corresponde al préstamo seleccionado")
+
+        # If outcome is promise_to_pay, require promise_date and promise_amount
+        outcome = attrs.get('outcome')
+        if outcome in ['promise_to_pay', 'payment_plan']:
+            if not attrs.get('promise_date'):
+                raise serializers.ValidationError("Se requiere fecha de promesa de pago")
+            if not attrs.get('promise_amount'):
+                raise serializers.ValidationError("Se requiere monto de promesa de pago")
+
+        return attrs
+
+    def create(self, validated_data):
+        """Auto-assign contacted_by to current user"""
+        # The view will set this via perform_create
+        return super().create(validated_data)

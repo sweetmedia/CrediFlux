@@ -11,11 +11,14 @@ from django.db.models import Q, Sum, Count
 from decimal import Decimal
 
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
+from .models_collections import CollectionReminder, CollectionContact
 from .serializers import (
     CustomerSerializer, CustomerListSerializer,
     CustomerDocumentSerializer, CustomerDocumentListSerializer,
     LoanSerializer, LoanListSerializer, LoanCreateSerializer,
-    LoanScheduleSerializer, LoanPaymentSerializer, CollateralSerializer
+    LoanScheduleSerializer, LoanPaymentSerializer, LoanPaymentCreateSerializer,
+    CollateralSerializer, CollectionReminderSerializer, CollectionReminderCreateSerializer,
+    CollectionContactSerializer, CollectionContactCreateSerializer
 )
 from .permissions import CanApproveLoan, CanManageLoans
 
@@ -430,20 +433,126 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        """
+        Confirm a pending payment.
+        Updates loan schedule and outstanding balance.
+        """
+        from moneyed import Money
+
+        payment = self.get_object()
+
+        if payment.status != 'pending':
+            return Response(
+                {'error': 'Solo se pueden confirmar pagos pendientes'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update payment status
+        payment.status = 'completed'
+        payment.save()
+
+        # Update loan outstanding balance
+        loan = payment.loan
+        loan.outstanding_balance -= payment.principal_paid
+        loan.total_paid += payment.amount
+        loan.total_interest_paid += payment.interest_paid
+        loan.save()
+
+        # Update schedule if linked
+        if payment.schedule:
+            schedule = payment.schedule
+
+            # Update paid amount
+            schedule.paid_amount = (schedule.paid_amount or Money(0, schedule.total_amount.currency)) + payment.amount
+
+            # Update late fee paid
+            schedule.late_fee_paid = (schedule.late_fee_paid or Money(0, schedule.late_fee_amount.currency)) + payment.late_fee_paid
+
+            # Set actual payment date if not set
+            if not schedule.actual_payment_date:
+                schedule.actual_payment_date = payment.payment_date
+
+            # Update status
+            if schedule.paid_amount >= schedule.total_amount + schedule.late_fee_amount:
+                schedule.status = 'paid'
+                schedule.paid_date = payment.payment_date
+            elif schedule.paid_amount > Money(0, schedule.total_amount.currency):
+                schedule.status = 'partial'
+
+            schedule.save()
+
+        serializer = self.get_serializer(payment)
+        return Response({
+            'message': 'Pago confirmado exitosamente',
+            'payment': serializer.data
+        })
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Cancel a pending payment"""
+        payment = self.get_object()
+
+        if payment.status not in ['pending']:
+            return Response(
+                {'error': 'Solo se pueden cancelar pagos pendientes'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        payment.status = 'cancelled'
+        payment.save()
+
+        return Response({'message': 'Pago cancelado'})
+
+    @action(detail=True, methods=['post'])
     def reverse(self, request, pk=None):
-        """Reverse a payment"""
+        """
+        Reverse a completed payment.
+        This will reverse the updates made to loan and schedule.
+        """
+        from moneyed import Money
+
         payment = self.get_object()
 
         if payment.status == 'reversed':
             return Response(
-                {'error': 'Payment already reversed'},
+                {'error': 'El pago ya ha sido reversado'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        if payment.status != 'completed':
+            return Response(
+                {'error': 'Solo se pueden reversar pagos completados'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Reverse loan balances
+        loan = payment.loan
+        loan.outstanding_balance += payment.principal_paid
+        loan.total_paid -= payment.amount
+        loan.total_interest_paid -= payment.interest_paid
+        loan.save()
+
+        # Reverse schedule updates if linked
+        if payment.schedule:
+            schedule = payment.schedule
+            schedule.paid_amount -= payment.amount
+            schedule.late_fee_paid -= payment.late_fee_paid
+
+            # Recalculate status
+            if schedule.paid_amount <= Money(0, schedule.total_amount.currency):
+                schedule.status = 'pending'
+                schedule.paid_date = None
+            else:
+                schedule.status = 'partial'
+
+            schedule.save()
+
+        # Mark payment as reversed
         payment.status = 'reversed'
         payment.save()
 
-        return Response({'status': 'payment reversed'})
+        return Response({'message': 'Pago reversado exitosamente'})
 
 
 class LoanScheduleViewSet(viewsets.ReadOnlyModelViewSet):
@@ -500,3 +609,207 @@ class CollateralViewSet(viewsets.ModelViewSet):
         collateral.status = 'liquidated'
         collateral.save()
         return Response({'status': 'collateral liquidated'})
+
+
+class CollectionReminderViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing collection reminders
+    """
+    queryset = CollectionReminder.objects.select_related(
+        'loan', 'customer', 'loan_schedule', 'sent_by'
+    ).all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'reminder_type', 'channel', 'loan', 'customer']
+    search_fields = [
+        'loan__loan_number', 'customer__first_name',
+        'customer__last_name', 'message_content'
+    ]
+    ordering_fields = ['scheduled_for', 'sent_at', 'created_at']
+    ordering = ['-scheduled_for']
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return CollectionReminderCreateSerializer
+        return CollectionReminderSerializer
+
+    def perform_create(self, serializer):
+        """Auto-set status to pending"""
+        serializer.save(status='pending')
+
+    @action(detail=True, methods=['post'])
+    def send(self, request, pk=None):
+        """
+        Send a reminder (mark as sent)
+        In production, this would trigger actual sending via email/SMS/WhatsApp
+        """
+        reminder = self.get_object()
+
+        if reminder.status != 'pending':
+            return Response(
+                {'error': 'Solo se pueden enviar recordatorios pendientes'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update reminder
+        reminder.status = 'sent'
+        reminder.sent_at = timezone.now()
+        reminder.sent_by = request.user
+        reminder.save()
+
+        # TODO: Integrate with actual email/SMS/WhatsApp API
+        # For now, we just mark it as sent
+
+        serializer = self.get_serializer(reminder)
+        return Response({
+            'message': 'Recordatorio enviado exitosamente',
+            'reminder': serializer.data
+        })
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Cancel a pending reminder"""
+        reminder = self.get_object()
+
+        if reminder.status not in ['pending']:
+            return Response(
+                {'error': 'Solo se pueden cancelar recordatorios pendientes'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        reminder.status = 'cancelled'
+        reminder.save()
+
+        return Response({'message': 'Recordatorio cancelado'})
+
+    @action(detail=False, methods=['get'])
+    def pending(self, request):
+        """Get all pending reminders"""
+        pending = self.get_queryset().filter(status='pending')
+        serializer = self.get_serializer(pending, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def scheduled_today(self, request):
+        """Get reminders scheduled for today"""
+        today = timezone.now().date()
+        reminders = self.get_queryset().filter(
+            scheduled_for__date=today,
+            status='pending'
+        )
+        serializer = self.get_serializer(reminders, many=True)
+        return Response(serializer.data)
+
+
+class CollectionContactViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing collection contacts (contact history)
+    """
+    queryset = CollectionContact.objects.select_related(
+        'loan', 'customer', 'contacted_by'
+    ).all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = [
+        'contact_type', 'outcome', 'loan', 'customer',
+        'requires_escalation', 'promise_kept'
+    ]
+    search_fields = [
+        'loan__loan_number', 'customer__first_name',
+        'customer__last_name', 'notes'
+    ]
+    ordering_fields = ['contact_date', 'created_at', 'promise_date']
+    ordering = ['-contact_date']
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return CollectionContactCreateSerializer
+        return CollectionContactSerializer
+
+    def perform_create(self, serializer):
+        """Auto-assign contacted_by to current user"""
+        serializer.save(contacted_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def mark_promise_kept(self, request, pk=None):
+        """Mark a promise to pay as kept"""
+        contact = self.get_object()
+
+        if contact.outcome not in ['promise_to_pay', 'payment_plan']:
+            return Response(
+                {'error': 'Este contacto no tiene una promesa de pago registrada'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        contact.promise_kept = True
+        contact.save()
+
+        return Response({'message': 'Promesa de pago marcada como cumplida'})
+
+    @action(detail=True, methods=['post'])
+    def mark_promise_broken(self, request, pk=None):
+        """Mark a promise to pay as broken"""
+        contact = self.get_object()
+
+        if contact.outcome not in ['promise_to_pay', 'payment_plan']:
+            return Response(
+                {'error': 'Este contacto no tiene una promesa de pago registrada'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        contact.promise_kept = False
+        contact.save()
+
+        return Response({'message': 'Promesa de pago marcada como incumplida'})
+
+    @action(detail=True, methods=['post'])
+    def escalate(self, request, pk=None):
+        """Escalate a contact to supervisor"""
+        contact = self.get_object()
+        contact.requires_escalation = True
+        contact.save()
+
+        return Response({'message': 'Contacto escalado a supervisor'})
+
+    @action(detail=False, methods=['get'])
+    def requiring_escalation(self, request):
+        """Get all contacts requiring escalation"""
+        contacts = self.get_queryset().filter(requires_escalation=True)
+        serializer = self.get_serializer(contacts, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def promises_due_today(self, request):
+        """Get contacts with promises due today"""
+        today = timezone.now().date()
+        contacts = self.get_queryset().filter(
+            promise_date=today,
+            promise_kept__isnull=True
+        )
+        serializer = self.get_serializer(contacts, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def broken_promises(self, request):
+        """Get contacts with broken promises"""
+        contacts = self.get_queryset().filter(promise_kept=False)
+        serializer = self.get_serializer(contacts, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def by_collector(self, request):
+        """Get contacts by collector (current user or specified user_id)"""
+        user_id = request.query_params.get('user_id', request.user.id)
+        contacts = self.get_queryset().filter(contacted_by_id=user_id)
+
+        # Optional date range filter
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if start_date:
+            contacts = contacts.filter(contact_date__gte=start_date)
+        if end_date:
+            contacts = contacts.filter(contact_date__lte=end_date)
+
+        serializer = self.get_serializer(contacts, many=True)
+        return Response(serializer.data)
