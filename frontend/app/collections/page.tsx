@@ -32,6 +32,7 @@ import {
   CheckCircle,
   XCircle,
   ArrowRight,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -97,9 +98,12 @@ export default function CollectionsDashboardPage() {
       ]);
 
       // Calculate overdue stats
-      const totalOverdue = overdueResponse.reduce((sum, s) => sum + s.balance, 0);
+      const totalOverdue = overdueResponse.reduce((sum, s) => sum + (Number(s.balance) || 0), 0);
       const totalLateFees = overdueResponse.reduce(
-        (sum, s) => sum + (s.late_fee_amount - s.late_fee_paid),
+        (sum, s) => {
+          const lateFeeDue = (Number(s.late_fee_amount) || 0) - (Number(s.late_fee_paid) || 0);
+          return sum + lateFeeDue;
+        },
         0
       );
 
@@ -151,6 +155,13 @@ export default function CollectionsDashboardPage() {
     <div className="container mx-auto py-6 px-4 max-w-7xl">
       {/* Header */}
       <div className="mb-6">
+        <Link
+          href="/loans"
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-3"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Volver a Préstamos
+        </Link>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard de Cobranza</h1>
         <p className="text-muted-foreground mt-2">
           Resumen de actividades y métricas de cobranza
@@ -202,6 +213,14 @@ export default function CollectionsDashboardPage() {
             <p className="text-xs text-muted-foreground mt-1">
               Cargos por atraso
             </p>
+            <Button
+              variant="link"
+              size="sm"
+              className="p-0 h-auto mt-2 text-orange-600"
+              onClick={() => router.push('/schedules/overdue')}
+            >
+              Ver detalles <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
           </CardContent>
         </Card>
 

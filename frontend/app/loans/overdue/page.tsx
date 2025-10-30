@@ -53,15 +53,20 @@ export default function OverdueLoansPage() {
       setIsLoading(true);
       setError('');
 
-      // Get all active loans and filter those with overdue payments
-      const response = await loansAPI.getLoans({ status: 'active' });
+      // Get all loans (active and defaulted) and filter those with overdue payments
+      const response = await loansAPI.getLoans({});
       const allLoans = response.results || [];
 
-      // Filter loans that have days_overdue > 0
-      const overdueLoans = allLoans.filter((loan: any) => loan.days_overdue > 0);
+      // Filter loans that:
+      // 1. Are active or defaulted (not paid, rejected, or written off)
+      // 2. Have is_overdue = true OR days_overdue > 0
+      const overdueLoans = allLoans.filter((loan: any) =>
+        ['active', 'defaulted'].includes(loan.status) &&
+        (loan.is_overdue || (loan.days_overdue && loan.days_overdue > 0))
+      );
 
       // Sort by days overdue (descending)
-      overdueLoans.sort((a: any, b: any) => b.days_overdue - a.days_overdue);
+      overdueLoans.sort((a: any, b: any) => (b.days_overdue || 0) - (a.days_overdue || 0));
 
       setLoans(overdueLoans);
 

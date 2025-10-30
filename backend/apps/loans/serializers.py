@@ -146,6 +146,9 @@ class CollateralSerializer(serializers.ModelSerializer):
 
 class LoanScheduleSerializer(serializers.ModelSerializer):
     """Serializer for LoanSchedule model"""
+    loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
+    customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
+
     # Convert Money fields to decimal for frontend
     total_amount = serializers.DecimalField(source='total_amount.amount', max_digits=14, decimal_places=2, read_only=True)
     principal_amount = serializers.DecimalField(source='principal_amount.amount', max_digits=14, decimal_places=2, read_only=True)
@@ -158,19 +161,23 @@ class LoanScheduleSerializer(serializers.ModelSerializer):
     class Meta:
         model = LoanSchedule
         fields = [
-            'id', 'loan', 'installment_number', 'due_date',
+            'id', 'loan', 'loan_number', 'customer_name', 'installment_number', 'due_date',
             'total_amount', 'principal_amount', 'interest_amount',
             'paid_amount', 'paid_date', 'status', 'balance',
             'actual_payment_date', 'days_overdue', 'late_fee_amount', 'late_fee_paid',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'days_overdue', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'loan_number', 'customer_name', 'days_overdue', 'created_at', 'updated_at']
 
 
 class LoanPaymentSerializer(serializers.ModelSerializer):
     """Serializer for LoanPayment model (read-only)"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
+
+    # Convert UUID fields to strings for frontend compatibility
+    loan = serializers.SerializerMethodField()
+    schedule = serializers.SerializerMethodField()
 
     # Convert Money fields to decimal for frontend
     amount = serializers.DecimalField(source='amount.amount', max_digits=14, decimal_places=2, read_only=True)
@@ -188,6 +195,14 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'payment_number', 'created_at', 'updated_at']
+
+    def get_loan(self, obj):
+        """Return loan UUID as string"""
+        return str(obj.loan.id) if obj.loan else None
+
+    def get_schedule(self, obj):
+        """Return schedule UUID as string"""
+        return str(obj.schedule.id) if obj.schedule else None
 
 
 class LoanPaymentCreateSerializer(serializers.ModelSerializer):
@@ -268,25 +283,64 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
             if remaining_payment > 0:
                 principal_payment += remaining_payment
         else:
-            # No schedule - calculate based on loan balances
-            # STEP 1: Check for any late fees in the loan
-            # (In a real system, you'd calculate this based on overdue schedules)
-            late_fee_payment = Decimal('0')  # No schedule, no late fee in this simple case
+            # No schedule specified - find the oldest overdue schedule and apply payment there
+            from django.utils import timezone
 
-            # STEP 2: Pay interest first based on monthly rate
-            monthly_rate = loan.interest_rate / Decimal('100') / Decimal('12')
-            interest_due = loan.outstanding_balance.amount * monthly_rate
+            oldest_overdue = loan.payment_schedules.filter(
+                due_date__lt=timezone.now().date(),
+                status__in=['pending', 'overdue', 'partial']
+            ).order_by('due_date').first()
 
-            if remaining_payment >= interest_due:
-                interest_payment = interest_due
-                remaining_payment -= interest_payment
+            if oldest_overdue:
+                # Apply payment to the oldest overdue schedule with late fees
+                # STEP 1: Pay late fees first
+                late_fee_balance = oldest_overdue.late_fee_amount.amount - oldest_overdue.late_fee_paid.amount
+                if late_fee_balance > 0 and remaining_payment > 0:
+                    late_fee_payment = min(remaining_payment, late_fee_balance)
+                    remaining_payment -= late_fee_payment
+
+                # STEP 2: Pay interest for this schedule
+                interest_balance = oldest_overdue.interest_amount.amount - (
+                    oldest_overdue.paid_amount.amount * (oldest_overdue.interest_amount.amount / oldest_overdue.total_amount.amount)
+                    if oldest_overdue.paid_amount and oldest_overdue.total_amount.amount > 0 else Decimal('0')
+                )
+                if interest_balance > 0 and remaining_payment > 0:
+                    interest_payment = min(remaining_payment, interest_balance)
+                    remaining_payment -= interest_payment
+
+                # STEP 3: Pay principal for this schedule
+                principal_balance = oldest_overdue.principal_amount.amount - (
+                    oldest_overdue.paid_amount.amount * (oldest_overdue.principal_amount.amount / oldest_overdue.total_amount.amount)
+                    if oldest_overdue.paid_amount and oldest_overdue.total_amount.amount > 0 else Decimal('0')
+                )
+                if principal_balance > 0 and remaining_payment > 0:
+                    principal_payment = min(remaining_payment, principal_balance)
+                    remaining_payment -= principal_payment
+
+                # Link this payment to the schedule we found
+                validated_data['schedule'] = oldest_overdue
+
+                # If there's still money left (overpayment), add to principal
+                if remaining_payment > 0:
+                    principal_payment += remaining_payment
             else:
-                interest_payment = remaining_payment
-                remaining_payment = Decimal('0')
+                # No overdue schedules - apply to loan balances generically
+                late_fee_payment = Decimal('0')
 
-            # STEP 3: Rest goes to principal
-            if remaining_payment > 0:
-                principal_payment = remaining_payment
+                # STEP 2: Pay interest based on monthly rate
+                monthly_rate = loan.interest_rate / Decimal('100') / Decimal('12')
+                interest_due = loan.outstanding_balance.amount * monthly_rate
+
+                if remaining_payment >= interest_due:
+                    interest_payment = interest_due
+                    remaining_payment -= interest_payment
+                else:
+                    interest_payment = remaining_payment
+                    remaining_payment = Decimal('0')
+
+                # STEP 3: Rest goes to principal
+                if remaining_payment > 0:
+                    principal_payment = remaining_payment
 
         # Set the distribution in validated_data
         validated_data['late_fee_paid'] = Money(late_fee_payment, currency)
@@ -314,6 +368,7 @@ class LoanSerializer(serializers.ModelSerializer):
     total_amount = serializers.DecimalField(source='total_amount.amount', max_digits=14, decimal_places=2, read_only=True)
 
     is_overdue = serializers.BooleanField(read_only=True)
+    days_overdue = serializers.SerializerMethodField()
     collaterals = CollateralSerializer(many=True, read_only=True)
     payment_schedules = LoanScheduleSerializer(many=True, read_only=True)
     recent_payments = serializers.SerializerMethodField()
@@ -330,7 +385,7 @@ class LoanSerializer(serializers.ModelSerializer):
             'loan_officer_name', 'approved_by', 'approved_by_name',
             'rejected_by', 'rejected_by_name', 'approval_notes',
             'purpose', 'notes', 'terms_accepted',
-            'contract_document', 'total_amount', 'is_overdue',
+            'contract_document', 'total_amount', 'is_overdue', 'days_overdue',
             'collaterals', 'payment_schedules', 'recent_payments',
             'created_at', 'updated_at'
         ]
@@ -338,6 +393,22 @@ class LoanSerializer(serializers.ModelSerializer):
             'id', 'loan_number', 'outstanding_balance', 'total_paid',
             'total_interest_paid', 'created_at', 'updated_at'
         ]
+
+    def get_days_overdue(self, obj):
+        """
+        Calculate the maximum days overdue from all pending/overdue schedules
+        """
+        from django.utils import timezone
+
+        # Get the most overdue payment schedule (pending, overdue, or partial)
+        most_overdue = obj.payment_schedules.filter(
+            status__in=['pending', 'overdue', 'partial'],
+            due_date__lt=timezone.now().date()
+        ).order_by('due_date').first()
+
+        if most_overdue:
+            return (timezone.now().date() - most_overdue.due_date).days
+        return 0
 
     def get_recent_payments(self, obj):
         payments = obj.payments.filter(status='completed').order_by('-payment_date')[:5]
@@ -348,6 +419,7 @@ class LoanListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for loan list"""
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
+    days_overdue = serializers.SerializerMethodField()
 
     # Use SerializerMethodField to convert Money to decimal
     principal_amount = serializers.SerializerMethodField()
@@ -359,7 +431,7 @@ class LoanListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'loan_number', 'customer_name', 'loan_type',
             'principal_amount', 'interest_rate', 'outstanding_balance', 'total_paid', 'status',
-            'disbursement_date', 'is_overdue', 'created_at'
+            'disbursement_date', 'is_overdue', 'days_overdue', 'created_at'
         ]
 
     def get_principal_amount(self, obj):
@@ -370,6 +442,19 @@ class LoanListSerializer(serializers.ModelSerializer):
 
     def get_total_paid(self, obj):
         return float(obj.total_paid.amount) if obj.total_paid else 0
+
+    def get_days_overdue(self, obj):
+        """Calculate days overdue from all pending/overdue/partial schedules"""
+        from django.utils import timezone
+
+        most_overdue = obj.payment_schedules.filter(
+            status__in=['pending', 'overdue', 'partial'],
+            due_date__lt=timezone.now().date()
+        ).order_by('due_date').first()
+
+        if most_overdue:
+            return (timezone.now().date() - most_overdue.due_date).days
+        return 0
 
 
 class LoanCreateSerializer(serializers.ModelSerializer):

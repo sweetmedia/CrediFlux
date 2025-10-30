@@ -33,6 +33,7 @@ import {
   CreditCard,
   TrendingUp,
   Clock,
+  ArrowLeft,
 } from 'lucide-react';
 import { LoanSchedule } from '@/types';
 
@@ -72,8 +73,11 @@ export default function OverdueSchedulesPage() {
       setScheduleCount(response.length);
 
       // Calculate stats
-      const overdue = response.reduce((sum, s) => sum + s.balance, 0);
-      const lateFees = response.reduce((sum, s) => sum + (s.late_fee_amount - s.late_fee_paid), 0);
+      const overdue = response.reduce((sum, s) => sum + (Number(s.balance) || 0), 0);
+      const lateFees = response.reduce((sum, s) => {
+        const lateFeeDue = (Number(s.late_fee_amount) || 0) - (Number(s.late_fee_paid) || 0);
+        return sum + lateFeeDue;
+      }, 0);
 
       setTotalOverdue(overdue);
       setTotalLateFees(lateFees);
@@ -122,6 +126,13 @@ export default function OverdueSchedulesPage() {
     <div className="container mx-auto py-6 px-4 max-w-7xl">
       {/* Header */}
       <div className="mb-6">
+        <Link
+          href="/collections"
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-3"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Volver a Cobranza
+        </Link>
         <h1 className="text-3xl font-bold tracking-tight">Pagos Vencidos</h1>
         <p className="text-muted-foreground mt-2">
           Cronogramas de pago que requieren atención inmediata
@@ -221,8 +232,8 @@ export default function OverdueSchedulesPage() {
                 </TableHeader>
                 <TableBody>
                   {schedules.map((schedule) => {
-                    const lateFeeDue = schedule.late_fee_amount - schedule.late_fee_paid;
-                    const totalDue = schedule.balance + lateFeeDue;
+                    const lateFeeDue = (Number(schedule.late_fee_amount) || 0) - (Number(schedule.late_fee_paid) || 0);
+                    const totalDue = (Number(schedule.balance) || 0) + lateFeeDue;
 
                     return (
                       <TableRow key={schedule.id}>
@@ -231,13 +242,13 @@ export default function OverdueSchedulesPage() {
                             href={`/loans/${schedule.loan}`}
                             className="text-blue-600 hover:underline"
                           >
-                            Préstamo #{schedule.loan.substring(0, 8)}
+                            {schedule.loan_number}
                           </Link>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-gray-400" />
-                            <span>Cliente</span>
+                            <span>{schedule.customer_name}</span>
                           </div>
                         </TableCell>
                         <TableCell>{schedule.installment_number}</TableCell>

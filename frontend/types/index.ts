@@ -193,6 +193,8 @@ export interface Loan {
 export interface LoanSchedule {
   id: string;
   loan: string;
+  loan_number: string;
+  customer_name: string;
   installment_number: number;
   due_date: string;
   total_amount: number;
@@ -402,6 +404,7 @@ export interface LoanStatistics {
   pending_loans: number;
   paid_loans: number;
   defaulted_loans: number;
+  overdue_loans: number;
   total_disbursed: number;
   total_outstanding: number;
   total_collected: number;

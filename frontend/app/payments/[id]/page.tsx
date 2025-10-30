@@ -318,14 +318,23 @@ export default function PaymentDetailPage() {
                 </span>
               </div>
 
-              {payment.late_fee_paid > 0 && (
-                <div className="flex justify-between items-center pb-3 border-b">
+              <div className="flex justify-between items-center pb-3 border-b">
+                <div>
                   <span className="text-gray-600">Mora Pagada</span>
-                  <span className="font-semibold text-lg text-orange-600">
-                    {formatCurrency(payment.late_fee_paid)}
-                  </span>
+                  {payment.late_fee_paid > 0 ? (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ Cargos por atraso cubiertos en este pago
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">
+                      No se aplicó a mora en este pago
+                    </p>
+                  )}
                 </div>
-              )}
+                <span className={`font-semibold text-lg ${payment.late_fee_paid > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+                  {formatCurrency(payment.late_fee_paid || 0)}
+                </span>
+              </div>
 
               <div className="flex justify-between items-center pt-3 bg-blue-50 p-4 rounded-lg">
                 <span className="font-semibold text-gray-900">Total</span>

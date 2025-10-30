@@ -197,7 +197,11 @@ class LoanViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing loans
     """
-    queryset = Loan.objects.select_related('customer', 'loan_officer').all()
+    queryset = Loan.objects.select_related(
+        'customer', 'loan_officer', 'approved_by', 'rejected_by'
+    ).prefetch_related(
+        'payment_schedules', 'payments', 'collaterals'
+    ).all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'loan_type', 'customer']
@@ -327,7 +331,15 @@ class LoanViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Get overall loan statistics"""
+        from django.utils import timezone
+
         loans = self.get_queryset()
+
+        # Count overdue loans (loans with pending schedules past due date)
+        overdue_loans = loans.filter(
+            payment_schedules__status='pending',
+            payment_schedules__due_date__lt=timezone.now().date()
+        ).distinct().count()
 
         stats = {
             'total_loans': loans.count(),
@@ -335,6 +347,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             'pending_loans': loans.filter(status='pending').count(),
             'paid_loans': loans.filter(status='paid').count(),
             'defaulted_loans': loans.filter(status='defaulted').count(),
+            'overdue_loans': overdue_loans,
             'total_disbursed': loans.filter(
                 status__in=['active', 'paid', 'defaulted']
             ).aggregate(total=Sum('principal_amount'))['total'] or 0,
@@ -559,7 +572,7 @@ class LoanScheduleViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for viewing loan schedules (read-only)
     """
-    queryset = LoanSchedule.objects.select_related('loan').all()
+    queryset = LoanSchedule.objects.select_related('loan', 'loan__customer').all()
     serializer_class = LoanScheduleSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -572,7 +585,7 @@ class LoanScheduleViewSet(viewsets.ReadOnlyModelViewSet):
         """Get all overdue schedules"""
         overdue = self.get_queryset().filter(
             due_date__lt=timezone.now().date(),
-            status__in=['pending', 'partial']
+            status__in=['pending', 'partial', 'overdue']
         )
         serializer = self.get_serializer(overdue, many=True)
         return Response(serializer.data)

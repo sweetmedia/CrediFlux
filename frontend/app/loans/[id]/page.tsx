@@ -258,7 +258,7 @@ export default function LoanDetailPage() {
                 Desembolsar
               </Button>
             )}
-            {loan.status === 'active' && (
+            {!['paid', 'rejected', 'written_off', 'draft', 'pending'].includes(loan.status) && (
               <Link href={`/payments/new?loan=${loan.id}`}>
                 <Button>
                   <Receipt className="mr-2 h-4 w-4" />
