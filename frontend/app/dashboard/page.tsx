@@ -187,6 +187,18 @@ export default function DashboardPage() {
               >
                 Clientes
               </Link>
+              <Link
+                href="/collections"
+                className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
+              >
+                Cobranza
+              </Link>
+              <Link
+                href="/payments"
+                className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
+              >
+                Pagos
+              </Link>
               {(user?.is_tenant_owner || user?.role === 'admin') && (
                 <Link
                   href="/users"

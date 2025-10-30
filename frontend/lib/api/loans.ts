@@ -6,6 +6,10 @@ import {
   Collateral,
   PaginatedResponse,
   LoanStatistics,
+  CollectionReminder,
+  CollectionReminderCreate,
+  CollectionContact,
+  CollectionContactCreate,
 } from '@/types';
 
 export const loansAPI = {
@@ -109,9 +113,21 @@ export const paymentsAPI = {
     return apiClient.get<LoanPayment>(`/api/loans/payments/${id}/`);
   },
 
+  // Confirm payment
+  async confirmPayment(id: string): Promise<{ message: string; payment: LoanPayment }> {
+    return apiClient.post<{ message: string; payment: LoanPayment }>(
+      `/api/loans/payments/${id}/confirm/`
+    );
+  },
+
+  // Cancel payment
+  async cancelPayment(id: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/cancel/`);
+  },
+
   // Reverse payment
-  async reversePayment(id: string): Promise<{ status: string }> {
-    return apiClient.post<{ status: string }>(`/api/loans/payments/${id}/reverse/`);
+  async reversePayment(id: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/reverse/`);
   },
 };
 
@@ -176,5 +192,148 @@ export const collateralsAPI = {
   // Liquidate collateral
   async liquidateCollateral(id: string): Promise<{ status: string }> {
     return apiClient.post<{ status: string }>(`/api/loans/collaterals/${id}/liquidate/`);
+  },
+};
+
+export const collectionsAPI = {
+  // Reminders
+  async getReminders(params?: {
+    page?: number;
+    status?: string;
+    reminder_type?: string;
+    channel?: string;
+    loan?: string;
+    customer?: string;
+  }): Promise<PaginatedResponse<CollectionReminder>> {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) queryParams.append(key, String(value));
+      });
+    }
+    return apiClient.get<PaginatedResponse<CollectionReminder>>(
+      `/api/loans/collection-reminders/?${queryParams.toString()}`
+    );
+  },
+
+  async getReminder(id: string): Promise<CollectionReminder> {
+    return apiClient.get<CollectionReminder>(`/api/loans/collection-reminders/${id}/`);
+  },
+
+  async createReminder(data: CollectionReminderCreate): Promise<CollectionReminder> {
+    return apiClient.post<CollectionReminder>('/api/loans/collection-reminders/', data);
+  },
+
+  async updateReminder(id: string, data: Partial<CollectionReminderCreate>): Promise<CollectionReminder> {
+    return apiClient.put<CollectionReminder>(`/api/loans/collection-reminders/${id}/`, data);
+  },
+
+  async deleteReminder(id: string): Promise<void> {
+    return apiClient.delete(`/api/loans/collection-reminders/${id}/`);
+  },
+
+  async sendReminder(id: string): Promise<{ message: string; reminder: CollectionReminder }> {
+    return apiClient.post<{ message: string; reminder: CollectionReminder }>(
+      `/api/loans/collection-reminders/${id}/send/`
+    );
+  },
+
+  async cancelReminder(id: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(`/api/loans/collection-reminders/${id}/cancel/`);
+  },
+
+  async getPendingReminders(): Promise<CollectionReminder[]> {
+    return apiClient.get<CollectionReminder[]>('/api/loans/collection-reminders/pending/');
+  },
+
+  async getScheduledToday(): Promise<CollectionReminder[]> {
+    return apiClient.get<CollectionReminder[]>('/api/loans/collection-reminders/scheduled_today/');
+  },
+
+  // Contacts
+  async getContacts(params?: {
+    page?: number;
+    contact_type?: string;
+    outcome?: string;
+    loan?: string;
+    customer?: string;
+    requires_escalation?: boolean;
+    promise_kept?: boolean;
+  }): Promise<PaginatedResponse<CollectionContact>> {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, String(value));
+        }
+      });
+    }
+    return apiClient.get<PaginatedResponse<CollectionContact>>(
+      `/api/loans/collection-contacts/?${queryParams.toString()}`
+    );
+  },
+
+  async getContact(id: string): Promise<CollectionContact> {
+    return apiClient.get<CollectionContact>(`/api/loans/collection-contacts/${id}/`);
+  },
+
+  async createContact(data: CollectionContactCreate): Promise<CollectionContact> {
+    return apiClient.post<CollectionContact>('/api/loans/collection-contacts/', data);
+  },
+
+  async updateContact(id: string, data: Partial<CollectionContactCreate>): Promise<CollectionContact> {
+    return apiClient.put<CollectionContact>(`/api/loans/collection-contacts/${id}/`, data);
+  },
+
+  async deleteContact(id: string): Promise<void> {
+    return apiClient.delete(`/api/loans/collection-contacts/${id}/`);
+  },
+
+  async markPromiseKept(id: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(
+      `/api/loans/collection-contacts/${id}/mark_promise_kept/`
+    );
+  },
+
+  async markPromiseBroken(id: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(
+      `/api/loans/collection-contacts/${id}/mark_promise_broken/`
+    );
+  },
+
+  async escalateContact(id: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(
+      `/api/loans/collection-contacts/${id}/escalate/`
+    );
+  },
+
+  async getRequiringEscalation(): Promise<CollectionContact[]> {
+    return apiClient.get<CollectionContact[]>(
+      '/api/loans/collection-contacts/requiring_escalation/'
+    );
+  },
+
+  async getPromisesDueToday(): Promise<CollectionContact[]> {
+    return apiClient.get<CollectionContact[]>('/api/loans/collection-contacts/promises_due_today/');
+  },
+
+  async getBrokenPromises(): Promise<CollectionContact[]> {
+    return apiClient.get<CollectionContact[]>('/api/loans/collection-contacts/broken_promises/');
+  },
+
+  async getContactsByCollector(params?: {
+    user_id?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<CollectionContact[]> {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) queryParams.append(key, String(value));
+      });
+    }
+    return apiClient.get<CollectionContact[]>(
+      `/api/loans/collection-contacts/by_collector/?${queryParams.toString()}`
+    );
   },
 };

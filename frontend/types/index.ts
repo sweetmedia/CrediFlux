@@ -11,7 +11,9 @@ export interface User {
   bio: string | null;
   job_title: string | null;
   department: string | null;
-  role: 'admin' | 'manager' | 'loan_officer' | 'accountant' | 'cashier' | 'viewer';
+  role: 'admin' | 'manager' | 'loan_officer' | 'collector' | 'collection_supervisor' | 'accountant' | 'cashier' | 'viewer';
+  collection_zone?: string;
+  daily_collection_target?: number;
   tenant?: number;
   tenant_name?: string;
   is_tenant_owner: boolean;
@@ -198,7 +200,11 @@ export interface LoanSchedule {
   interest_amount: number;
   paid_amount: number;
   paid_date?: string;
-  status: 'pending' | 'paid' | 'overdue' | 'partial';
+  actual_payment_date?: string;
+  days_overdue: number;
+  late_fee_amount: number;
+  late_fee_paid: number;
+  status: 'pending' | 'paid' | 'overdue' | 'partial' | 'written_off';
   balance: number;
   created_at: string;
   updated_at: string;
@@ -408,4 +414,113 @@ export interface CustomerStatistics {
   defaulted_loans: number;
   total_borrowed: number;
   total_outstanding: number;
+}
+
+// Collection Types
+export type CollectionReminderType =
+  | 'upcoming_3'
+  | 'upcoming_1'
+  | 'due_today'
+  | 'overdue_1'
+  | 'overdue_3'
+  | 'overdue_7'
+  | 'overdue_15'
+  | 'overdue_30';
+
+export type CollectionChannel = 'email' | 'sms' | 'whatsapp' | 'call';
+
+export type CollectionReminderStatus = 'pending' | 'sent' | 'failed' | 'cancelled';
+
+export interface CollectionReminder {
+  id: string;
+  loan_schedule: string;
+  loan: string;
+  loan_number: string;
+  customer: string;
+  customer_name: string;
+  reminder_type: CollectionReminderType;
+  reminder_type_display: string;
+  channel: CollectionChannel;
+  channel_display: string;
+  scheduled_for: string;
+  sent_at?: string;
+  status: CollectionReminderStatus;
+  status_display: string;
+  message_content: string;
+  sent_by?: string;
+  sent_by_name?: string;
+  error_message?: string;
+  customer_response?: string;
+  response_received_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CollectionReminderCreate {
+  loan_schedule: string;
+  loan: string;
+  customer: string;
+  reminder_type: CollectionReminderType;
+  channel: CollectionChannel;
+  scheduled_for: string;
+  message_content: string;
+}
+
+export type CollectionContactType =
+  | 'phone_call'
+  | 'sms'
+  | 'whatsapp'
+  | 'email'
+  | 'home_visit'
+  | 'office_visit'
+  | 'meeting';
+
+export type CollectionContactOutcome =
+  | 'answered'
+  | 'no_answer'
+  | 'wrong_number'
+  | 'promise_to_pay'
+  | 'payment_plan'
+  | 'partial_payment'
+  | 'full_payment'
+  | 'dispute'
+  | 'hardship'
+  | 'refused_to_pay'
+  | 'not_reachable';
+
+export interface CollectionContact {
+  id: string;
+  loan: string;
+  loan_number: string;
+  customer: string;
+  customer_name: string;
+  contact_date: string;
+  contact_type: CollectionContactType;
+  contact_type_display: string;
+  contacted_by?: string;
+  contacted_by_name?: string;
+  outcome: CollectionContactOutcome;
+  outcome_display: string;
+  promise_date?: string;
+  promise_amount?: number;
+  promise_kept?: boolean;
+  notes: string;
+  next_contact_date?: string;
+  requires_escalation: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CollectionContactCreate {
+  loan: string;
+  customer: string;
+  contact_date: string;
+  contact_type: CollectionContactType;
+  outcome: CollectionContactOutcome;
+  promise_date?: string;
+  promise_amount?: number;
+  promise_kept?: boolean;
+  notes: string;
+  next_contact_date?: string;
+  requires_escalation?: boolean;
 }
