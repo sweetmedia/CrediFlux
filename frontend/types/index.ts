@@ -58,8 +58,81 @@ export interface Customer {
   photo?: string;
   total_loans: number;
   active_loans: number;
+  documents?: CustomerDocumentListItem[];
   created_at: string;
   updated_at: string;
+}
+
+// Customer Document Types
+export type CustomerDocumentType =
+  | 'id_card'
+  | 'passport'
+  | 'drivers_license'
+  | 'proof_of_income'
+  | 'bank_statement'
+  | 'proof_of_address'
+  | 'employment_letter'
+  | 'tax_return'
+  | 'business_license'
+  | 'utility_bill'
+  | 'contract'
+  | 'other';
+
+export type CustomerDocumentVerificationStatus =
+  | 'pending'
+  | 'verified'
+  | 'rejected'
+  | 'expired';
+
+export interface CustomerDocumentListItem {
+  id: string;
+  document_type: CustomerDocumentType;
+  document_type_display: string;
+  title: string;
+  verification_status: CustomerDocumentVerificationStatus;
+  verification_status_display: string;
+  is_expired: boolean;
+  expiry_date?: string;
+  is_primary: boolean;
+  created_at: string;
+}
+
+export interface CustomerDocument {
+  id: string;
+  customer: string;
+  document_type: CustomerDocumentType;
+  document_type_display: string;
+  title: string;
+  description?: string;
+  document_file: string;
+  file_size: number;
+  file_type: string;
+  file_size_mb: number;
+  verification_status: CustomerDocumentVerificationStatus;
+  verification_status_display: string;
+  verified_by?: string;
+  verified_by_name?: string;
+  verified_at?: string;
+  rejection_reason?: string;
+  issue_date?: string;
+  expiry_date?: string;
+  is_expired: boolean;
+  notes?: string;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerDocumentCreate {
+  customer: string;
+  document_type: CustomerDocumentType;
+  title: string;
+  description?: string;
+  document_file: File;
+  issue_date?: string;
+  expiry_date?: string;
+  notes?: string;
+  is_primary?: boolean;
 }
 
 // Loan Types

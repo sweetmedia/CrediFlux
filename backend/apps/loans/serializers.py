@@ -2,7 +2,83 @@
 Serializers for loan module
 """
 from rest_framework import serializers
-from .models import Customer, Loan, LoanSchedule, LoanPayment, Collateral
+from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
+
+
+class CustomerDocumentSerializer(serializers.ModelSerializer):
+    """Serializer for CustomerDocument model"""
+    verified_by_name = serializers.CharField(source='verified_by.get_full_name', read_only=True, allow_null=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    file_size_mb = serializers.FloatField(read_only=True)
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    verification_status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
+
+    class Meta:
+        model = CustomerDocument
+        fields = [
+            'id', 'customer', 'document_type', 'document_type_display',
+            'title', 'description', 'document_file', 'file_size', 'file_type',
+            'file_size_mb', 'verification_status', 'verification_status_display',
+            'verified_by', 'verified_by_name', 'verified_at', 'rejection_reason',
+            'issue_date', 'expiry_date', 'is_expired', 'notes', 'is_primary',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'file_size', 'file_type', 'verified_by', 'verified_at',
+            'created_at', 'updated_at'
+        ]
+
+    def validate_document_file(self, value):
+        """Validate document file size and type"""
+        # Max file size: 10MB
+        max_size = 10 * 1024 * 1024  # 10MB in bytes
+        if value.size > max_size:
+            raise serializers.ValidationError(f"File size cannot exceed 10MB. Current size: {value.size / (1024 * 1024):.2f}MB")
+
+        # Allowed file types
+        allowed_types = [
+            'application/pdf',
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]
+
+        if value.content_type not in allowed_types:
+            raise serializers.ValidationError(
+                f"File type '{value.content_type}' is not allowed. "
+                "Allowed types: PDF, JPG, PNG, GIF, Word, Excel"
+            )
+
+        return value
+
+    def create(self, validated_data):
+        """Auto-populate file metadata on creation"""
+        document_file = validated_data.get('document_file')
+        if document_file:
+            validated_data['file_size'] = document_file.size
+            validated_data['file_type'] = document_file.content_type
+
+        return super().create(validated_data)
+
+
+class CustomerDocumentListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for document list"""
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    verification_status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = CustomerDocument
+        fields = [
+            'id', 'document_type', 'document_type_display', 'title',
+            'verification_status', 'verification_status_display',
+            'is_expired', 'expiry_date', 'is_primary', 'created_at'
+        ]
 
 
 class CustomerSerializer(serializers.ModelSerializer):
@@ -10,6 +86,7 @@ class CustomerSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     total_loans = serializers.SerializerMethodField()
     active_loans = serializers.SerializerMethodField()
+    documents = CustomerDocumentListSerializer(many=True, read_only=True)
 
     # Convert Money fields to decimal for frontend
     monthly_income = serializers.SerializerMethodField()
@@ -23,7 +100,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             'id_type', 'id_number', 'id_expiry_date', 'id_document',
             'employment_status', 'employer_name', 'occupation', 'monthly_income',
             'credit_score', 'status', 'notes', 'photo',
-            'total_loans', 'active_loans', 'created_at', 'updated_at'
+            'total_loans', 'active_loans', 'documents', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'customer_id', 'created_at', 'updated_at']
 

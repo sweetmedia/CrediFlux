@@ -262,7 +262,7 @@ def get_sidebar_navigation():
         },
         {
             "title": _("Tenant Management"),
-            "collapsible": True,
+            "collapsible": False,
             "items": [
                 {
                     "title": _("Tenants"),
@@ -278,7 +278,7 @@ def get_sidebar_navigation():
         },
         {
             "title": _("User Management"),
-            "collapsible": True,
+            "collapsible": False,
             "items": [
                 {
                     "title": _("Users"),
@@ -289,6 +289,48 @@ def get_sidebar_navigation():
                     "title": _("Groups"),
                     "icon": "group_work",
                     "link": reverse_lazy("admin:auth_group_changelist"),
+                },
+            ],
+        },
+        {
+            "title": _("Loan Management"),
+            "collapsible": False,
+            "items": [
+                {
+                    "title": _("Customers"),
+                    "icon": "account_circle",
+                    "link": reverse_lazy("admin:loans_customer_changelist"),
+                },
+                {
+                    "title": _("Loans"),
+                    "icon": "account_balance",
+                    "link": reverse_lazy("admin:loans_loan_changelist"),
+                },
+                {
+                    "title": _("Loan Schedules"),
+                    "icon": "schedule",
+                    "link": reverse_lazy("admin:loans_loanschedule_changelist"),
+                },
+                {
+                    "title": _("Loan Payments"),
+                    "icon": "payment",
+                    "link": reverse_lazy("admin:loans_loanpayment_changelist"),
+                },
+                {
+                    "title": _("Collaterals"),
+                    "icon": "shield",
+                    "link": reverse_lazy("admin:loans_collateral_changelist"),
+                },
+            ],
+        },
+        {
+            "title": _("Configuration"),
+            "collapsible": False,
+            "items": [
+                {
+                    "title": _("Settings"),
+                    "icon": "settings",
+                    "link": reverse_lazy("admin:constance_config_changelist"),
                 },
             ],
         },

@@ -32,6 +32,7 @@ import {
   TrendingUp,
   AlertCircle,
 } from 'lucide-react';
+import { CustomerDocuments } from '@/components/documents';
 
 interface Customer {
   id: string;
@@ -638,6 +639,25 @@ export default function CustomerDetailPage() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Documents Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  Documentos
+                </CardTitle>
+                <CardDescription>
+                  Gestión de documentos del cliente
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CustomerDocuments
+                  customerId={customerId}
+                  canManage={true}
+                />
               </CardContent>
             </Card>
 

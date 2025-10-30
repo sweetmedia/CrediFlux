@@ -10,9 +10,10 @@ from django.utils import timezone
 from django.db.models import Q, Sum, Count
 from decimal import Decimal
 
-from .models import Customer, Loan, LoanSchedule, LoanPayment, Collateral
+from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .serializers import (
     CustomerSerializer, CustomerListSerializer,
+    CustomerDocumentSerializer, CustomerDocumentListSerializer,
     LoanSerializer, LoanListSerializer, LoanCreateSerializer,
     LoanScheduleSerializer, LoanPaymentSerializer, CollateralSerializer
 )
@@ -67,6 +68,126 @@ class CustomerViewSet(viewsets.ModelViewSet):
         }
 
         return Response(stats)
+
+
+class CustomerDocumentViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing customer documents
+    """
+    queryset = CustomerDocument.objects.select_related('customer', 'verified_by').all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['customer', 'document_type', 'verification_status', 'is_primary']
+    search_fields = ['title', 'description', 'customer__customer_id', 'customer__first_name', 'customer__last_name']
+    ordering_fields = ['created_at', 'expiry_date', 'verification_status']
+    ordering = ['-created_at']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return CustomerDocumentListSerializer
+        return CustomerDocumentSerializer
+
+    def perform_create(self, serializer):
+        """Auto-assign created_by user"""
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    def verify(self, request, pk=None):
+        """
+        Verify a customer document.
+        Only admin, manager, or loan_officer can verify documents.
+        """
+        document = self.get_object()
+
+        if document.verification_status == 'verified':
+            return Response(
+                {'error': 'El documento ya ha sido verificado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update document
+        document.verification_status = 'verified'
+        document.verified_by = request.user
+        document.verified_at = timezone.now()
+        document.rejection_reason = None
+        document.save()
+
+        serializer = self.get_serializer(document)
+        return Response({
+            'message': 'Documento verificado exitosamente',
+            'document': serializer.data
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    def reject(self, request, pk=None):
+        """
+        Reject a customer document.
+        Only admin, manager, or loan_officer can reject documents.
+        """
+        document = self.get_object()
+
+        # Get rejection reason from request (required)
+        rejection_reason = request.data.get('reason', '')
+        if not rejection_reason:
+            return Response(
+                {'error': 'Se requiere especificar el motivo del rechazo'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update document
+        document.verification_status = 'rejected'
+        document.verified_by = request.user
+        document.verified_at = timezone.now()
+        document.rejection_reason = rejection_reason
+        document.save()
+
+        serializer = self.get_serializer(document)
+        return Response({
+            'message': 'Documento rechazado',
+            'document': serializer.data
+        })
+
+    @action(detail=True, methods=['post'])
+    def mark_primary(self, request, pk=None):
+        """Mark this document as primary for its type"""
+        document = self.get_object()
+
+        # Unmark all other documents of same type for this customer
+        CustomerDocument.objects.filter(
+            customer=document.customer,
+            document_type=document.document_type,
+            is_primary=True
+        ).exclude(id=document.id).update(is_primary=False)
+
+        # Mark this document as primary
+        document.is_primary = True
+        document.save()
+
+        return Response({
+            'message': 'Documento marcado como principal',
+            'document': self.get_serializer(document).data
+        })
+
+    @action(detail=False, methods=['get'])
+    def expired(self, request):
+        """Get all expired documents"""
+        today = timezone.now().date()
+        expired_docs = self.get_queryset().filter(
+            expiry_date__lt=today
+        ).exclude(verification_status='expired')
+
+        serializer = self.get_serializer(expired_docs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def pending_verification(self, request):
+        """Get all documents pending verification"""
+        pending_docs = self.get_queryset().filter(
+            verification_status='pending'
+        )
+
+        serializer = self.get_serializer(pending_docs, many=True)
+        return Response(serializer.data)
 
 
 class LoanViewSet(viewsets.ModelViewSet):

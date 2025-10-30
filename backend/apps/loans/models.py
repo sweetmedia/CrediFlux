@@ -117,6 +117,138 @@ class Customer(UUIDModel, AuditModel):
         super().save(*args, **kwargs)
 
 
+class CustomerDocument(UUIDModel, AuditModel):
+    """
+    Customer Document model for storing various customer documents
+    (ID cards, proof of income, bank statements, etc.)
+    """
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+
+    # Document Type
+    DOCUMENT_TYPE_CHOICES = [
+        ('id_card', 'ID Card / Cédula'),
+        ('passport', 'Passport'),
+        ('drivers_license', 'Driver\'s License'),
+        ('proof_of_income', 'Proof of Income'),
+        ('bank_statement', 'Bank Statement'),
+        ('proof_of_address', 'Proof of Address'),
+        ('employment_letter', 'Employment Letter'),
+        ('tax_return', 'Tax Return'),
+        ('business_license', 'Business License'),
+        ('utility_bill', 'Utility Bill'),
+        ('contract', 'Contract / Agreement'),
+        ('other', 'Other Document'),
+    ]
+    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES)
+
+    # Document Details
+    title = models.CharField(
+        max_length=200,
+        help_text="Document title or description"
+    )
+    description = models.TextField(blank=True, null=True)
+    document_file = models.FileField(
+        upload_to='customer_documents/%Y/%m/',
+        help_text="Upload document file (PDF, JPG, PNG, etc.)"
+    )
+
+    # File metadata
+    file_size = models.IntegerField(
+        blank=True,
+        null=True,
+        help_text="File size in bytes"
+    )
+    file_type = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="MIME type of the file"
+    )
+
+    # Verification Status
+    VERIFICATION_STATUS_CHOICES = [
+        ('pending', 'Pending Verification'),
+        ('verified', 'Verified'),
+        ('rejected', 'Rejected'),
+        ('expired', 'Expired'),
+    ]
+    verification_status = models.CharField(
+        max_length=20,
+        choices=VERIFICATION_STATUS_CHOICES,
+        default='pending'
+    )
+    verified_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verified_documents',
+        help_text='User who verified this document'
+    )
+    verified_at = models.DateTimeField(blank=True, null=True)
+    rejection_reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Reason for rejection if status is rejected'
+    )
+
+    # Document dates
+    issue_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text='Document issue/creation date'
+    )
+    expiry_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text='Document expiration date (if applicable)'
+    )
+
+    # Additional metadata
+    notes = models.TextField(blank=True, null=True)
+    is_primary = models.BooleanField(
+        default=False,
+        help_text='Mark as primary document of this type'
+    )
+
+    class Meta:
+        db_table = 'customer_documents'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['customer', 'document_type']),
+            models.Index(fields=['verification_status']),
+            models.Index(fields=['expiry_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.customer.get_full_name()} - {self.get_document_type_display()}"
+
+    def save(self, *args, **kwargs):
+        # Auto-populate file metadata
+        if self.document_file and not self.file_size:
+            self.file_size = self.document_file.size
+
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        """Check if document has expired"""
+        if not self.expiry_date:
+            return False
+        return self.expiry_date < timezone.now().date()
+
+    @property
+    def file_size_mb(self):
+        """Return file size in MB"""
+        if self.file_size:
+            return round(self.file_size / (1024 * 1024), 2)
+        return None
+
+
 class Loan(UUIDModel, AuditModel):
     """
     Loan model representing a loan agreement

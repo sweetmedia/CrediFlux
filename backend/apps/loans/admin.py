@@ -6,7 +6,7 @@ from django.utils.html import format_html
 from django.db import connection
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
-from .models import Customer, Loan, LoanSchedule, LoanPayment, Collateral
+from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 
 
 def is_tenant_schema():
@@ -15,6 +15,16 @@ def is_tenant_schema():
         return connection.schema_name != 'public'
     except:
         return False
+
+
+class CustomerDocumentInline(TabularInline):
+    """Inline admin for customer documents"""
+    model = CustomerDocument
+    extra = 0
+    fields = ['document_type', 'title', 'verification_status', 'expiry_date', 'is_primary']
+    readonly_fields = []
+    can_delete = True
+    show_change_link = True
 
 
 class LoanInline(TabularInline):
@@ -51,7 +61,7 @@ class CustomerAdmin(ModelAdmin):
 
     # Form configuration
     readonly_fields = ['customer_id', 'created_at', 'updated_at']
-    inlines = [LoanInline]
+    inlines = [CustomerDocumentInline, LoanInline]
     save_on_top = True
 
     def has_module_permission(self, request):
@@ -584,3 +594,114 @@ class CollateralAdmin(ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(CustomerDocument)
+class CustomerDocumentAdmin(ModelAdmin):
+    """Admin interface for CustomerDocument model with Unfold best practices"""
+
+    # Unfold specific settings
+    list_fullwidth = True
+    warn_unsaved_form = True
+    compressed_fields = True
+
+    # List view configuration
+    list_display = [
+        'customer', 'document_type', 'title', 'show_verification_status',
+        'show_expiry_status', 'is_primary', 'created_at'
+    ]
+    list_filter = ['document_type', 'verification_status', 'is_primary', 'created_at']
+    search_fields = [
+        'title', 'description', 'customer__customer_id',
+        'customer__first_name', 'customer__last_name'
+    ]
+    list_per_page = 50
+    save_on_top = True
+
+    # Form configuration
+    readonly_fields = [
+        'file_size', 'file_type', 'file_size_mb', 'is_expired',
+        'verified_by', 'verified_at', 'created_at', 'updated_at'
+    ]
+
+    def has_module_permission(self, request):
+        """Only show in tenant schemas"""
+        return is_tenant_schema()
+
+    def has_view_permission(self, request, obj=None):
+        """Only allow view in tenant schemas"""
+        return is_tenant_schema() and super().has_view_permission(request, obj)
+
+    def has_add_permission(self, request):
+        """Only allow add in tenant schemas"""
+        return is_tenant_schema() and super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        """Only allow change in tenant schemas"""
+        return is_tenant_schema() and super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        """Only allow delete in tenant schemas"""
+        return is_tenant_schema() and super().has_delete_permission(request, obj)
+
+    @display(description="Verification Status", label=True)
+    def show_verification_status(self, obj):
+        """Display verification status with color badge"""
+        colors = {
+            'pending': 'warning',
+            'verified': 'success',
+            'rejected': 'danger',
+            'expired': 'danger',
+        }
+        return colors.get(obj.verification_status, 'info'), obj.get_verification_status_display()
+
+    @display(description="Expiry", label=True)
+    def show_expiry_status(self, obj):
+        """Display expiry status with color badge"""
+        if not obj.expiry_date:
+            return 'info', 'No Expiry'
+
+        if obj.is_expired:
+            return 'danger', f'Expired ({obj.expiry_date})'
+
+        from django.utils import timezone
+        days_until_expiry = (obj.expiry_date - timezone.now().date()).days
+
+        if days_until_expiry <= 30:
+            return 'warning', f'Expires Soon ({obj.expiry_date})'
+
+        return 'success', f'Valid ({obj.expiry_date})'
+
+    fieldsets = (
+        ('Document Information', {
+            'fields': (
+                'customer', 'document_type', 'title', 'description', 'is_primary'
+            )
+        }),
+        ('File Upload', {
+            'fields': (
+                'document_file', 'file_size', 'file_type', 'file_size_mb'
+            )
+        }),
+        ('Verification', {
+            'fields': (
+                'verification_status', 'verified_by', 'verified_at', 'rejection_reason'
+            )
+        }),
+        ('Document Dates', {
+            'fields': (
+                'issue_date', 'expiry_date', 'is_expired'
+            )
+        }),
+        ('Additional Information', {
+            'fields': ('notes',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('customer', 'verified_by')
