@@ -371,6 +371,8 @@ class TenantLoginSerializer(serializers.Serializer):
                 'subscription_plan': tenant.subscription_plan,
                 'is_active': tenant.is_active,
                 'domain': domain_name,
+                'logo': tenant.logo.url if tenant.logo else None,
+                'primary_color': tenant.primary_color,
             }
         return None
 

@@ -1,7 +1,7 @@
 /**
  * RNC Validation API
  */
-import api from './base';
+import { apiClient } from './client';
 
 export interface RNCValidationResult {
   is_valid: boolean;
@@ -34,15 +34,13 @@ export const rncAPI = {
    * Validate an RNC or Cedula number
    */
   async validateRNC(rnc: string): Promise<RNCValidationResult> {
-    const response = await api.post<RNCValidationResult>('/validate-rnc/', { rnc });
-    return response.data;
+    return await apiClient.post<RNCValidationResult>('/api/validate-rnc/', { rnc });
   },
 
   /**
    * Get RNC database status
    */
   async getDatabaseStatus(): Promise<RNCDatabaseStatus> {
-    const response = await api.get<RNCDatabaseStatus>('/rnc-database-status/');
-    return response.data;
+    return await apiClient.get<RNCDatabaseStatus>('/api/rnc-database-status/');
   },
 };
