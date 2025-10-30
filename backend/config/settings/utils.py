@@ -189,10 +189,24 @@ def dashboard_callback(request, context):
     schema_name = getattr(connection, 'schema_name', 'public')
     is_tenant = schema_name != 'public'
 
+    # Get tenant details if in tenant schema
+    tenant_name = None
+    tenant_logo = None
+    if is_tenant:
+        try:
+            from apps.tenants.models import Tenant
+            tenant = Tenant.objects.get(schema_name=schema_name)
+            tenant_name = tenant.business_name
+            tenant_logo = tenant.logo.url if tenant.logo else None
+        except Exception:
+            tenant_name = schema_name.title()
+
     # Basic statistics
     context.update({
         'schema_name': schema_name,
         'is_tenant': is_tenant,
+        'tenant_name': tenant_name,
+        'tenant_logo': tenant_logo,
         'total_users': User.objects.count(),
     })
 

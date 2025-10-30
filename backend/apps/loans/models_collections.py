@@ -5,10 +5,10 @@ from django.db import models
 from django.utils import timezone
 from djmoney.models.fields import MoneyField
 from decimal import Decimal
-from apps.core.models import UUIDModel
+from apps.core.models import UUIDModel, TimeStampedModel
 
 
-class CollectionReminder(UUIDModel):
+class CollectionReminder(UUIDModel, TimeStampedModel):
     """Sistema de recordatorios de pago"""
 
     loan_schedule = models.ForeignKey(
@@ -91,7 +91,7 @@ class CollectionReminder(UUIDModel):
         return f"{self.get_reminder_type_display()} - {self.customer} - {self.scheduled_for}"
 
 
-class CollectionContact(UUIDModel):
+class CollectionContact(UUIDModel, TimeStampedModel):
     """Historial de contactos con el cliente para cobranza"""
 
     loan = models.ForeignKey(

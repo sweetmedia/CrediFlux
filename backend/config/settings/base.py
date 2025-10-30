@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from decouple import config, Csv
 from datetime import timedelta
+from django.templatetags.static import static
 from config.settings.utils import get_sidebar_navigation
 
 # Build paths inside the project
@@ -181,6 +182,7 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+    'EXCEPTION_HANDLER': 'apps.core.exceptions.custom_exception_handler',
     'DATETIME_FORMAT': '%Y-%m-%d %H:%M:%S',
     'DATE_FORMAT': '%Y-%m-%d',
 }
@@ -455,6 +457,14 @@ UNFOLD = {
     "SITE_TITLE": "CrediFlux Admin",
     "SITE_HEADER": "CrediFlux",
     "SITE_URL": "/",
+    "SITE_ICON": {
+        "light": lambda request: static("admin/img/crediflux-icon.svg"),  # Light theme icon
+        "dark": lambda request: static("admin/img/crediflux-icon.svg"),   # Dark theme icon
+    },
+    "SITE_LOGO": {
+        "light": lambda request: static("admin/img/crediflux-logo.svg"),  # Light theme logo
+        "dark": lambda request: static("admin/img/crediflux-logo-dark.svg"),   # Dark theme logo
+    },
     "SITE_SYMBOL": "account_balance",
 
     # UI Features

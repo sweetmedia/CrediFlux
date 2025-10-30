@@ -7,16 +7,25 @@
     <div class="px-6 py-4">
         <!-- Dashboard Header -->
         <div class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                {% if is_tenant %}
-                    {{ schema_name|title }} Dashboard
-                {% else %}
-                    System Admin Dashboard
-                {% endif %}
-            </h1>
+            {% if is_tenant and tenant_logo %}
+                <div class="flex items-center gap-4 mb-4">
+                    <img src="{{ tenant_logo }}" alt="{{ tenant_name }}" class="h-16 w-auto object-contain">
+                    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+                        {{ tenant_name }} Dashboard
+                    </h1>
+                </div>
+            {% else %}
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                    {% if is_tenant %}
+                        {{ tenant_name|default:"Tenant" }} Dashboard
+                    {% else %}
+                        CrediFlux System Dashboard
+                    {% endif %}
+                </h1>
+            {% endif %}
             <p class="text-gray-600 dark:text-gray-400">
                 {% if is_tenant %}
-                    Manage loans, customers, and payments for this tenant
+                    Manage loans, customers, and payments for {{ tenant_name|default:"this tenant" }}
                 {% else %}
                     Manage tenants, users, and system configuration
                 {% endif %}
