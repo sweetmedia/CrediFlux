@@ -227,6 +227,10 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
+# Celery Beat - Use Database Scheduler (django-celery-beat)
+# This allows managing periodic tasks from the Django Admin
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
 # Redis Cache
 CACHES = {
     'default': {

@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { customersAPI } from '@/lib/api/customers';
+import { rncAPI, RNCData } from '@/lib/api/rnc';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, Save, UserPlus } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, UserPlus, Search, CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 const customerSchema = z.object({
   first_name: z.string().min(2, 'Nombre requerido'),
@@ -54,6 +55,12 @@ export default function NewCustomerPage() {
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // RNC validation states
+  const [rncData, setRncData] = useState<RNCData | null>(null);
+  const [isValidatingRnc, setIsValidatingRnc] = useState(false);
+  const [rncValidationMessage, setRncValidationMessage] = useState<string>('');
+  const [rncValidationStatus, setRncValidationStatus] = useState<'success' | 'warning' | 'error' | null>(null);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -64,6 +71,8 @@ export default function NewCustomerPage() {
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
@@ -71,6 +80,82 @@ export default function NewCustomerPage() {
       country: 'Dominican Republic',
     },
   });
+
+  const idNumber = watch('id_number');
+  const idType = watch('id_type');
+
+  // Function to validate RNC/Cedula
+  const validateRncNumber = async (rnc: string) => {
+    if (!rnc || rnc.length < 9) {
+      setRncData(null);
+      setRncValidationMessage('');
+      setRncValidationStatus(null);
+      return;
+    }
+
+    // Only validate if it's a cedula type
+    if (idType !== 'cedula') {
+      return;
+    }
+
+    try {
+      setIsValidatingRnc(true);
+      setRncValidationMessage('Validando RNC/Cédula...');
+      setRncValidationStatus(null);
+
+      const result = await rncAPI.validateRNC(rnc);
+
+      if (result.exists && result.data) {
+        setRncData(result.data);
+
+        // Auto-fill name if found
+        // Split razon_social into first_name and last_name
+        const fullName = result.data.razon_social.trim();
+        const nameParts = fullName.split(' ');
+
+        if (nameParts.length >= 2) {
+          // Take first part as first name, rest as last name
+          const firstName = nameParts[0];
+          const lastName = nameParts.slice(1).join(' ');
+          setValue('first_name', firstName);
+          setValue('last_name', lastName);
+        } else {
+          // If only one name, use it as first name
+          setValue('first_name', fullName);
+        }
+
+        if (result.is_active) {
+          setRncValidationMessage(`✓ RNC encontrado: ${result.data.razon_social}`);
+          setRncValidationStatus('success');
+        } else {
+          setRncValidationMessage(`⚠️ RNC encontrado pero está SUSPENDIDO: ${result.data.razon_social}`);
+          setRncValidationStatus('warning');
+        }
+      } else {
+        setRncData(null);
+        setRncValidationMessage('RNC/Cédula no encontrado en base de datos DGII');
+        setRncValidationStatus('warning');
+      }
+    } catch (err: any) {
+      console.error('Error validating RNC:', err);
+      setRncData(null);
+
+      if (err.response?.status === 503) {
+        setRncValidationMessage('Base de datos de RNC no disponible temporalmente');
+        setRncValidationStatus('error');
+      } else {
+        setRncValidationMessage('');
+        setRncValidationStatus(null);
+      }
+    } finally {
+      setIsValidatingRnc(false);
+    }
+  };
+
+  // Handle RNC field blur (when user leaves the field)
+  const handleRncBlur = () => {
+    validateRncNumber(idNumber || '');
+  };
 
   const onSubmit = async (data: CustomerFormData) => {
     try {
@@ -298,14 +383,48 @@ export default function NewCustomerPage() {
                     <Label htmlFor="id_number">
                       Número de ID <span className="text-red-500">*</span>
                     </Label>
-                    <Input
-                      id="id_number"
-                      placeholder="000-0000000-0"
-                      {...register('id_number')}
-                      disabled={isLoading}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="id_number"
+                        placeholder="000-0000000-0"
+                        {...register('id_number')}
+                        onBlur={handleRncBlur}
+                        disabled={isLoading}
+                      />
+                      {isValidatingRnc && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                        </div>
+                      )}
+                    </div>
                     {errors.id_number && (
                       <p className="text-sm text-red-500">{errors.id_number.message}</p>
+                    )}
+
+                    {/* RNC Validation Message */}
+                    {rncValidationMessage && (
+                      <div className={`flex items-start gap-2 p-3 rounded-md text-sm ${
+                        rncValidationStatus === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
+                        rncValidationStatus === 'warning' ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' :
+                        'bg-red-50 text-red-800 border border-red-200'
+                      }`}>
+                        {rncValidationStatus === 'success' && <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />}
+                        {rncValidationStatus === 'warning' && <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />}
+                        {rncValidationStatus === 'error' && <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />}
+                        <div className="flex-1">
+                          <p className="font-medium">{rncValidationMessage}</p>
+                          {rncData && (
+                            <div className="mt-2 space-y-1 text-xs">
+                              <p><strong>Actividad:</strong> {rncData.actividad_economica}</p>
+                              {rncData.fecha_inicio && (
+                                <p><strong>Fecha Inicio:</strong> {rncData.fecha_inicio}</p>
+                              )}
+                              <p><strong>Estado:</strong> {rncData.estado}</p>
+                              <p><strong>Régimen:</strong> {rncData.regimen_pago}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
