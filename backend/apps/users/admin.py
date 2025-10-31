@@ -3,8 +3,11 @@ User admin configuration with Unfold best practices
 """
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib import messages
 from unfold.admin import ModelAdmin
-from unfold.decorators import display
+from unfold.decorators import display, action
+from allauth.account.models import EmailAddress
+from allauth.account.utils import send_email_confirmation
 from .models import User
 
 
@@ -19,7 +22,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
 
     # List view configuration
     list_display = [
-        'email', 'first_name', 'last_name', 'show_tenant',
+        'email', 'show_email_verified', 'first_name', 'last_name', 'show_tenant',
         'show_role', 'show_owner', 'show_active', 'created_at'
     ]
     list_filter = ['is_active', 'role', 'is_tenant_owner', 'tenant', 'email_verified', 'created_at', 'is_staff']
@@ -61,6 +64,17 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             return 'success', 'Active'
         return 'danger', 'Inactive'
 
+    @display(description="Email Verified", label=True)
+    def show_email_verified(self, obj):
+        """Display email verification status with color badge"""
+        try:
+            email_address = EmailAddress.objects.get(user=obj, email=obj.email)
+            if email_address.verified:
+                return 'success', '✓ Verificado'
+            return 'warning', '⏳ Pendiente'
+        except EmailAddress.DoesNotExist:
+            return 'danger', '✗ Sin verificar'
+
     fieldsets = (
         ('Authentication', {
             'fields': ('username', 'email', 'password')
@@ -96,6 +110,78 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     )
 
     readonly_fields = ['created_at', 'updated_at', 'last_login', 'date_joined']
+    actions = ['resend_verification_email']
+
+    @action(description="Reenviar email de verificación", permissions=['change'])
+    def resend_verification_email(self, request, queryset):
+        """
+        Admin action to resend email verification to selected users.
+        Only sends to users who have not verified their email.
+        """
+        sent_count = 0
+        already_verified = 0
+        error_count = 0
+
+        for user in queryset:
+            # Check if user email is already verified
+            try:
+                email_address = EmailAddress.objects.get(user=user, email=user.email)
+
+                if email_address.verified:
+                    already_verified += 1
+                    continue
+
+                # Send verification email
+                send_email_confirmation(request, user)
+                sent_count += 1
+
+            except EmailAddress.DoesNotExist:
+                # Create EmailAddress record if it doesn't exist
+                try:
+                    email_address = EmailAddress.objects.create(
+                        user=user,
+                        email=user.email,
+                        primary=True,
+                        verified=False
+                    )
+                    send_email_confirmation(request, user)
+                    sent_count += 1
+                except Exception as e:
+                    error_count += 1
+                    self.message_user(
+                        request,
+                        f"Error al procesar {user.email}: {str(e)}",
+                        level=messages.ERROR
+                    )
+            except Exception as e:
+                error_count += 1
+                self.message_user(
+                    request,
+                    f"Error al enviar email a {user.email}: {str(e)}",
+                    level=messages.ERROR
+                )
+
+        # Show summary message
+        if sent_count > 0:
+            self.message_user(
+                request,
+                f"Se enviaron {sent_count} email(s) de verificación exitosamente.",
+                level=messages.SUCCESS
+            )
+
+        if already_verified > 0:
+            self.message_user(
+                request,
+                f"{already_verified} usuario(s) ya tienen su email verificado.",
+                level=messages.INFO
+            )
+
+        if error_count > 0:
+            self.message_user(
+                request,
+                f"Ocurrieron {error_count} error(es) al procesar algunos usuarios.",
+                level=messages.WARNING
+            )
 
     def get_queryset(self, request):
         """

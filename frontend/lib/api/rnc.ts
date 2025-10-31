@@ -9,6 +9,7 @@ export interface RNCValidationResult {
   is_active: boolean;
   data: RNCData | null;
   message: string;
+  source: 'local_db' | 'dgii_scraper' | null;
   database_loaded?: boolean;
 }
 
@@ -20,6 +21,7 @@ export interface RNCData {
   estado: string;
   regimen_pago: string;
   is_active: boolean;
+  source?: 'local_db' | 'dgii_scraper';
 }
 
 export interface RNCDatabaseStatus {

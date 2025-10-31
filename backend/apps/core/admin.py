@@ -8,6 +8,11 @@ from django.contrib import admin
 from unfold.admin import ModelAdmin
 from unfold.widgets import UnfoldAdminSelectWidget, UnfoldAdminTextInputWidget
 
+# Import custom allauth admin configurations
+# These are auto-registered via @admin.register decorators
+# Unregistering happens inside admin_account.py to avoid order issues
+from .admin_account import EmailAddressAdmin, EmailConfirmationAdmin
+
 from django_celery_beat.models import (
     ClockedSchedule,
     CrontabSchedule,
