@@ -33,6 +33,7 @@ import {
   Shield,
   Edit,
   Trash2,
+  Download,
 } from 'lucide-react';
 
 export default function LoanDetailPage() {
@@ -146,6 +147,21 @@ export default function LoanDetailPage() {
     } catch (err: any) {
       console.error('Error rejecting loan:', err);
       setError(err.response?.data?.error || 'Error al rechazar el préstamo');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDownloadBalanceReport = async () => {
+    if (!loan) return;
+
+    try {
+      setIsProcessing(true);
+      setError('');
+      await loansAPI.downloadBalanceReport(loan.id);
+    } catch (err: any) {
+      console.error('Error downloading report:', err);
+      setError('Error al descargar el reporte');
     } finally {
       setIsProcessing(false);
     }
@@ -304,6 +320,17 @@ export default function LoanDetailPage() {
                   Registrar Pago
                 </Button>
               </Link>
+            )}
+            {['active', 'paid'].includes(loan.status) && (
+              <Button
+                variant="outline"
+                onClick={handleDownloadBalanceReport}
+                disabled={isProcessing}
+                className="border-purple-300 text-purple-700 hover:bg-purple-50"
+              >
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Balance de Cuotas
+              </Button>
             )}
           </div>
         </div>

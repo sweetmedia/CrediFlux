@@ -81,6 +81,44 @@ export const loansAPI = {
   async getStatistics(): Promise<LoanStatistics> {
     return apiClient.get<LoanStatistics>('/api/loans/statistics/');
   },
+
+  // Download Balance de Cuotas PDF report
+  async downloadBalanceReport(id: string): Promise<void> {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const token = localStorage.getItem('access_token');
+
+    const response = await fetch(`${API_URL}/api/loans/${id}/balance_report/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Error al descargar el reporte');
+    }
+
+    // Get filename from Content-Disposition header or use default
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = `balance_cuotas_${id}.pdf`;
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+
+    // Download the file
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
 };
 
 export const paymentsAPI = {

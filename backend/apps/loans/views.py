@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q, Sum, Count
+from django.http import HttpResponse
 from decimal import Decimal
 
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
@@ -327,6 +328,25 @@ class LoanViewSet(viewsets.ModelViewSet):
         payments = loan.payments.all()
         serializer = LoanPaymentSerializer(payments, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def balance_report(self, request, pk=None):
+        """
+        Generate and download Balance de Cuotas PDF report for a loan
+        """
+        from .reports import LoanBalanceReport
+
+        loan = self.get_object()
+
+        # Generate PDF
+        report = LoanBalanceReport(loan)
+        pdf_data = report.generate()
+
+        # Create HTTP response with PDF
+        response = HttpResponse(pdf_data, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="balance_cuotas_{loan.loan_number}.pdf"'
+
+        return response
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
