@@ -241,6 +241,7 @@ class LoanAdmin(ModelAdmin):
         'customer__first_name', 'customer__last_name'
     ]
     list_per_page = 25
+    actions = ['approve_loans', 'reject_loans', 'disburse_loans']
 
     # Form configuration
     readonly_fields = [
@@ -377,6 +378,109 @@ class LoanAdmin(ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.select_related('customer', 'loan_officer')
+
+    @admin.action(description='Aprobar préstamos seleccionados')
+    def approve_loans(self, request, queryset):
+        """Approve selected loans"""
+        from django.utils import timezone
+        from django.contrib import messages
+
+        pending_loans = queryset.filter(status='pending')
+        count = pending_loans.count()
+
+        if count == 0:
+            self.message_user(request, 'No hay préstamos pendientes para aprobar', messages.WARNING)
+            return
+
+        # Update all pending loans
+        for loan in pending_loans:
+            loan.status = 'approved'
+            loan.approval_date = timezone.now().date()
+            loan.approved_by = request.user
+            loan.save()
+
+        self.message_user(
+            request,
+            f'{count} préstamo(s) aprobado(s) exitosamente',
+            messages.SUCCESS
+        )
+
+    @admin.action(description='Rechazar préstamos seleccionados')
+    def reject_loans(self, request, queryset):
+        """Reject selected loans"""
+        from django.utils import timezone
+        from django.contrib import messages
+
+        pending_loans = queryset.filter(status='pending')
+        count = pending_loans.count()
+
+        if count == 0:
+            self.message_user(request, 'No hay préstamos pendientes para rechazar', messages.WARNING)
+            return
+
+        # Update all pending loans
+        for loan in pending_loans:
+            loan.status = 'rejected'
+            loan.rejection_date = timezone.now().date()
+            loan.rejected_by = request.user
+            loan.save()
+
+        self.message_user(
+            request,
+            f'{count} préstamo(s) rechazado(s) exitosamente',
+            messages.SUCCESS
+        )
+
+    @admin.action(description='Desembolsar préstamos aprobados')
+    def disburse_loans(self, request, queryset):
+        """Disburse approved loans"""
+        from django.utils import timezone
+        from django.contrib import messages
+        from dateutil.relativedelta import relativedelta
+
+        approved_loans = queryset.filter(status='approved')
+        count = approved_loans.count()
+
+        if count == 0:
+            self.message_user(request, 'No hay préstamos aprobados para desembolsar', messages.WARNING)
+            return
+
+        # Update all approved loans
+        for loan in approved_loans:
+            loan.status = 'active'
+            loan.disbursement_date = timezone.now().date()
+
+            # Set first payment date if not set (one month from disbursement)
+            if not loan.first_payment_date:
+                if loan.payment_frequency == 'monthly':
+                    loan.first_payment_date = loan.disbursement_date + relativedelta(months=1)
+                elif loan.payment_frequency == 'biweekly':
+                    loan.first_payment_date = loan.disbursement_date + relativedelta(weeks=2)
+                elif loan.payment_frequency == 'weekly':
+                    loan.first_payment_date = loan.disbursement_date + relativedelta(weeks=1)
+                elif loan.payment_frequency == 'daily':
+                    loan.first_payment_date = loan.disbursement_date + relativedelta(days=1)
+
+            # Calculate maturity date
+            if loan.payment_frequency == 'monthly':
+                loan.maturity_date = loan.first_payment_date + relativedelta(months=loan.term_months - 1)
+            elif loan.payment_frequency == 'biweekly':
+                num_payments = loan.term_months * 2  # Biweekly = 2 per month
+                loan.maturity_date = loan.first_payment_date + relativedelta(weeks=2 * (num_payments - 1))
+            elif loan.payment_frequency == 'weekly':
+                num_payments = loan.term_months * 4  # Weekly = 4 per month
+                loan.maturity_date = loan.first_payment_date + relativedelta(weeks=num_payments - 1)
+            elif loan.payment_frequency == 'daily':
+                num_payments = loan.term_months * 30  # Daily = 30 per month
+                loan.maturity_date = loan.first_payment_date + relativedelta(days=num_payments - 1)
+
+            loan.save()
+
+        self.message_user(
+            request,
+            f'{count} préstamo(s) desembolsado(s) exitosamente',
+            messages.SUCCESS
+        )
 
 
 @admin.register(LoanSchedule)

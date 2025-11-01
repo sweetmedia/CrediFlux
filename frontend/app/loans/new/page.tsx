@@ -313,6 +313,10 @@ export default function NewLoanPage() {
   };
 
   const onSubmit = async (data: LoanFormData) => {
+    console.log('onSubmit called with data:', data);
+    console.log('Form data type:', typeof data);
+    console.log('Form data keys:', Object.keys(data));
+
     // Validate collaterals if any
     if (collaterals.length > 0) {
       const collateralError = validateCollaterals();
@@ -328,8 +332,10 @@ export default function NewLoanPage() {
       const P = parseFloat(data.principal_amount);
       const r = parseFloat(data.interest_rate) / 100 / 12; // Monthly rate
       const n = parseInt(data.term_months);
+      console.log('Calculated values - P:', P, 'r:', r, 'n:', n);
       if (P > 0 && r > 0 && n > 0) {
         paymentAmount = P * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+        console.log('Calculated payment amount:', paymentAmount);
       }
     }
 
@@ -347,6 +353,8 @@ export default function NewLoanPage() {
       payment_amount: paymentAmount ? parseFloat(paymentAmount.toFixed(2)) : 0, // Round to 2 decimals
       notes: data.notes,
     };
+
+    console.log('Built submitData:', submitData);
 
     try {
       setIsLoading(true);
