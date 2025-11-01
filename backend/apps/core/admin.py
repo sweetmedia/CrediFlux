@@ -107,7 +107,7 @@ class CustomConstanceAdmin(ConstanceAdmin):
     """
     Custom Constance admin with RNC database update button
     """
-    change_list_template = 'admin/constance_change_list.html'
+    change_list_template = 'admin/constance/change_list.html'
 
     def get_urls(self):
         """Add custom URL for RNC database update"""
