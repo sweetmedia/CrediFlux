@@ -39,12 +39,21 @@ export default function LoanDetailPage() {
   const router = useRouter();
   const params = useParams();
   const loanId = params.id as string;
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const { config } = useConfig();
   const [loan, setLoan] = useState<Loan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Check if user can approve/reject loans (admin, manager, loan_officer, or tenant owner)
+  const canManageLoans = user && (
+    user.role === 'admin' ||
+    user.role === 'manager' ||
+    user.role === 'loan_officer' ||
+    user.is_tenant_owner ||
+    user.is_superuser
+  );
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -76,13 +85,19 @@ export default function LoanDetailPage() {
 
   const handleApproveLoan = async () => {
     if (!loan) return;
+
+    if (!confirm('¿Estás seguro de aprobar este préstamo?')) {
+      return;
+    }
+
     try {
       setIsProcessing(true);
+      setError('');
       await loansAPI.approveLoan(loan.id);
       await loadLoanDetails();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error approving loan:', err);
-      setError('Error al aprobar el préstamo');
+      setError(err.response?.data?.error || 'Error al aprobar el préstamo');
     } finally {
       setIsProcessing(false);
     }
@@ -90,27 +105,47 @@ export default function LoanDetailPage() {
 
   const handleDisburseLoan = async () => {
     if (!loan) return;
+
+    if (!confirm('¿Estás seguro de desembolsar este préstamo? Esta acción marcará el préstamo como activo.')) {
+      return;
+    }
+
     try {
       setIsProcessing(true);
+      setError('');
       await loansAPI.disburseLoan(loan.id);
       await loadLoanDetails();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error disbursing loan:', err);
-      setError('Error al desembolsar el préstamo');
+      setError(err.response?.data?.error || 'Error al desembolsar el préstamo');
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleRejectLoan = async () => {
-    if (!loan || !confirm('¿Estás seguro de rechazar este préstamo?')) return;
+    if (!loan) return;
+
+    // Ask for rejection reason
+    const rejectionNotes = prompt('Por favor, ingresa el motivo del rechazo:');
+
+    if (!rejectionNotes || rejectionNotes.trim() === '') {
+      setError('Se requiere especificar el motivo del rechazo');
+      return;
+    }
+
+    if (!confirm(`¿Estás seguro de rechazar este préstamo?\n\nMotivo: ${rejectionNotes}`)) {
+      return;
+    }
+
     try {
       setIsProcessing(true);
-      await loansAPI.rejectLoan(loan.id);
+      setError('');
+      await loansAPI.rejectLoan(loan.id, rejectionNotes);
       await loadLoanDetails();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error rejecting loan:', err);
-      setError('Error al rechazar el préstamo');
+      setError(err.response?.data?.error || 'Error al rechazar el préstamo');
     } finally {
       setIsProcessing(false);
     }
@@ -232,12 +267,13 @@ export default function LoanDetailPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            {loan.status === 'pending' && (
+            {loan.status === 'pending' && canManageLoans && (
               <>
                 <Button
                   variant="outline"
                   onClick={handleRejectLoan}
                   disabled={isProcessing}
+                  className="border-red-300 text-red-700 hover:bg-red-50"
                 >
                   {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
                   Rechazar
@@ -245,16 +281,18 @@ export default function LoanDetailPage() {
                 <Button
                   onClick={handleApproveLoan}
                   disabled={isProcessing}
+                  className="bg-green-600 hover:bg-green-700"
                 >
                   {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
                   Aprobar
                 </Button>
               </>
             )}
-            {loan.status === 'approved' && (
+            {loan.status === 'approved' && canManageLoans && (
               <Button
                 onClick={handleDisburseLoan}
                 disabled={isProcessing}
+                className="bg-blue-600 hover:bg-blue-700"
               >
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
                 Desembolsar
