@@ -7,8 +7,42 @@ import { AppLayout } from '@/components/layout/AppLayout';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'CrediFlux - Loan Management System',
+  title: {
+    default: 'CrediFlux - Loan Management System',
+    template: '%s | CrediFlux',
+  },
   description: 'Multi-module SaaS platform for financial institutions',
+  applicationName: 'CrediFlux',
+  keywords: ['loan management', 'financial management', 'lending platform', 'SaaS'],
+  authors: [{ name: 'CrediFlux Team' }],
+  creator: 'CrediFlux',
+  publisher: 'CrediFlux',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+  openGraph: {
+    title: 'CrediFlux - Loan Management System',
+    description: 'Multi-module SaaS platform for financial institutions',
+    siteName: 'CrediFlux',
+    locale: 'es_ES',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'CrediFlux - Loan Management System',
+    description: 'Multi-module SaaS platform for financial institutions',
+  },
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    apple: '/apple-icon.png',
+  },
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
