@@ -165,7 +165,7 @@ export interface Loan {
   disbursement_date?: string;
   first_payment_date?: string;
   maturity_date?: string;
-  status: 'draft' | 'pending' | 'approved' | 'active' | 'paid' | 'defaulted' | 'written_off' | 'rejected';
+  status: 'pending' | 'approved' | 'active' | 'paid' | 'defaulted' | 'written_off' | 'rejected';
   outstanding_balance: number;
   total_paid: number;
   total_interest_paid: number;

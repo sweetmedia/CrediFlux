@@ -285,9 +285,9 @@ class LoanViewSet(viewsets.ModelViewSet):
         """
         loan = self.get_object()
 
-        if loan.status not in ['draft', 'pending']:
+        if loan.status != 'pending':
             return Response(
-                {'error': 'Solo se pueden rechazar préstamos en borrador o pendientes'},
+                {'error': 'Solo se pueden rechazar préstamos pendientes'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

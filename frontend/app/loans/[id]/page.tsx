@@ -172,7 +172,6 @@ export default function LoanDetailPage() {
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; className: string; icon: any }> = {
-      draft: { label: 'Borrador', className: 'bg-gray-100 text-gray-700', icon: FileText },
       pending: { label: 'Pendiente', className: 'bg-yellow-100 text-yellow-700', icon: Clock },
       approved: { label: 'Aprobado', className: 'bg-blue-100 text-blue-700', icon: CheckCircle },
       active: { label: 'Activo', className: 'bg-green-100 text-green-700', icon: TrendingUp },
@@ -182,7 +181,7 @@ export default function LoanDetailPage() {
       rejected: { label: 'Rechazado', className: 'bg-red-100 text-red-700', icon: XCircle },
     };
 
-    const config = statusConfig[status] || statusConfig.draft;
+    const config = statusConfig[status] || statusConfig.pending;
     const Icon = config.icon;
 
     return (
@@ -298,7 +297,7 @@ export default function LoanDetailPage() {
                 Desembolsar
               </Button>
             )}
-            {!['paid', 'rejected', 'written_off', 'draft', 'pending'].includes(loan.status) && (
+            {!['paid', 'rejected', 'written_off', 'pending'].includes(loan.status) && (
               <Link href={`/payments/new?loan=${loan.id}`}>
                 <Button>
                   <Receipt className="mr-2 h-4 w-4" />

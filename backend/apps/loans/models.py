@@ -335,7 +335,6 @@ class Loan(UUIDModel, AuditModel):
 
     # Status
     STATUS_CHOICES = [
-        ('draft', 'Draft'),
         ('pending', 'Pending Approval'),
         ('approved', 'Approved'),
         ('active', 'Active'),
@@ -344,7 +343,7 @@ class Loan(UUIDModel, AuditModel):
         ('written_off', 'Written Off'),
         ('rejected', 'Rejected'),
     ]
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
 
     # Balances
     outstanding_balance = MoneyField(
