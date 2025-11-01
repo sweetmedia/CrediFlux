@@ -93,14 +93,13 @@ export default function PaymentDetailPage() {
   };
 
   const formatCurrency = (amount: number | undefined) => {
-    if (amount === undefined || amount === null) return '$0.00';
+    if (amount === undefined || amount === null) return `${config.currency_symbol}0.00`;
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    if (isNaN(numAmount)) return '$0.00';
-    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
-      
+    if (isNaN(numAmount)) return `${config.currency_symbol}0.00`;
+    return `${config.currency_symbol}${numAmount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
-    }).format(numAmount);
+    })}`;
   };
 
   const formatDate = (dateString: string | undefined) => {
