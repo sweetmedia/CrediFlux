@@ -232,6 +232,9 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         style={'input_type': 'password'}
     )
 
+    class Meta:
+        ref_name = 'CustomPasswordResetConfirm'
+
     def validate(self, attrs):
         """Validate token, uid, and password match"""
         # Check passwords match
@@ -349,6 +352,9 @@ class PasswordChangeSerializer(serializers.Serializer):
         min_length=8,
         style={'input_type': 'password'}
     )
+
+    class Meta:
+        ref_name = 'CustomPasswordChange'
 
     def validate(self, attrs):
         """Validate passwords"""
