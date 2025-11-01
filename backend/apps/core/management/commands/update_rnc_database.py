@@ -12,19 +12,14 @@ from io import BytesIO
 from django.core.management.base import BaseCommand
 from django.core.cache import cache
 from django.conf import settings
+from constance import config as constance_config
 
 
 class Command(BaseCommand):
     help = 'Download and cache the DGII RNC database for fast lookups'
 
-    # DGII official bulk download URL (updated as of Oct 2025)
-    DGII_CSV_URL = "https://dgii.gov.do/app/WebApps/Consultas/RNC/RNC_CONTRIBUYENTES.zip"
-
     # Redis cache key for the RNC database
     CACHE_KEY = 'dgii_rnc_database'
-
-    # Cache timeout: 7 days (will be refreshed by Celery task)
-    CACHE_TIMEOUT = 60 * 60 * 24 * 7
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -36,6 +31,16 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         force = options.get('force', False)
 
+        # Check if RNC feature is enabled
+        if not constance_config.DGII_RNC_ENABLED:
+            self.stdout.write(
+                self.style.WARNING(
+                    'DGII RNC validation is disabled. '
+                    'Enable it in Admin > Configuration > DGII/RNC Database'
+                )
+            )
+            return
+
         # Check if database already exists in cache
         if not force and cache.get(self.CACHE_KEY):
             self.stdout.write(
@@ -46,6 +51,7 @@ class Command(BaseCommand):
             return
 
         self.stdout.write('Downloading DGII RNC database...')
+        self.stdout.write(f'Using URL: {constance_config.DGII_RNC_DATABASE_URL}')
 
         try:
             # Download the ZIP file
@@ -71,14 +77,14 @@ class Command(BaseCommand):
 
     def _download_rnc_file(self):
         """Download and extract the RNC CSV file from DGII"""
-        self.stdout.write(f'Downloading from {self.DGII_CSV_URL}...')
+        dgii_url = constance_config.DGII_RNC_DATABASE_URL
 
         # Download with browser headers to avoid 403
         headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
         }
 
-        response = requests.get(self.DGII_CSV_URL, headers=headers, timeout=120)
+        response = requests.get(dgii_url, headers=headers, timeout=120)
         response.raise_for_status()
 
         self.stdout.write(f'Downloaded {len(response.content) / 1024 / 1024:.1f} MB')
@@ -128,11 +134,14 @@ class Command(BaseCommand):
         """Load the RNC data into Redis cache"""
         self.stdout.write('Loading data into Redis cache...')
 
+        # Get cache timeout from configuration (convert days to seconds)
+        cache_timeout = constance_config.DGII_RNC_CACHE_TIMEOUT_DAYS * 24 * 60 * 60
+
         # Store as JSON string to save memory
         cache.set(
             self.CACHE_KEY,
             json.dumps(rnc_data),
-            timeout=self.CACHE_TIMEOUT
+            timeout=cache_timeout
         )
 
         # Also store metadata
@@ -141,8 +150,11 @@ class Command(BaseCommand):
             {
                 'total_records': len(rnc_data),
                 'last_updated': self._get_current_timestamp(),
+                'cache_timeout_days': constance_config.DGII_RNC_CACHE_TIMEOUT_DAYS,
+                'auto_update_enabled': constance_config.DGII_RNC_AUTO_UPDATE,
+                'next_update_hour': constance_config.DGII_RNC_UPDATE_HOUR,
             },
-            timeout=self.CACHE_TIMEOUT
+            timeout=cache_timeout
         )
 
     def _show_stats(self):
@@ -155,6 +167,14 @@ class Command(BaseCommand):
             self.stdout.write('='*60)
             self.stdout.write(f'Total records: {meta["total_records"]:,}')
             self.stdout.write(f'Last updated: {meta["last_updated"]}')
+            self.stdout.write(f'Cache timeout: {meta.get("cache_timeout_days", "N/A")} days')
+
+            auto_update = meta.get("auto_update_enabled", False)
+            update_hour = meta.get("next_update_hour", "N/A")
+            self.stdout.write(f'Auto-update: {"Enabled" if auto_update else "Disabled"}')
+            if auto_update:
+                self.stdout.write(f'Update hour: {update_hour}:00 UTC')
+
             self.stdout.write('='*60 + '\n')
 
     def _get_current_timestamp(self):

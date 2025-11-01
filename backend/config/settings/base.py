@@ -41,6 +41,7 @@ SHARED_APPS = [
     'allauth.socialaccount',
     'dj_rest_auth',
     'dj_rest_auth.registration',
+    'unfold.contrib.constance',  # Unfold Constance integration
     'constance',
     'djmoney',
     'phonenumber_field',
@@ -386,6 +387,33 @@ CONSTANCE_CONFIG = {
         'UI Theme version: v1 (Blue/Purple) or v2 (Green - Inter Tight)',
         str
     ),
+
+    # DGII/RNC Database Settings
+    'DGII_RNC_DATABASE_URL': (
+        'https://dgii.gov.do/app/WebApps/Consultas/RNC/RNC_CONTRIBUYENTES.zip',
+        'URL to download DGII RNC database ZIP file',
+        str
+    ),
+    'DGII_RNC_CACHE_TIMEOUT_DAYS': (
+        7,
+        'Number of days to cache RNC database before refresh',
+        int
+    ),
+    'DGII_RNC_AUTO_UPDATE': (
+        True,
+        'Automatically update RNC database on schedule',
+        bool
+    ),
+    'DGII_RNC_UPDATE_HOUR': (
+        2,
+        'Hour of day (0-23) to auto-update RNC database',
+        int
+    ),
+    'DGII_RNC_ENABLED': (
+        True,
+        'Enable DGII RNC validation features',
+        bool
+    ),
 }
 
 # Constance Fieldsets - Organize settings into groups
@@ -424,6 +452,13 @@ CONSTANCE_CONFIG_FIELDSETS = {
         'MAX_UPLOAD_SIZE_MB',
         'SESSION_TIMEOUT_MINUTES',
         'UI_THEME',
+    ),
+    'DGII/RNC Database': (
+        'DGII_RNC_ENABLED',
+        'DGII_RNC_DATABASE_URL',
+        'DGII_RNC_CACHE_TIMEOUT_DAYS',
+        'DGII_RNC_AUTO_UPDATE',
+        'DGII_RNC_UPDATE_HOUR',
     ),
 }
 
