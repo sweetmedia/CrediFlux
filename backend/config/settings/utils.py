@@ -179,9 +179,11 @@ def dashboard_callback(request, context):
     """
     Callback function for Django Unfold dashboard customization.
     Adds additional context variables for the dashboard template.
+    Following Unfold best practices: https://unfoldadmin.com/docs/configuration/dashboard
     """
     from django.db import connection
     from django.contrib.auth import get_user_model
+    from django.templatetags.static import static
 
     User = get_user_model()
 
@@ -201,12 +203,16 @@ def dashboard_callback(request, context):
         except Exception:
             tenant_name = schema_name.title()
 
+    # System logo for non-tenant (public) dashboard
+    system_logo = static('admin/img/logo.svg') if not is_tenant else None
+
     # Basic statistics
     context.update({
         'schema_name': schema_name,
         'is_tenant': is_tenant,
         'tenant_name': tenant_name,
         'tenant_logo': tenant_logo,
+        'system_logo': system_logo,  # Add system logo to context
         'total_users': User.objects.count(),
     })
 

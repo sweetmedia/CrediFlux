@@ -1,5 +1,5 @@
 {% extends 'unfold/layouts/base_simple.html' %}
-{% load i18n unfold static %}
+{% load i18n unfold %}
 
 {% block breadcrumbs %}{% endblock %}
 
@@ -25,17 +25,26 @@
                 </p>
             {% else %}
                 <!-- System Dashboard - Show CrediFlux Logo -->
-                <div class="flex items-center gap-4 mb-4">
-                    <img src="{% static 'admin/img/logo.svg' %}" alt="CrediFlux" class="h-16 w-auto object-contain">
-                    <div>
-                        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
-                            CrediFlux System Dashboard
-                        </h1>
-                        <p class="text-gray-600 dark:text-gray-400">
-                            Manage tenants, users, and system configuration
-                        </p>
+                {% if system_logo %}
+                    <div class="flex items-center gap-4 mb-4">
+                        <img src="{{ system_logo }}" alt="CrediFlux" class="h-16 w-auto object-contain">
+                        <div>
+                            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+                                CrediFlux System Dashboard
+                            </h1>
+                            <p class="text-gray-600 dark:text-gray-400">
+                                Manage tenants, users, and system configuration
+                            </p>
+                        </div>
                     </div>
-                </div>
+                {% else %}
+                    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                        CrediFlux System Dashboard
+                    </h1>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        Manage tenants, users, and system configuration
+                    </p>
+                {% endif %}
             {% endif %}
         </div>
 
