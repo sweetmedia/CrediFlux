@@ -6,14 +6,17 @@ from datetime import datetime
 from io import BytesIO
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.utils import ImageReader
 from django.db import connection
+from django.conf import settings
+import os
 
 from .models import Loan
 
@@ -27,11 +30,37 @@ class LoanBalanceReport:
         self.loan = loan
         self.buffer = BytesIO()
 
+    def _format_cedula(self, cedula: str) -> str:
+        """Format cedula with dashes (XXX-XXXXXXX-X)"""
+        if not cedula:
+            return ''
+
+        # Remove any existing dashes or spaces
+        clean = cedula.replace('-', '').replace(' ', '')
+
+        # Format as XXX-XXXXXXX-X (Dominican cedula format)
+        if len(clean) == 11:
+            return f"{clean[:3]}-{clean[3:10]}-{clean[10]}"
+
+        # If not 11 digits, return as-is
+        return cedula
+
+    def _get_period_letter(self) -> str:
+        """Get period letter based on payment frequency"""
+        frequency_map = {
+            'daily': 'D',       # Diario
+            'weekly': 'S',      # Semanal
+            'biweekly': 'Q',    # Quincenal
+            'monthly': 'M',     # Mensual
+            'quarterly': 'T',   # Trimestral
+        }
+        return frequency_map.get(self.loan.payment_frequency, 'M')
+
     def generate(self):
         """Generate the PDF report"""
-        # Create the PDF object using ReportLab
-        pdf = canvas.Canvas(self.buffer, pagesize=letter)
-        width, height = letter
+        # Create the PDF object using ReportLab in Landscape orientation
+        pdf = canvas.Canvas(self.buffer, pagesize=landscape(letter))
+        width, height = landscape(letter)
 
         # Set up fonts
         pdf.setFont("Helvetica", 9)
@@ -40,10 +69,34 @@ class LoanBalanceReport:
         page_num = 1
         y_position = height - 40  # Start position from top
 
+        # Logo del Tenant (if available)
+        tenant = connection.tenant
+        logo_height = 0
+        if tenant and hasattr(tenant, 'logo') and tenant.logo:
+            try:
+                # Build full path to logo
+                logo_path = os.path.join(settings.MEDIA_ROOT, str(tenant.logo))
+                if os.path.exists(logo_path):
+                    # Draw logo in top left corner
+                    logo_width = 80
+                    logo_height = 50
+                    pdf.drawImage(logo_path, 40, y_position - logo_height,
+                                width=logo_width, height=logo_height,
+                                preserveAspectRatio=True, mask='auto')
+            except Exception as e:
+                # If logo fails to load, continue without it
+                print(f"Warning: Could not load tenant logo: {e}")
+                logo_height = 0
+
         # Header - Date in top right
         pdf.setFont("Helvetica", 9)
         pdf.drawRightString(width - 40, y_position, datetime.now().strftime('%d/%m/%Y'))
-        y_position -= 30
+
+        # Adjust position based on logo height
+        if logo_height > 0:
+            y_position -= max(logo_height + 10, 30)
+        else:
+            y_position -= 30
 
         # Title
         pdf.setFont("Helvetica-Bold", 12)
@@ -69,7 +122,8 @@ class LoanBalanceReport:
         pdf.drawString(left_x, y_position, f"Deudor")
         pdf.drawString(left_x + 80, y_position, f": {customer.get_full_name().upper()}")
         # Cedula on the right
-        pdf.drawRightString(width - 40, y_position, f"Cedula: {customer.id_number}")
+        formatted_cedula = self._format_cedula(customer.id_number)
+        pdf.drawRightString(width - 40, y_position, f"Cedula: {formatted_cedula}")
         y_position -= 12
 
         # Dirección
@@ -92,13 +146,16 @@ class LoanBalanceReport:
         y_position -= 12
 
         # Financial Information - Two columns
+        # Get period letter
+        period_letter = self._get_period_letter()
+
         # Left side
         pdf.drawString(left_x, y_position, f"Monto Préstamo :")
         pdf.drawString(left_x + 90, y_position, f"{float(self.loan.principal_amount.amount):,.2f}")
 
         # Right side - Interest rate per period
         interest_per_period = self._get_interest_per_period()
-        pdf.drawRightString(width - 150, y_position, f"Int/Acr.: {interest_per_period}%Q")
+        pdf.drawRightString(width - 150, y_position, f"Int/Acr.: {interest_per_period}%{period_letter}")
         y_position -= 12
 
         # Fecha Préstamo
@@ -107,7 +164,7 @@ class LoanBalanceReport:
         pdf.drawString(left_x + 90, y_position, fecha_prestamo)
 
         # Comisión (assuming 0 for now)
-        pdf.drawRightString(width - 150, y_position, f"Comisión: 0.00%Q")
+        pdf.drawRightString(width - 150, y_position, f"Comisión: 0.00%{period_letter}")
         y_position -= 12
 
         # Balance/Capital
@@ -116,7 +173,7 @@ class LoanBalanceReport:
         pdf.drawString(left_x + 90, y_position, f"{outstanding:,.2f}")
 
         # Mora rate (assuming 0 for now)
-        pdf.drawRightString(width - 150, y_position, f"Mora    : 0.00%Q")
+        pdf.drawRightString(width - 150, y_position, f"Mora    : 0.00%{period_letter}")
         y_position -= 12
 
         # Balance Real
@@ -134,7 +191,7 @@ class LoanBalanceReport:
         pdf.drawString(left_x + 90, y_position, f"{total_balance:,.2f}")
 
         # Int.Tot. (total interest rate)
-        pdf.drawRightString(width - 150, y_position, f"Int.Tot.: {self.loan.interest_rate}%Q")
+        pdf.drawRightString(width - 150, y_position, f"Int.Tot.: {self.loan.interest_rate}%{period_letter}")
         y_position -= 15
 
         # Separator line
