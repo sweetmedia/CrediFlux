@@ -199,10 +199,10 @@ class LoanBalanceReport:
         y_position -= 15
 
         # Table Header
-        headers = ["CUOTA#", "FECHA", "MONTO-CUOTA", "CAPITAL", "INTERES", "MORA", "OTROS", "MORA-OTROS", "SALDO/CUOTA"]
+        headers = ["CUOTA#", "FECHA", "MONTO-CUOTA", "CAPITAL", "INTERES", "MORA", "OTROS", "SALDO/CUOTA"]
 
         # Draw header
-        col_widths = [50, 70, 80, 70, 70, 60, 60, 80, 80]
+        col_widths = [50, 70, 80, 70, 70, 60, 60, 80]
         x_pos = left_x
         pdf.setFont("Helvetica-Bold", 8)
         for i, header in enumerate(headers):
@@ -228,7 +228,6 @@ class LoanBalanceReport:
         total_interest = Decimal('0.00')
         total_mora = Decimal('0.00')
         total_otros = Decimal('0.00')
-        total_mora_otros = Decimal('0.00')
         total_saldo = Decimal('0.00')
 
         for schedule in schedules:
@@ -247,7 +246,6 @@ class LoanBalanceReport:
             interes = float(schedule.interest_amount.amount)
             mora = float(schedule.late_fee_amount.amount) if schedule.late_fee_amount else 0.00
             otros = 0.00  # Not in current model
-            mora_otros = 0.00  # Not in current model
             saldo_cuota = float(schedule.balance.amount) if schedule.balance else monto_cuota
 
             # Update totals
@@ -255,7 +253,6 @@ class LoanBalanceReport:
             total_interest += Decimal(str(interes))
             total_mora += Decimal(str(mora))
             total_otros += Decimal(str(otros))
-            total_mora_otros += Decimal(str(mora_otros))
             total_saldo += Decimal(str(saldo_cuota))
 
             # Draw row
@@ -289,12 +286,8 @@ class LoanBalanceReport:
             pdf.drawRightString(x_pos + col_widths[6], y_position, f"{otros:,.2f}")
             x_pos += col_widths[6]
 
-            # MORA-OTROS
-            pdf.drawRightString(x_pos + col_widths[7], y_position, f"{mora_otros:,.2f}")
-            x_pos += col_widths[7]
-
             # SALDO/CUOTA
-            pdf.drawRightString(x_pos + col_widths[8], y_position, f"{saldo_cuota:,.2f}")
+            pdf.drawRightString(x_pos + col_widths[7], y_position, f"{saldo_cuota:,.2f}")
 
             y_position -= 12
 
@@ -326,13 +319,9 @@ class LoanBalanceReport:
         pdf.drawRightString(x_pos + col_widths[6], y_position, f"{float(total_otros):,.2f}")
         x_pos += col_widths[6]
 
-        # MORA-OTROS total
-        pdf.drawRightString(x_pos + col_widths[7], y_position, f"{float(total_mora_otros):,.2f}")
-        x_pos += col_widths[7]
-
         # SALDO/CUOTA total
         total_balance_cuotas = float(total_capital) + float(total_interest)
-        pdf.drawRightString(x_pos + col_widths[8], y_position, f"{total_balance_cuotas:,.2f}")
+        pdf.drawRightString(x_pos + col_widths[7], y_position, f"{total_balance_cuotas:,.2f}")
 
         # Save PDF
         pdf.save()
