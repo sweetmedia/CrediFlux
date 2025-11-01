@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -362,9 +363,19 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 py-8">
       <Card className="w-full max-w-4xl shadow-2xl">
-        <CardHeader className="space-y-1 pb-8">
-          <CardTitle className="text-3xl font-bold text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Crear Cuenta en CrediFlux
+        <CardHeader className="space-y-4 pb-8">
+          <div className="flex justify-center">
+            <Image
+              src="/logo.svg"
+              alt="CrediFlux"
+              width={200}
+              height={50}
+              className="h-12 w-auto"
+              priority
+            />
+          </div>
+          <CardTitle className="text-2xl font-bold text-center text-gray-900">
+            Crear Cuenta
           </CardTitle>
           <CardDescription className="text-center text-base">
             Gestiona tus préstamos de manera profesional

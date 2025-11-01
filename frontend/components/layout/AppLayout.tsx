@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Header } from './Header';
 import { Loader2 } from 'lucide-react';
@@ -30,7 +31,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-gray-50 to-gray-100">
+        <Image
+          src="/logo.svg"
+          alt="CrediFlux"
+          width={200}
+          height={50}
+          className="h-12 w-auto"
+          priority
+        />
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -52,19 +53,26 @@ export function Header() {
                 className="h-10 w-auto object-contain"
               />
             ) : (
-              <DollarSign className="h-8 w-8 text-blue-600" />
+              <Image
+                src="/logo.svg"
+                alt="CrediFlux"
+                width={160}
+                height={40}
+                className="h-10 w-auto"
+                priority
+              />
             )}
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {tenant?.business_name || 'CrediFlux'}
-              </h1>
-              {tenant && (
+            {tenant && (
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">
+                  {tenant.business_name}
+                </h1>
                 <p className="text-sm text-gray-600 flex items-center gap-1">
                   <Building2 className="h-3 w-3" />
                   {tenant.schema_name}
                 </p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           <nav className="hidden md:flex items-center space-x-6">

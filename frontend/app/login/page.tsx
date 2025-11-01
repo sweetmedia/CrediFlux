@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -83,8 +84,17 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">CrediFlux</CardTitle>
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center">
+            <Image
+              src="/logo.svg"
+              alt="CrediFlux"
+              width={200}
+              height={50}
+              className="h-12 w-auto"
+              priority
+            />
+          </div>
           <CardDescription className="text-center">
             Ingresa a tu cuenta para continuar
           </CardDescription>

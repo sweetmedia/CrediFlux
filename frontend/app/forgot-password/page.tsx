@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -91,9 +92,16 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex justify-center mb-4">
-            <Mail className="h-12 w-12 text-blue-600" />
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center">
+            <Image
+              src="/logo.svg"
+              alt="CrediFlux"
+              width={200}
+              height={50}
+              className="h-12 w-auto"
+              priority
+            />
           </div>
           <CardTitle className="text-2xl font-bold text-center">
             Recuperar Contraseña
