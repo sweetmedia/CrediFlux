@@ -1,0 +1,122 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Actualizar Base de Datos RNC{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:constance_config_changelist' %}">{% trans 'Constance' %}</a>
+    &rsaquo; {% trans 'Update RNC Database' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 40px auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <h1 style="color: #1e293b; margin-bottom: 20px; font-size: 28px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 12px; color: #2563eb;">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+            <path d="M16 16h5v5"></path>
+        </svg>
+        Actualizar Base de Datos DGII RNC
+    </h1>
+
+    {% if not rnc_enabled %}
+    <div style="padding: 16px; background: #fef2f2; border-left: 4px solid #dc2626; border-radius: 6px; margin-bottom: 24px;">
+        <h3 style="margin: 0 0 8px 0; color: #dc2626;">
+            ⚠️ La validación RNC está deshabilitada
+        </h3>
+        <p style="margin: 0; color: #991b1b;">
+            La funcionalidad de validación RNC está actualmente deshabilitada en la configuración.
+            Habilita <strong>DGII_RNC_ENABLED</strong> antes de actualizar la base de datos.
+        </p>
+    </div>
+    {% endif %}
+
+    <div style="padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 24px;">
+        <h3 style="margin-top: 0; color: #1e293b;">Configuración Actual</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 12px 0; color: #64748b; font-weight: 500;">Estado:</td>
+                <td style="padding: 12px 0;">
+                    {% if rnc_enabled %}
+                    <span style="color: #16a34a; font-weight: 600;">✓ Habilitado</span>
+                    {% else %}
+                    <span style="color: #dc2626; font-weight: 600;">✗ Deshabilitado</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 12px 0; color: #64748b; font-weight: 500;">URL de Descarga:</td>
+                <td style="padding: 12px 0; font-family: monospace; font-size: 12px; word-break: break-all;">{{ rnc_url }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px 0; color: #64748b; font-weight: 500;">Timeout de Cache:</td>
+                <td style="padding: 12px 0;">{{ cache_timeout_days }} días</td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="padding: 16px; background: #fefce8; border-left: 4px solid #eab308; border-radius: 6px; margin-bottom: 24px;">
+        <h3 style="margin: 0 0 8px 0; color: #a16207;">
+            ℹ️ Información Importante
+        </h3>
+        <ul style="margin: 8px 0; padding-left: 20px; color: #713f12;">
+            <li>La descarga y procesamiento puede tardar <strong>varios minutos</strong></li>
+            <li>Se descargarán más de <strong>750,000 registros</strong> desde DGII</li>
+            <li>La base de datos actual será reemplazada</li>
+            <li>Las validaciones de RNC/Cédula usarán los datos actualizados inmediatamente</li>
+        </ul>
+    </div>
+
+    <form method="post" style="margin-top: 30px;">
+        {% csrf_token %}
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: flex; align-items: center; cursor: pointer; font-size: 15px;">
+                <input type="checkbox" name="force" value="true" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+                <span style="color: #64748b;">Forzar actualización (aunque exista cache válido)</span>
+            </label>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 30px;">
+            <button type="submit"
+                    class="button"
+                    {% if not rnc_enabled %}disabled{% endif %}
+                    style="background: {% if rnc_enabled %}#2563eb{% else %}#cbd5e1{% endif %}; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-weight: 600; cursor: {% if rnc_enabled %}pointer{% else %}not-allowed{% endif %}; transition: background 0.2s; font-size: 15px;"
+                    onmouseover="if({{ rnc_enabled|yesno:'true,false' }}) this.style.background='#1d4ed8'"
+                    onmouseout="if({{ rnc_enabled|yesno:'true,false' }}) this.style.background='#2563eb'">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 8px;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" x2="12" y1="15" y2="3"></line>
+                </svg>
+                Iniciar Actualización
+            </button>
+
+            <a href="{% url 'admin:constance_config_changelist' %}"
+               class="button"
+               style="background: #64748b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; transition: background 0.2s; font-size: 15px;"
+               onmouseover="this.style.background='#475569'"
+               onmouseout="this.style.background='#64748b'">
+                Cancelar
+            </a>
+        </div>
+    </form>
+
+    {% if not rnc_enabled %}
+    <p style="margin-top: 20px; color: #dc2626; font-size: 14px;">
+        * El botón de actualización está deshabilitado porque la funcionalidad RNC no está activa.
+    </p>
+    {% endif %}
+</div>
+
+<style>
+    button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed !important;
+    }
+</style>
+{% endblock %}
