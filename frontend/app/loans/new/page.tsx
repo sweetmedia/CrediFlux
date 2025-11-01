@@ -91,6 +91,37 @@ export default function NewLoanPage() {
   const watchedFields = watch(['principal_amount', 'interest_rate', 'term_months', 'payment_frequency']);
   const paymentFrequency = watch('payment_frequency');
   const interestType = watch('interest_type');
+  const disbursementDate = watch('disbursement_date');
+
+  // Auto-calculate first payment date based on payment frequency and disbursement date
+  useEffect(() => {
+    if (!disbursementDate || !paymentFrequency) return;
+
+    const baseDate = new Date(disbursementDate);
+    let firstPaymentDate = new Date(baseDate);
+
+    // Calculate first payment date based on frequency
+    switch (paymentFrequency) {
+      case 'daily':
+        firstPaymentDate.setDate(baseDate.getDate() + 1); // Next day
+        break;
+      case 'weekly':
+        firstPaymentDate.setDate(baseDate.getDate() + 7); // 1 week
+        break;
+      case 'biweekly':
+        firstPaymentDate.setDate(baseDate.getDate() + 14); // 2 weeks
+        break;
+      case 'monthly':
+        firstPaymentDate.setMonth(baseDate.getMonth() + 1); // 1 month
+        break;
+      default:
+        firstPaymentDate.setMonth(baseDate.getMonth() + 1); // Default to 1 month
+    }
+
+    // Format date as YYYY-MM-DD for input field
+    const formattedDate = firstPaymentDate.toISOString().split('T')[0];
+    setValue('first_payment_date', formattedDate);
+  }, [paymentFrequency, disbursementDate, setValue]);
 
   // Get payment frequency label for display
   const getPaymentFrequencyLabel = (frequency: string) => {
@@ -756,18 +787,23 @@ export default function NewLoanPage() {
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="first_payment_date">Fecha del Primer Pago</Label>
+                    <Label htmlFor="first_payment_date">
+                      Fecha del Primer Pago
+                      <span className="ml-2 text-xs font-normal text-gray-500">(Auto-calculado)</span>
+                    </Label>
                     <Input
                       id="first_payment_date"
                       type="date"
                       {...register('first_payment_date')}
                       disabled={isLoading}
+                      className="bg-blue-50"
                     />
                     {errors.first_payment_date && (
                       <p className="text-sm text-red-500">{errors.first_payment_date.message}</p>
                     )}
                     <p className="text-xs text-gray-500">
-                      Si no se especifica, se calculará automáticamente según la frecuencia de pago
+                      Se calcula automáticamente según la frecuencia de pago y la fecha de desembolso.
+                      Puedes modificarla si es necesario.
                     </p>
                   </div>
                 </div>
