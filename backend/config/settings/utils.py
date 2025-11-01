@@ -224,9 +224,12 @@ def dashboard_callback(request, context):
         except Exception:
             pass
     else:
-        # Public schema - add tenant list
+        # Public schema - add system-wide statistics
         try:
             from apps.tenants.models import Tenant
+            from apps.loans.models import Customer, Loan, LoanPayment
+            from django.core.cache import cache
+            from constance import config as constance_config
 
             tenants = Tenant.objects.filter(is_active=True).order_by('name')
 
@@ -242,12 +245,50 @@ def dashboard_callback(request, context):
                         'domain': domain.domain,
                     })
 
+            # Get aggregated statistics from all tenants
+            total_customers_all = 0
+            total_loans_all = 0
+            total_active_loans = 0
+            total_payments_all = 0
+
+            for tenant in tenants:
+                try:
+                    connection.set_tenant(tenant)
+                    total_customers_all += Customer.objects.count()
+                    total_loans_all += Loan.objects.count()
+                    total_active_loans += Loan.objects.filter(status='active').count()
+                    total_payments_all += LoanPayment.objects.count()
+                except Exception:
+                    pass
+
+            # Switch back to public schema
+            connection.set_schema('public')
+
+            # Check RNC database status
+            rnc_cache_meta = cache.get('dgii_rnc_database_meta')
+            rnc_status = {
+                'enabled': constance_config.DGII_RNC_ENABLED,
+                'total_records': rnc_cache_meta.get('total_records', 0) if rnc_cache_meta else 0,
+                'last_updated': rnc_cache_meta.get('last_updated', 'Never') if rnc_cache_meta else 'Never',
+            }
+
             context.update({
                 'total_tenants': Tenant.objects.count(),
                 'active_tenants': Tenant.objects.filter(is_active=True).count(),
                 'tenants_list': tenants_list,
+                # System-wide aggregated stats
+                'total_customers_all': total_customers_all,
+                'total_loans_all': total_loans_all,
+                'total_active_loans': total_active_loans,
+                'total_payments_all': total_payments_all,
+                # System status
+                'rnc_status': rnc_status,
             })
-        except Exception:
+        except Exception as e:
+            # Log the error but don't break the dashboard
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error loading dashboard context: {e}")
             pass
 
     return context

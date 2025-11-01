@@ -84,7 +84,7 @@
                     </div>
                 </div>
             {% else %}
-                <!-- System Statistics -->
+                <!-- System Statistics - CrediFlux Global -->
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                     <div class="flex items-center">
                         <div class="p-3 rounded-full bg-blue-500 bg-opacity-10">
@@ -93,6 +93,7 @@
                         <div class="ml-4">
                             <p class="text-sm text-gray-600 dark:text-gray-400">Total Tenants</p>
                             <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_tenants|default:0 }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-500">{{ active_tenants|default:0 }} active</p>
                         </div>
                     </div>
                 </div>
@@ -100,11 +101,12 @@
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                     <div class="flex items-center">
                         <div class="p-3 rounded-full bg-green-500 bg-opacity-10">
-                            <span class="material-symbols-outlined text-green-500" style="font-size: 24px;">check_circle</span>
+                            <span class="material-symbols-outlined text-green-500" style="font-size: 24px;">account_balance</span>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Active Tenants</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ active_tenants|default:0 }}</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Loans (All Tenants)</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_loans_all|default:0 }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-500">{{ total_active_loans|default:0 }} active</p>
                         </div>
                     </div>
                 </div>
@@ -115,13 +117,78 @@
                             <span class="material-symbols-outlined text-purple-500" style="font-size: 24px;">person</span>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Users</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_users|default:0 }}</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Customers</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_customers_all|default:0 }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-500">All tenants</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-yellow-500 bg-opacity-10">
+                            <span class="material-symbols-outlined text-yellow-500" style="font-size: 24px;">payment</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Payments</p>
+                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_payments_all|default:0 }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-500">All tenants</p>
                         </div>
                     </div>
                 </div>
             {% endif %}
         </div>
+
+        <!-- System Status Section (Only in Public Schema) -->
+        {% if not is_tenant %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                        <span class="material-symbols-outlined mr-2" style="font-size: 24px;">settings_suggest</span>
+                        System Status
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- RNC Database Status -->
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="font-semibold text-gray-900 dark:text-white flex items-center">
+                                    <span class="material-symbols-outlined mr-2" style="font-size: 20px;">database</span>
+                                    DGII RNC Database
+                                </h3>
+                                {% if rnc_status.enabled %}
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                                {% else %}
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Inactive</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                <p><strong>Records:</strong> {{ rnc_status.total_records|default:"0"|floatformat:0 }}</p>
+                                <p><strong>Last Update:</strong> {{ rnc_status.last_updated }}</p>
+                                <a href="{% url 'admin:constance_config_changelist' %}" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">Manage Settings →</a>
+                            </div>
+                        </div>
+
+                        <!-- System Info -->
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="font-semibold text-gray-900 dark:text-white flex items-center">
+                                    <span class="material-symbols-outlined mr-2" style="font-size: 20px;">info</span>
+                                    System Information
+                                </h3>
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Running</span>
+                            </div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                <p><strong>Total Users:</strong> {{ total_users|default:0 }}</p>
+                                <p><strong>Schema:</strong> {{ schema_name|default:"public" }}</p>
+                                <a href="{% url 'admin:users_user_changelist' %}" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">Manage Users →</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
 
         <!-- Tenant Switcher Section (Only in Public Schema) -->
         {% if not is_tenant and tenants_list %}
@@ -187,28 +254,40 @@
                             <span class="font-medium text-yellow-900 dark:text-yellow-100">View All Loans</span>
                         </a>
                     {% else %}
-                        <a href="{% url 'admin:tenants_tenant_add' %}"
+                        <a href="{% url 'admin:constance_config_changelist' %}"
                            class="flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 mr-3" style="font-size: 28px;">business_center</span>
-                            <span class="font-medium text-blue-900 dark:text-blue-100">Add Tenant</span>
+                            <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 mr-3" style="font-size: 28px;">settings</span>
+                            <span class="font-medium text-blue-900 dark:text-blue-100">Configuration</span>
                         </a>
 
-                        <a href="{% url 'admin:users_user_add' %}"
+                        <a href="{% url 'admin:constance_update_rnc_database' %}"
                            class="flex items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-green-600 dark:text-green-400 mr-3" style="font-size: 28px;">person_add</span>
-                            <span class="font-medium text-green-900 dark:text-green-100">Add User</span>
+                            <span class="material-symbols-outlined text-green-600 dark:text-green-400 mr-3" style="font-size: 28px;">sync</span>
+                            <span class="font-medium text-green-900 dark:text-green-100">Update RNC Database</span>
+                        </a>
+
+                        <a href="{% url 'admin:tenants_tenant_add' %}"
+                           class="flex items-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 mr-3" style="font-size: 28px;">business_center</span>
+                            <span class="font-medium text-purple-900 dark:text-purple-100">Add Tenant</span>
                         </a>
 
                         <a href="{% url 'admin:tenants_tenant_changelist' %}"
-                           class="flex items-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 mr-3" style="font-size: 28px;">list</span>
-                            <span class="font-medium text-purple-900 dark:text-purple-100">View All Tenants</span>
+                           class="flex items-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 mr-3" style="font-size: 28px;">list</span>
+                            <span class="font-medium text-yellow-900 dark:text-yellow-100">Manage Tenants</span>
                         </a>
 
                         <a href="{% url 'admin:users_user_changelist' %}"
-                           class="flex items-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 mr-3" style="font-size: 28px;">group</span>
-                            <span class="font-medium text-yellow-900 dark:text-yellow-100">View All Users</span>
+                           class="flex items-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400 mr-3" style="font-size: 28px;">group</span>
+                            <span class="font-medium text-indigo-900 dark:text-indigo-100">Manage Users</span>
+                        </a>
+
+                        <a href="{% url 'admin:django_celery_beat_periodictask_changelist' %}"
+                           class="flex items-center p-4 bg-pink-50 dark:bg-pink-900/20 rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors">
+                            <span class="material-symbols-outlined text-pink-600 dark:text-pink-400 mr-3" style="font-size: 28px;">schedule</span>
+                            <span class="font-medium text-pink-900 dark:text-pink-100">Scheduled Tasks</span>
                         </a>
                     {% endif %}
                 </div>
