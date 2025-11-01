@@ -32,7 +32,7 @@ const loanSchema = z.object({
   customer: z.string().min(1, 'Cliente requerido'),
   principal_amount: z.string().min(1, 'Monto requerido'),
   interest_rate: z.string().min(1, 'Tasa de interés requerida'),
-  interest_type: z.enum(['fixed', 'variable']),
+  interest_type: z.enum(['fixed', 'variable', 'variable_rd']),
   term_months: z.string().min(1, 'Plazo requerido'),
   loan_type: z.enum(['personal', 'auto', 'mortgage', 'business', 'student', 'payday']),
   purpose: z.string().optional(),
@@ -648,6 +648,7 @@ export default function NewLoanPage() {
                     >
                       <option value="fixed">Fijo</option>
                       <option value="variable">Variable</option>
+                      <option value="variable_rd">Variable (RD)</option>
                     </NativeSelect>
                     {errors.interest_type && (
                       <p className="text-sm text-red-500">{errors.interest_type.message}</p>
@@ -670,6 +671,18 @@ export default function NewLoanPage() {
                         <p>
                           <strong>Interés Variable/Amortizado:</strong> El interés se calcula sobre el capital restante (que va disminuyendo).
                           Cada cuota paga MENOS interés que la anterior, ya que el capital pendiente disminuye con cada pago.
+                          La tasa se divide entre los períodos por año (ejemplo: 10% anual = 0.83% mensual).
+                        </p>
+                      </div>
+                    )}
+
+                    {interestType === 'variable_rd' && (
+                      <div className="flex items-start gap-2 p-3 rounded-md text-sm bg-purple-50 text-purple-800 border border-purple-200">
+                        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <p>
+                          <strong>Interés Variable (RD):</strong> El interés se calcula aplicando la tasa DIRECTAMENTE al capital restante.
+                          Cada cuota paga MENOS interés que la anterior. La tasa se aplica sin dividir entre períodos.
+                          Ejemplo: $100,000 × 10% = $10,000 en la primera cuota.
                         </p>
                       </div>
                     )}

@@ -292,12 +292,13 @@ class Loan(UUIDModel, AuditModel):
     INTEREST_TYPE_CHOICES = [
         ('fixed', 'Fixed Interest Rate'),
         ('variable', 'Variable Interest Rate'),
+        ('variable_rd', 'Variable (RD) - Direct Rate per Period'),
     ]
     interest_type = models.CharField(
         max_length=20,
         choices=INTEREST_TYPE_CHOICES,
         default='fixed',
-        help_text="Type of interest rate (fixed or variable)"
+        help_text="Type of interest rate (fixed, variable, or variable_rd)"
     )
 
     term_months = models.IntegerField(

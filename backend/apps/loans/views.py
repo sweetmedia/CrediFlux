@@ -408,10 +408,67 @@ class LoanViewSet(viewsets.ModelViewSet):
             principal_per_payment = (loan.principal_amount.amount / num_payments).quantize(Decimal('0.01'))
             capital_restante = loan.principal_amount.amount
 
+            # Calculate period rate based on payment frequency
+            # For monthly: annual_rate / 12
+            # For quarterly: annual_rate / 4
+            # For weekly: annual_rate / 52
+            # For daily: annual_rate / 365
+            periods_per_year = {
+                'daily': 365,
+                'weekly': 52,
+                'biweekly': 26,
+                'monthly': 12,
+                'quarterly': 4,
+            }
+            period_divisor = Decimal(periods_per_year.get(loan.payment_frequency, 12))
+
             for i in range(1, int(num_payments) + 1):
                 # Calcular interés sobre capital restante
-                # interes(i) = capital_restante * tasa_interes / 100
-                interest_amount = (capital_restante * loan.interest_rate / 100 * Decimal(loan.term_months) / Decimal(12) / num_payments).quantize(Decimal('0.01'))
+                # interes(i) = capital_restante * (tasa_anual / periodos_por_año)
+                # Ejemplo mensual: capital_restante * (10% / 12) = capital_restante * 0.00833
+                interest_amount = (capital_restante * loan.interest_rate / 100 / period_divisor).quantize(Decimal('0.01'))
+
+                # Para la última cuota, ajustar el capital para que sume exactamente el total
+                if i == int(num_payments):
+                    total_principal_assigned = sum(s.principal_amount.amount for s in schedules)
+                    principal_amount = loan.principal_amount.amount - total_principal_assigned
+                else:
+                    principal_amount = principal_per_payment
+
+                total_amount = (principal_amount + interest_amount).quantize(Decimal('0.01'))
+
+                schedule = LoanSchedule.objects.create(
+                    loan=loan,
+                    installment_number=i,
+                    due_date=current_date,
+                    total_amount=Money(total_amount, loan.principal_amount.currency),
+                    principal_amount=Money(principal_amount, loan.principal_amount.currency),
+                    interest_amount=Money(interest_amount, loan.principal_amount.currency)
+                )
+                schedules.append(schedule)
+
+                # Reducir capital restante
+                capital_restante = (capital_restante - principal_amount).quantize(Decimal('0.01'))
+
+                # Move to next payment date
+                current_date = current_date + relativedelta(**period_delta)
+
+        elif interest_type == 'variable_rd':
+            # ========================================
+            # INTERÉS VARIABLE RD (Tasa directa por período)
+            # ========================================
+            # El interés se calcula aplicando la tasa DIRECTAMENTE al capital restante
+            # SIN dividir entre períodos (método República Dominicana)
+            # NOTA: Esto NO es estándar financiero internacional
+
+            principal_per_payment = (loan.principal_amount.amount / num_payments).quantize(Decimal('0.01'))
+            capital_restante = loan.principal_amount.amount
+
+            for i in range(1, int(num_payments) + 1):
+                # Calcular interés aplicando la tasa DIRECTAMENTE
+                # interes(i) = capital_restante * tasa / 100
+                # Ejemplo: $100,000 * 10% = $10,000
+                interest_amount = (capital_restante * loan.interest_rate / 100).quantize(Decimal('0.01'))
 
                 # Para la última cuota, ajustar el capital para que sume exactamente el total
                 if i == int(num_payments):
