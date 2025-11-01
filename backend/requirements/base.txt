@@ -39,6 +39,10 @@ pillow==10.4.0
 phonenumbers==8.13.45
 django-phonenumber-field==8.0.0
 
+# Web scraping
+beautifulsoup4==4.12.3
+lxml==5.1.0
+
 # Celery Beat (for scheduled tasks)
 django-celery-beat==2.7.0
 

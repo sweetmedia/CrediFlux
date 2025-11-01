@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def validate_rnc_view(request):
     """
     API endpoint to validate an RNC or Cedula
@@ -126,7 +126,7 @@ def validate_rnc_view(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def rnc_database_status(request):
     """
     Get the status of the RNC database
@@ -162,3 +162,76 @@ def rnc_database_status(request):
             },
             status=status.HTTP_200_OK
         )
+
+
+# UI Theme Configuration View
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_ui_theme(request):
+    """
+    Get the current UI theme configuration
+
+    GET /api/ui-theme/
+
+    Response:
+    {
+        "theme": "v1",
+        "version": "CrediFlux v1"
+    }
+    """
+    from constance import config as constance_config
+
+    theme = constance_config.UI_THEME
+    theme_name = "CrediFlux v1" if theme == "v1" else "CrediFlux v2"
+
+    return Response(
+        {
+            'theme': theme,
+            'version': theme_name
+        },
+        status=status.HTTP_200_OK
+    )
+
+
+# Tenant Configuration View
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_tenant_config(request):
+    """
+    Get tenant configuration settings
+
+    GET /api/config/
+
+    Response:
+    {
+        "currency": "USD",
+        "currency_symbol": "$",
+        "decimal_places": 2,
+        "company_name": "Caproinsa SRL"
+    }
+    """
+    # Get the current tenant from the request
+    tenant = getattr(request, 'tenant', None)
+
+    # Default values if no tenant is found (for public schema or non-tenant requests)
+    if not tenant:
+        return Response(
+            {
+                'currency': 'USD',
+                'currency_symbol': '$',
+                'decimal_places': 2,
+                'company_name': 'CrediFlux',
+            },
+            status=status.HTTP_200_OK
+        )
+
+    # Return tenant-specific configuration
+    return Response(
+        {
+            'currency': tenant.default_currency,
+            'currency_symbol': tenant.currency_symbol,
+            'decimal_places': 2,  # This could also be a tenant field if needed
+            'company_name': tenant.business_name,
+        },
+        status=status.HTTP_200_OK
+    )

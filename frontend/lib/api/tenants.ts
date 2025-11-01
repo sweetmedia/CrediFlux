@@ -20,6 +20,83 @@ export interface Tenant {
   primary_color?: string;
   created_on: string;
   updated_on: string;
+
+  // Loan Configuration
+  default_interest_rate?: number;
+  min_interest_rate?: number;
+  max_interest_rate?: number;
+  min_loan_amount?: number;
+  min_loan_amount_currency?: string;
+  max_loan_amount?: number;
+  max_loan_amount_currency?: string;
+  default_loan_term_months?: number;
+  min_loan_term_months?: number;
+  max_loan_term_months?: number;
+  default_payment_frequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  default_loan_type?: 'personal' | 'business' | 'mortgage' | 'auto' | 'education';
+  require_collateral_default?: boolean;
+  collateral_required_above?: number;
+  collateral_required_above_currency?: string;
+  enable_auto_approval?: boolean;
+  auto_approval_max_amount?: number;
+  auto_approval_max_amount_currency?: string;
+  default_grace_period_days?: number;
+  require_disbursement_approval?: boolean;
+  allow_partial_disbursement?: boolean;
+
+  // Enabled Loan Types
+  enabled_loan_types?: string[];
+
+  // Payment Methods
+  accepted_payment_methods?: string[];
+  enable_cash_payments?: boolean;
+  enable_check_payments?: boolean;
+  enable_bank_transfer_payments?: boolean;
+  enable_card_payments?: boolean;
+  enable_mobile_payments?: boolean;
+
+  // Credit Score Requirements
+  require_credit_score?: boolean;
+  minimum_credit_score?: number;
+  credit_score_for_auto_approval?: number;
+
+  // Currency Settings
+  default_currency?: string;
+  allow_multiple_currencies?: boolean;
+  supported_currencies?: string[];
+
+  // Document Requirements
+  require_id_document?: boolean;
+  require_proof_of_income?: boolean;
+  require_proof_of_address?: boolean;
+  require_bank_statement?: boolean;
+  require_employment_letter?: boolean;
+  enhanced_verification_amount?: number;
+  enhanced_verification_amount_currency?: string;
+  enhanced_verification_documents?: string[];
+
+  // Additional Loan Settings
+  allow_early_repayment?: boolean;
+  early_repayment_penalty?: number;
+  require_guarantor?: boolean;
+  guarantor_required_above?: number;
+  guarantor_required_above_currency?: string;
+  max_active_loans_per_customer?: number;
+
+  // Late Fee Configuration
+  late_fee_type?: 'percentage' | 'fixed' | 'none';
+  late_fee_percentage?: number;
+  late_fee_fixed_amount?: number;
+  late_fee_fixed_amount_currency?: string;
+  late_fee_frequency?: 'daily' | 'monthly' | 'one_time';
+  grace_period_days?: number;
+
+  // Notification Configuration
+  enable_email_reminders?: boolean;
+  enable_sms_reminders?: boolean;
+  enable_whatsapp_reminders?: boolean;
+  reminder_days_before?: number;
+  notification_email_from?: string;
 }
 
 export interface TenantUpdateData {
@@ -33,6 +110,76 @@ export interface TenantUpdateData {
   country?: string;
   postal_code?: string;
   primary_color?: string;
+
+  // Loan Configuration
+  default_interest_rate?: number;
+  min_interest_rate?: number;
+  max_interest_rate?: number;
+  min_loan_amount?: number;
+  max_loan_amount?: number;
+  default_loan_term_months?: number;
+  min_loan_term_months?: number;
+  max_loan_term_months?: number;
+  default_payment_frequency?: string;
+  default_loan_type?: string;
+  require_collateral_default?: boolean;
+  collateral_required_above?: number;
+  enable_auto_approval?: boolean;
+  auto_approval_max_amount?: number;
+  default_grace_period_days?: number;
+  require_disbursement_approval?: boolean;
+  allow_partial_disbursement?: boolean;
+
+  // Enabled Loan Types
+  enabled_loan_types?: string[];
+
+  // Payment Methods
+  accepted_payment_methods?: string[];
+  enable_cash_payments?: boolean;
+  enable_check_payments?: boolean;
+  enable_bank_transfer_payments?: boolean;
+  enable_card_payments?: boolean;
+  enable_mobile_payments?: boolean;
+
+  // Credit Score Requirements
+  require_credit_score?: boolean;
+  minimum_credit_score?: number;
+  credit_score_for_auto_approval?: number;
+
+  // Currency Settings
+  default_currency?: string;
+  allow_multiple_currencies?: boolean;
+  supported_currencies?: string[];
+
+  // Document Requirements
+  require_id_document?: boolean;
+  require_proof_of_income?: boolean;
+  require_proof_of_address?: boolean;
+  require_bank_statement?: boolean;
+  require_employment_letter?: boolean;
+  enhanced_verification_amount?: number;
+  enhanced_verification_documents?: string[];
+
+  // Additional Loan Settings
+  allow_early_repayment?: boolean;
+  early_repayment_penalty?: number;
+  require_guarantor?: boolean;
+  guarantor_required_above?: number;
+  max_active_loans_per_customer?: number;
+
+  // Late Fee Configuration
+  late_fee_type?: string;
+  late_fee_percentage?: number;
+  late_fee_fixed_amount?: number;
+  late_fee_frequency?: string;
+  grace_period_days?: number;
+
+  // Notification Configuration
+  enable_email_reminders?: boolean;
+  enable_sms_reminders?: boolean;
+  enable_whatsapp_reminders?: boolean;
+  reminder_days_before?: number;
+  notification_email_from?: string;
 }
 
 export interface TenantUpdateResponse {

@@ -155,6 +155,7 @@ export interface Loan {
   loan_type: 'personal' | 'auto' | 'mortgage' | 'business' | 'student' | 'payday';
   principal_amount: number;
   interest_rate: number;
+  interest_type: 'fixed' | 'variable';
   term_months: number;
   payment_frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly';
   payment_amount: number;
@@ -249,6 +250,17 @@ export interface Collateral {
   notes?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface CollateralCreate {
+  collateral_type: 'vehicle' | 'property' | 'equipment' | 'inventory' | 'securities' | 'cash_deposit' | 'other';
+  description: string;
+  estimated_value: number;
+  appraisal_value?: number;
+  appraisal_date?: string;
+  documents?: File;
+  photos?: File;
+  notes?: string;
 }
 
 // Tenant Types

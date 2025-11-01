@@ -218,6 +218,14 @@ ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = config('FRONTEND_URL', default='http://localhost:3000') + '/login?verified=true'
 ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = config('FRONTEND_URL', default='http://localhost:3000') + '/dashboard?verified=true'
 
+# Backend URL for email links (used by django.contrib.sites)
+BACKEND_URL = config('BACKEND_URL', default='http://localhost:8000')
+# Extract protocol from BACKEND_URL
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https' if BACKEND_URL.startswith('https') else 'http'
+
+# Use custom adapter to ensure email confirmation URLs use Site domain
+ACCOUNT_ADAPTER = 'apps.users.adapters.CustomAccountAdapter'
+
 # CORS Settings
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000', cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
@@ -372,6 +380,13 @@ CONSTANCE_CONFIG = {
         'User session timeout in minutes',
         int
     ),
+
+    # UI Theme Settings
+    'UI_THEME': (
+        'v1',
+        'UI Theme version: v1 (Blue/Purple) or v2 (Green - Inter Tight)',
+        str
+    ),
 }
 
 # Constance Fieldsets - Organize settings into groups
@@ -409,6 +424,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         'MAINTENANCE_MODE',
         'MAX_UPLOAD_SIZE_MB',
         'SESSION_TIMEOUT_MINUTES',
+        'UI_THEME',
     ),
 }
 

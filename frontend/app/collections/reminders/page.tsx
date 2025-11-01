@@ -59,9 +59,9 @@ export default function RemindersListPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState('');
-  const [channelFilter, setChannelFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [channelFilter, setChannelFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -83,9 +83,9 @@ export default function RemindersListPage() {
       setError('');
 
       const params: any = { page: currentPage };
-      if (statusFilter) params.status = statusFilter;
-      if (channelFilter) params.channel = channelFilter;
-      if (typeFilter) params.reminder_type = typeFilter;
+      if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
+      if (channelFilter && channelFilter !== 'all') params.channel = channelFilter;
+      if (typeFilter && typeFilter !== 'all') params.reminder_type = typeFilter;
 
       const response = await collectionsAPI.getReminders(params);
       setReminders(response.results || []);
@@ -206,7 +206,7 @@ export default function RemindersListPage() {
                   <SelectValue placeholder="Todos los estados" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="pending">Pendiente</SelectItem>
                   <SelectItem value="sent">Enviado</SelectItem>
                   <SelectItem value="failed">Fallido</SelectItem>
@@ -222,7 +222,7 @@ export default function RemindersListPage() {
                   <SelectValue placeholder="Todos los canales" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="email">Email</SelectItem>
                   <SelectItem value="sms">SMS</SelectItem>
                   <SelectItem value="whatsapp">WhatsApp</SelectItem>
@@ -238,7 +238,7 @@ export default function RemindersListPage() {
                   <SelectValue placeholder="Todos los tipos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="upcoming_3">Próximo (3 días)</SelectItem>
                   <SelectItem value="upcoming_1">Próximo (1 día)</SelectItem>
                   <SelectItem value="due_today">Vence Hoy</SelectItem>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useConfig } from '@/lib/contexts/ConfigContext';
 import { customersAPI } from '@/lib/api/customers';
 import { Button } from '@/components/ui/button';
 import {
@@ -88,6 +89,7 @@ export default function CustomerDetailPage() {
   const params = useParams();
   const customerId = params.id as string;
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { config } = useConfig();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -129,10 +131,10 @@ export default function CustomerDetailPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   const formatDate = (dateString: string) => {

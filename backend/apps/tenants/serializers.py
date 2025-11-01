@@ -187,6 +187,10 @@ class TenantRegistrationSerializer(serializers.Serializer):
         }
 
         try:
+            # Force connection to public schema for tenant creation
+            from django.db import connection
+            connection.set_schema_to_public()
+
             # 1. Create Tenant
             tenant = Tenant.objects.create(**tenant_data)
 
@@ -270,10 +274,53 @@ class TenantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tenant
         fields = [
+            # Basic Info
             'id', 'name', 'schema_name', 'business_name', 'tax_id',
             'email', 'phone', 'address', 'city', 'state', 'country',
             'postal_code', 'is_active', 'max_users', 'subscription_plan',
-            'logo', 'primary_color', 'created_on', 'updated_on'
+            'logo', 'primary_color', 'created_on', 'updated_on',
+
+            # Loan Configuration
+            'default_interest_rate', 'min_interest_rate', 'max_interest_rate',
+            'min_loan_amount', 'min_loan_amount_currency',
+            'max_loan_amount', 'max_loan_amount_currency',
+            'default_loan_term_months', 'min_loan_term_months', 'max_loan_term_months',
+            'default_payment_frequency', 'default_loan_type',
+            'require_collateral_default', 'collateral_required_above', 'collateral_required_above_currency',
+            'enable_auto_approval', 'auto_approval_max_amount', 'auto_approval_max_amount_currency',
+            'default_grace_period_days', 'require_disbursement_approval', 'allow_partial_disbursement',
+
+            # Enabled Loan Types
+            'enabled_loan_types',
+
+            # Payment Methods
+            'accepted_payment_methods', 'enable_cash_payments', 'enable_check_payments',
+            'enable_bank_transfer_payments', 'enable_card_payments', 'enable_mobile_payments',
+
+            # Credit Score Requirements
+            'require_credit_score', 'minimum_credit_score', 'credit_score_for_auto_approval',
+
+            # Currency Settings
+            'default_currency', 'currency_symbol', 'allow_multiple_currencies', 'supported_currencies',
+
+            # Document Requirements
+            'require_id_document', 'require_proof_of_income', 'require_proof_of_address',
+            'require_bank_statement', 'require_employment_letter',
+            'enhanced_verification_amount', 'enhanced_verification_amount_currency',
+            'enhanced_verification_documents',
+
+            # Additional Loan Settings
+            'allow_early_repayment', 'early_repayment_penalty',
+            'require_guarantor', 'guarantor_required_above', 'guarantor_required_above_currency',
+            'max_active_loans_per_customer',
+
+            # Late Fee Configuration
+            'late_fee_type', 'late_fee_percentage', 'late_fee_fixed_amount',
+            'late_fee_fixed_amount_currency', 'late_fee_frequency', 'grace_period_days',
+
+            # Notification Configuration
+            'enable_email_reminders', 'enable_sms_reminders', 'enable_whatsapp_reminders',
+            'reminder_days_before', 'notification_email_from',
         ]
         read_only_fields = ['id', 'schema_name', 'created_on', 'updated_on']
 
@@ -285,9 +332,50 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tenant
         fields = [
+            # Basic Info
             'business_name', 'tax_id', 'email', 'phone',
             'address', 'city', 'state', 'country', 'postal_code',
-            'logo', 'primary_color'
+            'logo', 'primary_color',
+
+            # Loan Configuration
+            'default_interest_rate', 'min_interest_rate', 'max_interest_rate',
+            'min_loan_amount', 'max_loan_amount',
+            'default_loan_term_months', 'min_loan_term_months', 'max_loan_term_months',
+            'default_payment_frequency', 'default_loan_type',
+            'require_collateral_default', 'collateral_required_above',
+            'enable_auto_approval', 'auto_approval_max_amount',
+            'default_grace_period_days', 'require_disbursement_approval', 'allow_partial_disbursement',
+
+            # Enabled Loan Types
+            'enabled_loan_types',
+
+            # Payment Methods
+            'accepted_payment_methods', 'enable_cash_payments', 'enable_check_payments',
+            'enable_bank_transfer_payments', 'enable_card_payments', 'enable_mobile_payments',
+
+            # Credit Score Requirements
+            'require_credit_score', 'minimum_credit_score', 'credit_score_for_auto_approval',
+
+            # Currency Settings
+            'default_currency', 'currency_symbol', 'allow_multiple_currencies', 'supported_currencies',
+
+            # Document Requirements
+            'require_id_document', 'require_proof_of_income', 'require_proof_of_address',
+            'require_bank_statement', 'require_employment_letter',
+            'enhanced_verification_amount', 'enhanced_verification_documents',
+
+            # Additional Loan Settings
+            'allow_early_repayment', 'early_repayment_penalty',
+            'require_guarantor', 'guarantor_required_above',
+            'max_active_loans_per_customer',
+
+            # Late Fee Configuration
+            'late_fee_type', 'late_fee_percentage', 'late_fee_fixed_amount',
+            'late_fee_frequency', 'grace_period_days',
+
+            # Notification Configuration
+            'enable_email_reminders', 'enable_sms_reminders', 'enable_whatsapp_reminders',
+            'reminder_days_before', 'notification_email_from',
         ]
 
     def validate_email(self, value):

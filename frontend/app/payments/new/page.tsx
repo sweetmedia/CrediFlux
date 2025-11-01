@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI, paymentsAPI } from '@/lib/api/loans';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,16 +20,16 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, Save, DollarSign, CreditCard, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Loader2, Save, DollarSign, CreditCard, AlertCircle, Search, X, FileText } from 'lucide-react';
 
 const paymentSchema = z.object({
   loan: z.string().min(1, 'Préstamo requerido'),
   amount: z.string().min(1, 'Monto requerido'),
   payment_date: z.string().min(1, 'Fecha de pago requerida'),
-  payment_method: z.enum(['cash', 'check', 'bank_transfer', 'card', 'other']),
+  payment_method: z.enum(['cash', 'check', 'bank_transfer', 'card', 'mobile_payment']),
   reference_number: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -39,12 +40,15 @@ export default function NewPaymentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { config } = useConfig();
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [loans, setLoans] = useState<any[]>([]);
+  const [filteredLoans, setFilteredLoans] = useState<any[]>([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
-  const [loadingLoanDetails, setLoadingLoanDetails] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const preselectedLoanId = searchParams.get('loan');
 
@@ -58,7 +62,6 @@ export default function NewPaymentPage() {
   const {
     register,
     handleSubmit,
-    watch,
     setValue,
     formState: { errors },
   } = useForm<PaymentFormData>({
@@ -70,9 +73,7 @@ export default function NewPaymentPage() {
     },
   });
 
-  const watchedLoan = watch('loan');
-
-  // Load active loans only when authenticated
+  // Load loans that can receive payments when authenticated
   useEffect(() => {
     const loadLoans = async () => {
       if (!isAuthenticated) {
@@ -81,8 +82,38 @@ export default function NewPaymentPage() {
       }
 
       try {
-        const response = await loansAPI.getLoans({ status: 'active' });
-        setLoans(response.results || []);
+        // Load all loans except paid, rejected, and written_off
+        // This includes: active, pending, approved, and defaulted loans
+        const response = await loansAPI.getLoans({});
+        const allLoans = response.results || [];
+
+        // Filter to only show loans that can receive payments
+        const loansList = allLoans.filter((loan: any) =>
+          !['paid', 'rejected', 'written_off'].includes(loan.status)
+        );
+
+        setLoans(loansList);
+        setFilteredLoans(loansList);
+
+        // If there's a preselected loan, load it
+        if (preselectedLoanId) {
+          const preSelectedLoan = loansList.find((l: any) => l.id === preselectedLoanId);
+          if (preSelectedLoan) {
+            setSelectedLoan(preSelectedLoan);
+            setValue('loan', preSelectedLoan.id);
+            setSearchTerm(`${preSelectedLoan.loan_number} - ${preSelectedLoan.customer_name}`);
+          } else {
+            // If loan not found in list, fetch it directly
+            try {
+              const loanData = await loansAPI.getLoan(preselectedLoanId);
+              setSelectedLoan(loanData);
+              setValue('loan', loanData.id);
+              setSearchTerm(`${loanData.loan_number} - ${loanData.customer_name}`);
+            } catch (err) {
+              console.error('Error loading pre-selected loan:', err);
+            }
+          }
+        }
       } catch (err) {
         console.error('Error loading loans:', err);
       } finally {
@@ -90,34 +121,76 @@ export default function NewPaymentPage() {
       }
     };
     loadLoans();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, preselectedLoanId, setValue]);
 
-  // Load loan details when selected
+  // Filter loans based on search term
   useEffect(() => {
-    const loadLoanDetails = async () => {
-      if (!watchedLoan) {
-        setSelectedLoan(null);
-        return;
-      }
+    if (!searchTerm || selectedLoan) {
+      setFilteredLoans(loans);
+      return;
+    }
 
-      try {
-        setLoadingLoanDetails(true);
-        const loan = await loansAPI.getLoan(watchedLoan);
-        setSelectedLoan(loan);
+    const term = searchTerm.toLowerCase().trim();
+    const filtered = loans.filter((loan: any) => {
+      const loanNumber = loan.loan_number || '';
+      const customerName = loan.customer_name || '';
 
-        // Auto-fill amount with outstanding balance
-        if (loan.outstanding_balance) {
-          setValue('amount', loan.outstanding_balance.toString());
-        }
-      } catch (err) {
-        console.error('Error loading loan details:', err);
-      } finally {
-        setLoadingLoanDetails(false);
+      return (
+        loanNumber.toLowerCase().includes(term) ||
+        customerName.toLowerCase().includes(term)
+      );
+    });
+
+    setFilteredLoans(filtered);
+  }, [searchTerm, loans, selectedLoan]);
+
+  // Handle loan selection
+  const handleSelectLoan = (loan: any) => {
+    setSelectedLoan(loan);
+    setValue('loan', loan.id);
+    setSearchTerm(`${loan.loan_number} - ${loan.customer_name}`);
+    setShowDropdown(false);
+
+    // Auto-fill amount with outstanding balance
+    if (loan.outstanding_balance) {
+      setValue('amount', loan.outstanding_balance.toString());
+    }
+  };
+
+  // Handle clearing loan selection
+  const handleClearLoan = () => {
+    setSelectedLoan(null);
+    setValue('loan', '');
+    setValue('amount', '');
+    setSearchTerm('');
+    setShowDropdown(false);
+  };
+
+  // Handle search input change
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setShowDropdown(true);
+    if (!value) {
+      setSelectedLoan(null);
+      setValue('loan', '');
+      setValue('amount', '');
+    }
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('#loan-search') && !target.closest('.loan-dropdown')) {
+        setShowDropdown(false);
       }
     };
 
-    loadLoanDetails();
-  }, [watchedLoan, setValue]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const onSubmit = async (data: PaymentFormData) => {
     try {
@@ -160,10 +233,10 @@ export default function NewPaymentPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   // Show loading state while checking authentication
@@ -213,9 +286,9 @@ export default function NewPaymentPage() {
                   </Alert>
                 )}
 
-                {/* Loan Selection */}
+                {/* Loan Search */}
                 <div className="space-y-2">
-                  <Label htmlFor="loan">
+                  <Label htmlFor="loan-search">
                     Préstamo <span className="text-red-500">*</span>
                   </Label>
                   {loadingLoans ? (
@@ -224,28 +297,94 @@ export default function NewPaymentPage() {
                       <span>Cargando préstamos...</span>
                     </div>
                   ) : (
-                    <Select id="loan" {...register('loan')} disabled={isLoading}>
-                      <option value="">Seleccionar préstamo...</option>
-                      {loans.map((loan) => (
-                        <option key={loan.id} value={loan.id}>
-                          {loan.loan_number} - {loan.customer_name} (Balance:{' '}
-                          {formatCurrency(loan.outstanding_balance)})
-                        </option>
-                      ))}
-                    </Select>
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="loan-search"
+                          type="text"
+                          placeholder="Buscar por número de préstamo o nombre del cliente..."
+                          value={searchTerm}
+                          onChange={(e) => handleSearchChange(e.target.value)}
+                          onFocus={() => setShowDropdown(true)}
+                          className="pl-10 pr-10"
+                          disabled={isLoading}
+                        />
+                        {selectedLoan && (
+                          <button
+                            type="button"
+                            onClick={handleClearLoan}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Dropdown Results */}
+                      {showDropdown && searchTerm && !selectedLoan && (
+                        <div className="loan-dropdown absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto">
+                          {filteredLoans.length > 0 ? (
+                            <div className="py-1">
+                              {filteredLoans.map((loan) => (
+                                <button
+                                  key={loan.id}
+                                  type="button"
+                                  onClick={() => handleSelectLoan(loan)}
+                                  className="w-full px-4 py-3 text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none transition-colors border-b border-gray-100 last:border-b-0"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                                        <p className="font-medium text-gray-900">
+                                          {loan.loan_number}
+                                        </p>
+                                      </div>
+                                      <div className="flex flex-wrap gap-2 text-sm text-gray-600 items-center">
+                                        <span>Cliente: {loan.customer_name}</span>
+                                        <span>Balance: {formatCurrency(loan.outstanding_balance)}</span>
+                                        {loan.status === 'defaulted' && (
+                                          <Badge variant="destructive" className="text-xs">
+                                            En Mora Grave
+                                          </Badge>
+                                        )}
+                                        {loan.days_overdue > 0 && loan.status !== 'defaulted' && (
+                                          <span className="text-red-600 font-medium">
+                                            {loan.days_overdue} días de mora
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="px-4 py-8 text-center">
+                              <p className="text-gray-600 mb-2">No se encontraron préstamos</p>
+                              <p className="text-sm text-gray-500">
+                                Intenta buscar por número de préstamo o nombre del cliente
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                   {errors.loan && <p className="text-sm text-red-500">{errors.loan.message}</p>}
                 </div>
 
                 {/* Loan Details Card */}
-                {loadingLoanDetails ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                  </div>
-                ) : selectedLoan ? (
-                  <Card className="bg-blue-50 border-blue-200">
+                {selectedLoan ? (
+                  <Card className={`border-2 ${selectedLoan.status === 'defaulted' ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200'}`}>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-lg">Detalles del Préstamo</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">Detalles del Préstamo</CardTitle>
+                        {selectedLoan.status === 'defaulted' && (
+                          <Badge variant="destructive">En Mora Grave</Badge>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       <div className="grid grid-cols-2 gap-4 text-sm">
@@ -274,7 +413,17 @@ export default function NewPaymentPage() {
                         </div>
                       </div>
 
-                      {selectedLoan.days_overdue > 0 && (
+                      {selectedLoan.status === 'defaulted' && (
+                        <Alert variant="destructive" className="mt-3">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>
+                            <strong>Préstamo en Mora Grave:</strong> Este préstamo requiere atención urgente.
+                            {selectedLoan.days_overdue > 0 && ` Tiene ${selectedLoan.days_overdue} días de atraso.`}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      {selectedLoan.days_overdue > 0 && selectedLoan.status !== 'defaulted' && (
                         <Alert variant="destructive" className="mt-3">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription>
@@ -290,7 +439,7 @@ export default function NewPaymentPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="amount">
-                      Monto del Pago (USD) <span className="text-red-500">*</span>
+                      Monto del Pago ({config.currency}) <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="amount"
@@ -329,17 +478,18 @@ export default function NewPaymentPage() {
                     <Label htmlFor="payment_method">
                       Método de Pago <span className="text-red-500">*</span>
                     </Label>
-                    <Select
+                    <select
                       id="payment_method"
                       {...register('payment_method')}
                       disabled={isLoading}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <option value="cash">Efectivo</option>
                       <option value="check">Cheque</option>
                       <option value="bank_transfer">Transferencia Bancaria</option>
                       <option value="card">Tarjeta</option>
-                      <option value="other">Otro</option>
-                    </Select>
+                      <option value="mobile_payment">Pago Móvil</option>
+                    </select>
                     {errors.payment_method && (
                       <p className="text-sm text-red-500">{errors.payment_method.message}</p>
                     )}

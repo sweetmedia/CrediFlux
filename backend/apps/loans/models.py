@@ -45,6 +45,9 @@ class Customer(UUIDModel, AuditModel):
         max_length=50,
         choices=[
             ('cedula', 'Cédula'),
+            ('rnc', 'RNC (Registro Nacional de Contribuyentes)'),
+            ('nss', 'NSS (Número de Seguridad Social)'),
+            ('ncf', 'NCF (Número de Comprobante Fiscal)'),
             ('passport', 'Passport'),
             ('driver_license', 'Driver License'),
         ]
@@ -284,6 +287,19 @@ class Loan(UUIDModel, AuditModel):
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         help_text="Annual interest rate in percentage"
     )
+
+    # Interest Type
+    INTEREST_TYPE_CHOICES = [
+        ('fixed', 'Fixed Interest Rate'),
+        ('variable', 'Variable Interest Rate'),
+    ]
+    interest_type = models.CharField(
+        max_length=20,
+        choices=INTEREST_TYPE_CHOICES,
+        default='fixed',
+        help_text="Type of interest rate (fixed or variable)"
+    )
+
     term_months = models.IntegerField(
         validators=[MinValueValidator(1)],
         help_text="Loan term in months"

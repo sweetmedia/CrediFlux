@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI } from '@/lib/api/loans';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,6 +30,7 @@ import {
 export default function OverdueLoansPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { config } = useConfig();
   const [loans, setLoans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -85,10 +87,11 @@ export default function OverdueLoansPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+      
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   const formatDate = (dateString: string) => {

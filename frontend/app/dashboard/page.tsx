@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI, paymentsAPI } from '@/lib/api/loans';
 import { customersAPI } from '@/lib/api/customers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,18 +17,15 @@ import {
   AlertCircle,
   Plus,
   Loader2,
-  LogOut,
-  User,
-  Building2,
   FileText,
   CreditCard,
-  Settings,
 } from 'lucide-react';
 import type { LoanStatistics, Loan, LoanPayment } from '@/types';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, tenant, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { config } = useConfig();
 
   const [statistics, setStatistics] = useState<LoanStatistics | null>(null);
   const [recentLoans, setRecentLoans] = useState<Loan[]>([]);
@@ -72,20 +70,11 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      router.push('/login');
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
-  };
-
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -136,106 +125,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
-      <header className="bg-white border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              {tenant?.logo ? (
-                <img
-                  src={
-                    tenant.logo.startsWith('http')
-                      ? tenant.logo
-                      : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${tenant.logo}`
-                  }
-                  alt={tenant.business_name}
-                  className="h-10 w-auto object-contain"
-                />
-              ) : (
-                <DollarSign className="h-8 w-8 text-blue-600" />
-              )}
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {tenant?.business_name || 'CrediFlux'}
-                </h1>
-                {tenant && (
-                  <p className="text-sm text-gray-600 flex items-center gap-1">
-                    <Building2 className="h-3 w-3" />
-                    {tenant.schema_name}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <nav className="hidden md:flex items-center space-x-6">
-              <Link
-                href="/dashboard"
-                className="text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/loans"
-                className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Préstamos
-              </Link>
-              <Link
-                href="/customers"
-                className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Clientes
-              </Link>
-              <Link
-                href="/collections"
-                className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Cobranza
-              </Link>
-              <Link
-                href="/payments"
-                className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Pagos
-              </Link>
-              {(user?.is_tenant_owner || user?.role === 'admin') && (
-                <Link
-                  href="/users"
-                  className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
-                >
-                  Equipo
-                </Link>
-              )}
-              {(user?.is_tenant_owner || user?.role === 'admin') && (
-                <Link
-                  href="/settings"
-                  className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1"
-                >
-                  <Settings className="h-3 w-3" />
-                  Configuración
-                </Link>
-              )}
-            </nav>
-
-            <div className="flex items-center space-x-4">
-              <div className="hidden md:block text-right">
-                <p className="text-sm font-medium text-gray-900 flex items-center gap-1 justify-end">
-                  <User className="h-3 w-3" />
-                  {user.full_name}
-                </p>
-                <p className="text-xs text-gray-600 capitalize">{user.role.replace('_', ' ')}</p>
-              </div>
-              <Button onClick={handleLogout} variant="outline" size="sm">
-                <LogOut className="h-4 w-4 mr-2" />
-                Salir
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8">
         {/* Page Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -477,6 +367,5 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
   );
 }

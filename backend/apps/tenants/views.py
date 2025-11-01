@@ -131,6 +131,10 @@ class TenantRegistrationView(APIView):
                 )
 
             except Exception as e:
+                import traceback
+                error_traceback = traceback.format_exc()
+                print(f"ERROR creating tenant: {str(e)}")
+                print(f"TRACEBACK: {error_traceback}")
                 return Response(
                     {'error': f'Failed to create tenant: {str(e)}'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR

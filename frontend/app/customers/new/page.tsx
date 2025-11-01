@@ -9,6 +9,8 @@ import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { customersAPI } from '@/lib/api/customers';
 import { rncAPI, RNCData } from '@/lib/api/rnc';
+import { validateDominicanID } from '@/lib/utils/rd-validation';
+import { formatIDNumber, cleanIDNumber, getIDPlaceholder } from '@/lib/utils/id-formatter';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -20,7 +22,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { NativeSelect as Select } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Loader2, Save, UserPlus, Search, CheckCircle, AlertCircle, Info } from 'lucide-react';
@@ -60,6 +62,16 @@ export default function NewCustomerPage() {
   const [isValidatingRnc, setIsValidatingRnc] = useState(false);
   const [rncValidationMessage, setRncValidationMessage] = useState<string>('');
   const [rncValidationStatus, setRncValidationStatus] = useState<'success' | 'warning' | 'error' | null>(null);
+
+  // ID format validation states (instant validation)
+  const [idFormatValidation, setIdFormatValidation] = useState<{
+    valid: boolean;
+    warning?: boolean;
+    message: string;
+  } | null>(null);
+
+  // ID number formatted value (with dashes)
+  const [formattedIdNumber, setFormattedIdNumber] = useState<string>('');
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -157,6 +169,52 @@ export default function NewCustomerPage() {
     validateRncNumber(idNumber || '');
   };
 
+  // Handle ID number change with automatic formatting
+  const handleIdNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+
+    if (!idType) {
+      setFormattedIdNumber(inputValue);
+      setValue('id_number', inputValue);
+      return;
+    }
+
+    // Format the value with dashes
+    const formatted = formatIDNumber(inputValue, idType as any);
+    setFormattedIdNumber(formatted);
+
+    // Store cleaned value (without dashes) in form
+    const cleaned = cleanIDNumber(formatted);
+    setValue('id_number', cleaned);
+  };
+
+  // Update formatted value when ID type changes
+  useEffect(() => {
+    if (idNumber && idType) {
+      const formatted = formatIDNumber(idNumber, idType as any);
+      setFormattedIdNumber(formatted);
+    } else if (!idNumber) {
+      setFormattedIdNumber('');
+    }
+  }, [idType]);
+
+  // Instant ID format validation (runs as user types)
+  useEffect(() => {
+    if (!idNumber || !idType || idNumber.length < 3) {
+      setIdFormatValidation(null);
+      return;
+    }
+
+    // Validate format using Dominican ID validation library
+    const validationResult = validateDominicanID(idNumber, idType as any);
+
+    setIdFormatValidation({
+      valid: validationResult.valid,
+      warning: validationResult.warning,
+      message: validationResult.message,
+    });
+  }, [idNumber, idType]);
+
   const onSubmit = async (data: CustomerFormData) => {
     try {
       setIsLoading(true);
@@ -180,7 +238,7 @@ export default function NewCustomerPage() {
 
         // Handle field-specific errors
         const fieldErrors = [];
-        if (errorData.id_number) fieldErrors.push(`Cédula: ${errorData.id_number[0]}`);
+        if (errorData.id_number) fieldErrors.push(`RNC: ${errorData.id_number[0]}`);
         if (errorData.email) fieldErrors.push(`Email: ${errorData.email[0]}`);
         if (errorData.phone) fieldErrors.push(`Teléfono: ${errorData.phone[0]}`);
         if (errorData.date_of_birth) fieldErrors.push(`Fecha de nacimiento: ${errorData.date_of_birth[0]}`);
@@ -370,9 +428,9 @@ export default function NewCustomerPage() {
                     </Label>
                     <Select id="id_type" {...register('id_type')} disabled={isLoading}>
                       <option value="">Seleccionar...</option>
-                      <option value="cedula">Cédula</option>
+                      <option value="cedula">Cédula (11 dígitos)</option>
+                      <option value="rnc">RNC (9 dígitos)</option>
                       <option value="passport">Pasaporte</option>
-                      <option value="driver_license">Licencia de Conducir</option>
                     </Select>
                     {errors.id_type && (
                       <p className="text-sm text-red-500">{errors.id_type.message}</p>
@@ -386,8 +444,9 @@ export default function NewCustomerPage() {
                     <div className="relative">
                       <Input
                         id="id_number"
-                        placeholder="000-0000000-0"
-                        {...register('id_number')}
+                        placeholder={idType ? getIDPlaceholder(idType as any) : '000-0000000-0'}
+                        value={formattedIdNumber}
+                        onChange={handleIdNumberChange}
                         onBlur={handleRncBlur}
                         disabled={isLoading}
                       />
@@ -399,6 +458,26 @@ export default function NewCustomerPage() {
                     </div>
                     {errors.id_number && (
                       <p className="text-sm text-red-500">{errors.id_number.message}</p>
+                    )}
+
+                    {/* Instant ID Format Validation */}
+                    {idFormatValidation && (
+                      <div className={`flex items-start gap-2 p-2 rounded-md text-xs ${
+                        !idFormatValidation.valid
+                          ? 'bg-red-50 text-red-700 border border-red-200'
+                          : idFormatValidation.warning
+                          ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                          : 'bg-green-50 text-green-700 border border-green-200'
+                      }`}>
+                        {!idFormatValidation.valid ? (
+                          <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                        ) : idFormatValidation.warning ? (
+                          <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <CheckCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                        )}
+                        <p>{idFormatValidation.message}</p>
+                      </div>
                     )}
 
                     {/* RNC Validation Message */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI } from '@/lib/api/loans';
 import { Loan } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,7 @@ export default function LoanDetailPage() {
   const params = useParams();
   const loanId = params.id as string;
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { config } = useConfig();
   const [loan, setLoan] = useState<Loan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -115,13 +117,13 @@ export default function LoanDetailPage() {
   };
 
   const formatCurrency = (amount: number | string | undefined) => {
-    if (amount === undefined || amount === null) return '$0.00';
+    if (amount === undefined || amount === null) return `${config.currency_symbol}0.00`;
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    if (isNaN(numAmount)) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(numAmount);
+    if (isNaN(numAmount)) return `${config.currency_symbol}0.00`;
+    return `${config.currency_symbol}${numAmount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   const formatDate = (dateString: string | undefined) => {

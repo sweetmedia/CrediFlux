@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useConfig } from '@/lib/contexts/ConfigContext';
 import { paymentsAPI } from '@/lib/api/loans';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +16,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { NativeSelect as Select } from '@/components/ui/native-select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Loader2,
@@ -40,6 +41,7 @@ export default function PaymentsListPage() {
   const searchParams = useSearchParams();
   const loanFilter = searchParams.get('loan');
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { config } = useConfig();
   const [payments, setPayments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -108,10 +110,10 @@ export default function PaymentsListPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   const formatDate = (dateString: string) => {

@@ -69,7 +69,8 @@ class TenantAdmin(ModelAdmin):
             'fields': ('business_name', 'tax_id', 'email', 'phone')
         }),
         ('Address', {
-            'fields': ('address', 'city', 'state', 'country', 'postal_code')
+            'fields': ('address', 'city', 'state', 'country', 'postal_code'),
+            'classes': ('collapse',)
         }),
         ('Subscription', {
             'fields': ('subscription_plan', 'max_users')
@@ -78,6 +79,154 @@ class TenantAdmin(ModelAdmin):
             'fields': ('logo', 'primary_color'),
             'classes': ('collapse',)
         }),
+
+        # ============================================================
+        # LOAN CONFIGURATION SECTIONS
+        # ============================================================
+
+        ('Loan Interest Rates', {
+            'fields': (
+                'default_interest_rate',
+                'min_interest_rate',
+                'max_interest_rate',
+            ),
+            'classes': ('collapse',),
+            'description': 'Configure the allowed interest rates for loans'
+        }),
+
+        ('Loan Amounts & Terms', {
+            'fields': (
+                'min_loan_amount',
+                'max_loan_amount',
+                'default_loan_term_months',
+                'min_loan_term_months',
+                'max_loan_term_months',
+            ),
+            'classes': ('collapse',),
+            'description': 'Set minimum and maximum loan amounts and term limits'
+        }),
+
+        ('Loan Defaults', {
+            'fields': (
+                'default_payment_frequency',
+                'default_loan_type',
+                'default_grace_period_days',
+                'enabled_loan_types',
+            ),
+            'classes': ('collapse',),
+            'description': 'Default values for new loans'
+        }),
+
+        ('Auto-Approval Settings', {
+            'fields': (
+                'enable_auto_approval',
+                'auto_approval_max_amount',
+            ),
+            'classes': ('collapse',),
+            'description': 'Configure automatic loan approval'
+        }),
+
+        ('Collateral & Guarantor Requirements', {
+            'fields': (
+                'require_collateral_default',
+                'collateral_required_above',
+                'require_guarantor',
+                'guarantor_required_above',
+            ),
+            'classes': ('collapse',),
+            'description': 'Security and guarantor requirements'
+        }),
+
+        ('Disbursement Configuration', {
+            'fields': (
+                'require_disbursement_approval',
+                'allow_partial_disbursement',
+            ),
+            'classes': ('collapse',),
+            'description': 'Fund disbursement settings'
+        }),
+
+        ('Payment Methods', {
+            'fields': (
+                'accepted_payment_methods',
+                'enable_cash_payments',
+                'enable_check_payments',
+                'enable_bank_transfer_payments',
+                'enable_card_payments',
+                'enable_mobile_payments',
+            ),
+            'classes': ('collapse',),
+            'description': 'Accepted payment methods for loan repayments'
+        }),
+
+        ('Credit Score Requirements', {
+            'fields': (
+                'require_credit_score',
+                'minimum_credit_score',
+                'credit_score_for_auto_approval',
+            ),
+            'classes': ('collapse',),
+            'description': 'Credit score validation settings'
+        }),
+
+        ('Currency Settings', {
+            'fields': (
+                'default_currency',
+                'allow_multiple_currencies',
+                'supported_currencies',
+            ),
+            'classes': ('collapse',),
+            'description': 'Currency configuration for loans'
+        }),
+
+        ('Document Requirements', {
+            'fields': (
+                'require_id_document',
+                'require_proof_of_income',
+                'require_proof_of_address',
+                'require_bank_statement',
+                'require_employment_letter',
+                'enhanced_verification_amount',
+                'enhanced_verification_documents',
+            ),
+            'classes': ('collapse',),
+            'description': 'Required documents for loan applications'
+        }),
+
+        ('Additional Loan Settings', {
+            'fields': (
+                'allow_early_repayment',
+                'early_repayment_penalty',
+                'max_active_loans_per_customer',
+            ),
+            'classes': ('collapse',),
+            'description': 'Other loan configuration options'
+        }),
+
+        ('Late Fee Configuration', {
+            'fields': (
+                'late_fee_type',
+                'late_fee_percentage',
+                'late_fee_fixed_amount',
+                'late_fee_frequency',
+                'grace_period_days',
+            ),
+            'classes': ('collapse',),
+            'description': 'Late payment fee settings'
+        }),
+
+        ('Notification Settings', {
+            'fields': (
+                'enable_email_reminders',
+                'enable_sms_reminders',
+                'enable_whatsapp_reminders',
+                'reminder_days_before',
+                'notification_email_from',
+            ),
+            'classes': ('collapse',),
+            'description': 'Payment reminder notification settings'
+        }),
+
         ('Timestamps', {
             'fields': ('created_on', 'updated_on'),
             'classes': ('collapse',)

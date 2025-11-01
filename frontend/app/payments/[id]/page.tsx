@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useConfig } from '@/lib/contexts/ConfigContext';
 import { paymentsAPI } from '@/lib/api/loans';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +36,7 @@ export default function PaymentDetailPage() {
   const params = useParams();
   const paymentId = params.id as string;
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { config } = useConfig();
   const [payment, setPayment] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -94,9 +96,10 @@ export default function PaymentDetailPage() {
     if (amount === undefined || amount === null) return '$0.00';
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     if (isNaN(numAmount)) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+      
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(numAmount);
   };
 

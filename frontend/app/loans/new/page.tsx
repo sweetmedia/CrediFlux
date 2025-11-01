@@ -7,7 +7,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { loansAPI } from '@/lib/api/loans';
+import { useConfig } from '@/lib/contexts/ConfigContext';
+import { loansAPI, collateralsAPI } from '@/lib/api/loans';
 import { customersAPI } from '@/lib/api/customers';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,15 +21,18 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, Save, DollarSign, Calculator, Search, X, User, IdCard, Mail, Phone } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Loader2, Save, DollarSign, Calculator, Search, X, User, IdCard, Mail, Phone, Shield, Plus, Trash2, Upload, FileText, Image as ImageIcon, Info } from 'lucide-react';
+import { CollateralCreate } from '@/types';
 
 const loanSchema = z.object({
   customer: z.string().min(1, 'Cliente requerido'),
   principal_amount: z.string().min(1, 'Monto requerido'),
   interest_rate: z.string().min(1, 'Tasa de interés requerida'),
+  interest_type: z.enum(['fixed', 'variable']),
   term_months: z.string().min(1, 'Plazo requerido'),
   loan_type: z.enum(['personal', 'auto', 'mortgage', 'business', 'student', 'payday']),
   purpose: z.string().optional(),
@@ -44,6 +48,7 @@ export default function NewLoanPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { config } = useConfig();
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -55,6 +60,10 @@ export default function NewLoanPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
+
+  // Collateral states
+  const [collaterals, setCollaterals] = useState<CollateralCreate[]>([]);
+  const [showCollateralSection, setShowCollateralSection] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -73,6 +82,7 @@ export default function NewLoanPage() {
     resolver: zodResolver(loanSchema),
     defaultValues: {
       loan_type: 'personal',
+      interest_type: 'fixed',
       payment_frequency: 'monthly',
       disbursement_date: new Date().toISOString().split('T')[0],
     },
@@ -80,6 +90,7 @@ export default function NewLoanPage() {
 
   const watchedFields = watch(['principal_amount', 'interest_rate', 'term_months', 'payment_frequency']);
   const paymentFrequency = watch('payment_frequency');
+  const interestType = watch('interest_type');
 
   // Get payment frequency label for display
   const getPaymentFrequencyLabel = (frequency: string) => {
@@ -247,7 +258,70 @@ export default function NewLoanPage() {
     };
   }, []);
 
+  // Collateral handlers
+  const addCollateral = () => {
+    setCollaterals([...collaterals, {
+      collateral_type: 'vehicle',
+      description: '',
+      estimated_value: 0,
+    }]);
+  };
+
+  const updateCollateral = (index: number, field: keyof CollateralCreate, value: any) => {
+    const updated = [...collaterals];
+    updated[index] = { ...updated[index], [field]: value };
+    setCollaterals(updated);
+  };
+
+  const removeCollateral = (index: number) => {
+    if (confirm('¿Estás seguro de que deseas eliminar esta garantía?')) {
+      setCollaterals(collaterals.filter((_, i) => i !== index));
+    }
+  };
+
+  // Validate collateral data
+  const validateCollaterals = (): string | null => {
+    for (let i = 0; i < collaterals.length; i++) {
+      const c = collaterals[i];
+      if (!c.description || c.description.trim() === '') {
+        return `Garantía ${i + 1}: La descripción es requerida`;
+      }
+      if (!c.estimated_value || c.estimated_value <= 0) {
+        return `Garantía ${i + 1}: El valor estimado debe ser mayor a 0`;
+      }
+    }
+    return null;
+  };
+
+  // Calculate total collateral value
+  const getTotalCollateralValue = (): number => {
+    return collaterals.reduce((sum, c) => sum + (c.estimated_value || 0), 0);
+  };
+
+  // Get collateral type label
+  const getCollateralTypeLabel = (type: string): string => {
+    const labels: Record<string, string> = {
+      vehicle: 'Vehículo',
+      property: 'Propiedad/Inmueble',
+      equipment: 'Equipamiento',
+      inventory: 'Inventario',
+      securities: 'Valores/Acciones',
+      cash_deposit: 'Depósito en Efectivo',
+      other: 'Otro',
+    };
+    return labels[type] || type;
+  };
+
   const onSubmit = async (data: LoanFormData) => {
+    // Validate collaterals if any
+    if (collaterals.length > 0) {
+      const collateralError = validateCollaterals();
+      if (collateralError) {
+        setError(collateralError);
+        return;
+      }
+    }
+
     // Calculate payment amount if not already calculated
     let paymentAmount = calculatedPayment;
     if (!paymentAmount) {
@@ -263,6 +337,7 @@ export default function NewLoanPage() {
       customer: data.customer, // Keep as UUID string, don't parse
       principal_amount: parseFloat(data.principal_amount),
       interest_rate: parseFloat(data.interest_rate),
+      interest_type: data.interest_type,
       term_months: parseInt(data.term_months),
       loan_type: data.loan_type,
       purpose: data.purpose,
@@ -279,7 +354,32 @@ export default function NewLoanPage() {
 
       console.log('Submitting loan data:', submitData);
 
-      await loansAPI.createLoan(submitData);
+      // Create the loan
+      const createdLoan = await loansAPI.createLoan(submitData);
+      console.log('Loan created:', createdLoan);
+
+      // Create collaterals if any
+      if (collaterals.length > 0) {
+        console.log(`Creating ${collaterals.length} collateral(s)...`);
+
+        const collateralPromises = collaterals.map(async (collateral) => {
+          const collateralData = {
+            loan: createdLoan.id,
+            collateral_type: collateral.collateral_type,
+            description: collateral.description,
+            estimated_value: collateral.estimated_value,
+            appraisal_value: collateral.appraisal_value,
+            appraisal_date: collateral.appraisal_date,
+            notes: collateral.notes,
+            status: 'active',
+          };
+
+          return collateralsAPI.createCollateral(collateralData);
+        });
+
+        await Promise.all(collateralPromises);
+        console.log('All collaterals created successfully');
+      }
 
       // Redirect to loans list
       router.push('/loans');
@@ -497,7 +597,7 @@ export default function NewLoanPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="principal_amount">
-                      Monto del Préstamo (USD) <span className="text-red-500">*</span>
+                      Monto del Préstamo ({config.currency}) <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="principal_amount"
@@ -530,6 +630,44 @@ export default function NewLoanPage() {
                   </div>
 
                   <div className="space-y-2">
+                    <Label htmlFor="interest_type">
+                      Tipo de Interés <span className="text-red-500">*</span>
+                    </Label>
+                    <NativeSelect
+                      id="interest_type"
+                      {...register('interest_type')}
+                      disabled={isLoading}
+                    >
+                      <option value="fixed">Fijo</option>
+                      <option value="variable">Variable</option>
+                    </NativeSelect>
+                    {errors.interest_type && (
+                      <p className="text-sm text-red-500">{errors.interest_type.message}</p>
+                    )}
+
+                    {/* Explicación dinámica del tipo de interés */}
+                    {interestType === 'fixed' && (
+                      <div className="flex items-start gap-2 p-3 rounded-md text-sm bg-blue-50 text-blue-800 border border-blue-200">
+                        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <p>
+                          <strong>Interés Fijo:</strong> El interés total se distribuye equitativamente en todas las cuotas.
+                          Cada pago incluye el mismo monto de interés durante toda la vida del préstamo, facilitando la planificación financiera.
+                        </p>
+                      </div>
+                    )}
+
+                    {interestType === 'variable' && (
+                      <div className="flex items-start gap-2 p-3 rounded-md text-sm bg-amber-50 text-amber-800 border border-amber-200">
+                        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <p>
+                          <strong>Interés Variable/Amortizado:</strong> El interés se calcula sobre el capital restante (que va disminuyendo).
+                          Cada cuota paga MENOS interés que la anterior, ya que el capital pendiente disminuye con cada pago.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="term_months">
                       Plazo (meses) <span className="text-red-500">*</span>
                     </Label>
@@ -549,7 +687,7 @@ export default function NewLoanPage() {
                     <Label htmlFor="payment_frequency">
                       Frecuencia de Pago <span className="text-red-500">*</span>
                     </Label>
-                    <Select
+                    <NativeSelect
                       id="payment_frequency"
                       {...register('payment_frequency')}
                       disabled={isLoading}
@@ -558,7 +696,7 @@ export default function NewLoanPage() {
                       <option value="weekly">Semanal</option>
                       <option value="biweekly">Quincenal</option>
                       <option value="monthly">Mensual</option>
-                    </Select>
+                    </NativeSelect>
                     {errors.payment_frequency && (
                       <p className="text-sm text-red-500">{errors.payment_frequency.message}</p>
                     )}
@@ -568,14 +706,14 @@ export default function NewLoanPage() {
                     <Label htmlFor="loan_type">
                       Tipo de Préstamo <span className="text-red-500">*</span>
                     </Label>
-                    <Select id="loan_type" {...register('loan_type')} disabled={isLoading}>
+                    <NativeSelect id="loan_type" {...register('loan_type')} disabled={isLoading}>
                       <option value="personal">Personal</option>
                       <option value="auto">Automóvil</option>
                       <option value="mortgage">Hipotecario</option>
                       <option value="business">Empresarial</option>
                       <option value="student">Estudiantil</option>
                       <option value="payday">Día de Pago</option>
-                    </Select>
+                    </NativeSelect>
                     {errors.loan_type && (
                       <p className="text-sm text-red-500">{errors.loan_type.message}</p>
                     )}
@@ -622,7 +760,7 @@ export default function NewLoanPage() {
                         Pago {getPaymentFrequencyLabel(paymentFrequency)} Estimado:
                       </span>
                       <span className="text-2xl font-bold text-blue-600">
-                        ${calculatedPayment.toFixed(2)}
+                        {config.currency_symbol}{calculatedPayment.toFixed(2)}
                       </span>
                     </div>
                     <p className="text-xs text-gray-600 mt-2">
@@ -674,6 +812,238 @@ export default function NewLoanPage() {
                   Crear Préstamo
                 </Button>
               </CardFooter>
+            </Card>
+
+            {/* Collateral/Guarantee Card (Optional) */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <CardTitle>Garantías (Opcional)</CardTitle>
+                      <CardDescription>
+                        Agrega garantías o colaterales para este préstamo
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {!showCollateralSection && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCollateralSection(true)}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Agregar Garantía
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+
+              {showCollateralSection && (
+                <CardContent className="space-y-4">
+                  {/* Collaterals List */}
+                  {collaterals.map((collateral, index) => (
+                    <div key={index} className="border-2 border-blue-200 rounded-lg p-4 space-y-4 bg-white shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-gray-900">Garantía {index + 1}</h4>
+                          <Badge variant="secondary">
+                            {getCollateralTypeLabel(collateral.collateral_type)}
+                          </Badge>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeCollateral(index)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>
+                            Tipo de Garantía <span className="text-red-500">*</span>
+                          </Label>
+                          <NativeSelect
+                            value={collateral.collateral_type}
+                            onChange={(e) => updateCollateral(index, 'collateral_type', e.target.value)}
+                          >
+                            <option value="vehicle">Vehículo</option>
+                            <option value="property">Propiedad/Inmueble</option>
+                            <option value="equipment">Equipamiento</option>
+                            <option value="inventory">Inventario</option>
+                            <option value="securities">Valores/Acciones</option>
+                            <option value="cash_deposit">Depósito en Efectivo</option>
+                            <option value="other">Otro</option>
+                          </NativeSelect>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>
+                            Valor Estimado ({config.currency}) <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={collateral.estimated_value}
+                            onChange={(e) => updateCollateral(index, 'estimated_value', parseFloat(e.target.value) || 0)}
+                            className={!collateral.estimated_value || collateral.estimated_value <= 0 ? 'border-red-300' : ''}
+                          />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>
+                            Descripción <span className="text-red-500">*</span>
+                          </Label>
+                          <Textarea
+                            placeholder="Descripción detallada de la garantía (marca, modelo, año, placa, etc.)"
+                            rows={2}
+                            value={collateral.description}
+                            onChange={(e) => updateCollateral(index, 'description', e.target.value)}
+                            className={!collateral.description || collateral.description.trim() === '' ? 'border-red-300' : ''}
+                          />
+                          <p className="text-xs text-gray-500">
+                            Incluye detalles como marca, modelo, año, placa/matrícula, serie, etc.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Valor de Tasación (Opcional)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={collateral.appraisal_value || ''}
+                            onChange={(e) => updateCollateral(index, 'appraisal_value', parseFloat(e.target.value) || undefined)}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Fecha de Tasación (Opcional)</Label>
+                          <Input
+                            type="date"
+                            value={collateral.appraisal_date || ''}
+                            onChange={(e) => updateCollateral(index, 'appraisal_date', e.target.value)}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Documentos (Opcional)
+                          </Label>
+                          <Input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                updateCollateral(index, 'documents', file);
+                              }
+                            }}
+                            className="cursor-pointer"
+                          />
+                          <p className="text-xs text-gray-500">
+                            Título de propiedad, factura, contrato, etc.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <ImageIcon className="h-4 w-4" />
+                            Fotos (Opcional)
+                          </Label>
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                updateCollateral(index, 'photos', file);
+                              }
+                            }}
+                            className="cursor-pointer"
+                          />
+                          <p className="text-xs text-gray-500">
+                            Foto del vehículo, propiedad o bien
+                          </p>
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Notas Adicionales (Opcional)</Label>
+                          <Textarea
+                            placeholder="Información adicional sobre la garantía..."
+                            rows={2}
+                            value={collateral.notes || ''}
+                            onChange={(e) => updateCollateral(index, 'notes', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add Another Collateral Button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addCollateral}
+                    className="w-full"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Agregar Otra Garantía
+                  </Button>
+
+                  {collaterals.length > 0 && (
+                    <div className="space-y-3">
+                      {/* Summary Card */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-medium text-blue-900 flex items-center gap-2">
+                            <Shield className="h-4 w-4" />
+                            Resumen de Garantías
+                          </h5>
+                          <Badge variant="default">{collaterals.length} garantía(s)</Badge>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                          <div className="bg-white rounded p-3">
+                            <p className="text-xs text-gray-600 mb-1">Valor Total Estimado</p>
+                            <p className="text-lg font-bold text-green-600">
+                              {config.currency_symbol}{getTotalCollateralValue().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                          <div className="bg-white rounded p-3">
+                            <p className="text-xs text-gray-600 mb-1">Monto del Préstamo</p>
+                            <p className="text-lg font-bold text-blue-600">
+                              {config.currency_symbol}{watch('principal_amount') ? parseFloat(watch('principal_amount')).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                            </p>
+                          </div>
+                          <div className="bg-white rounded p-3">
+                            <p className="text-xs text-gray-600 mb-1">Relación (Garantía/Préstamo)</p>
+                            <p className="text-lg font-bold text-purple-600">
+                              {watch('principal_amount') && parseFloat(watch('principal_amount')) > 0
+                                ? `${((getTotalCollateralValue() / parseFloat(watch('principal_amount'))) * 100).toFixed(0)}%`
+                                : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Alert>
+                        <Shield className="h-4 w-4" />
+                        <AlertDescription>
+                          Las garantías se vincularán automáticamente al préstamo al crearlo. Asegúrate de completar todos los campos requeridos (*).
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
+                </CardContent>
+              )}
             </Card>
           </div>
         </form>

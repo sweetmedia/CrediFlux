@@ -363,10 +363,9 @@ class LoanViewSet(viewsets.ModelViewSet):
 
     def _generate_payment_schedule(self, loan):
         """Generate payment schedule for a loan"""
-        # Simple payment schedule generation
-        # In production, use proper amortization formulas
-
         from dateutil.relativedelta import relativedelta
+        from moneyed import Money
+        from decimal import Decimal
 
         # Calculate period based on payment frequency
         frequency_map = {
@@ -393,29 +392,102 @@ class LoanViewSet(viewsets.ModelViewSet):
         else:
             num_payments = loan.term_months
 
-        # Simple interest calculation (for demonstration)
-        total_interest = loan.principal_amount * (loan.interest_rate / 100) * (loan.term_months / 12)
-        total_amount = loan.principal_amount + total_interest
-
-        payment_amount = total_amount / num_payments
-        principal_per_payment = loan.principal_amount / num_payments
-        interest_per_payment = total_interest / num_payments
-
         current_date = loan.first_payment_date or loan.disbursement_date
+        schedules = []
 
-        # Create schedule entries
-        for i in range(1, int(num_payments) + 1):
-            LoanSchedule.objects.create(
-                loan=loan,
-                installment_number=i,
-                due_date=current_date,
-                total_amount=payment_amount,
-                principal_amount=principal_per_payment,
-                interest_amount=interest_per_payment
-            )
+        # Check interest type (default to 'fixed' if not set)
+        interest_type = getattr(loan, 'interest_type', 'fixed')
 
-            # Move to next payment date
-            current_date = current_date + relativedelta(**period_delta)
+        if interest_type == 'variable':
+            # ========================================
+            # INTERÉS VARIABLE/AMORTIZADO (sobre saldo decreciente)
+            # ========================================
+            # El interés se calcula sobre el CAPITAL RESTANTE
+            # Cada cuota paga MENOS interés que la anterior
+
+            principal_per_payment = (loan.principal_amount.amount / num_payments).quantize(Decimal('0.01'))
+            capital_restante = loan.principal_amount.amount
+
+            for i in range(1, int(num_payments) + 1):
+                # Calcular interés sobre capital restante
+                # interes(i) = capital_restante * tasa_interes / 100
+                interest_amount = (capital_restante * loan.interest_rate / 100 * Decimal(loan.term_months) / Decimal(12) / num_payments).quantize(Decimal('0.01'))
+
+                # Para la última cuota, ajustar el capital para que sume exactamente el total
+                if i == int(num_payments):
+                    total_principal_assigned = sum(s.principal_amount.amount for s in schedules)
+                    principal_amount = loan.principal_amount.amount - total_principal_assigned
+                else:
+                    principal_amount = principal_per_payment
+
+                total_amount = (principal_amount + interest_amount).quantize(Decimal('0.01'))
+
+                schedule = LoanSchedule.objects.create(
+                    loan=loan,
+                    installment_number=i,
+                    due_date=current_date,
+                    total_amount=Money(total_amount, loan.principal_amount.currency),
+                    principal_amount=Money(principal_amount, loan.principal_amount.currency),
+                    interest_amount=Money(interest_amount, loan.principal_amount.currency)
+                )
+                schedules.append(schedule)
+
+                # Reducir capital restante
+                capital_restante = (capital_restante - principal_amount).quantize(Decimal('0.01'))
+
+                # Move to next payment date
+                current_date = current_date + relativedelta(**period_delta)
+
+        else:
+            # ========================================
+            # INTERÉS FIJO (distribuido equitativamente)
+            # ========================================
+            # El interés total se distribuye equitativamente entre todas las cuotas
+
+            total_interest = loan.principal_amount * (loan.interest_rate / 100) * (loan.term_months / 12)
+            total_amount = loan.principal_amount + total_interest
+
+            # Calculate and round amounts to 2 decimal places
+            payment_amount = (total_amount / num_payments).amount.quantize(Decimal('0.01'))
+            principal_per_payment = (loan.principal_amount / num_payments).amount.quantize(Decimal('0.01'))
+            interest_per_payment = (total_interest / num_payments).amount.quantize(Decimal('0.01'))
+
+            # Create schedule entries (all except last)
+            for i in range(1, int(num_payments)):
+                schedule = LoanSchedule.objects.create(
+                    loan=loan,
+                    installment_number=i,
+                    due_date=current_date,
+                    total_amount=Money(payment_amount, loan.principal_amount.currency),
+                    principal_amount=Money(principal_per_payment, loan.principal_amount.currency),
+                    interest_amount=Money(interest_per_payment, loan.principal_amount.currency)
+                )
+                schedules.append(schedule)
+
+                # Move to next payment date
+                current_date = current_date + relativedelta(**period_delta)
+
+            # Create last installment with adjusted amounts
+            if num_payments > 0:
+                total_principal_assigned = sum(s.principal_amount.amount for s in schedules)
+                total_interest_assigned = sum(s.interest_amount.amount for s in schedules)
+
+                last_principal = loan.principal_amount.amount - total_principal_assigned
+                last_interest = total_interest.amount - total_interest_assigned
+                last_total = last_principal + last_interest
+
+                last_schedule = LoanSchedule.objects.create(
+                    loan=loan,
+                    installment_number=int(num_payments),
+                    due_date=current_date,
+                    total_amount=Money(last_total, loan.principal_amount.currency),
+                    principal_amount=Money(last_principal, loan.principal_amount.currency),
+                    interest_amount=Money(last_interest, loan.principal_amount.currency)
+                )
+                schedules.append(last_schedule)
+
+                # Move to next payment date for maturity
+                current_date = current_date + relativedelta(**period_delta)
 
         # Update maturity date
         loan.maturity_date = current_date

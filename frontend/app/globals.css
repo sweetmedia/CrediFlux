@@ -26,6 +26,30 @@
     --radius: 0.5rem;
   }
 
+  /* CrediFlux v2 Theme (Green) */
+  body.theme-v2 {
+    --background: 0 0% 100%;
+    --foreground: 142.9 70.5% 8.3%;
+    --card: 0 0% 100%;
+    --card-foreground: 142.9 70.5% 8.3%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 142.9 70.5% 8.3%;
+    --primary: 122.4 39.4% 49.2%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 14.3% 40.2%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 120 7.7% 92.9%;
+    --muted-foreground: 142.1 12.5% 40.2%;
+    --accent: 122.4 39.4% 49.2%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 120 4.8% 87.8%;
+    --input: 120 4.8% 87.8%;
+    --ring: 122.4 39.4% 49.2%;
+    --radius: 0.5rem;
+  }
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -55,5 +79,19 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Apply Inter Tight font when v2 theme is active */
+  body.theme-v2 {
+    font-family: var(--font-body);
+  }
+
+  body.theme-v2 h1,
+  body.theme-v2 h2,
+  body.theme-v2 h3,
+  body.theme-v2 h4,
+  body.theme-v2 h5,
+  body.theme-v2 h6 {
+    font-family: var(--font-heading);
   }
 }

@@ -8,6 +8,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.contrib.auth import get_user_model
+from django.shortcuts import redirect
+from django.conf import settings
+from allauth.account.views import ConfirmEmailView
 
 from .serializers import (
     UserSerializer,
@@ -629,3 +632,30 @@ class TeamMemberDetailView(APIView):
             {'message': 'User has been deactivated.'},
             status=status.HTTP_200_OK
         )
+
+
+# ============================================================================
+# EMAIL CONFIRMATION (ALLAUTH)
+# ============================================================================
+
+class CustomConfirmEmailView(ConfirmEmailView):
+    """
+    Custom email confirmation view that always redirects to frontend
+    instead of rendering a template
+    """
+
+    def get(self, request, *args, **kwargs):
+        """
+        Confirm email and redirect to frontend
+        """
+        # Call parent to confirm email
+        self.object = confirmation = self.get_object()
+        confirmation.confirm(self.request)
+
+        # Get the redirect URL
+        if request.user.is_authenticated:
+            redirect_url = settings.ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL
+        else:
+            redirect_url = settings.ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL
+
+        return redirect(redirect_url)

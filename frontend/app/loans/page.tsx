@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI } from '@/lib/api/loans';
 import { Loan } from '@/types';
 import LoanApprovalDialog from '@/components/loans/LoanApprovalDialog';
@@ -17,7 +18,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { NativeSelect as Select } from '@/components/ui/native-select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Loader2,
@@ -38,10 +39,19 @@ import {
 export default function LoansListPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { config } = useConfig();
   const [loans, setLoans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [totalCount, setTotalCount] = useState(0);
+  const [statistics, setStatistics] = useState({
+    total_loans: 0,
+    active_loans: 0,
+    pending_loans: 0,
+    paid_loans: 0,
+    defaulted_loans: 0,
+    overdue_loans: 0,
+  });
 
   // Filters and pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -72,6 +82,7 @@ export default function LoansListPage() {
   useEffect(() => {
     if (isAuthenticated) {
       loadLoans();
+      loadStatistics();
     }
   }, [isAuthenticated, currentPage, searchTerm, statusFilter, loanTypeFilter]);
 
@@ -96,6 +107,15 @@ export default function LoansListPage() {
       setError('Error al cargar los préstamos');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadStatistics = async () => {
+    try {
+      const stats = await loansAPI.getStatistics();
+      setStatistics(stats);
+    } catch (err: any) {
+      console.error('Error loading statistics:', err);
     }
   };
 
@@ -157,10 +177,11 @@ export default function LoansListPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+      
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -214,7 +235,7 @@ export default function LoansListPage() {
     return labels[type] || type;
   };
 
-  const totalPages = Math.ceil(totalCount / 10); // Assuming 10 items per page
+  const totalPages = Math.ceil(totalCount / 20); // Backend returns 20 items per page
 
   // Show loading state while checking authentication
   if (authLoading) {
@@ -355,7 +376,7 @@ export default function LoansListPage() {
                 <div>
                   <p className="text-sm text-gray-600">Activos</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {loans.filter((l) => l.status === 'active').length}
+                    {statistics.active_loans}
                   </p>
                 </div>
                 <DollarSign className="h-8 w-8 text-green-600" />
@@ -369,7 +390,7 @@ export default function LoansListPage() {
                 <div>
                   <p className="text-sm text-gray-600">Morosos</p>
                   <p className="text-2xl font-bold text-red-600">
-                    {loans.filter((l) => l.days_overdue > 0).length}
+                    {statistics.overdue_loans}
                   </p>
                 </div>
                 <AlertCircle className="h-8 w-8 text-red-600" />
@@ -547,8 +568,8 @@ export default function LoansListPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-gray-600">
-                      Mostrando {(currentPage - 1) * 10 + 1} a{' '}
-                      {Math.min(currentPage * 10, totalCount)} de {totalCount} préstamos
+                      Mostrando {(currentPage - 1) * 20 + 1} a{' '}
+                      {Math.min(currentPage * 20, totalCount)} de {totalCount} préstamos
                     </p>
                     <div className="flex gap-2">
                       <Button

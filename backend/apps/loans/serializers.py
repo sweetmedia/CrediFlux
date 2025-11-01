@@ -377,7 +377,7 @@ class LoanSerializer(serializers.ModelSerializer):
         model = Loan
         fields = [
             'id', 'loan_number', 'customer', 'customer_name', 'customer_details',
-            'loan_type', 'principal_amount', 'interest_rate', 'term_months',
+            'loan_type', 'principal_amount', 'interest_rate', 'interest_type', 'term_months',
             'payment_frequency', 'payment_amount', 'application_date',
             'approval_date', 'rejection_date', 'disbursement_date', 'first_payment_date',
             'maturity_date', 'status', 'outstanding_balance', 'total_paid',
@@ -463,7 +463,7 @@ class LoanCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Loan
         fields = [
-            'customer', 'loan_type', 'principal_amount', 'interest_rate',
+            'customer', 'loan_type', 'principal_amount', 'interest_rate', 'interest_type',
             'term_months', 'payment_frequency', 'payment_amount',
             'application_date', 'first_payment_date', 'loan_officer',
             'purpose', 'notes'
