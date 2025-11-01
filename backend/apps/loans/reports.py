@@ -16,6 +16,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import ImageReader
 from django.db import connection
 from django.conf import settings
+from constance import config
 import os
 
 from .models import Loan
@@ -55,6 +56,21 @@ class LoanBalanceReport:
             'quarterly': 'T',   # Trimestral
         }
         return frequency_map.get(self.loan.payment_frequency, 'M')
+
+    def _draw_footer(self, pdf, width):
+        """Draw footer on current page"""
+        # Save current state
+        pdf.saveState()
+
+        # Footer - Discrete attribution
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColorRGB(0.5, 0.5, 0.5)  # Gray color for discreteness
+        company_name = getattr(config, 'COMPANY_NAME', 'CrediFlux')
+        footer_text = f"Reporte generado por {company_name}"
+        pdf.drawCentredString(width / 2, 20, footer_text)
+
+        # Restore state
+        pdf.restoreState()
 
     def generate(self):
         """Generate the PDF report"""
@@ -233,6 +249,8 @@ class LoanBalanceReport:
         for schedule in schedules:
             # Check if we need a new page
             if y_position < 80:
+                # Draw footer before starting new page
+                self._draw_footer(pdf, width)
                 pdf.showPage()
                 page_num += 1
                 y_position = height - 40
@@ -322,6 +340,9 @@ class LoanBalanceReport:
         # SALDO/CUOTA total
         total_balance_cuotas = float(total_capital) + float(total_interest)
         pdf.drawRightString(x_pos + col_widths[7], y_position, f"{total_balance_cuotas:,.2f}")
+
+        # Draw footer on last page
+        self._draw_footer(pdf, width)
 
         # Save PDF
         pdf.save()
