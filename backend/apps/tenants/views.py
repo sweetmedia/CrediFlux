@@ -277,7 +277,7 @@ class TenantLoginView(APIView):
         - user: User information including role and permissions
         - tenant: Tenant information (if user belongs to a tenant)
         """
-        serializer = TenantLoginSerializer(data=request.data)
+        serializer = TenantLoginSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
             # Get validated data
