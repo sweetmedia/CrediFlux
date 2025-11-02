@@ -118,13 +118,47 @@ class CustomerSerializer(serializers.ModelSerializer):
 class CustomerListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for customer list"""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
+    total_loans = serializers.SerializerMethodField()
+    active_loans = serializers.SerializerMethodField()
+    loan_details = serializers.SerializerMethodField()
+    total_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
         fields = [
-            'id', 'customer_id', 'full_name', 'email', 'phone',
-            'status', 'created_at'
+            'id', 'customer_id', 'first_name', 'last_name', 'full_name',
+            'email', 'phone', 'id_number', 'address_line1', 'address_line2',
+            'city', 'state', 'country', 'postal_code',
+            'status', 'total_loans', 'active_loans', 'loan_details',
+            'total_balance', 'created_at'
         ]
+
+    def get_total_loans(self, obj):
+        """Get total number of loans"""
+        return obj.loans.count()
+
+    def get_active_loans(self, obj):
+        """Get number of active loans"""
+        return obj.loans.filter(status='active').count()
+
+    def get_loan_details(self, obj):
+        """Get list of loan numbers and their balances"""
+        loans = obj.loans.all()
+        return [
+            {
+                'loan_number': loan.loan_number,
+                'remaining_balance': float(loan.remaining_balance.amount) if loan.remaining_balance else 0
+            }
+            for loan in loans
+        ]
+
+    def get_total_balance(self, obj):
+        """Get total balance across all loans"""
+        from django.db.models import Sum
+        total = obj.loans.aggregate(
+            total=Sum('remaining_balance')
+        )['total']
+        return float(total.amount) if total else 0
 
 
 class CollateralSerializer(serializers.ModelSerializer):

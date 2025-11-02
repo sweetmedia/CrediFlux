@@ -18,6 +18,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
   Loader2,
   Plus,
   Search,
@@ -34,6 +42,7 @@ import {
   CreditCard,
   IdCard,
   FileText,
+  ExternalLink,
 } from 'lucide-react';
 
 export default function CustomersListPage() {
@@ -48,6 +57,10 @@ export default function CustomersListPage() {
   // Filters and pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Map modal
+  const [mapModalOpen, setMapModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -323,29 +336,49 @@ export default function CustomersListPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-slate-600">
-                              {customer.city && (
-                                <div>{customer.city}</div>
+                              {customer.address_line1 && (
+                                <div className="text-xs text-slate-600 mb-1">{customer.address_line1}</div>
                               )}
-                              {customer.state && (
-                                <div className="text-xs text-slate-500">{customer.state}</div>
+                              {customer.city && customer.state && (
+                                <div className="text-xs text-slate-500 mb-2">{customer.city}, {customer.state}</div>
+                              )}
+                              {customer.address_line1 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedCustomer(customer);
+                                    setMapModalOpen(true);
+                                  }}
+                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                                >
+                                  <MapPin className="h-3 w-3" />
+                                  Ver mapa
+                                </button>
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {customer.total_loans > 0 ? (
-                              <div className="text-sm">
-                                <div className="font-semibold text-slate-900">{customer.total_loans} total</div>
-                                <div className="text-xs text-green-600">{customer.active_loans || 0} activos</div>
+                          <td className="px-6 py-4">
+                            {customer.loan_details && customer.loan_details.length > 0 ? (
+                              <div className="text-xs">
+                                {customer.loan_details.map((loan: any, index: number) => (
+                                  <div key={index} className="text-slate-600 py-0.5">
+                                    {loan.loan_number}
+                                  </div>
+                                ))}
                               </div>
                             ) : (
                               <span className="text-xs text-slate-500">Sin préstamos</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {customer.total_balance > 0 ? (
-                              <span className="text-sm font-semibold text-orange-600">
-                                {formatCurrency(customer.total_balance)}
-                              </span>
+                          <td className="px-6 py-4">
+                            {customer.loan_details && customer.loan_details.length > 0 ? (
+                              <div className="text-xs">
+                                {customer.loan_details.map((loan: any, index: number) => (
+                                  <div key={index} className={`py-0.5 font-medium ${loan.remaining_balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                    {formatCurrency(loan.remaining_balance)}
+                                  </div>
+                                ))}
+                              </div>
                             ) : (
                               <span className="text-xs text-slate-500">-</span>
                             )}
@@ -418,6 +451,52 @@ export default function CustomersListPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Map Modal */}
+        <Dialog open={mapModalOpen} onOpenChange={setMapModalOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold text-slate-900">
+                Ubicación de {selectedCustomer?.full_name}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-slate-600">
+                {selectedCustomer?.address_line1}
+                {selectedCustomer?.city && selectedCustomer?.state && (
+                  <>, {selectedCustomer.city}, {selectedCustomer.state}</>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">
+              {selectedCustomer && (
+                <div className="w-full h-96 bg-slate-100 rounded-lg flex items-center justify-center">
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    style={{ border: 0 }}
+                    src={`https://www.google.com/maps?q=${encodeURIComponent(
+                      `${selectedCustomer.address_line1}, ${selectedCustomer.city}, ${selectedCustomer.state}, ${selectedCustomer.country || 'República Dominicana'}`
+                    )}&output=embed`}
+                    allowFullScreen
+                  />
+                </div>
+              )}
+              <div className="mt-4 flex justify-end">
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    `${selectedCustomer?.address_line1}, ${selectedCustomer?.city}, ${selectedCustomer?.state}, ${selectedCustomer?.country || 'República Dominicana'}`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir en Google Maps
+                </a>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
