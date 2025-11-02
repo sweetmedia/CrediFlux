@@ -16,6 +16,8 @@ import {
   LogOut,
   ChevronRight,
   Building2,
+  FileSignature,
+  ScrollText,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -39,6 +41,8 @@ export function Sidebar() {
   const navItems = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/loans', icon: FileText, label: 'Préstamos' },
+    { href: '/contracts', icon: FileSignature, label: 'Contratos' },
+    { href: '/contract-templates', icon: ScrollText, label: 'Plantillas' },
     { href: '/customers', icon: Users, label: 'Clientes' },
     { href: '/collections', icon: Phone, label: 'Cobranza' },
     { href: '/payments', icon: DollarSign, label: 'Pagos' },
