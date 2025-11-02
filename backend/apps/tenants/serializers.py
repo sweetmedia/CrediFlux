@@ -398,6 +398,37 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Primary color must be a valid hex color (e.g., #6366f1).")
         return value
 
+    def update(self, instance, validated_data):
+        """Custom update to handle logo deletion and schema switching"""
+        from django.db import connection
+
+        # Handle logo deletion explicitly
+        if 'logo' in validated_data:
+            logo_value = validated_data.get('logo')
+            # Check if logo is being deleted (None or empty string)
+            if logo_value is None or logo_value == '':
+                if instance.logo:
+                    # Delete the old logo file
+                    try:
+                        instance.logo.delete(save=False)
+                    except Exception:
+                        pass  # File may not exist
+                # Set logo to None (not empty string)
+                instance.logo = None
+                validated_data.pop('logo')
+
+        # Switch to public schema to update tenant
+        # Tenants can only be updated from public schema
+        connection.set_schema_to_public()
+
+        try:
+            # Update other fields
+            return super().update(instance, validated_data)
+        finally:
+            # Switch back to tenant schema
+            if instance.schema_name:
+                connection.set_schema(instance.schema_name)
+
 
 class TenantLoginSerializer(serializers.Serializer):
     """
