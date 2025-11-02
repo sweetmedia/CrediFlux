@@ -116,109 +116,76 @@ export default function CustomersListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
+    <div className="min-h-screen bg-slate-50 p-8">
       <div className="container mx-auto max-w-7xl">
         {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <Users className="h-8 w-8 text-blue-600" />
-              Clientes
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Gestiona y consulta todos los clientes del sistema
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/dashboard">
-              <Button variant="outline">Volver al Dashboard</Button>
-            </Link>
-            <Link href="/customers/new">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Nuevo Cliente
-              </Button>
-            </Link>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-slate-900">Clientes</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Gestiona y consulta todos los clientes del sistema
+          </p>
         </div>
 
-        {/* Search Card */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Búsqueda de Clientes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="search">Buscar</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="search"
-                  placeholder="Buscar por nombre, cédula, teléfono o email..."
-                  value={searchTerm}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stats Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-6">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Clientes</p>
-                  <p className="text-2xl font-bold">{totalCount}</p>
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Clientes</p>
+                  <p className="text-3xl font-bold text-slate-900 mt-2">{totalCount}</p>
                 </div>
-                <Users className="h-8 w-8 text-blue-600" />
+                <div className="rounded-xl bg-blue-100 p-3">
+                  <Users className="h-6 w-6 text-blue-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="pt-6">
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Clientes Activos</p>
-                  <p className="text-2xl font-bold text-green-600">
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Activos</p>
+                  <p className="text-3xl font-bold text-slate-900 mt-2">
                     {customers.filter((c) => c.total_loans > 0).length}
                   </p>
                 </div>
-                <CreditCard className="h-8 w-8 text-green-600" />
+                <div className="rounded-xl bg-green-100 p-3">
+                  <CreditCard className="h-6 w-6 text-green-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="pt-6">
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Sin Préstamos</p>
-                  <p className="text-2xl font-bold text-gray-600">
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sin Préstamos</p>
+                  <p className="text-3xl font-bold text-slate-900 mt-2">
                     {customers.filter((c) => c.total_loans === 0).length}
                   </p>
                 </div>
-                <User className="h-8 w-8 text-gray-400" />
+                <div className="rounded-xl bg-slate-100 p-3">
+                  <User className="h-6 w-6 text-slate-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="pt-6">
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Página</p>
-                  <p className="text-2xl font-bold">
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Página</p>
+                  <p className="text-3xl font-bold text-slate-900 mt-2">
                     {currentPage} / {totalPages || 1}
                   </p>
                 </div>
-                <Users className="h-8 w-8 text-gray-400" />
+                <div className="rounded-xl bg-purple-100 p-3">
+                  <FileText className="h-6 w-6 text-purple-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -231,217 +198,225 @@ export default function CustomersListPage() {
           </Alert>
         )}
 
-        {/* Customers List */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
-            <p className="text-gray-600">Cargando clientes...</p>
-          </div>
-        ) : customers.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="flex flex-col items-center gap-4">
-                <div className="rounded-full bg-gray-100 p-6">
-                  <Users className="h-12 w-12 text-gray-400" />
+        {/* Main Content Card */}
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="border-b border-slate-200 bg-white p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <CardTitle className="text-lg font-semibold text-slate-900">Lista de Clientes</CardTitle>
+                <CardDescription className="text-sm text-slate-600 mt-1">
+                  {totalCount} cliente{totalCount !== 1 ? 's' : ''} registrado{totalCount !== 1 ? 's' : ''}
+                </CardDescription>
+              </div>
+              <div className="flex gap-3">
+                <div className="relative w-80">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Buscar clientes..."
+                    value={searchTerm}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="pl-10 border-slate-200"
+                  />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900">
+                <Link href="/customers/new">
+                  <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nuevo Cliente
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
+                <p className="text-slate-600">Cargando clientes...</p>
+              </div>
+            ) : customers.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="rounded-xl bg-slate-100 p-6 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                  <Users className="h-10 w-10 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
                   No se encontraron clientes
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-sm text-slate-600 mb-6">
                   {searchTerm
                     ? 'Intenta ajustar tu búsqueda'
                     : 'Comienza agregando tu primer cliente'}
                 </p>
                 <Link href="/customers/new">
-                  <Button>
+                  <Button className="bg-blue-600 hover:bg-blue-700">
                     <Plus className="mr-2 h-4 w-4" />
                     Agregar Primer Cliente
                   </Button>
                 </Link>
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {customers.map((customer) => (
-              <Card
-                key={customer.id}
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => router.push(`/customers/${customer.id}`)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    {/* Left Section - Main Info */}
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-2">
-                            <User className="h-5 w-5 text-blue-600" />
-                            {customer.full_name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim()}
-                          </h3>
-
-                          {/* Contact Info */}
-                          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-3">
-                            <span className="flex items-center gap-1">
-                              <IdCard className="h-4 w-4" />
-                              {customer.id_number}
-                            </span>
-                            {customer.phone && (
-                              <a
-                                href={`tel:${customer.phone}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+            ) : (
+              <>
+                {/* Data Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Cliente
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Contacto
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Ubicación
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Préstamos
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Balance
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Acciones
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                      {customers.map((customer) => (
+                        <tr
+                          key={customer.id}
+                          className="hover:bg-slate-50 transition-colors cursor-pointer"
+                          onClick={() => router.push(`/customers/${customer.id}`)}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                <User className="h-5 w-5 text-blue-600" />
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-semibold text-slate-900">
+                                  {customer.full_name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim()}
+                                </div>
+                                <div className="text-xs text-slate-500 flex items-center gap-1">
+                                  <IdCard className="h-3 w-3" />
+                                  {customer.id_number}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-slate-900">
+                              {customer.phone && (
+                                <div className="flex items-center gap-1 text-slate-600">
+                                  <Phone className="h-3 w-3" />
+                                  {customer.phone}
+                                </div>
+                              )}
+                              {customer.email && (
+                                <div className="flex items-center gap-1 text-slate-600 mt-1">
+                                  <Mail className="h-3 w-3" />
+                                  <span className="truncate max-w-[200px]">{customer.email}</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-slate-600">
+                              {customer.city && (
+                                <div>{customer.city}</div>
+                              )}
+                              {customer.state && (
+                                <div className="text-xs text-slate-500">{customer.state}</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {customer.total_loans > 0 ? (
+                              <div className="text-sm">
+                                <div className="font-semibold text-slate-900">{customer.total_loans} total</div>
+                                <div className="text-xs text-green-600">{customer.active_loans || 0} activos</div>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-500">Sin préstamos</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {customer.total_balance > 0 ? (
+                              <span className="text-sm font-semibold text-orange-600">
+                                {formatCurrency(customer.total_balance)}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-500">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/customers/${customer.id}`);
+                                }}
+                                className="border-slate-200"
                               >
-                                <Phone className="h-4 w-4" />
-                                {customer.phone}
-                              </a>
-                            )}
-                            {customer.email && (
-                              <a
-                                href={`mailto:${customer.email}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/loans/new?customer=${customer.id}`);
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700"
                               >
-                                <Mail className="h-4 w-4" />
-                                {customer.email}
-                              </a>
-                            )}
-                          </div>
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-                          {/* Additional Info */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {customer.address && (
-                              <div className="flex items-start gap-2">
-                                <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs text-gray-600">Dirección</p>
-                                  <p className="text-sm">
-                                    {customer.city
-                                      ? `${customer.city}${
-                                          customer.state ? `, ${customer.state}` : ''
-                                        }`
-                                      : customer.address}
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-
-                            {customer.occupation && (
-                              <div className="flex items-start gap-2">
-                                <Briefcase className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs text-gray-600">Ocupación</p>
-                                  <p className="text-sm">{customer.occupation}</p>
-                                </div>
-                              </div>
-                            )}
-
-                            {customer.monthly_income && (
-                              <div className="flex items-start gap-2">
-                                <DollarSign className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                                <div>
-                                  <p className="text-xs text-gray-600">Ingreso Mensual</p>
-                                  <p className="text-sm font-semibold">
-                                    {formatCurrency(customer.monthly_income)}
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-slate-600">
+                        Mostrando {(currentPage - 1) * 10 + 1} a{' '}
+                        {Math.min(currentPage * 10, totalCount)} de {totalCount} clientes
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className="border-slate-200"
+                        >
+                          <ChevronLeft className="h-4 w-4 mr-1" />
+                          Anterior
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className="border-slate-200"
+                        >
+                          Siguiente
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
                       </div>
-
-                      {/* Loan Stats */}
-                      {customer.total_loans > 0 && (
-                        <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                          <div className="grid grid-cols-3 gap-4 text-center">
-                            <div>
-                              <p className="text-xs text-gray-600">Total Préstamos</p>
-                              <p className="text-lg font-bold text-blue-600">
-                                {customer.total_loans}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-600">Préstamos Activos</p>
-                              <p className="text-lg font-bold text-green-600">
-                                {customer.active_loans || 0}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-600">Balance Total</p>
-                              <p className="text-lg font-bold text-orange-600">
-                                {formatCurrency(customer.total_balance || 0)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right Section - Actions */}
-                    <div className="flex lg:flex-col gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/customers/${customer.id}`);
-                        }}
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        Ver Detalles
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/loans/new?customer=${customer.id}`);
-                        }}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Nuevo Préstamo
-                      </Button>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600">
-                      Mostrando {(currentPage - 1) * 10 + 1} a{' '}
-                      {Math.min(currentPage * 10, totalCount)} de {totalCount} clientes
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(currentPage - 1)}
-                        disabled={currentPage === 1}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        Anterior
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                      >
-                        Siguiente
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                )}
+              </>
             )}
-          </div>
-        )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
