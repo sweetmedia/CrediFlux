@@ -93,38 +93,32 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-8">
       {/* Header */}
-      <div>
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-3"
-        >
-          <ChevronRight className="h-4 w-4 mr-1 rotate-180" />
-          Volver al Dashboard
-        </Link>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <SettingsIcon className="h-8 w-8" />
-          Configuración
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Administra la configuración de tu cuenta y organización
-        </p>
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Configuración</h1>
+            <p className="text-sm text-slate-600 mt-1">
+              Administra la configuración de tu cuenta y organización
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Settings Cards Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {settingsSections.map((section, index) => (
           <Link key={index} href={section.href} className="group">
-            <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer">
+            <Card className="h-full transition-all hover:shadow-lg border-slate-200 cursor-pointer">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors">
+                    <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-blue-50 transition-colors">
                       {section.icon}
                     </div>
                     <div>
-                      <CardTitle className="text-lg flex items-center gap-2">
+                      <CardTitle className="text-lg flex items-center gap-2 text-slate-900">
                         {section.title}
                         {section.badge && (
                           <span className="text-xs font-normal bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
@@ -134,9 +128,9 @@ export default function SettingsPage() {
                       </CardTitle>
                     </div>
                   </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
                 </div>
-                <CardDescription className="mt-2">{section.description}</CardDescription>
+                <CardDescription className="mt-2 text-slate-600">{section.description}</CardDescription>
               </CardHeader>
             </Card>
           </Link>
@@ -144,17 +138,17 @@ export default function SettingsPage() {
       </div>
 
       {/* Quick Info */}
-      <Card className="border-dashed">
+      <Card className="border-slate-200 border-dashed mt-6">
         <CardHeader>
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-900">
             <FileText className="h-4 w-4" />
             ¿Necesitas ayuda?
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
+        <CardContent className="text-sm text-slate-600">
           <p>
             Si tienes problemas con la configuración o necesitas asistencia,{' '}
-            <Link href="/support" className="text-primary hover:underline">
+            <Link href="/support" className="text-blue-600 hover:underline">
               contacta a nuestro equipo de soporte
             </Link>
             .
@@ -164,11 +158,11 @@ export default function SettingsPage() {
 
       {/* User Info Footer */}
       {user && (
-        <div className="text-xs text-muted-foreground text-center pt-4 border-t">
-          Sesión iniciada como <span className="font-medium">{user.email}</span>
+        <div className="text-xs text-slate-500 text-center pt-4 border-t border-slate-200 mt-6">
+          Sesión iniciada como <span className="font-medium text-slate-900">{user.email}</span>
           {user.role && (
             <span className="ml-2">
-              • Rol: <span className="font-medium capitalize">{user.role}</span>
+              • Rol: <span className="font-medium capitalize text-slate-900">{user.role}</span>
             </span>
           )}
         </div>

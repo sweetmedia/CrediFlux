@@ -9,6 +9,7 @@ import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { tenantsAPI, Tenant, TenantUpdateData } from '@/lib/api/tenants';
 import { authAPI } from '@/lib/api/auth';
+import { getApiUrl } from '@/lib/api/client';
 import { ProfileUpdateData, PasswordChangeData } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -179,7 +180,7 @@ export default function TenantSettingsPage() {
 
       // Set logo preview - prepend API URL if logo is a relative path
       if (data.logo) {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = getApiUrl();
         const logoUrl = data.logo.startsWith('http') ? data.logo : `${apiUrl}${data.logo}`;
         setLogoPreview(logoUrl);
       } else {
@@ -280,7 +281,7 @@ export default function TenantSettingsPage() {
 
       // Set logo preview - prepend API URL if logo is a relative path
       if (response.tenant.logo) {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = getApiUrl();
         const logoUrl = response.tenant.logo.startsWith('http')
           ? response.tenant.logo
           : `${apiUrl}${response.tenant.logo}`;
@@ -386,7 +387,7 @@ export default function TenantSettingsPage() {
 
       // Set avatar preview
       if (user.avatar) {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = getApiUrl();
         const avatarUrl = user.avatar.startsWith('http') ? user.avatar : `${apiUrl}${user.avatar}`;
         setAvatarPreview(avatarUrl);
       }
@@ -446,7 +447,7 @@ export default function TenantSettingsPage() {
       await refreshUser();
 
       // Update preview
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiUrl = getApiUrl();
       const freshUser = await authAPI.getProfile();
       if (freshUser.avatar) {
         const avatarUrl = freshUser.avatar.startsWith('http')
@@ -559,24 +560,24 @@ export default function TenantSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
+    <div className="p-8">
       <div className="container mx-auto max-w-4xl">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-8">
           <Link
             href="/settings"
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-2"
+            className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-2"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver a Configuración
           </Link>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-                <Building2 className="h-8 w-8 text-blue-600" />
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <Building2 className="h-6 w-6 text-blue-600" />
                 Información del Negocio
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-sm text-slate-600 mt-1">
                 Administra la información y configuración de tu organización
               </p>
             </div>
@@ -585,7 +586,7 @@ export default function TenantSettingsPage() {
 
         {/* Success Message */}
         {successMessage && (
-          <Alert className="mb-6 bg-green-50 border-green-200">
+          <Alert className="mb-6 bg-green-50 border-green-200 shadow-sm">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-green-800">
               {successMessage}
@@ -595,7 +596,7 @@ export default function TenantSettingsPage() {
 
         {/* Error Message */}
         {error && (
-          <Alert variant="destructive" className="mb-6">
+          <Alert variant="destructive" className="mb-6 shadow-sm">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -607,23 +608,23 @@ export default function TenantSettingsPage() {
           </div>
         ) : (
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-6">
-              <TabsTrigger value="profile">Perfil</TabsTrigger>
-              <TabsTrigger value="security">Seguridad</TabsTrigger>
-              <TabsTrigger value="business">Negocio</TabsTrigger>
-              <TabsTrigger value="appearance">Apariencia</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-100">
+              <TabsTrigger value="profile" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Perfil</TabsTrigger>
+              <TabsTrigger value="security" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Seguridad</TabsTrigger>
+              <TabsTrigger value="business" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Negocio</TabsTrigger>
+              <TabsTrigger value="appearance" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Apariencia</TabsTrigger>
             </TabsList>
 
             {/* PROFILE TAB */}
             <TabsContent value="profile">
               <form onSubmit={handleSubmitProfile(onProfileSubmit)}>
-                <Card>
+                <Card className="border-slate-200 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
                     <UserIcon className="h-5 w-5 text-blue-600" />
                     Perfil Personal
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-slate-600">
                     Tu información personal y preferencias
                   </CardDescription>
                 </CardHeader>
@@ -830,7 +831,7 @@ export default function TenantSettingsPage() {
 
                   {/* Profile Actions */}
                   <div className="flex justify-end">
-                    <Button type="submit" disabled={isSavingProfile}>
+                    <Button type="submit" disabled={isSavingProfile} className="bg-blue-600 hover:bg-blue-700">
                       {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       <Save className="mr-2 h-4 w-4" />
                       Guardar Perfil
@@ -844,13 +845,13 @@ export default function TenantSettingsPage() {
             {/* SECURITY TAB */}
             <TabsContent value="security">
             <form onSubmit={handleSubmitPassword(onPasswordSubmit)}>
-              <Card>
+              <Card className="border-slate-200 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
                     <Lock className="h-5 w-5 text-blue-600" />
                     Cambiar Contraseña
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-slate-600">
                     Actualiza tu contraseña para mayor seguridad
                   </CardDescription>
                 </CardHeader>
@@ -913,7 +914,7 @@ export default function TenantSettingsPage() {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button type="submit" disabled={isChangingPassword}>
+                    <Button type="submit" disabled={isChangingPassword} className="bg-blue-600 hover:bg-blue-700">
                       {isChangingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       <Lock className="mr-2 h-4 w-4" />
                       Cambiar Contraseña
@@ -928,13 +929,13 @@ export default function TenantSettingsPage() {
             <TabsContent value="business">
             <form onSubmit={handleSubmit(onSubmit)}>
               {/* Business Information */}
-              <Card>
+              <Card className="border-slate-200 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
                     <Building2 className="h-5 w-5 text-blue-600" />
                     Información del Negocio
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-slate-600">
                     Información básica de tu organización
                   </CardDescription>
                 </CardHeader>
@@ -1052,13 +1053,13 @@ export default function TenantSettingsPage() {
               </Card>
 
               {/* Address Information */}
-              <Card>
+              <Card className="border-slate-200 shadow-sm mt-6">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
                     <MapPin className="h-5 w-5 text-blue-600" />
                     Dirección
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-slate-600">
                     Ubicación física de tu organización
                   </CardDescription>
                 </CardHeader>
@@ -1136,10 +1137,10 @@ export default function TenantSettingsPage() {
 
               {/* Subscription Info (Read-only) */}
               {tenant && (
-                <Card>
+                <Card className="border-slate-200 shadow-sm mt-6">
                   <CardHeader>
-                    <CardTitle>Información de Suscripción</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-slate-900">Información de Suscripción</CardTitle>
+                    <CardDescription className="text-slate-600">
                       Detalles de tu plan actual (solo lectura)
                     </CardDescription>
                   </CardHeader>
@@ -1169,13 +1170,13 @@ export default function TenantSettingsPage() {
               )}
 
               {/* Actions */}
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-3 mt-6">
                 <Link href="/dashboard">
                   <Button type="button" variant="outline" disabled={isSaving}>
                     Cancelar
                   </Button>
                 </Link>
-                <Button type="submit" disabled={isSaving}>
+                <Button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700">
                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Guardar Información del Negocio
@@ -1188,13 +1189,13 @@ export default function TenantSettingsPage() {
             <TabsContent value="appearance">
             <form onSubmit={handleSubmit(onSubmit)}>
               {/* Branding */}
-              <Card>
+              <Card className="border-slate-200 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
                     <Palette className="h-5 w-5 text-blue-600" />
                     Personalización
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-slate-600">
                     Personaliza la apariencia de tu tenant
                   </CardDescription>
                 </CardHeader>
@@ -1308,7 +1309,7 @@ export default function TenantSettingsPage() {
                     Cancelar
                   </Button>
                 </Link>
-                <Button type="submit" disabled={isSaving || isUploadingLogo}>
+                <Button type="submit" disabled={isSaving || isUploadingLogo} className="bg-blue-600 hover:bg-blue-700">
                   {(isSaving || isUploadingLogo) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Guardar Apariencia

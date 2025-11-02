@@ -16,15 +16,14 @@ import {
 } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  ArrowLeft,
   Loader2,
   AlertCircle,
   Phone,
   Mail,
   DollarSign,
   Calendar,
-  User,
   CreditCard,
+  TrendingUp,
 } from 'lucide-react';
 
 export default function OverdueLoansPage() {
@@ -36,14 +35,12 @@ export default function OverdueLoansPage() {
   const [error, setError] = useState<string>('');
   const [totalOverdueAmount, setTotalOverdueAmount] = useState(0);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [authLoading, isAuthenticated, router]);
 
-  // Load overdue loans only when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       loadOverdueLoans();
@@ -55,24 +52,18 @@ export default function OverdueLoansPage() {
       setIsLoading(true);
       setError('');
 
-      // Get all loans (active and defaulted) and filter those with overdue payments
       const response = await loansAPI.getLoans({});
       const allLoans = response.results || [];
 
-      // Filter loans that:
-      // 1. Are active or defaulted (not paid, rejected, or written off)
-      // 2. Have is_overdue = true OR days_overdue > 0
       const overdueLoans = allLoans.filter((loan: any) =>
         ['active', 'defaulted'].includes(loan.status) &&
         (loan.is_overdue || (loan.days_overdue && loan.days_overdue > 0))
       );
 
-      // Sort by days overdue (descending)
       overdueLoans.sort((a: any, b: any) => (b.days_overdue || 0) - (a.days_overdue || 0));
 
       setLoans(overdueLoans);
 
-      // Calculate total overdue amount
       const total = overdueLoans.reduce(
         (sum: number, loan: any) => sum + (loan.outstanding_balance || 0),
         0
@@ -88,7 +79,6 @@ export default function OverdueLoansPage() {
 
   const formatCurrency = (amount: number) => {
     return `${config.currency_symbol}${amount.toLocaleString('en-US', {
-      
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`;
@@ -102,19 +92,16 @@ export default function OverdueLoansPage() {
     });
   };
 
-  const getSeverityColor = (days: number) => {
-    if (days >= 90) return 'bg-red-100 border-red-500 text-red-900';
-    if (days >= 30) return 'bg-orange-100 border-orange-500 text-orange-900';
-    return 'bg-yellow-100 border-yellow-500 text-yellow-900';
+  const getSeverityBadge = (days: number) => {
+    if (days >= 90) {
+      return <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-red-100 text-red-700">Crítico - {days}d</span>;
+    }
+    if (days >= 30) {
+      return <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700">Grave - {days}d</span>;
+    }
+    return <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-700">Moderado - {days}d</span>;
   };
 
-  const getSeverityLabel = (days: number) => {
-    if (days >= 90) return 'Crítico';
-    if (days >= 30) return 'Grave';
-    return 'Moderado';
-  };
-
-  // Show loading state while checking authentication
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -123,221 +110,195 @@ export default function OverdueLoansPage() {
     );
   }
 
+  const avgDaysOverdue = loans.length > 0
+    ? Math.round(loans.reduce((sum, loan) => sum + loan.days_overdue, 0) / loans.length)
+    : 0;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
-      <div className="container mx-auto max-w-7xl">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+    <div className="p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <AlertCircle className="h-8 w-8 text-red-600" />
-              Préstamos Morosos
-            </h1>
-            <p className="text-gray-600 mt-1">
+            <h1 className="text-2xl font-bold text-slate-900">Préstamos Morosos</h1>
+            <p className="text-sm text-slate-600 mt-1">
               Préstamos con pagos atrasados que requieren atención
             </p>
           </div>
-          <Link href="/dashboard">
-            <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al Dashboard
-            </Button>
-          </Link>
         </div>
+      </div>
 
-        {/* Summary Card */}
-        <Card className="mb-6 border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-900">
-              <AlertCircle className="h-5 w-5" />
-              Resumen de Mora
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white rounded-lg p-4 border border-red-200">
-                <p className="text-sm text-gray-600 mb-1">Total de Préstamos Morosos</p>
-                <p className="text-3xl font-bold text-red-600">{loans.length}</p>
-              </div>
-              <div className="bg-white rounded-lg p-4 border border-red-200">
-                <p className="text-sm text-gray-600 mb-1">Monto Total en Mora</p>
-                <p className="text-3xl font-bold text-red-600">
-                  {formatCurrency(totalOverdueAmount)}
-                </p>
-              </div>
-              <div className="bg-white rounded-lg p-4 border border-red-200">
-                <p className="text-sm text-gray-600 mb-1">Promedio de Días en Mora</p>
-                <p className="text-3xl font-bold text-red-600">
-                  {loans.length > 0
-                    ? Math.round(
-                        loans.reduce((sum, loan) => sum + loan.days_overdue, 0) / loans.length
-                      )
-                    : 0}{' '}
-                  días
-                </p>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-3 gap-6 mb-8">
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-red-100 flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-red-600" />
               </div>
             </div>
+            <p className="text-sm text-slate-600 mb-1">Préstamos Morosos</p>
+            <p className="text-2xl font-bold text-slate-900">{loans.length}</p>
           </CardContent>
         </Card>
 
-        {/* Content */}
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
-            <p className="text-gray-600">Cargando préstamos morosos...</p>
-          </div>
-        ) : loans.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="flex flex-col items-center gap-4">
-                <div className="rounded-full bg-green-100 p-6">
-                  <AlertCircle className="h-12 w-12 text-green-600" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900">
-                  ¡No hay préstamos morosos!
-                </h3>
-                <p className="text-gray-600">
-                  Todos los préstamos activos están al día con sus pagos.
-                </p>
-                <Link href="/dashboard">
-                  <Button>Volver al Dashboard</Button>
-                </Link>
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-orange-100 flex items-center justify-center">
+                <DollarSign className="h-6 w-6 text-orange-600" />
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {loans.map((loan) => (
-              <Card
-                key={loan.id}
-                className={`border-l-4 transition-shadow hover:shadow-lg ${getSeverityColor(
-                  loan.days_overdue
-                )}`}
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="flex items-center gap-2">
-                        <User className="h-5 w-5" />
-                        {loan.customer_name}
-                      </CardTitle>
-                      <CardDescription className="mt-1">
-                        Préstamo #{loan.loan_number}
-                      </CardDescription>
-                    </div>
-                    <div className="text-right">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-current">
-                        <AlertCircle className="h-4 w-4" />
-                        <span className="font-semibold">
-                          {loan.days_overdue} días - {getSeverityLabel(loan.days_overdue)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
+            </div>
+            <p className="text-sm text-slate-600 mb-1">Monto Total en Mora</p>
+            <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalOverdueAmount)}</p>
+          </CardContent>
+        </Card>
 
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    <div className="flex items-center gap-3 bg-white rounded-lg p-3 border">
-                      <DollarSign className="h-8 w-8 text-blue-600" />
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-yellow-100 flex items-center justify-center">
+                <Calendar className="h-6 w-6 text-yellow-600" />
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 mb-1">Promedio de Días en Mora</p>
+            <p className="text-2xl font-bold text-slate-900">{avgDaysOverdue} días</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Content */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
+          <p className="text-slate-600">Cargando préstamos morosos...</p>
+        </div>
+      ) : loans.length === 0 ? (
+        <Card className="border-slate-200">
+          <CardContent className="text-center py-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="rounded-full bg-green-100 p-6">
+                <AlertCircle className="h-12 w-12 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900">
+                ¡No hay préstamos morosos!
+              </h3>
+              <p className="text-slate-600">
+                Todos los préstamos activos están al día con sus pagos.
+              </p>
+              <Link href="/dashboard">
+                <Button className="bg-blue-600 hover:bg-blue-700">Volver al Dashboard</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-bold text-slate-900">
+              Lista de Préstamos en Mora
+            </CardTitle>
+            <CardDescription>
+              Ordenados por días de atraso (mayor a menor)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Cliente</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Préstamo</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Balance</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Pagado</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Mora</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Contacto</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loans.map((loan) => (
+                  <tr key={loan.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => router.push(`/loans/${loan.id}`)}>
+                    <td className="py-3 px-4">
                       <div>
-                        <p className="text-xs text-gray-600">Balance Pendiente</p>
-                        <p className="text-lg font-bold">{formatCurrency(loan.outstanding_balance)}</p>
+                        <p className="font-medium text-slate-900">{loan.customer_name}</p>
+                        <p className="text-xs text-slate-500">{formatDate(loan.disbursement_date)}</p>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 bg-white rounded-lg p-3 border">
-                      <CreditCard className="h-8 w-8 text-green-600" />
+                    </td>
+                    <td className="py-3 px-4">
                       <div>
-                        <p className="text-xs text-gray-600">Total Pagado</p>
-                        <p className="text-lg font-bold">
-                          {formatCurrency(loan.total_paid || 0)}
-                        </p>
+                        <p className="font-medium text-slate-900">{loan.loan_number}</p>
+                        <p className="text-xs text-slate-500 capitalize">{loan.loan_type}</p>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 bg-white rounded-lg p-3 border">
-                      <Calendar className="h-8 w-8 text-orange-600" />
-                      <div>
-                        <p className="text-xs text-gray-600">Fecha de Desembolso</p>
-                        <p className="text-sm font-semibold">
-                          {formatDate(loan.disbursement_date)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 bg-white rounded-lg p-3 border">
-                      <AlertCircle className="h-8 w-8 text-red-600" />
-                      <div>
-                        <p className="text-xs text-gray-600">Estado</p>
-                        <p className="text-sm font-semibold capitalize">{loan.status}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Customer Contact Info */}
-                  {(loan.customer_phone || loan.customer_email) && (
-                    <div className="bg-white rounded-lg p-3 border mb-4">
-                      <p className="text-sm font-semibold text-gray-700 mb-2">
-                        Información de Contacto:
-                      </p>
-                      <div className="flex flex-wrap gap-4">
+                    </td>
+                    <td className="py-3 px-4">
+                      <p className="font-bold text-red-600">{formatCurrency(loan.outstanding_balance)}</p>
+                    </td>
+                    <td className="py-3 px-4">
+                      <p className="font-medium text-green-600">{formatCurrency(loan.total_paid || 0)}</p>
+                    </td>
+                    <td className="py-3 px-4">
+                      {getSeverityBadge(loan.days_overdue)}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-2">
                         {loan.customer_phone && (
                           <a
                             href={`tel:${loan.customer_phone}`}
-                            className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-blue-600 hover:text-blue-800"
                           >
                             <Phone className="h-4 w-4" />
-                            {loan.customer_phone}
                           </a>
                         )}
                         {loan.customer_email && (
                           <a
                             href={`mailto:${loan.customer_email}`}
-                            className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-purple-600 hover:text-purple-800"
                           >
                             <Mail className="h-4 w-4" />
-                            {loan.customer_email}
                           </a>
                         )}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex flex-wrap gap-3">
-                    <Link href={`/loans/${loan.id}`}>
-                      <Button variant="outline" size="sm">
-                        Ver Detalles
-                      </Button>
-                    </Link>
-                    <Link href={`/payments/new?loan=${loan.id}`}>
-                      <Button size="sm">
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Registrar Pago
-                      </Button>
-                    </Link>
-                    {loan.customer_phone && (
-                      <a href={`tel:${loan.customer_phone}`}>
-                        <Button variant="outline" size="sm">
-                          <Phone className="mr-2 h-4 w-4" />
-                          Llamar Cliente
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/loans/${loan.id}`);
+                          }}
+                        >
+                          Ver
                         </Button>
-                      </a>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+                        <Link href={`/payments/new?loan=${loan.id}`}>
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <CreditCard className="mr-1 h-3 w-3" />
+                            Pagar
+                          </Button>
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

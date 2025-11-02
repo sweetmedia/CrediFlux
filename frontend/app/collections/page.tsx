@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useConfig } from '@/lib/contexts/ConfigContext';
 import { schedulesAPI, collectionsAPI } from '@/lib/api/loans';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,7 +20,6 @@ import {
   Loader2,
   AlertCircle,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Calendar,
   Bell,
@@ -31,8 +31,6 @@ import {
   Target,
   CheckCircle,
   XCircle,
-  ArrowRight,
-  ArrowLeft,
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -48,6 +46,7 @@ interface DashboardStats {
 export default function CollectionsDashboardPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const { config } = useConfig();
   const [stats, setStats] = useState<DashboardStats>({
     overdueSchedules: 0,
     totalOverdue: 0,
@@ -61,14 +60,12 @@ export default function CollectionsDashboardPage() {
   const [error, setError] = useState<string>('');
   const [recentContacts, setRecentContacts] = useState<any[]>([]);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [authLoading, isAuthenticated, router]);
 
-  // Load dashboard data
   useEffect(() => {
     if (isAuthenticated) {
       loadDashboardData();
@@ -80,7 +77,6 @@ export default function CollectionsDashboardPage() {
       setIsLoading(true);
       setError('');
 
-      // Load all data in parallel
       const [
         overdueResponse,
         pendingRemindersResponse,
@@ -97,7 +93,6 @@ export default function CollectionsDashboardPage() {
         collectionsAPI.getContactsByCollector({ user_id: user?.id }),
       ]);
 
-      // Calculate overdue stats
       const totalOverdue = overdueResponse.reduce((sum, s) => sum + (Number(s.balance) || 0), 0);
       const totalLateFees = overdueResponse.reduce(
         (sum, s) => {
@@ -127,14 +122,14 @@ export default function CollectionsDashboardPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-DO', {
-      style: 'currency',
-      currency: 'DOP',
-    }).format(amount);
+    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('es-DO', {
+    return new Date(dateString).toLocaleString('es-ES', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -146,26 +141,23 @@ export default function CollectionsDashboardPage() {
   if (authLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-7xl">
+    <div className="p-8">
       {/* Header */}
-      <div className="mb-6">
-        <Link
-          href="/loans"
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-3"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Volver a Préstamos
-        </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard de Cobranza</h1>
-        <p className="text-muted-foreground mt-2">
-          Resumen de actividades y métricas de cobranza
-        </p>
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Dashboard de Cobranza</h1>
+            <p className="text-sm text-slate-600 mt-1">
+              Resumen de actividades y métricas de cobranza
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Error Alert */}
@@ -176,94 +168,68 @@ export default function CollectionsDashboardPage() {
         </Alert>
       )}
 
-      {/* Main Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        <Card className="border-l-4 border-l-red-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pagos Vencidos</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {stats.overdueSchedules}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-4 gap-6 mb-8">
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-red-100 flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {formatCurrency(stats.totalOverdue)} vencido
-            </p>
-            <Button
-              variant="link"
-              size="sm"
-              className="p-0 h-auto mt-2 text-red-600"
-              onClick={() => router.push('/schedules/overdue')}
-            >
-              Ver detalles <ArrowRight className="h-3 w-3 ml-1" />
-            </Button>
+            <p className="text-sm text-slate-600 mb-1">Pagos Vencidos</p>
+            <p className="text-2xl font-bold text-slate-900">{stats.overdueSchedules}</p>
+            <p className="text-xs text-slate-500 mt-2">{formatCurrency(stats.totalOverdue)} vencido</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-orange-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Mora Acumulada</CardTitle>
-            <TrendingUp className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {formatCurrency(stats.totalLateFees)}
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-orange-100 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-orange-600" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Cargos por atraso
-            </p>
-            <Button
-              variant="link"
-              size="sm"
-              className="p-0 h-auto mt-2 text-orange-600"
-              onClick={() => router.push('/schedules/overdue')}
-            >
-              Ver detalles <ArrowRight className="h-3 w-3 ml-1" />
-            </Button>
+            <p className="text-sm text-slate-600 mb-1">Mora Acumulada</p>
+            <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats.totalLateFees)}</p>
+            <p className="text-xs text-slate-500 mt-2">Cargos por atraso</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recordatorios Pendientes</CardTitle>
-            <Bell className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {stats.pendingReminders}
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                <Bell className="h-6 w-6 text-blue-600" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Por enviar
-            </p>
+            <p className="text-sm text-slate-600 mb-1">Recordatorios</p>
+            <p className="text-2xl font-bold text-slate-900">{stats.pendingReminders}</p>
+            <p className="text-xs text-slate-500 mt-2">Pendientes por enviar</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Promesas Hoy</CardTitle>
-            <Calendar className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {stats.promisesToday}
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-green-100 flex items-center justify-center">
+                <Calendar className="h-6 w-6 text-green-600" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Compromisos de pago
-            </p>
+            <p className="text-sm text-slate-600 mb-1">Promesas Hoy</p>
+            <p className="text-2xl font-bold text-slate-900">{stats.promisesToday}</p>
+            <p className="text-xs text-slate-500 mt-2">Compromisos de pago</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Action Items & Alerts */}
-      <div className="grid gap-6 md:grid-cols-2 mb-6">
+      {/* Action Items & Quick Actions */}
+      <div className="grid gap-6 md:grid-cols-2 mb-8">
         {/* Urgent Actions */}
-        <Card>
+        <Card className="border-slate-200 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">Acciones Urgentes</CardTitle>
-            <CardDescription>
-              Requieren atención inmediata
-            </CardDescription>
+            <CardTitle className="text-lg font-bold text-slate-900">Acciones Urgentes</CardTitle>
+            <CardDescription>Requieren atención inmediata</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {stats.escalationRequired > 0 && (
@@ -271,15 +237,13 @@ export default function CollectionsDashboardPage() {
                 <div className="flex items-center gap-3">
                   <AlertCircle className="h-5 w-5 text-red-600" />
                   <div>
-                    <p className="font-medium text-sm">Escalamiento Requerido</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-medium text-sm text-slate-900">Escalamiento Requerido</p>
+                    <p className="text-xs text-slate-600">
                       {stats.escalationRequired} caso(s) necesitan supervisor
                     </p>
                   </div>
                 </div>
-                <Button size="sm" variant="outline">
-                  Ver
-                </Button>
+                <Button size="sm" variant="outline">Ver</Button>
               </div>
             )}
 
@@ -288,15 +252,13 @@ export default function CollectionsDashboardPage() {
                 <div className="flex items-center gap-3">
                   <XCircle className="h-5 w-5 text-orange-600" />
                   <div>
-                    <p className="font-medium text-sm">Promesas Incumplidas</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-medium text-sm text-slate-900">Promesas Incumplidas</p>
+                    <p className="text-xs text-slate-600">
                       {stats.brokenPromises} promesa(s) no cumplida(s)
                     </p>
                   </div>
                 </div>
-                <Button size="sm" variant="outline">
-                  Ver
-                </Button>
+                <Button size="sm" variant="outline">Ver</Button>
               </div>
             )}
 
@@ -305,8 +267,8 @@ export default function CollectionsDashboardPage() {
                 <div className="flex items-center gap-3">
                   <Clock className="h-5 w-5 text-yellow-600" />
                   <div>
-                    <p className="font-medium text-sm">Alto Volumen Vencido</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-medium text-sm text-slate-900">Alto Volumen Vencido</p>
+                    <p className="text-xs text-slate-600">
                       {stats.overdueSchedules} pagos requieren seguimiento
                     </p>
                   </div>
@@ -325,9 +287,7 @@ export default function CollectionsDashboardPage() {
               <div className="flex items-center justify-center py-8 text-center">
                 <div>
                   <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">
-                    No hay acciones urgentes
-                  </p>
+                  <p className="text-sm text-slate-600">No hay acciones urgentes</p>
                 </div>
               </div>
             )}
@@ -335,12 +295,10 @@ export default function CollectionsDashboardPage() {
         </Card>
 
         {/* Quick Actions */}
-        <Card>
+        <Card className="border-slate-200 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">Acciones Rápidas</CardTitle>
-            <CardDescription>
-              Acceso directo a funciones comunes
-            </CardDescription>
+            <CardTitle className="text-lg font-bold text-slate-900">Acciones Rápidas</CardTitle>
+            <CardDescription>Acceso directo a funciones comunes</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <Button
@@ -387,57 +345,52 @@ export default function CollectionsDashboardPage() {
         </Card>
       </div>
 
-      {/* Recent Activity */}
-      <Card>
+      {/* Recent Activity Table */}
+      <Card className="border-slate-200 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg">Actividad Reciente</CardTitle>
-          <CardDescription>
-            Últimos contactos de cobranza
-          </CardDescription>
+          <CardTitle className="text-lg font-bold text-slate-900">Actividad Reciente</CardTitle>
+          <CardDescription>Últimos contactos de cobranza</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {recentContacts.length === 0 ? (
-            <div className="text-center py-8">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600">
-                No hay contactos registrados aún
-              </p>
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 text-slate-400 mx-auto mb-2" />
+              <p className="text-sm text-slate-600">No hay contactos registrados aún</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {recentContacts.map((contact) => (
-                <div
-                  key={contact.id}
-                  className="flex items-start justify-between p-3 border rounded-lg hover:bg-gray-50"
-                >
-                  <div className="flex items-start gap-3">
-                    {contact.contact_type === 'phone_call' && (
-                      <Phone className="h-4 w-4 text-blue-600 mt-0.5" />
-                    )}
-                    {contact.contact_type === 'email' && (
-                      <Mail className="h-4 w-4 text-purple-600 mt-0.5" />
-                    )}
-                    {contact.contact_type === 'whatsapp' && (
-                      <MessageSquare className="h-4 w-4 text-green-600 mt-0.5" />
-                    )}
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">
-                        {contact.customer_name}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {contact.outcome_display}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {formatDateTime(contact.contact_date)}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="outline">
-                    {contact.contact_type_display}
-                  </Badge>
-                </div>
-              ))}
-            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Cliente</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Tipo</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Resultado</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentContacts.map((contact) => (
+                  <tr key={contact.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    <td className="py-3 px-4">
+                      <p className="font-medium text-slate-900">{contact.customer_name}</p>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        {contact.contact_type === 'phone_call' && <Phone className="h-4 w-4 text-blue-600" />}
+                        {contact.contact_type === 'email' && <Mail className="h-4 w-4 text-purple-600" />}
+                        {contact.contact_type === 'whatsapp' && <MessageSquare className="h-4 w-4 text-green-600" />}
+                        <span className="text-sm text-slate-900">{contact.contact_type_display}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <p className="text-sm text-slate-600">{contact.outcome_display}</p>
+                    </td>
+                    <td className="py-3 px-4">
+                      <p className="text-sm text-slate-600">{formatDateTime(contact.contact_date)}</p>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </CardContent>
       </Card>
