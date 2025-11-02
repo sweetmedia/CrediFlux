@@ -6,20 +6,34 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI, paymentsAPI } from '@/lib/api/loans';
-import { customersAPI } from '@/lib/api/customers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   DollarSign,
-  Users,
   TrendingUp,
+  TrendingDown,
   AlertCircle,
   Plus,
   Loader2,
-  FileText,
-  CreditCard,
+  ArrowUpRight,
+  Wallet,
+  Target,
+  BarChart3,
+  Calendar,
 } from 'lucide-react';
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from 'recharts';
 import type { LoanStatistics, Loan, LoanPayment } from '@/types';
 
 export default function DashboardPage() {
@@ -33,14 +47,12 @@ export default function DashboardPage() {
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [error, setError] = useState<string>('');
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [authLoading, isAuthenticated, router]);
 
-  // Fetch dashboard data
   useEffect(() => {
     if (isAuthenticated) {
       fetchDashboardData();
@@ -52,7 +64,6 @@ export default function DashboardPage() {
       setIsLoadingStats(true);
       setError('');
 
-      // Fetch all data in parallel
       const [statsData, loansData, paymentsData] = await Promise.all([
         loansAPI.getStatistics(),
         loansAPI.getLoans({ page: 1 }),
@@ -77,295 +88,394 @@ export default function DashboardPage() {
     })}`;
   };
 
+  const formatCompactCurrency = (amount: number) => {
+    if (amount >= 1000000) {
+      return `${config.currency_symbol}${(amount / 1000000).toFixed(1)}M`;
+    } else if (amount >= 1000) {
+      return `${config.currency_symbol}${(amount / 1000).toFixed(1)}K`;
+    }
+    return formatCurrency(amount);
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
       day: 'numeric',
+      month: 'short',
     });
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusStyles: Record<string, string> = {
-      active: 'bg-green-50 text-green-700',
-      pending: 'bg-yellow-50 text-yellow-700',
-      approved: 'bg-blue-50 text-blue-700',
-      paid: 'bg-gray-50 text-gray-700',
-      defaulted: 'bg-red-50 text-red-700',
-      completed: 'bg-green-50 text-green-700',
-    };
+  // Mock data for executive dashboard
+  const monthlyPerformance = [
+    { month: 'Ene', desembolsado: 850000, recaudado: 720000, objetivo: 800000 },
+    { month: 'Feb', desembolsado: 920000, recaudado: 780000, objetivo: 850000 },
+    { month: 'Mar', desembolsado: 880000, recaudado: 810000, objetivo: 850000 },
+    { month: 'Abr', desembolsado: 1050000, recaudado: 890000, objetivo: 900000 },
+    { month: 'May', desembolsado: 980000, recaudado: 920000, objetivo: 900000 },
+    { month: 'Jun', desembolsado: 1120000, recaudado: 980000, objetivo: 950000 },
+  ];
 
-    const statusLabels: Record<string, string> = {
-      active: 'Activo',
-      pending: 'Pendiente',
-      approved: 'Aprobado',
-      paid: 'Pagado',
-      defaulted: 'Moroso',
-      completed: 'Completado',
-    };
+  const portfolioQuality = [
+    { category: 'Al día', value: 65, color: '#10B981' },
+    { category: '1-30 días', value: 20, color: '#F59E0B' },
+    { category: '31-60 días', value: 10, color: '#EF4444' },
+    { category: '+60 días', value: 5, color: '#991B1B' },
+  ];
 
-    return (
-      <span
-        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-          statusStyles[status] || 'bg-gray-50 text-gray-700'
-        }`}
-      >
-        {statusLabels[status] || status}
-      </span>
-    );
-  };
-
-  // Show loading state
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-        {/* Page Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">
-              ¡Bienvenido, {user.first_name}!
-            </h2>
-            <p className="text-gray-600 mt-1">
-              Aquí está el resumen de tu cartera de préstamos
-            </p>
-          </div>
-          <Button asChild>
-            <Link href="/loans/new">
+    <div className="min-h-screen bg-slate-50">
+      {/* Executive Header */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-2xl font-bold text-slate-900">Dashboard Ejecutivo</h1>
+                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                  En Vivo
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                {new Date().toLocaleDateString('es-ES', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </p>
+            </div>
+            <Button className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/30">
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Préstamo
-            </Link>
-          </Button>
+            </Button>
+          </div>
         </div>
+      </div>
 
+      <div className="p-8">
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {/* Stats Grid */}
         {isLoadingStats ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           </div>
         ) : statistics ? (
           <>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Préstamos</CardTitle>
-                  <FileText className="h-4 w-4 text-gray-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{statistics.total_loans}</div>
-                  <p className="text-xs text-gray-600 mt-1">
-                    {statistics.active_loans} activos
+            {/* KPI Grid */}
+            <div className="grid grid-cols-4 gap-6 mb-8">
+              {/* Portfolio Value */}
+              <Card className="border-slate-200 shadow-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                      <Wallet className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+                      <TrendingUp className="h-3 w-3" />
+                      +12.5%
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-slate-600 mb-1">
+                    Valor de Cartera
+                  </p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {formatCompactCurrency(statistics.total_outstanding)}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    {statistics.active_loans} préstamos activos
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Préstamos Activos</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
-                    {statistics.active_loans}
+              {/* Collections */}
+              <Card className="border-slate-200 shadow-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="h-12 w-12 rounded-xl bg-green-100 flex items-center justify-center">
+                      <DollarSign className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+                      <TrendingUp className="h-3 w-3" />
+                      +8.3%
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-sm font-medium text-slate-600 mb-1">
+                    Recaudación
+                  </p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {formatCompactCurrency(statistics.total_collected)}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    vs mes anterior
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Recovery Rate */}
+              <Card className="border-slate-200 shadow-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center">
+                      <Target className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+                      <TrendingUp className="h-3 w-3" />
+                      +2.1%
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-slate-600 mb-1">
+                    Tasa de Recuperación
+                  </p>
+                  <p className="text-2xl font-bold text-slate-900">
                     {statistics.total_loans > 0
-                      ? Math.round((statistics.active_loans / statistics.total_loans) * 100)
-                      : 0}
-                    % del portafolio
+                      ? Math.round((statistics.paid_loans / statistics.total_loans) * 100)
+                      : 0}%
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    {statistics.paid_loans} préstamos pagados
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Saldo Pendiente</CardTitle>
-                  <DollarSign className="h-4 w-4 text-blue-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {formatCurrency(statistics.total_outstanding)}
+              {/* At Risk */}
+              <Card className="border-red-200 shadow-sm bg-red-50">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="h-12 w-12 rounded-xl bg-red-100 flex items-center justify-center">
+                      <AlertCircle className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs font-medium text-red-600">
+                      <TrendingDown className="h-3 w-3" />
+                      Atención
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-600 mt-1">En préstamos activos</p>
-                </CardContent>
-              </Card>
-
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Recaudado</CardTitle>
-                  <CreditCard className="h-4 w-4 text-green-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
-                    {formatCurrency(statistics.total_collected)}
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1">Total de pagos</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Additional Stats */}
-            <div className="grid gap-6 md:grid-cols-3 mb-8">
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Préstamos Pagados</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-gray-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{statistics.paid_loans}</div>
-                  <p className="text-xs text-gray-600 mt-1">Completamente pagados</p>
-                </CardContent>
-              </Card>
-
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Préstamos Morosos</CardTitle>
-                  <AlertCircle className="h-4 w-4 text-red-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">
+                  <p className="text-sm font-medium text-red-900 mb-1">
+                    En Riesgo
+                  </p>
+                  <p className="text-2xl font-bold text-red-900">
                     {statistics.defaulted_loans}
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1">Requieren atención</p>
-                </CardContent>
-              </Card>
-
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Desembolsado</CardTitle>
-                  <DollarSign className="h-4 w-4 text-blue-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {formatCurrency(statistics.total_disbursed)}
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1">Total prestado</p>
+                  </p>
+                  <p className="text-xs text-red-700 mt-2">
+                    préstamos en mora
+                  </p>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Charts Row */}
+            <div className="grid grid-cols-3 gap-6 mb-8">
+              {/* Performance Chart */}
+              <Card className="col-span-2 border-slate-200 shadow-sm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg font-bold text-slate-900">
+                        Rendimiento Mensual
+                      </CardTitle>
+                      <CardDescription>
+                        Desembolsos vs Recaudación
+                      </CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      Ver Reporte
+                      <ArrowUpRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={monthlyPerformance}>
+                      <defs>
+                        <linearGradient id="desembolsado" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="recaudado" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                      <XAxis dataKey="month" stroke="#64748B" fontSize={12} />
+                      <YAxis stroke="#64748B" fontSize={12} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                        formatter={(value) => formatCompactCurrency(Number(value))}
+                      />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="desembolsado"
+                        stroke="#3B82F6"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#desembolsado)"
+                        name="Desembolsado"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="recaudado"
+                        stroke="#10B981"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#recaudado)"
+                        name="Recaudado"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Portfolio Quality */}
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg font-bold text-slate-900">
+                    Calidad de Cartera
+                  </CardTitle>
+                  <CardDescription>
+                    Distribución por antigüedad
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {portfolioQuality.map((item) => (
+                      <div key={item.category}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-slate-700">
+                            {item.category}
+                          </span>
+                          <span className="text-sm font-bold text-slate-900">
+                            {item.value}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-2">
+                          <div
+                            className="h-2 rounded-full transition-all duration-500"
+                            style={{
+                              width: `${item.value}%`,
+                              backgroundColor: item.color
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Recent Activity Table */}
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg font-bold text-slate-900">
+                      Actividad Reciente
+                    </CardTitle>
+                    <CardDescription>
+                      Últimas transacciones y préstamos
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/loans">Ver Préstamos</Link>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/payments">Ver Pagos</Link>
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Cliente
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Tipo
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Monto
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Estado
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Fecha
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentLoans.slice(0, 5).map((loan) => (
+                        <tr key={loan.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="py-3 px-4">
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">
+                                {loan.customer_name}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {loan.loan_number}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-sm text-slate-600 capitalize">
+                              {loan.loan_type}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-sm font-semibold text-slate-900">
+                              {formatCurrency(loan.principal_amount)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`
+                              inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                              ${loan.status === 'active' ? 'bg-green-100 text-green-700' :
+                                loan.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                loan.status === 'defaulted' ? 'bg-red-100 text-red-700' :
+                                'bg-slate-100 text-slate-700'}
+                            `}>
+                              {loan.status === 'active' ? 'Activo' :
+                               loan.status === 'pending' ? 'Pendiente' :
+                               loan.status === 'defaulted' ? 'Mora' : loan.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-sm text-slate-600">
+                              {formatDate(loan.created_at)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           </>
         ) : null}
-
-        {/* Recent Activity */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Préstamos Recientes</CardTitle>
-              <CardDescription>Últimas solicitudes y actualizaciones</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {recentLoans.length > 0 ? (
-                <div className="space-y-4">
-                  {recentLoans.map((loan) => (
-                    <div key={loan.id} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">
-                          {loan.customer_name} - {loan.loan_type}
-                        </p>
-                        <p className="text-xs text-gray-600">{loan.loan_number}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">
-                          {formatCurrency(loan.principal_amount)}
-                        </p>
-                        {getStatusBadge(loan.status)}
-                      </div>
-                    </div>
-                  ))}
-                  <Button className="w-full mt-4" variant="outline" asChild>
-                    <Link href="/loans">Ver Todos los Préstamos</Link>
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-center text-gray-600 py-8">No hay préstamos recientes</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Pagos Recientes</CardTitle>
-              <CardDescription>Últimos pagos recibidos</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {recentPayments.length > 0 ? (
-                <div className="space-y-4">
-                  {recentPayments.map((payment) => (
-                    <div key={payment.id} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">{payment.customer_name}</p>
-                        <p className="text-xs text-gray-600">
-                          {formatDate(payment.payment_date)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-green-600">
-                          +{formatCurrency(payment.amount)}
-                        </p>
-                        <p className="text-xs text-gray-600 capitalize">
-                          {payment.payment_method.replace('_', ' ')}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  <Button className="w-full mt-4" variant="outline">
-                    Ver Todos los Pagos
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-center text-gray-600 py-8">No hay pagos recientes</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Acciones Rápidas</CardTitle>
-            <CardDescription>Tareas y operaciones comunes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
-              <Button variant="outline" className="h-24 flex-col" asChild>
-                <Link href="/loans/new">
-                  <Plus className="h-6 w-6 mb-2" />
-                  <span>Nuevo Préstamo</span>
-                </Link>
-              </Button>
-              <Button variant="outline" className="h-24 flex-col" asChild>
-                <Link href="/payments/new">
-                  <DollarSign className="h-6 w-6 mb-2" />
-                  <span>Registrar Pago</span>
-                </Link>
-              </Button>
-              <Button variant="outline" className="h-24 flex-col" asChild>
-                <Link href="/customers/new">
-                  <Users className="h-6 w-6 mb-2" />
-                  <span>Agregar Cliente</span>
-                </Link>
-              </Button>
-              <Button variant="outline" className="h-24 flex-col" asChild>
-                <Link href="/loans/overdue">
-                  <AlertCircle className="h-6 w-6 mb-2" />
-                  <span>Ver Morosos</span>
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
+    </div>
   );
 }

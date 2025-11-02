@@ -4,15 +4,15 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { Header } from './Header';
+import { Sidebar } from './Sidebar';
 import { Loader2 } from 'lucide-react';
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
-// Pages that should not show the header (public pages)
-const PUBLIC_PAGES = ['/login', '/register', '/forgot-password'];
+// Pages that should not show the sidebar (public pages)
+const PUBLIC_PAGES = ['/', '/login', '/register', '/forgot-password', '/select-tenant', '/reset-password'];
 
 export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
@@ -31,7 +31,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
         <Image
           src="/logo.svg"
           alt="CrediFlux"
@@ -45,17 +45,19 @@ export function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
-  // If it's a public page, don't show header
+  // If it's a public page, don't show sidebar
   if (isPublicPage) {
     return <>{children}</>;
   }
 
-  // If authenticated, show header with content
+  // If authenticated, show sidebar with content
   if (isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-        <Header />
-        {children}
+      <div className="min-h-screen bg-slate-50">
+        <Sidebar />
+        <div className="ml-64">
+          {children}
+        </div>
       </div>
     );
   }
