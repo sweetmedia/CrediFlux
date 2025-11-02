@@ -77,7 +77,7 @@ export default function NewLoanPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { config } = useConfig();
+  const { config, isLoading: configLoading } = useConfig();
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -510,7 +510,7 @@ export default function NewLoanPage() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || configLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
