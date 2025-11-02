@@ -8,6 +8,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
+from .models_contracts import ContractTemplate, Contract
 
 
 def is_tenant_schema():
@@ -971,3 +972,170 @@ class CollectionContactAdmin(ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.select_related('loan', 'customer', 'contacted_by')
+
+
+# ============================================================================
+# CONTRACT TEMPLATE ADMIN
+# ============================================================================
+
+@admin.register(ContractTemplate)
+class ContractTemplateAdmin(ModelAdmin):
+    """Admin interface for ContractTemplate model"""
+
+    list_fullwidth = True
+    warn_unsaved_form = True
+
+    list_display = [
+        'name', 'is_active', 'is_default', 
+        'created_by', 'created_at'
+    ]
+
+    list_filter = ['is_active', 'is_default', 'created_at']
+
+    search_fields = ['name', 'description']
+
+    readonly_fields = ['created_at', 'updated_at']
+
+    fieldsets = (
+        ('Template Information', {
+            'fields': ('name', 'description', 'is_active', 'is_default')
+        }),
+        ('Content', {
+            'fields': ('content', 'header_image', 'footer_text')
+        }),
+        ('Settings', {
+            'fields': ('loan_types',)
+        }),
+        ('Metadata', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        """Make created_by readonly after creation"""
+        readonly = super().get_readonly_fields(request, obj)
+        if obj:  # Editing existing object
+            return readonly + ['created_by']
+        return readonly
+
+    def save_model(self, request, obj, form, change):
+        """Auto-assign created_by on creation"""
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+# ============================================================================
+# CONTRACT ADMIN
+# ============================================================================
+
+@admin.register(Contract)
+class ContractAdmin(ModelAdmin):
+    """Admin interface for Contract model"""
+
+    list_fullwidth = True
+    warn_unsaved_form = True
+
+    list_display = [
+        'contract_number', 'get_loan_number', 'get_customer_name',
+        'status', 'is_fully_signed', 'generated_at'
+    ]
+
+    list_filter = ['status', 'generated_at']
+
+    search_fields = [
+        'contract_number', 'loan__loan_number', 
+        'loan__customer__first_name', 'loan__customer__last_name'
+    ]
+
+    readonly_fields = [
+        'contract_number', 'generated_at', 'updated_at', 
+        'is_fully_signed'
+    ]
+
+    fieldsets = (
+        ('Contract Information', {
+            'fields': ('contract_number', 'loan', 'template', 'status')
+        }),
+        ('Content', {
+            'fields': ('content', 'pdf_file', 'special_terms')
+        }),
+        ('Signatures - Customer', {
+            'fields': (
+                'customer_signed_at', 'customer_signature'
+            )
+        }),
+        ('Signatures - Officer', {
+            'fields': (
+                'officer_signed_at', 'officer_signature'
+            )
+        }),
+        ('Signatures - Witness', {
+            'fields': (
+                'witness_name', 'witness_id', 
+                'witness_signed_at', 'witness_signature'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Additional Information', {
+            'fields': ('notes',),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': (
+                'generated_by', 'generated_at', 'updated_at',
+                'is_fully_signed'
+            ),
+            'classes': ('collapse',)
+        }),
+    )
+
+    @display(description='Loan Number', ordering='loan__loan_number')
+    def get_loan_number(self, obj):
+        """Display loan number"""
+        return obj.loan.loan_number if obj.loan else '-'
+
+    @display(description='Customer', ordering='loan__customer__last_name')
+    def get_customer_name(self, obj):
+        """Display customer name"""
+        return obj.loan.customer.get_full_name() if obj.loan else '-'
+
+    def get_readonly_fields(self, request, obj=None):
+        """Make generated_by readonly after creation"""
+        readonly = super().get_readonly_fields(request, obj)
+        if obj:
+            return readonly + ['generated_by']
+        return readonly
+
+    def save_model(self, request, obj, form, change):
+        """Auto-assign generated_by and generate content on creation"""
+        if not change:
+            obj.generated_by = request.user
+
+            # Generate content from template if template is set
+            if obj.template:
+                from .utils_contracts import replace_contract_variables
+                from apps.tenants.models import Tenant
+
+                # Try to get tenant from request
+                try:
+                    tenant_schema = connection.schema_name
+                    if tenant_schema and tenant_schema != 'public':
+                        tenant = Tenant.objects.get(schema_name=tenant_schema)
+                    else:
+                        tenant = None
+                except:
+                    tenant = None
+
+                obj.content = replace_contract_variables(
+                    obj.template.content,
+                    obj.loan,
+                    tenant
+                )
+
+        super().save_model(request, obj, form, change)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('loan', 'loan__customer', 'template', 'generated_by')

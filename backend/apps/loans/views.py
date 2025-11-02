@@ -984,3 +984,231 @@ class CollectionContactViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(contacts, many=True)
         return Response(serializer.data)
+
+# ============================================================================
+# CONTRACT TEMPLATE VIEWSET
+# ============================================================================
+
+class ContractTemplateViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing contract templates
+    """
+    from .models_contracts import ContractTemplate
+    from .serializers import ContractTemplateSerializer, ContractTemplateListSerializer
+
+    queryset = ContractTemplate.objects.all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'is_default']
+    search_fields = ['name', 'description']
+    ordering_fields = ['created_at', 'name', 'is_default']
+    ordering = ['-is_default', '-created_at']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            from .serializers import ContractTemplateListSerializer
+            return ContractTemplateListSerializer
+        from .serializers import ContractTemplateSerializer
+        return ContractTemplateSerializer
+
+    def perform_create(self, serializer):
+        """Auto-assign created_by user"""
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def set_default(self, request, pk=None):
+        """Set this template as the default"""
+        template = self.get_object()
+        template.is_default = True
+        template.save()
+        return Response({'message': 'Plantilla establecida como predeterminada'})
+
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        """Duplicate a template"""
+        from .models_contracts import ContractTemplate
+        template = self.get_object()
+
+        # Create a copy
+        new_template = ContractTemplate.objects.create(
+            name=f"{template.name} (Copia)",
+            description=template.description,
+            content=template.content,
+            is_active=False,
+            is_default=False,
+            loan_types=template.loan_types,
+            footer_text=template.footer_text,
+            created_by=request.user
+        )
+
+        serializer = self.get_serializer(new_template)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def variables(self, request):
+        """Get list of available variables for templates"""
+        from .utils_contracts import get_available_variables
+        return Response({'variables': get_available_variables()})
+
+
+# ============================================================================
+# CONTRACT VIEWSET
+# ============================================================================
+
+class ContractViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing contracts
+    """
+    from .models_contracts import Contract
+
+    queryset = Contract.objects.select_related(
+        'loan', 'loan__customer', 'template', 'generated_by'
+    ).all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'loan']
+    search_fields = ['contract_number', 'loan__loan_number', 'loan__customer__first_name', 'loan__customer__last_name']
+    ordering_fields = ['generated_at', 'status']
+    ordering = ['-generated_at']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            from .serializers import ContractListSerializer
+            return ContractListSerializer
+        elif self.action == 'create':
+            from .serializers import ContractCreateSerializer
+            return ContractCreateSerializer
+        from .serializers import ContractSerializer
+        return ContractSerializer
+
+    def perform_create(self, serializer):
+        """Generate contract from template"""
+        from .utils_contracts import replace_contract_variables
+
+        contract = serializer.save(generated_by=self.request.user)
+
+        template = contract.template
+        tenant = getattr(self.request, 'tenant', None)
+
+        if template:
+            rendered_content = replace_contract_variables(
+                template.content,
+                contract.loan,
+                tenant
+            )
+            contract.content = rendered_content
+            contract.save()
+
+        return contract
+
+    @action(detail=True, methods=['post'])
+    def regenerate(self, request, pk=None):
+        """Regenerate contract content from template"""
+        from .utils_contracts import replace_contract_variables
+
+        contract = self.get_object()
+
+        if not contract.template:
+            return Response(
+                {'error': 'No se puede regenerar un contrato sin plantilla'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        tenant = getattr(request, 'tenant', None)
+
+        rendered_content = replace_contract_variables(
+            contract.template.content,
+            contract.loan,
+            tenant
+        )
+
+        contract.content = rendered_content
+        contract.save()
+
+        serializer = self.get_serializer(contract)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def sign_customer(self, request, pk=None):
+        """Mark contract as signed by customer"""
+        contract = self.get_object()
+
+        if contract.customer_signed_at:
+            return Response(
+                {'error': 'El cliente ya firmó este contrato'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        signature = request.FILES.get('signature')
+        if signature:
+            contract.customer_signature = signature
+
+        contract.customer_signed_at = timezone.now()
+
+        if contract.status == 'draft':
+            contract.status = 'pending_signature'
+        elif contract.is_fully_signed:
+            contract.status = 'signed'
+
+        contract.save()
+
+        return Response({'message': 'Contrato firmado por el cliente'})
+
+    @action(detail=True, methods=['post'])
+    def sign_officer(self, request, pk=None):
+        """Mark contract as signed by loan officer"""
+        contract = self.get_object()
+
+        if contract.officer_signed_at:
+            return Response(
+                {'error': 'El oficial ya firmó este contrato'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        signature = request.FILES.get('signature')
+        if signature:
+            contract.officer_signature = signature
+
+        contract.officer_signed_at = timezone.now()
+
+        if contract.status == 'draft':
+            contract.status = 'pending_signature'
+        elif contract.is_fully_signed:
+            contract.status = 'signed'
+
+        contract.save()
+
+        return Response({'message': 'Contrato firmado por el oficial'})
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """Activate a signed contract"""
+        contract = self.get_object()
+
+        if not contract.is_fully_signed:
+            return Response(
+                {'error': 'El contrato debe estar firmado por todas las partes'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        contract.status = 'active'
+        contract.save()
+
+        return Response({'message': 'Contrato activado'})
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Cancel a contract"""
+        contract = self.get_object()
+
+        if contract.status in ['completed', 'cancelled']:
+            return Response(
+                {'error': 'No se puede cancelar un contrato completado o ya cancelado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        contract.status = 'cancelled'
+        contract.notes = f"{contract.notes}\n\nCancelado el {timezone.now().strftime('%Y-%m-%d %H:%M')} por {request.user.get_full_name()}"
+        contract.save()
+
+        return Response({'message': 'Contrato cancelado'})

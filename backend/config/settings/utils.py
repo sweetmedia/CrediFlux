@@ -398,3 +398,62 @@ def get_sidebar_navigation():
     ]
 
     return navigation
+
+
+def get_tenant_dropdown(request):
+    """
+    Generate dropdown menu for tenant navigation.
+    Shows all active tenants ONLY to superusers and public schema staff.
+    Regular tenant users see no dropdown (they can only access their tenant).
+    """
+    from django.db import connection
+    from django.utils.translation import gettext_lazy as _
+
+    dropdown = []
+
+    # Only show dropdown to authenticated users
+    if not request.user.is_authenticated:
+        return dropdown
+
+    try:
+        from apps.tenants.models import Tenant
+
+        # Get current schema
+        current_schema = getattr(connection, 'schema_name', 'public')
+
+        # Check if user should see the dropdown
+        # Only superusers and public schema staff can see all tenants
+        is_superuser = request.user.is_superuser
+        is_public_staff = request.user.has_perm('tenants.view_tenant')  # Permission that only public schema has
+
+        # Regular tenant users should not see the dropdown
+        if not (is_superuser or is_public_staff):
+            return dropdown
+
+        # Add public/system dashboard option (only for authorized users)
+        dropdown.append({
+            "icon": "settings_suggest",
+            "title": _("System Dashboard"),
+            "link": "http://localhost:8000/admin/",
+        })
+
+        # Get all active tenants
+        tenants = Tenant.objects.filter(is_active=True).exclude(schema_name='public').order_by('name')
+
+        for tenant in tenants:
+            # Use .localhost domain (browser adds port automatically)
+            domain_url = f"http://{tenant.schema_name}.localhost:8000/admin/"
+
+            dropdown.append({
+                "icon": "business",
+                "title": tenant.business_name or tenant.name,
+                "link": domain_url,
+            })
+    except Exception as e:
+        # If there's an error, return empty dropdown
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error generating tenant dropdown: {e}")
+        pass
+
+    return dropdown

@@ -1,313 +1,290 @@
-{% extends 'unfold/layouts/base_simple.html' %}
-{% load i18n unfold %}
+{% extends 'admin/base.html' %}
+{% load i18n static %}
 
 {% block breadcrumbs %}{% endblock %}
 
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
 {% block content %}
-    <div class="px-6 py-4">
-        <!-- Dashboard Header -->
-        <div class="mb-8">
-            {% if is_tenant %}
-                {% if tenant_logo %}
-                    <div class="flex items-center gap-4 mb-4">
-                        <img src="{{ tenant_logo }}" alt="{{ tenant_name }}" class="h-16 w-auto object-contain">
-                        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
-                            {{ tenant_name }} Dashboard
-                        </h1>
-                    </div>
-                {% else %}
-                    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                        {{ tenant_name|default:"Tenant" }} Dashboard
-                    </h1>
-                {% endif %}
-                <p class="text-gray-600 dark:text-gray-400">
-                    Manage loans, customers, and payments for {{ tenant_name|default:"this tenant" }}
-                </p>
-            {% else %}
-                <!-- System Dashboard - Show CrediFlux Logo -->
-                {% if system_logo %}
-                    <div class="flex items-center gap-4 mb-4">
-                        <img src="{{ system_logo }}" alt="CrediFlux" class="h-16 w-auto object-contain">
-                        <div>
-                            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
-                                CrediFlux System Dashboard
-                            </h1>
-                            <p class="text-gray-600 dark:text-gray-400">
-                                Manage tenants, users, and system configuration
-                            </p>
-                        </div>
-                    </div>
-                {% else %}
-                    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                        CrediFlux System Dashboard
-                    </h1>
-                    <p class="text-gray-600 dark:text-gray-400">
-                        Manage tenants, users, and system configuration
-                    </p>
-                {% endif %}
-            {% endif %}
-        </div>
+<style>
+    .dashboard-container { padding: 24px; }
+    .dashboard-header { margin-bottom: 32px; }
+    .dashboard-title { font-size: 28px; font-weight: bold; margin: 0 0 8px 0; }
+    .dashboard-subtitle { color: #666; margin: 0; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .stat-card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px; }
+    .stat-card-content { display: flex; align-items: center; }
+    .stat-icon { font-size: 32px; margin-right: 16px; }
+    .stat-info h3 { font-size: 14px; color: #666; margin: 0 0 4px 0; font-weight: normal; }
+    .stat-info .value { font-size: 32px; font-weight: 600; margin: 0; }
+    .stat-info .subtext { font-size: 12px; color: #999; margin: 4px 0 0 0; }
+    .section-card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px; }
+    .section-header { padding: 16px 24px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
+    .section-header h2 { font-size: 20px; font-weight: 600; margin: 0; }
+    .section-header .material-symbols-outlined { margin-right: 8px; }
+    .section-body { padding: 24px; }
+    .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+    .action-link { display: flex; align-items: center; padding: 16px; border-radius: 8px; text-decoration: none; transition: all 0.2s; }
+    .action-link:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+    .action-icon { font-size: 32px; margin-right: 12px; }
+    .action-text { font-weight: 500; }
+    .tenant-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+    .tenant-card { display: flex; align-items: center; padding: 16px; background: #f9fafb; border-radius: 8px; text-decoration: none; transition: all 0.2s; }
+    .tenant-card:hover { background: #f3f4f6; }
+    .tenant-icon { font-size: 40px; margin-right: 16px; color: #6366f1; }
+    .tenant-info h3 { font-size: 16px; font-weight: 600; margin: 0 0 4px 0; color: #111; }
+    .tenant-info p { font-size: 13px; color: #666; margin: 0; }
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .status-box { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
+    .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .status-title { font-weight: 600; display: flex; align-items: center; }
+    .status-badge { padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge-active { background: #dcfce7; color: #166534; }
+    .badge-inactive { background: #fee2e2; color: #991b1b; }
+    .badge-running { background: #dbeafe; color: #1e40af; }
+    .status-detail { font-size: 13px; color: #666; line-height: 1.6; }
+    .status-detail strong { color: #111; }
+    .status-link { color: #2563eb; text-decoration: none; font-size: 13px; }
+    .status-link:hover { text-decoration: underline; }
+</style>
+
+<div class="dashboard-container">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        {% if is_tenant %}
+            <h1 class="dashboard-title">{{ tenant_name|default:"Tenant" }} Dashboard</h1>
+            <p class="dashboard-subtitle">Manage loans, customers, and payments for {{ tenant_name|default:"this tenant" }}</p>
+        {% else %}
+            <h1 class="dashboard-title">CrediFlux System Dashboard</h1>
+            <p class="dashboard-subtitle">Manage tenants, users, and system configuration</p>
+        {% endif %}
+    </div>
 
         <!-- Statistics Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {% if is_tenant %}
-                <!-- Tenant Statistics -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-blue-500 bg-opacity-10">
-                            <span class="material-symbols-outlined text-blue-500" style="font-size: 24px;">account_circle</span>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Customers</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_customers|default:0 }}</p>
-                        </div>
+    <div class="stats-grid">
+        {% if is_tenant %}
+            <!-- Tenant Statistics -->
+            <div class="stat-card">
+                <div class="stat-card-content">
+                    <span class="material-symbols-outlined stat-icon" style="color: #3b82f6;">account_circle</span>
+                    <div class="stat-info">
+                        <h3>Total Customers</h3>
+                        <p class="value">{{ total_customers|default:0 }}</p>
                     </div>
                 </div>
+            </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-green-500 bg-opacity-10">
-                            <span class="material-symbols-outlined text-green-500" style="font-size: 24px;">account_balance</span>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Loans</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_loans|default:0 }}</p>
-                        </div>
+            <div class="stat-card">
+                <div class="stat-card-content">
+                    <span class="material-symbols-outlined stat-icon" style="color: #10b981;">account_balance</span>
+                    <div class="stat-info">
+                        <h3>Total Loans</h3>
+                        <p class="value">{{ total_loans|default:0 }}</p>
                     </div>
                 </div>
+            </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-yellow-500 bg-opacity-10">
-                            <span class="material-symbols-outlined text-yellow-500" style="font-size: 24px;">schedule</span>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Active Loans</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ active_loans|default:0 }}</p>
-                        </div>
+            <div class="stat-card">
+                <div class="stat-card-content">
+                    <span class="material-symbols-outlined stat-icon" style="color: #f59e0b;">schedule</span>
+                    <div class="stat-info">
+                        <h3>Active Loans</h3>
+                        <p class="value">{{ active_loans|default:0 }}</p>
                     </div>
                 </div>
+            </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-purple-500 bg-opacity-10">
-                            <span class="material-symbols-outlined text-purple-500" style="font-size: 24px;">payment</span>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Payments</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_payments|default:0 }}</p>
-                        </div>
+            <div class="stat-card">
+                <div class="stat-card-content">
+                    <span class="material-symbols-outlined stat-icon" style="color: #8b5cf6;">payment</span>
+                    <div class="stat-info">
+                        <h3>Total Payments</h3>
+                        <p class="value">{{ total_payments|default:0 }}</p>
                     </div>
                 </div>
-            {% else %}
-                <!-- System Statistics - CrediFlux Global -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-blue-500 bg-opacity-10">
-                            <span class="material-symbols-outlined text-blue-500" style="font-size: 24px;">business</span>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Tenants</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_tenants|default:0 }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-500">{{ active_tenants|default:0 }} active</p>
-                        </div>
+            </div>
+        {% else %}
+            <!-- System Statistics - CrediFlux Global -->
+            <div class="stat-card">
+                <div class="stat-card-content">
+                    <span class="material-symbols-outlined stat-icon" style="color: #3b82f6;">business</span>
+                    <div class="stat-info">
+                        <h3>Total Tenants</h3>
+                        <p class="value">{{ total_tenants|default:0 }}</p>
+                        <p class="subtext">{{ active_tenants|default:0 }} active</p>
                     </div>
                 </div>
+            </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-green-500 bg-opacity-10">
-                            <span class="material-symbols-outlined text-green-500" style="font-size: 24px;">account_balance</span>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Loans (All Tenants)</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_loans_all|default:0 }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-500">{{ total_active_loans|default:0 }} active</p>
-                        </div>
+            <div class="stat-card">
+                <div class="stat-card-content">
+                    <span class="material-symbols-outlined stat-icon" style="color: #10b981;">account_balance</span>
+                    <div class="stat-info">
+                        <h3>Total Loans (All Tenants)</h3>
+                        <p class="value">{{ total_loans_all|default:0 }}</p>
+                        <p class="subtext">{{ total_active_loans|default:0 }} active</p>
                     </div>
                 </div>
+            </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-purple-500 bg-opacity-10">
-                            <span class="material-symbols-outlined text-purple-500" style="font-size: 24px;">person</span>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Customers</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_customers_all|default:0 }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-500">All tenants</p>
-                        </div>
+            <div class="stat-card">
+                <div class="stat-card-content">
+                    <span class="material-symbols-outlined stat-icon" style="color: #8b5cf6;">person</span>
+                    <div class="stat-info">
+                        <h3>Total Customers</h3>
+                        <p class="value">{{ total_customers_all|default:0 }}</p>
+                        <p class="subtext">All tenants</p>
                     </div>
                 </div>
+            </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-yellow-500 bg-opacity-10">
-                            <span class="material-symbols-outlined text-yellow-500" style="font-size: 24px;">payment</span>
+            <div class="stat-card">
+                <div class="stat-card-content">
+                    <span class="material-symbols-outlined stat-icon" style="color: #f59e0b;">payment</span>
+                    <div class="stat-info">
+                        <h3>Total Payments</h3>
+                        <p class="value">{{ total_payments_all|default:0 }}</p>
+                        <p class="subtext">All tenants</p>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- System Status Section (Only in Public Schema) -->
+    {% if not is_tenant %}
+        <div class="section-card">
+            <div class="section-header">
+                <span class="material-symbols-outlined" style="font-size: 24px;">settings_suggest</span>
+                <h2>System Status</h2>
+            </div>
+            <div class="section-body">
+                <div class="status-grid">
+                    <!-- RNC Database Status -->
+                    <div class="status-box">
+                        <div class="status-header">
+                            <h3 class="status-title">
+                                <span class="material-symbols-outlined" style="font-size: 20px; margin-right: 8px;">database</span>
+                                DGII RNC Database
+                            </h3>
+                            {% if rnc_status.enabled %}
+                                <span class="status-badge badge-active">Active</span>
+                            {% else %}
+                                <span class="status-badge badge-inactive">Inactive</span>
+                            {% endif %}
                         </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Payments</p>
-                            <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_payments_all|default:0 }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-500">All tenants</p>
+                        <div class="status-detail">
+                            <p><strong>Records:</strong> {{ rnc_status.total_records|default:"0"|floatformat:0 }}</p>
+                            <p><strong>Last Update:</strong> {{ rnc_status.last_updated }}</p>
+                            <a href="{% url 'admin:constance_config_changelist' %}" class="status-link">Manage Settings →</a>
+                        </div>
+                    </div>
+
+                    <!-- System Info -->
+                    <div class="status-box">
+                        <div class="status-header">
+                            <h3 class="status-title">
+                                <span class="material-symbols-outlined" style="font-size: 20px; margin-right: 8px;">info</span>
+                                System Information
+                            </h3>
+                            <span class="status-badge badge-running">Running</span>
+                        </div>
+                        <div class="status-detail">
+                            <p><strong>Total Users:</strong> {{ total_users|default:0 }}</p>
+                            <p><strong>Schema:</strong> {{ schema_name|default:"public" }}</p>
+                            <a href="{% url 'admin:users_user_changelist' %}" class="status-link">Manage Users →</a>
                         </div>
                     </div>
                 </div>
-            {% endif %}
+            </div>
         </div>
+    {% endif %}
 
-        <!-- System Status Section (Only in Public Schema) -->
-        {% if not is_tenant %}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
-                        <span class="material-symbols-outlined mr-2" style="font-size: 24px;">settings_suggest</span>
-                        System Status
-                    </h2>
-                </div>
-                <div class="p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- RNC Database Status -->
-                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="font-semibold text-gray-900 dark:text-white flex items-center">
-                                    <span class="material-symbols-outlined mr-2" style="font-size: 20px;">database</span>
-                                    DGII RNC Database
-                                </h3>
-                                {% if rnc_status.enabled %}
-                                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
-                                {% else %}
-                                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Inactive</span>
-                                {% endif %}
+    <!-- Tenant Switcher Section (Only in Public Schema) -->
+    {% if not is_tenant and tenants_list %}
+        <div class="section-card">
+            <div class="section-header">
+                <span class="material-symbols-outlined" style="font-size: 24px;">business_center</span>
+                <h2>Active Tenants</h2>
+            </div>
+            <div class="section-body">
+                <div class="tenant-grid">
+                    {% for tenant in tenants_list %}
+                        <a href="http://{{ tenant.domain }}:8000/admin/" class="tenant-card">
+                            <span class="material-symbols-outlined tenant-icon">account_balance</span>
+                            <div class="tenant-info">
+                                <h3>{{ tenant.business_name|default:tenant.name }}</h3>
+                                <p>{{ tenant.domain }}</p>
+                                <p style="font-size: 11px; margin-top: 2px;">Schema: {{ tenant.schema_name }}</p>
                             </div>
-                            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                                <p><strong>Records:</strong> {{ rnc_status.total_records|default:"0"|floatformat:0 }}</p>
-                                <p><strong>Last Update:</strong> {{ rnc_status.last_updated }}</p>
-                                <a href="{% url 'admin:constance_config_changelist' %}" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">Manage Settings →</a>
-                            </div>
-                        </div>
-
-                        <!-- System Info -->
-                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="font-semibold text-gray-900 dark:text-white flex items-center">
-                                    <span class="material-symbols-outlined mr-2" style="font-size: 20px;">info</span>
-                                    System Information
-                                </h3>
-                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Running</span>
-                            </div>
-                            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                                <p><strong>Total Users:</strong> {{ total_users|default:0 }}</p>
-                                <p><strong>Schema:</strong> {{ schema_name|default:"public" }}</p>
-                                <a href="{% url 'admin:users_user_changelist' %}" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">Manage Users →</a>
-                            </div>
-                        </div>
-                    </div>
+                        </a>
+                    {% endfor %}
                 </div>
             </div>
-        {% endif %}
+        </div>
+    {% endif %}
 
-        <!-- Tenant Switcher Section (Only in Public Schema) -->
-        {% if not is_tenant and tenants_list %}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
-                        <span class="material-symbols-outlined mr-2" style="font-size: 24px;">business_center</span>
-                        Active Tenants
-                    </h2>
-                </div>
-                <div class="p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {% for tenant in tenants_list %}
-                            <a href="http://{{ tenant.domain }}:8000/admin/"
-                               class="block p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                                <div class="flex items-center">
-                                    <span class="material-symbols-outlined text-primary-600 dark:text-primary-400 mr-3" style="font-size: 32px;">account_balance</span>
-                                    <div>
-                                        <h3 class="font-semibold text-gray-900 dark:text-white">{{ tenant.business_name|default:tenant.name }}</h3>
-                                        <p class="text-sm text-gray-600 dark:text-gray-400">{{ tenant.domain }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">Schema: {{ tenant.schema_name }}</p>
-                                    </div>
-                                </div>
-                            </a>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-        {% endif %}
+    <!-- Quick Actions -->
+    <div class="section-card">
+        <div class="section-header">
+            <span class="material-symbols-outlined" style="font-size: 24px;">bolt</span>
+            <h2>Quick Actions</h2>
+        </div>
+        <div class="section-body">
+            <div class="actions-grid">
+                {% if is_tenant %}
+                    <a href="{% url 'admin:loans_customer_add' %}" class="action-link" style="background-color: #eff6ff;">
+                        <span class="material-symbols-outlined action-icon" style="color: #2563eb;">person_add</span>
+                        <span class="action-text" style="color: #1e40af;">Add Customer</span>
+                    </a>
 
-        <!-- Quick Actions -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
-                    <span class="material-symbols-outlined mr-2" style="font-size: 24px;">bolt</span>
-                    Quick Actions
-                </h2>
-            </div>
-            <div class="p-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {% if is_tenant %}
-                        <a href="{% url 'admin:loans_customer_add' %}"
-                           class="flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 mr-3" style="font-size: 28px;">person_add</span>
-                            <span class="font-medium text-blue-900 dark:text-blue-100">Add Customer</span>
-                        </a>
+                    <a href="{% url 'admin:loans_loan_add' %}" class="action-link" style="background-color: #f0fdf4;">
+                        <span class="material-symbols-outlined action-icon" style="color: #16a34a;">add_circle</span>
+                        <span class="action-text" style="color: #166534;">Create Loan</span>
+                    </a>
 
-                        <a href="{% url 'admin:loans_loan_add' %}"
-                           class="flex items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-green-600 dark:text-green-400 mr-3" style="font-size: 28px;">add_circle</span>
-                            <span class="font-medium text-green-900 dark:text-green-100">Create Loan</span>
-                        </a>
+                    <a href="{% url 'admin:loans_loanpayment_add' %}" class="action-link" style="background-color: #faf5ff;">
+                        <span class="material-symbols-outlined action-icon" style="color: #9333ea;">payments</span>
+                        <span class="action-text" style="color: #6b21a8;">Record Payment</span>
+                    </a>
 
-                        <a href="{% url 'admin:loans_loanpayment_add' %}"
-                           class="flex items-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 mr-3" style="font-size: 28px;">payments</span>
-                            <span class="font-medium text-purple-900 dark:text-purple-100">Record Payment</span>
-                        </a>
+                    <a href="{% url 'admin:loans_loan_changelist' %}" class="action-link" style="background-color: #fffbeb;">
+                        <span class="material-symbols-outlined action-icon" style="color: #d97706;">list</span>
+                        <span class="action-text" style="color: #92400e;">View All Loans</span>
+                    </a>
+                {% else %}
+                    <a href="{% url 'admin:constance_config_changelist' %}" class="action-link" style="background-color: #eff6ff;">
+                        <span class="material-symbols-outlined action-icon" style="color: #2563eb;">settings</span>
+                        <span class="action-text" style="color: #1e40af;">Configuration</span>
+                    </a>
 
-                        <a href="{% url 'admin:loans_loan_changelist' %}"
-                           class="flex items-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 mr-3" style="font-size: 28px;">list</span>
-                            <span class="font-medium text-yellow-900 dark:text-yellow-100">View All Loans</span>
-                        </a>
-                    {% else %}
-                        <a href="{% url 'admin:constance_config_changelist' %}"
-                           class="flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 mr-3" style="font-size: 28px;">settings</span>
-                            <span class="font-medium text-blue-900 dark:text-blue-100">Configuration</span>
-                        </a>
+                    <a href="{% url 'admin:constance_update_rnc_database' %}" class="action-link" style="background-color: #f0fdf4;">
+                        <span class="material-symbols-outlined action-icon" style="color: #16a34a;">sync</span>
+                        <span class="action-text" style="color: #166534;">Update RNC Database</span>
+                    </a>
 
-                        <a href="{% url 'admin:constance_update_rnc_database' %}"
-                           class="flex items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-green-600 dark:text-green-400 mr-3" style="font-size: 28px;">sync</span>
-                            <span class="font-medium text-green-900 dark:text-green-100">Update RNC Database</span>
-                        </a>
+                    <a href="{% url 'admin:tenants_tenant_add' %}" class="action-link" style="background-color: #faf5ff;">
+                        <span class="material-symbols-outlined action-icon" style="color: #9333ea;">business_center</span>
+                        <span class="action-text" style="color: #6b21a8;">Add Tenant</span>
+                    </a>
 
-                        <a href="{% url 'admin:tenants_tenant_add' %}"
-                           class="flex items-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 mr-3" style="font-size: 28px;">business_center</span>
-                            <span class="font-medium text-purple-900 dark:text-purple-100">Add Tenant</span>
-                        </a>
+                    <a href="{% url 'admin:tenants_tenant_changelist' %}" class="action-link" style="background-color: #fffbeb;">
+                        <span class="material-symbols-outlined action-icon" style="color: #d97706;">list</span>
+                        <span class="action-text" style="color: #92400e;">Manage Tenants</span>
+                    </a>
 
-                        <a href="{% url 'admin:tenants_tenant_changelist' %}"
-                           class="flex items-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 mr-3" style="font-size: 28px;">list</span>
-                            <span class="font-medium text-yellow-900 dark:text-yellow-100">Manage Tenants</span>
-                        </a>
+                    <a href="{% url 'admin:users_user_changelist' %}" class="action-link" style="background-color: #eef2ff;">
+                        <span class="material-symbols-outlined action-icon" style="color: #4f46e5;">group</span>
+                        <span class="action-text" style="color: #3730a3;">Manage Users</span>
+                    </a>
 
-                        <a href="{% url 'admin:users_user_changelist' %}"
-                           class="flex items-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400 mr-3" style="font-size: 28px;">group</span>
-                            <span class="font-medium text-indigo-900 dark:text-indigo-100">Manage Users</span>
-                        </a>
-
-                        <a href="{% url 'admin:django_celery_beat_periodictask_changelist' %}"
-                           class="flex items-center p-4 bg-pink-50 dark:bg-pink-900/20 rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors">
-                            <span class="material-symbols-outlined text-pink-600 dark:text-pink-400 mr-3" style="font-size: 28px;">schedule</span>
-                            <span class="font-medium text-pink-900 dark:text-pink-100">Scheduled Tasks</span>
-                        </a>
-                    {% endif %}
-                </div>
+                    <a href="{% url 'admin:django_celery_beat_periodictask_changelist' %}" class="action-link" style="background-color: #fdf4ff;">
+                        <span class="material-symbols-outlined action-icon" style="color: #c026d3;">schedule</span>
+                        <span class="action-text" style="color: #86198f;">Scheduled Tasks</span>
+                    </a>
+                {% endif %}
             </div>
         </div>
     </div>
+</div>
 {% endblock %}
