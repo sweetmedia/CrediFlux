@@ -10,8 +10,56 @@ from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from dj_rest_auth.serializers import LoginSerializer as BaseLoginSerializer
 
 User = get_user_model()
+
+
+# ============================================================================
+# AUTHENTICATION - TENANT-AWARE LOGIN
+# ============================================================================
+
+class TenantAwareLoginSerializer(BaseLoginSerializer):
+    """
+    Custom login serializer that validates user belongs to the current tenant.
+
+    This prevents users from one tenant logging into another tenant's domain.
+    Example: A user from caproinsa.localhost cannot login to amsfin.localhost
+    """
+
+    def validate(self, attrs):
+        """
+        Validate credentials and ensure user belongs to current tenant.
+        """
+        # First, validate credentials using parent class
+        attrs = super().validate(attrs)
+
+        # Get authenticated user
+        user = attrs.get('user')
+
+        # Get current tenant from request
+        request = self.context.get('request')
+        current_tenant = getattr(request, 'tenant', None)
+
+        # Superusers with no tenant can access any domain (system admins)
+        if user.is_superuser and user.tenant is None:
+            return attrs
+
+        # Validate user belongs to current tenant
+        if current_tenant and user.tenant != current_tenant:
+            raise serializers.ValidationError(
+                "Invalid credentials for this organization. "
+                "Please ensure you are using the correct login portal."
+            )
+
+        # If no tenant in request (public schema), only allow system admins
+        if not current_tenant and user.tenant is not None:
+            raise serializers.ValidationError(
+                "Invalid credentials for this portal. "
+                "Please use your organization's specific domain."
+            )
+
+        return attrs
 
 
 class UserSerializer(serializers.ModelSerializer):

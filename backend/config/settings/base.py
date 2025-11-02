@@ -228,6 +228,15 @@ ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https' if BACKEND_URL.startswith('https') else 
 # Use custom adapter to ensure email confirmation URLs use Site domain
 ACCOUNT_ADAPTER = 'apps.users.adapters.CustomAccountAdapter'
 
+# dj-rest-auth configuration
+REST_AUTH = {
+    'LOGIN_SERIALIZER': 'apps.users.serializers.TenantAwareLoginSerializer',
+    'USE_JWT': True,
+    'JWT_AUTH_COOKIE': None,  # Don't use cookies for JWT (use Authorization header)
+    'JWT_AUTH_REFRESH_COOKIE': None,
+    'JWT_AUTH_HTTPONLY': False,
+}
+
 # CORS Settings
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000', cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
