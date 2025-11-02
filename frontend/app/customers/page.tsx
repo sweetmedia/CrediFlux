@@ -39,7 +39,7 @@ import {
 export default function CustomersListPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { config } = useConfig();
+  const { config, isLoading: configLoading } = useConfig();
   const [customers, setCustomers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -107,8 +107,8 @@ export default function CustomersListPage() {
 
   const totalPages = Math.ceil(totalCount / 10); // Assuming 10 items per page
 
-  // Show loading state while checking authentication
-  if (authLoading) {
+  // Show loading state while checking authentication and config
+  if (authLoading || configLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />

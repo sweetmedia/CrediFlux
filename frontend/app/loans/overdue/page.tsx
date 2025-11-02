@@ -29,7 +29,7 @@ import {
 export default function OverdueLoansPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { config } = useConfig();
+  const { config, isLoading: configLoading } = useConfig();
   const [loans, setLoans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -102,7 +102,7 @@ export default function OverdueLoansPage() {
     return <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-700">Moderado - {days}d</span>;
   };
 
-  if (authLoading) {
+  if (authLoading || configLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
