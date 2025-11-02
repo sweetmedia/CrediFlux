@@ -460,16 +460,25 @@ export default function NewLoanPage() {
 
       if (collaterals.length > 0) {
         const collateralPromises = collaterals.map(async (collateral) => {
-          const collateralData = {
+          const collateralData: any = {
             loan: createdLoan.id,
             collateral_type: collateral.collateral_type,
             description: collateral.description,
             estimated_value: collateral.estimated_value,
-            appraisal_value: collateral.appraisal_value,
-            appraisal_date: collateral.appraisal_date,
-            notes: collateral.notes,
             status: 'active',
           };
+
+          // Only include optional fields if they have values
+          if (collateral.appraisal_value) {
+            collateralData.appraisal_value = collateral.appraisal_value;
+          }
+          if (collateral.appraisal_date) {
+            collateralData.appraisal_date = collateral.appraisal_date;
+          }
+          if (collateral.notes) {
+            collateralData.notes = collateral.notes;
+          }
+
           return collateralsAPI.createCollateral(collateralData);
         });
         await Promise.all(collateralPromises);
