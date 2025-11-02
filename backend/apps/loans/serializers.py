@@ -147,7 +147,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
         return [
             {
                 'loan_number': loan.loan_number,
-                'remaining_balance': float(loan.remaining_balance.amount) if loan.remaining_balance else 0
+                'remaining_balance': float(loan.outstanding_balance.amount) if loan.outstanding_balance else 0
             }
             for loan in loans
         ]
@@ -156,9 +156,9 @@ class CustomerListSerializer(serializers.ModelSerializer):
         """Get total balance across all loans"""
         from django.db.models import Sum
         total = obj.loans.aggregate(
-            total=Sum('remaining_balance')
+            total=Sum('outstanding_balance')
         )['total']
-        return float(total.amount) if total else 0
+        return float(total) if total else 0
 
 
 class CollateralSerializer(serializers.ModelSerializer):
