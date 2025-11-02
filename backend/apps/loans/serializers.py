@@ -4,6 +4,7 @@ Serializers for loan module
 from rest_framework import serializers
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
+from .models_contracts import ContractTemplate, Contract
 
 
 class CustomerDocumentSerializer(serializers.ModelSerializer):
@@ -659,3 +660,96 @@ class CollectionContactCreateSerializer(serializers.ModelSerializer):
         """Auto-assign contacted_by to current user"""
         # The view will set this via perform_create
         return super().create(validated_data)
+
+
+# ============================================================================
+# CONTRACT SERIALIZERS
+# ============================================================================
+
+class ContractTemplateSerializer(serializers.ModelSerializer):
+    """Serializer for ContractTemplate model"""
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+
+    class Meta:
+        model = ContractTemplate
+        fields = [
+            'id', 'name', 'description', 'content', 'is_active', 'is_default',
+            'loan_types', 'header_image', 'footer_text',
+            'created_by', 'created_by_name', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+
+
+class ContractTemplateListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for contract template list"""
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+
+    class Meta:
+        model = ContractTemplate
+        fields = [
+            'id', 'name', 'description', 'is_active', 'is_default',
+            'created_by_name', 'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+
+
+class ContractSerializer(serializers.ModelSerializer):
+    """Serializer for Contract model"""
+    loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
+    customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
+    template_name = serializers.CharField(source='template.name', read_only=True, allow_null=True)
+    generated_by_name = serializers.CharField(source='generated_by.get_full_name', read_only=True)
+
+    class Meta:
+        model = Contract
+        fields = [
+            'id', 'contract_number', 'loan', 'loan_number', 'customer_name',
+            'template', 'template_name', 'content', 'pdf_file', 'status',
+            'customer_signed_at', 'customer_signature', 'officer_signed_at',
+            'officer_signature', 'witness_name', 'witness_id', 'witness_signature',
+            'witness_signed_at', 'special_terms', 'notes',
+            'generated_by', 'generated_by_name', 'generated_at', 'updated_at',
+            'is_fully_signed'
+        ]
+        read_only_fields = [
+            'id', 'contract_number', 'generated_by', 'generated_at',
+            'updated_at', 'is_fully_signed'
+        ]
+
+
+class ContractListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for contract list"""
+    loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
+    customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
+    template_name = serializers.CharField(source='template.name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Contract
+        fields = [
+            'id', 'contract_number', 'loan_number', 'customer_name',
+            'template_name', 'status', 'is_fully_signed',
+            'generated_at', 'updated_at'
+        ]
+        read_only_fields = fields
+
+
+class ContractCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating a new contract"""
+
+    class Meta:
+        model = Contract
+        fields = ['loan', 'template', 'special_terms', 'notes']
+
+    def validate_loan(self, value):
+        """Validate that loan doesn't already have an active contract"""
+        existing = Contract.objects.filter(
+            loan=value,
+            status__in=['active', 'signed', 'pending_signature']
+        ).exists()
+
+        if existing:
+            raise serializers.ValidationError(
+                "Este préstamo ya tiene un contrato activo"
+            )
+
+        return value

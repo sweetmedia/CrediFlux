@@ -738,3 +738,6 @@ class Collateral(UUIDModel, AuditModel):
 
 # Import collection models
 from .models_collections import CollectionReminder, CollectionContact
+
+# Import contract models
+from .models_contracts import ContractTemplate, Contract
