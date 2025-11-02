@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -15,15 +16,24 @@ import {
   Settings,
   LogOut,
   ChevronRight,
+  ChevronDown,
   Building2,
   FileSignature,
   ScrollText,
 } from 'lucide-react';
 
+interface NavItem {
+  href: string;
+  icon: any;
+  label: string;
+  subItems?: { href: string; icon: any; label: string }[];
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, tenant, logout } = useAuth();
+  const [expandedItems, setExpandedItems] = useState<string[]>(['contracts']);
 
   const handleLogout = async () => {
     try {
@@ -38,11 +48,26 @@ export function Sidebar() {
     return pathname === path || pathname.startsWith(path + '/');
   };
 
-  const navItems = [
+  const toggleExpanded = (href: string) => {
+    setExpandedItems((prev) =>
+      prev.includes(href)
+        ? prev.filter((item) => item !== href)
+        : [...prev, href]
+    );
+  };
+
+  const navItems: NavItem[] = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/loans', icon: FileText, label: 'Préstamos' },
-    { href: '/contracts', icon: FileSignature, label: 'Contratos' },
-    { href: '/contract-templates', icon: ScrollText, label: 'Plantillas' },
+    {
+      href: 'contracts',
+      icon: FileSignature,
+      label: 'Contratos',
+      subItems: [
+        { href: '/contracts', icon: FileSignature, label: 'Lista de Contratos' },
+        { href: '/contract-templates', icon: ScrollText, label: 'Plantillas' },
+      ],
+    },
     { href: '/customers', icon: Users, label: 'Clientes' },
     { href: '/collections', icon: Phone, label: 'Cobranza' },
     { href: '/payments', icon: DollarSign, label: 'Pagos' },
@@ -52,6 +77,12 @@ export function Sidebar() {
     { href: '/users', icon: UsersRound, label: 'Equipo' },
     { href: '/settings', icon: Settings, label: 'Configuración' },
   ];
+
+  // Check if any submenu item is active
+  const isAnySubItemActive = (subItems?: { href: string }[]) => {
+    if (!subItems) return false;
+    return subItems.some((subItem) => isActive(subItem.href));
+  };
 
   return (
     <aside className="w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0">
@@ -92,25 +123,86 @@ export function Sidebar() {
         <div className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = isActive(item.href);
+            const hasSubItems = item.subItems && item.subItems.length > 0;
+            const isExpanded = expandedItems.includes(item.href);
+            const active = !hasSubItems && isActive(item.href);
+            const anySubActive = isAnySubItemActive(item.subItems);
+
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`
-                  flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                  ${active
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }
-                `}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </div>
-                {active && <ChevronRight className="h-4 w-4" />}
-              </Link>
+              <div key={item.href}>
+                {hasSubItems ? (
+                  // Parent item with submenu
+                  <>
+                    <button
+                      onClick={() => toggleExpanded(item.href)}
+                      className={`
+                        w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                        ${anySubActive
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </div>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${
+                          isExpanded ? 'transform rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {/* Submenu items */}
+                    {isExpanded && (
+                      <div className="mt-1 ml-4 space-y-1">
+                        {item.subItems?.map((subItem) => {
+                          const SubIcon = subItem.icon;
+                          const subActive = isActive(subItem.href);
+                          return (
+                            <Link
+                              key={subItem.href}
+                              href={subItem.href}
+                              className={`
+                                flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all
+                                ${subActive
+                                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50'
+                                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                }
+                              `}
+                            >
+                              <div className="flex items-center gap-3">
+                                <SubIcon className="h-4 w-4" />
+                                <span>{subItem.label}</span>
+                              </div>
+                              {subActive && <ChevronRight className="h-4 w-4" />}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  // Regular item without submenu
+                  <Link
+                    href={item.href}
+                    className={`
+                      flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                      ${active
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </div>
+                    {active && <ChevronRight className="h-4 w-4" />}
+                  </Link>
+                )}
+              </div>
             );
           })}
         </div>
