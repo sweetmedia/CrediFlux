@@ -31,6 +31,9 @@ class TenantAwareLoginSerializer(BaseLoginSerializer):
         """
         Validate credentials and ensure user belongs to current tenant.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         # First, validate credentials using parent class
         attrs = super().validate(attrs)
 
@@ -41,12 +44,22 @@ class TenantAwareLoginSerializer(BaseLoginSerializer):
         request = self.context.get('request')
         current_tenant = getattr(request, 'tenant', None)
 
+        # DEBUG LOGGING
+        logger.warning(f"🔐 TENANT LOGIN VALIDATION")
+        logger.warning(f"   User: {user.email}")
+        logger.warning(f"   User's Tenant: {user.tenant.schema_name if user.tenant else 'None (System Admin)'}")
+        logger.warning(f"   Current Request Tenant: {current_tenant.schema_name if current_tenant else 'None (Public Schema)'}")
+
         # Superusers with no tenant can access any domain (system admins)
         if user.is_superuser and user.tenant is None:
+            logger.warning(f"   ✅ ALLOWED: System admin can access any tenant")
             return attrs
 
         # Validate user belongs to current tenant
         if current_tenant and user.tenant != current_tenant:
+            logger.warning(f"   ❌ BLOCKED: Tenant mismatch!")
+            logger.warning(f"   User tenant: {user.tenant.schema_name if user.tenant else None}")
+            logger.warning(f"   Request tenant: {current_tenant.schema_name}")
             raise serializers.ValidationError(
                 "Invalid credentials for this organization. "
                 "Please ensure you are using the correct login portal."
@@ -54,11 +67,13 @@ class TenantAwareLoginSerializer(BaseLoginSerializer):
 
         # If no tenant in request (public schema), only allow system admins
         if not current_tenant and user.tenant is not None:
+            logger.warning(f"   ❌ BLOCKED: Tenant user trying to access public schema")
             raise serializers.ValidationError(
                 "Invalid credentials for this portal. "
                 "Please use your organization's specific domain."
             )
 
+        logger.warning(f"   ✅ ALLOWED: User belongs to this tenant")
         return attrs
 
 
