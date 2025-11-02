@@ -146,13 +146,24 @@ export default function NewPaymentPage() {
 
   // Handle loan selection
   const handleSelectLoan = (loan: any) => {
+    console.log('Selected loan data:', {
+      id: loan.id,
+      loan_number: loan.loan_number,
+      total_installments: loan.total_installments,
+      paid_installments: loan.paid_installments,
+      term_months: loan.term_months,
+      payment_amount: loan.payment_amount,
+      payment_frequency: loan.payment_frequency,
+      interest_type: loan.interest_type,
+    });
+
     setSelectedLoan(loan);
     setValue('loan', loan.id);
     setSearchTerm(`${loan.loan_number} - ${loan.customer_name}`);
     setShowDropdown(false);
 
     // Auto-fill amount with outstanding balance
-    if (loan.outstanding_balance) {
+    if (loan.outstanding_balance && !isNaN(loan.outstanding_balance) && loan.outstanding_balance > 0) {
       setValue('amount', loan.outstanding_balance.toString());
     }
   };
@@ -232,7 +243,10 @@ export default function NewPaymentPage() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined | null) => {
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      return `${config.currency_symbol}0.00`;
+    }
     return `${config.currency_symbol}${amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
@@ -342,16 +356,16 @@ export default function NewPaymentPage() {
                                         </p>
                                       </div>
                                       <div className="flex flex-wrap gap-2 text-sm text-gray-600 items-center">
-                                        <span>Cliente: {loan.customer_name}</span>
+                                        <span>Cliente: {loan.customer_name || 'N/A'}</span>
                                         <span>Balance: {formatCurrency(loan.outstanding_balance)}</span>
                                         {loan.status === 'defaulted' && (
                                           <Badge variant="destructive" className="text-xs">
                                             En Mora Grave
                                           </Badge>
                                         )}
-                                        {loan.days_overdue > 0 && loan.status !== 'defaulted' && (
+                                        {(loan.days_overdue || 0) > 0 && loan.status !== 'defaulted' && (
                                           <span className="text-red-600 font-medium">
-                                            {loan.days_overdue} días de mora
+                                            {loan.days_overdue || 0} días de mora
                                           </span>
                                         )}
                                       </div>
@@ -381,53 +395,265 @@ export default function NewPaymentPage() {
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-lg">Detalles del Préstamo</CardTitle>
-                        {selectedLoan.status === 'defaulted' && (
-                          <Badge variant="destructive">En Mora Grave</Badge>
-                        )}
+                        <div className="flex gap-2">
+                          {selectedLoan.status === 'defaulted' && (
+                            <Badge variant="destructive">En Mora Grave</Badge>
+                          )}
+                          {selectedLoan.status === 'active' && (selectedLoan.days_overdue || 0) > 0 && (
+                            <Badge variant="destructive">
+                              {selectedLoan.days_overdue || 0} días mora
+                            </Badge>
+                          )}
+                          {selectedLoan.status === 'active' && (selectedLoan.days_overdue || 0) === 0 && (
+                            <Badge className="bg-green-600">Al Día</Badge>
+                          )}
+                        </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-2">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
+                    <CardContent className="space-y-4">
+                      {/* Cliente y Número */}
+                      <div className="grid grid-cols-2 gap-4 pb-3 border-b border-gray-200">
                         <div>
-                          <span className="font-semibold">Cliente:</span>{' '}
-                          {selectedLoan.customer_name}
+                          <p className="text-xs text-gray-500 mb-1">Cliente</p>
+                          <p className="font-semibold text-gray-900">{selectedLoan.customer_name}</p>
                         </div>
                         <div>
-                          <span className="font-semibold">Número:</span> {selectedLoan.loan_number}
-                        </div>
-                        <div>
-                          <span className="font-semibold">Monto Original:</span>{' '}
-                          {formatCurrency(selectedLoan.principal_amount)}
-                        </div>
-                        <div>
-                          <span className="font-semibold">Tasa:</span> {selectedLoan.interest_rate}
-                          %
-                        </div>
-                        <div>
-                          <span className="font-semibold">Pagado:</span>{' '}
-                          {formatCurrency(selectedLoan.total_paid || 0)}
-                        </div>
-                        <div className="font-bold text-blue-700">
-                          <span className="font-semibold">Balance Pendiente:</span>{' '}
-                          {formatCurrency(selectedLoan.outstanding_balance)}
+                          <p className="text-xs text-gray-500 mb-1">Número de Préstamo</p>
+                          <p className="font-semibold text-gray-900">{selectedLoan.loan_number}</p>
                         </div>
                       </div>
 
+                      {/* Montos */}
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700 mb-2 uppercase">Montos</p>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-gray-500 mb-1">Monto Original</p>
+                            <p className="font-semibold text-gray-900">
+                              {formatCurrency(selectedLoan.principal_amount)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 mb-1">Total Pagado</p>
+                            <p className="font-semibold text-green-600">
+                              {formatCurrency(selectedLoan.total_paid || 0)}
+                            </p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-gray-500 mb-1">Balance Pendiente</p>
+                            <p className="font-bold text-xl text-blue-700">
+                              {formatCurrency(selectedLoan.outstanding_balance)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Términos del Préstamo */}
+                      <div className="pt-3 border-t border-gray-200">
+                        <p className="text-xs font-semibold text-gray-700 mb-2 uppercase">Términos</p>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-gray-500 mb-1">Tasa de Interés</p>
+                            <p className="font-semibold text-gray-900">
+                              {selectedLoan.interest_rate || 0}% anual
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 mb-1">Tipo de Interés</p>
+                            <p className="font-semibold text-gray-900 capitalize">
+                              {selectedLoan.interest_type === 'fixed' ? 'Fijo' :
+                               selectedLoan.interest_type === 'variable' ? 'Variable' :
+                               selectedLoan.interest_type === 'variable_rd' ? 'Variable' :
+                               selectedLoan.interest_type === 'compound' ? 'Compuesto' :
+                               selectedLoan.interest_type || 'Fijo'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 mb-1">Plazo</p>
+                            <p className="font-semibold text-gray-900">
+                              {selectedLoan.term_months || 0} meses
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 mb-1">Tipo de Préstamo</p>
+                            <p className="font-semibold text-gray-900 capitalize">
+                              {selectedLoan.loan_type === 'personal' ? 'Personal' :
+                               selectedLoan.loan_type === 'business' ? 'Empresarial' :
+                               selectedLoan.loan_type === 'mortgage' ? 'Hipotecario' :
+                               selectedLoan.loan_type === 'auto' ? 'Vehículo' :
+                               selectedLoan.loan_type === 'student' ? 'Estudiantil' :
+                               selectedLoan.loan_type || 'Personal'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 mb-1">Cuota</p>
+                            <p className="font-semibold text-gray-900">
+                              {selectedLoan.interest_type === 'variable_rd' ? (
+                                <span className="text-orange-600">Variable</span>
+                              ) : (
+                                formatCurrency(selectedLoan.payment_amount)
+                              )}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 mb-1">Frecuencia</p>
+                            <p className="font-semibold text-gray-900 capitalize">
+                              {selectedLoan.payment_frequency === 'monthly' ? 'Mensual' :
+                               selectedLoan.payment_frequency === 'weekly' ? 'Semanal' :
+                               selectedLoan.payment_frequency === 'biweekly' ? 'Quincenal' :
+                               selectedLoan.payment_frequency === 'quarterly' ? 'Trimestral' :
+                               selectedLoan.payment_frequency || 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fechas */}
+                      {(selectedLoan.disbursement_date || selectedLoan.first_payment_date ||
+                        selectedLoan.next_payment_date || selectedLoan.maturity_date) && (
+                        <div className="pt-3 border-t border-gray-200">
+                          <p className="text-xs font-semibold text-gray-700 mb-2 uppercase">Fechas</p>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            {selectedLoan.disbursement_date && (
+                              <div>
+                                <p className="text-gray-500 mb-1">Fecha de Desembolso</p>
+                                <p className="font-semibold text-gray-900">
+                                  {new Date(selectedLoan.disbursement_date).toLocaleDateString('es-DO', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+                            )}
+                            {selectedLoan.first_payment_date && (
+                              <div>
+                                <p className="text-gray-500 mb-1">Primera Cuota</p>
+                                <p className="font-semibold text-gray-900">
+                                  {new Date(selectedLoan.first_payment_date).toLocaleDateString('es-DO', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+                            )}
+                            {selectedLoan.next_payment_date && (
+                              <div>
+                                <p className="text-gray-500 mb-1">Próximo Pago</p>
+                                <p className="font-semibold text-orange-600">
+                                  {new Date(selectedLoan.next_payment_date).toLocaleDateString('es-DO', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+                            )}
+                            {selectedLoan.maturity_date && (
+                              <div>
+                                <p className="text-gray-500 mb-1">Fecha de Vencimiento</p>
+                                <p className="font-semibold text-gray-900">
+                                  {new Date(selectedLoan.maturity_date).toLocaleDateString('es-DO', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Progreso de Pagos */}
+                      {(() => {
+                        // Usar total_installments si está disponible, sino usar term_months basado en frecuencia
+                        const totalInstallments = selectedLoan.total_installments || selectedLoan.term_months || 0;
+                        const paidInstallments = selectedLoan.paid_installments || 0;
+
+                        // Solo mostrar si hay al menos 1 cuota
+                        if (totalInstallments > 0) {
+                          return (
+                            <div className="pt-3 border-t border-gray-200">
+                              <p className="text-xs font-semibold text-gray-700 mb-2 uppercase">Progreso</p>
+                              <div className="space-y-2">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Cuotas Pagadas</span>
+                                  <span className="font-semibold text-gray-900">
+                                    {paidInstallments} / {totalInstallments}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                  <div
+                                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                                    style={{
+                                      width: `${Math.min((paidInstallments / totalInstallments) * 100, 100)}%`
+                                    }}
+                                  />
+                                </div>
+                                <div className="text-xs text-gray-500 text-right">
+                                  {Math.round((paidInstallments / totalInstallments) * 100)}% completado
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {/* Información de Mora */}
+                      {((selectedLoan.days_overdue && selectedLoan.days_overdue > 0) ||
+                        (selectedLoan.late_fees && selectedLoan.late_fees > 0)) && (
+                        <div className="pt-3 border-t border-gray-200">
+                          <p className="text-xs font-semibold text-red-700 mb-2 uppercase">Información de Mora</p>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            {selectedLoan.days_overdue && selectedLoan.days_overdue > 0 && (
+                              <div>
+                                <p className="text-gray-500 mb-1">Días de Mora</p>
+                                <p className="font-semibold text-red-600">
+                                  {selectedLoan.days_overdue} {selectedLoan.days_overdue === 1 ? 'día' : 'días'}
+                                </p>
+                              </div>
+                            )}
+                            {selectedLoan.late_fees !== undefined && (
+                              <div>
+                                <p className="text-gray-500 mb-1">Cargos por Mora</p>
+                                <p className="font-semibold text-red-600">
+                                  {formatCurrency(selectedLoan.late_fees)}
+                                </p>
+                              </div>
+                            )}
+                            {selectedLoan.is_overdue && (
+                              <div className="col-span-2">
+                                <p className="text-gray-500 mb-1">Estado</p>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Préstamo en Mora
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Alertas */}
                       {selectedLoan.status === 'defaulted' && (
                         <Alert variant="destructive" className="mt-3">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription>
                             <strong>Préstamo en Mora Grave:</strong> Este préstamo requiere atención urgente.
-                            {selectedLoan.days_overdue > 0 && ` Tiene ${selectedLoan.days_overdue} días de atraso.`}
+                            {(selectedLoan.days_overdue || 0) > 0 && ` Tiene ${selectedLoan.days_overdue || 0} días de atraso.`}
                           </AlertDescription>
                         </Alert>
                       )}
 
-                      {selectedLoan.days_overdue > 0 && selectedLoan.status !== 'defaulted' && (
+                      {(selectedLoan.days_overdue || 0) > 0 && selectedLoan.status !== 'defaulted' && (
                         <Alert variant="destructive" className="mt-3">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription>
-                            Este préstamo tiene {selectedLoan.days_overdue} días de mora
+                            Este préstamo tiene {selectedLoan.days_overdue || 0} días de mora
+                            {(selectedLoan.late_fees || 0) > 0 && ` con ${formatCurrency(selectedLoan.late_fees)} en cargos por mora`}
                           </AlertDescription>
                         </Alert>
                       )}

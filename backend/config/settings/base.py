@@ -41,7 +41,7 @@ SHARED_APPS = [
     'allauth.socialaccount',
     'dj_rest_auth',
     'dj_rest_auth.registration',
-    'unfold.contrib.constance',  # Unfold Constance integration
+    # 'unfold.contrib.constance',  # Module not found - commented out
     'constance',
     'djmoney',
     'phonenumber_field',
@@ -73,6 +73,8 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Tenant Access Control - Must be after AuthenticationMiddleware
+    'apps.tenants.middleware.TenantAccessControlMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -229,6 +231,34 @@ ACCOUNT_ADAPTER = 'apps.users.adapters.CustomAccountAdapter'
 # CORS Settings
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000', cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
+
+# Session Configuration for Multi-Tenant
+# Share session cookies across all localhost subdomains
+SESSION_COOKIE_DOMAIN = '.localhost'  # Works for localhost, caproinsa.localhost, amsfin.localhost, etc.
+SESSION_COOKIE_NAME = 'crediflux_sessionid'
+SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = None  # Allow cookies to be sent between subdomains (for development)
+SESSION_COOKIE_AGE = 86400  # 24 hours
+
+# Use Redis for sessions (more robust for multi-tenant)
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+
+# CSRF Configuration for Multi-Tenant
+CSRF_COOKIE_DOMAIN = '.localhost'
+CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
+CSRF_COOKIE_SAMESITE = None  # Allow CSRF cookies between subdomains (for development)
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://localhost:3000',
+    'http://*.localhost:8000',
+    'http://public.localhost:8000',
+    'http://caproinsa.localhost:8000',
+    'http://amsfin.localhost:8000',
+    'http://democompany.localhost:8000',
+    'http://testcompany.localhost:8000',
+]
 
 # Celery Configuration
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://redis:6379/0')
@@ -527,14 +557,9 @@ UNFOLD = {
     # Environment Badge
     "ENVIRONMENT": "config.settings.utils.environment_callback",
 
-    # Tenant Switcher Dropdown - Static configuration
-    # "SITE_DROPDOWN": [
-    #     {
-    #         "icon": "business",
-    #         "title": ("Main Admin (System)"),
-    #         "link": "/admin/",
-    #     },
-    # ],
+    # Tenant Switcher Dropdown - Dynamic configuration
+    # This function generates dropdown items for all tenants
+    "SITE_DROPDOWN": lambda request: __import__('config.settings.utils', fromlist=['get_tenant_dropdown']).get_tenant_dropdown(request),
 
     # Dashboard Callback for dynamic content
     "DASHBOARD_CALLBACK": "config.settings.utils.dashboard_callback",

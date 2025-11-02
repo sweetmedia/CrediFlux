@@ -568,6 +568,15 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         # Update maturity date
         loan.maturity_date = current_date
+
+        # Update outstanding_balance to reflect the total amount in the payment schedule
+        # This is important for Variable RD and other interest types where the total
+        # differs from the principal amount
+        if schedules:
+            from moneyed import Money
+            total_schedule_amount = sum(s.total_amount.amount for s in schedules)
+            loan.outstanding_balance = Money(total_schedule_amount, loan.principal_amount.currency)
+
         loan.save()
 
 

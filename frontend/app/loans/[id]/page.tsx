@@ -648,6 +648,39 @@ export default function LoanDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Progress Bar */}
+            {loan.payment_schedules && loan.payment_schedules.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-blue-600" />
+                    Progreso de Pagos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Cuotas Pagadas</span>
+                      <span className="font-semibold text-gray-900">
+                        {loan.payment_schedules.filter(s => s.status === 'paid').length} / {loan.payment_schedules.length}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-300 shadow-sm"
+                        style={{
+                          width: `${Math.min((loan.payment_schedules.filter(s => s.status === 'paid').length / loan.payment_schedules.length) * 100, 100)}%`
+                        }}
+                      />
+                    </div>
+                    <div className="text-sm text-gray-500 text-right font-medium">
+                      {Math.round((loan.payment_schedules.filter(s => s.status === 'paid').length / loan.payment_schedules.length) * 100)}% completado
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Collaterals */}
             {loan.collaterals && loan.collaterals.length > 0 && (
               <Card>

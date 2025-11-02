@@ -420,18 +420,26 @@ class LoanListSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     days_overdue = serializers.SerializerMethodField()
+    next_payment_date = serializers.SerializerMethodField()
+    total_installments = serializers.SerializerMethodField()
+    paid_installments = serializers.SerializerMethodField()
+    late_fees = serializers.SerializerMethodField()
 
     # Use SerializerMethodField to convert Money to decimal
     principal_amount = serializers.SerializerMethodField()
     outstanding_balance = serializers.SerializerMethodField()
     total_paid = serializers.SerializerMethodField()
+    payment_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Loan
         fields = [
             'id', 'loan_number', 'customer_name', 'loan_type',
-            'principal_amount', 'interest_rate', 'outstanding_balance', 'total_paid', 'status',
-            'disbursement_date', 'is_overdue', 'days_overdue', 'created_at'
+            'principal_amount', 'interest_rate', 'interest_type', 'term_months',
+            'payment_frequency', 'payment_amount', 'outstanding_balance', 'total_paid',
+            'status', 'disbursement_date', 'first_payment_date', 'maturity_date',
+            'next_payment_date', 'is_overdue', 'days_overdue', 'late_fees',
+            'total_installments', 'paid_installments', 'created_at'
         ]
 
     def get_principal_amount(self, obj):
@@ -442,6 +450,28 @@ class LoanListSerializer(serializers.ModelSerializer):
 
     def get_total_paid(self, obj):
         return float(obj.total_paid.amount) if obj.total_paid else 0
+
+    def get_payment_amount(self, obj):
+        return float(obj.payment_amount.amount) if obj.payment_amount else 0
+
+    def get_late_fees(self, obj):
+        return float(obj.late_fees.amount) if obj.late_fees else 0
+
+    def get_total_installments(self, obj):
+        return obj.payment_schedules.count()
+
+    def get_paid_installments(self, obj):
+        return obj.payment_schedules.filter(status='paid').count()
+
+    def get_next_payment_date(self, obj):
+        """Get next pending payment date"""
+        from django.utils import timezone
+
+        next_schedule = obj.payment_schedules.filter(
+            status__in=['pending', 'overdue', 'partial']
+        ).order_by('due_date').first()
+
+        return next_schedule.due_date if next_schedule else None
 
     def get_days_overdue(self, obj):
         """Calculate days overdue from all pending/overdue/partial schedules"""

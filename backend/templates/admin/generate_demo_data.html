@@ -1,0 +1,200 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .demo-data-form {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 30px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #374151;
+    }
+
+    .form-group select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        background: white;
+    }
+
+    .form-group select:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .info-box {
+        padding: 16px;
+        background: #eff6ff;
+        border-left: 4px solid #3b82f6;
+        border-radius: 6px;
+        margin-bottom: 20px;
+    }
+
+    .info-box h4 {
+        margin: 0 0 8px 0;
+        color: #1e40af;
+        font-size: 16px;
+    }
+
+    .info-box ul {
+        margin: 8px 0;
+        padding-left: 20px;
+    }
+
+    .info-box li {
+        margin: 4px 0;
+        color: #1e3a8a;
+    }
+
+    .warning-box {
+        padding: 16px;
+        background: #fef3c7;
+        border-left: 4px solid #f59e0b;
+        border-radius: 6px;
+        margin-bottom: 20px;
+    }
+
+    .warning-box h4 {
+        margin: 0 0 8px 0;
+        color: #92400e;
+        font-size: 16px;
+    }
+
+    .warning-box p {
+        margin: 4px 0;
+        color: #78350f;
+    }
+
+    .button-group {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: #6366f1;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #4f46e5;
+    }
+
+    .btn-danger {
+        background: #ef4444;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: #dc2626;
+    }
+
+    .btn-secondary {
+        background: #6b7280;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: #4b5563;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="demo-data-form">
+    <h1>🎲 Generate Demo Data</h1>
+
+    {% if needs_confirmation %}
+        <div class="warning-box">
+            <h4>⚠️ Warning: Tenant Already Has Data</h4>
+            <p>
+                The tenant <strong>{{ tenant.business_name }}</strong> already has
+                <strong>{{ loan_count }} loan(s)</strong> in the database.
+            </p>
+            <p>
+                Generating demo data will <strong>delete all existing loans, schedules, and payments</strong>
+                and replace them with demo data.
+            </p>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="tenant" value="{{ selected_tenant_id }}">
+            <input type="hidden" name="force" value="1">
+
+            <div class="button-group">
+                <button type="submit" class="btn btn-danger">
+                    ⚠️ Yes, Delete & Generate Demo Data
+                </button>
+                <a href="{% url 'admin:tenants_tenant_changelist' %}" class="btn btn-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    {% else %}
+        <div class="info-box">
+            <h4>ℹ️ What will be created?</h4>
+            <ul>
+                <li><strong>8 Customers</strong> - Realistic Dominican Republic data</li>
+                <li><strong>8 Loans</strong> - Various scenarios (good payers, late, overdue, paid off)</li>
+                <li><strong>~105 Payment Schedules</strong> - Automatically generated</li>
+                <li><strong>~27 Payments</strong> - Recorded payment history</li>
+            </ul>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="tenant">Select Tenant:</label>
+                <select name="tenant" id="tenant" required>
+                    <option value="">-- Select a tenant --</option>
+                    {% for tenant in tenants %}
+                        <option value="{{ tenant.id }}" {% if tenant.id|stringformat:"s" == selected_tenant_id %}selected{% endif %}>
+                            {{ tenant.business_name }} ({{ tenant.schema_name }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="button-group">
+                <button type="submit" class="btn btn-primary">
+                    🎲 Generate Demo Data
+                </button>
+                <a href="{% url 'admin:tenants_tenant_changelist' %}" class="btn btn-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    {% endif %}
+</div>
+{% endblock %}
