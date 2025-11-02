@@ -33,6 +33,7 @@ import {
   Eye,
   CreditCard,
   IdCard,
+  FileText,
 } from 'lucide-react';
 
 export default function CustomersListPage() {
