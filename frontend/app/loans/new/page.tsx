@@ -769,7 +769,7 @@ export default function NewLoanPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="principal_amount" className="text-sm font-medium text-slate-700">
-                        Monto del Préstamo ({config.currency}) <span className="text-red-500">*</span>
+                        Monto del Préstamo ({config.currency_symbol} {config.currency}) <span className="text-red-500">*</span>
                       </Label>
                       <Input
                         id="principal_amount"
@@ -1081,7 +1081,7 @@ export default function NewLoanPage() {
 
                           <div className="space-y-2">
                             <Label className="text-sm font-medium text-slate-700">
-                              Valor Estimado ({config.currency}) <span className="text-red-500">*</span>
+                              Valor Estimado ({config.currency_symbol} {config.currency}) <span className="text-red-500">*</span>
                             </Label>
                             <Input
                               type="number"
