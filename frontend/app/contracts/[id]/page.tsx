@@ -36,6 +36,8 @@ import {
   User,
   UserCheck,
   Calendar,
+  Eye,
+  FileDown,
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -264,17 +266,36 @@ export default function ViewContractPage() {
                   Cancelar
                 </Button>
               )}
-              {contract.pdf_file && (
-                <a href={contract.pdf_file} download>
+
+              {/* PDF Actions */}
+              {contract.content && (
+                <>
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => {
+                      const url = contractsAPI.getPdfViewUrl(contract.id);
+                      window.open(url, '_blank');
+                    }}
                     className="border-slate-200"
                   >
-                    <Download className="h-4 w-4 mr-1" />
-                    PDF
+                    <Eye className="h-4 w-4 mr-1" />
+                    Ver PDF
                   </Button>
-                </a>
+                  <a
+                    href={contractsAPI.getPdfDownloadUrl(contract.id)}
+                    download={`${contract.contract_number}.pdf`}
+                  >
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-slate-200"
+                    >
+                      <FileDown className="h-4 w-4 mr-1" />
+                      Descargar PDF
+                    </Button>
+                  </a>
+                </>
               )}
             </div>
           </div>

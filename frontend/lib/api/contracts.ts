@@ -207,4 +207,14 @@ export const contractsAPI = {
   async cancel(id: string): Promise<{ message: string }> {
     return apiClient.post<{ message: string }>(`/api/loans/contracts/${id}/cancel/`, {});
   },
+
+  // Get PDF download URL
+  getPdfDownloadUrl(id: string): string {
+    return `/api/loans/contracts/${id}/download_pdf/`;
+  },
+
+  // Get PDF view URL
+  getPdfViewUrl(id: string): string {
+    return `/api/loans/contracts/${id}/view_pdf/`;
+  },
 };

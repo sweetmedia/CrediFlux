@@ -1212,3 +1212,45 @@ class ContractViewSet(viewsets.ModelViewSet):
         contract.save()
 
         return Response({'message': 'Contrato cancelado'})
+
+    @action(detail=True, methods=['get'])
+    def download_pdf(self, request, pk=None):
+        """Download contract as PDF"""
+        from django.http import FileResponse
+        from .utils_pdf import generate_contract_pdf
+
+        contract = self.get_object()
+
+        # Generate PDF
+        pdf_buffer = generate_contract_pdf(contract)
+
+        # Create the FileResponse
+        response = FileResponse(
+            pdf_buffer,
+            content_type='application/pdf',
+            as_attachment=True,
+            filename=f'{contract.contract_number}.pdf'
+        )
+
+        return response
+
+    @action(detail=True, methods=['get'])
+    def view_pdf(self, request, pk=None):
+        """View contract PDF in browser"""
+        from django.http import FileResponse
+        from .utils_pdf import generate_contract_pdf
+
+        contract = self.get_object()
+
+        # Generate PDF
+        pdf_buffer = generate_contract_pdf(contract)
+
+        # Create the FileResponse (for viewing, not download)
+        response = FileResponse(
+            pdf_buffer,
+            content_type='application/pdf',
+            as_attachment=False,
+            filename=f'{contract.contract_number}.pdf'
+        )
+
+        return response

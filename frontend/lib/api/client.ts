@@ -1,17 +1,44 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+/**
+ * Get API URL based on current browser hostname
+ * Supports multi-tenant subdomain routing
+ *
+ * @returns The API base URL for the current tenant
+ */
+export function getApiUrl(): string {
+  // Server-side: use env variable
+  if (typeof window === 'undefined') {
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  }
 
-console.log('🔧 API Client Configuration:');
-console.log('  - NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
-console.log('  - API_URL (final):', API_URL);
+  // Client-side: detect subdomain from browser
+  const hostname = window.location.hostname;
+  const port = ':8000'; // Backend always on port 8000
+
+  // If accessing via subdomain (e.g., democompany.localhost, caproinsa.localhost)
+  // use the same subdomain for API calls
+  if (hostname.includes('.localhost')) {
+    return `http://${hostname}${port}`;
+  }
+
+  // Default to localhost:8000 for regular localhost access
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+}
+
+// Log initial configuration
+if (typeof window !== 'undefined') {
+  console.log('🔧 API Client Configuration:');
+  console.log('  - Hostname:', window.location.hostname);
+  console.log('  - NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+  console.log('  - API_URL (dynamic):', getApiUrl());
+}
 
 class APIClient {
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
-      baseURL: API_URL,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -20,6 +47,9 @@ class APIClient {
     // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
+        // Calculate baseURL dynamically for each request
+        config.baseURL = getApiUrl();
+
         // Get token from localStorage
         if (typeof window !== 'undefined') {
           const token = localStorage.getItem('access_token');
@@ -75,7 +105,7 @@ class APIClient {
             // Try to refresh token
             const refreshToken = localStorage.getItem('refresh_token');
             if (refreshToken) {
-              const response = await axios.post(`${API_URL}/api/auth/token/refresh/`, {
+              const response = await axios.post(`${getApiUrl()}/api/auth/token/refresh/`, {
                 refresh: refreshToken,
               });
 

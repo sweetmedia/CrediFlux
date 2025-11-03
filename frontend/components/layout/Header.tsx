@@ -4,13 +4,11 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { getApiUrl } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import {
-  DollarSign,
   LogOut,
   User,
-  Building2,
-  Settings,
 } from 'lucide-react';
 
 export function Header() {
@@ -28,54 +26,52 @@ export function Header() {
   };
 
   const isActivePath = (path: string) => {
-    return pathname === path;
+    return pathname === path || pathname.startsWith(path + '/');
   };
 
   const navLinkClass = (path: string) => {
     return isActivePath(path)
-      ? "text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1"
-      : "text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors";
+      ? "text-sm font-medium text-gray-900 pb-6"
+      : "text-sm text-gray-500 hover:text-gray-900 transition-colors pb-6";
   };
 
   return (
-    <header className="bg-white border-b shadow-sm">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+    <header className="bg-white border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex items-center justify-between h-20">
+          {/* Logo & Tenant */}
+          <div className="flex items-center gap-8">
             {tenant?.logo ? (
               <img
                 src={
                   tenant.logo.startsWith('http')
                     ? tenant.logo
-                    : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${tenant.logo}`
+                    : `${getApiUrl()}${tenant.logo}`
                 }
                 alt={tenant.business_name}
-                className="h-10 w-auto object-contain"
+                className="h-8 w-auto object-contain"
               />
             ) : (
               <Image
                 src="/logo.svg"
                 alt="CrediFlux"
-                width={160}
-                height={40}
-                className="h-10 w-auto"
+                width={120}
+                height={30}
+                className="h-8 w-auto"
                 priority
               />
             )}
             {tenant && (
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
+              <div className="border-l border-gray-200 pl-8">
+                <h1 className="text-sm font-medium text-gray-900">
                   {tenant.business_name}
                 </h1>
-                <p className="text-sm text-gray-600 flex items-center gap-1">
-                  <Building2 className="h-3 w-3" />
-                  {tenant.schema_name}
-                </p>
               </div>
             )}
           </div>
 
-          <nav className="hidden md:flex items-center space-x-6">
+          {/* Navigation */}
+          <nav className="hidden md:flex items-center gap-8">
             <Link href="/dashboard" className={navLinkClass('/dashboard')}>
               Dashboard
             </Link>
@@ -97,30 +93,33 @@ export function Header() {
               </Link>
             )}
             {(user?.is_tenant_owner || user?.role === 'admin') && (
-              <Link
-                href="/settings"
-                className={`${navLinkClass('/settings')} flex items-center gap-1`}
-              >
-                <Settings className="h-3 w-3" />
+              <Link href="/settings" className={navLinkClass('/settings')}>
                 Configuración
               </Link>
             )}
           </nav>
 
-          <div className="flex items-center space-x-4">
-            <div className="hidden md:block text-right">
-              <p className="text-sm font-medium text-gray-900 flex items-center gap-1 justify-end">
-                <User className="h-3 w-3" />
-                {user?.full_name}
-              </p>
-              <p className="text-xs text-gray-600 capitalize">
-                {user?.role.replace('_', ' ')}
-              </p>
+          {/* User & Logout */}
+          <div className="flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-3 text-right">
+              <div className="h-8 w-8 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-medium">
+                {user?.first_name?.charAt(0)}{user?.last_name?.charAt(0)}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  {user?.full_name}
+                </p>
+                <p className="text-xs text-gray-500 capitalize">
+                  {user?.role.replace('_', ' ')}
+                </p>
+              </div>
             </div>
-            <Button onClick={handleLogout} variant="outline" size="sm">
-              <LogOut className="h-4 w-4 mr-2" />
-              Salir
-            </Button>
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>

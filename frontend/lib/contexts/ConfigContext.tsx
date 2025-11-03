@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getApiUrl } from '../api/client';
 
 interface TenantConfig {
   currency: string;
@@ -33,7 +34,7 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = getApiUrl();
         const response = await fetch(`${apiUrl}/api/config/`);
 
         if (response.ok) {

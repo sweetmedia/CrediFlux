@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ThemeVersion, ThemeConfig, getTheme } from '../config/themes';
+import { getApiUrl } from '../api/client';
 
 interface ThemeContextType {
   theme: ThemeConfig;
@@ -19,7 +20,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Fetch theme configuration from backend
     const fetchTheme = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = getApiUrl();
         const response = await fetch(`${apiUrl}/api/ui-theme/`);
 
         if (response.ok) {

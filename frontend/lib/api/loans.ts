@@ -84,7 +84,8 @@ export const loansAPI = {
 
   // Download Balance de Cuotas PDF report
   async downloadBalanceReport(id: string): Promise<void> {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const { getApiUrl } = await import('./client');
+    const API_URL = getApiUrl();
     const token = localStorage.getItem('access_token');
 
     const response = await fetch(`${API_URL}/api/loans/${id}/balance_report/`, {
