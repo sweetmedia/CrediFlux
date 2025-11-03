@@ -1066,10 +1066,28 @@ class ContractViewSet(viewsets.ModelViewSet):
     ).all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'loan']
+    filterset_fields = ['status', 'loan', 'is_archived']
     search_fields = ['contract_number', 'loan__loan_number', 'loan__customer__first_name', 'loan__customer__last_name']
     ordering_fields = ['generated_at', 'status']
     ordering = ['-generated_at']
+
+    def get_queryset(self):
+        """
+        Filter archived contracts by default unless explicitly requested.
+        Only applies to list action, not to retrieve/detail actions.
+        """
+        queryset = super().get_queryset()
+
+        # Only filter archived contracts in list view
+        if self.action == 'list':
+            # Check if user wants to see archived contracts
+            show_archived = self.request.query_params.get('show_archived', 'false').lower() == 'true'
+
+            if not show_archived:
+                # By default, exclude archived contracts from list
+                queryset = queryset.filter(is_archived=False)
+
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -1139,9 +1157,31 @@ class ContractViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        signature = request.FILES.get('signature')
-        if signature:
-            contract.customer_signature = signature
+        # Handle signature - can be file or base64 string
+        signature_file = request.FILES.get('signature')
+        signature_data = request.data.get('signature_data')  # base64 from canvas
+
+        if signature_file:
+            contract.customer_signature = signature_file
+        elif signature_data:
+            # Handle base64 signature from canvas
+            import base64
+            from django.core.files.base import ContentFile
+            import uuid
+
+            try:
+                # Remove data URL prefix if present
+                if ',' in signature_data:
+                    signature_data = signature_data.split(',')[1]
+
+                signature_binary = base64.b64decode(signature_data)
+                signature_file = ContentFile(signature_binary, name=f'signature_{uuid.uuid4()}.png')
+                contract.customer_signature = signature_file
+            except Exception as e:
+                return Response(
+                    {'error': f'Error al procesar firma: {str(e)}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         contract.customer_signed_at = timezone.now()
 
@@ -1165,9 +1205,31 @@ class ContractViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        signature = request.FILES.get('signature')
-        if signature:
-            contract.officer_signature = signature
+        # Handle signature - can be file or base64 string
+        signature_file = request.FILES.get('signature')
+        signature_data = request.data.get('signature_data')  # base64 from canvas
+
+        if signature_file:
+            contract.officer_signature = signature_file
+        elif signature_data:
+            # Handle base64 signature from canvas
+            import base64
+            from django.core.files.base import ContentFile
+            import uuid
+
+            try:
+                # Remove data URL prefix if present
+                if ',' in signature_data:
+                    signature_data = signature_data.split(',')[1]
+
+                signature_binary = base64.b64decode(signature_data)
+                signature_file = ContentFile(signature_binary, name=f'signature_{uuid.uuid4()}.png')
+                contract.officer_signature = signature_file
+            except Exception as e:
+                return Response(
+                    {'error': f'Error al procesar firma: {str(e)}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         contract.officer_signed_at = timezone.now()
 
@@ -1213,6 +1275,137 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato cancelado'})
 
+    @action(detail=True, methods=['post'])
+    def archive(self, request, pk=None):
+        """Archive a contract (only for cancelled contracts)"""
+        contract = self.get_object()
+
+        if contract.status != 'cancelled':
+            return Response(
+                {'error': 'Solo se pueden archivar contratos cancelados'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if contract.is_archived:
+            return Response(
+                {'error': 'Este contrato ya está archivado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        contract.is_archived = True
+        contract.archived_at = timezone.now()
+        contract.archived_by = request.user
+        contract.save()
+
+        return Response({'message': 'Contrato archivado exitosamente'})
+
+    @action(detail=True, methods=['post'])
+    def unarchive(self, request, pk=None):
+        """Unarchive a contract"""
+        contract = self.get_object()
+
+        if not contract.is_archived:
+            return Response(
+                {'error': 'Este contrato no está archivado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        contract.is_archived = False
+        contract.archived_at = None
+        contract.archived_by = None
+        contract.save()
+
+        return Response({'message': 'Contrato desarchivado exitosamente'})
+
+    @action(detail=True, methods=['post'])
+    def send_for_signature(self, request, pk=None):
+        """Send contract via email for signature"""
+        import secrets
+        from datetime import timedelta
+        from django.core.mail import send_mail
+        from django.conf import settings
+        from .models_contracts import ContractSignatureToken
+
+        contract = self.get_object()
+        email = request.data.get('email')
+        days_valid = request.data.get('days_valid', 7)  # Default 7 days
+
+        if not email:
+            return Response(
+                {'error': 'Se requiere un email'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Generate secure token
+        token = secrets.token_urlsafe(32)
+        expires_at = timezone.now() + timedelta(days=days_valid)
+
+        # Update contract status to pending_signature if it's draft
+        if contract.status == 'draft':
+            contract.status = 'pending_signature'
+            contract.save()
+
+        # Create signature token
+        signature_token = ContractSignatureToken.objects.create(
+            contract=contract,
+            token=token,
+            email=email,
+            expires_at=expires_at,
+            can_sign_as_customer=True,
+            can_sign_as_officer=False,
+        )
+
+        # Get tenant for email
+        tenant = getattr(request, 'tenant', None)
+        company_name = tenant.business_name if tenant else 'CrediFlux'
+
+        # Build signature URL
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        signature_url = f"{frontend_url}/sign/{token}"
+
+        # Send email
+        try:
+            subject = f'Firma de Contrato - {contract.contract_number}'
+            message = f"""
+Hola,
+
+{company_name} te ha enviado un contrato para tu firma.
+
+Contrato: {contract.contract_number}
+Cliente: {contract.customer_name}
+
+Haz clic en el siguiente enlace para revisar y firmar el contrato:
+{signature_url}
+
+Este enlace expirará en {days_valid} días.
+
+Si no solicitaste este contrato, puedes ignorar este mensaje.
+
+Saludos,
+{company_name}
+            """
+
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                fail_silently=False,
+            )
+
+            return Response({
+                'message': f'Contrato enviado a {email}',
+                'token_id': str(signature_token.id),
+                'expires_at': signature_token.expires_at,
+            })
+        except Exception as e:
+            # Delete token if email fails
+            signature_token.delete()
+            return Response(
+                {'error': f'Error al enviar email: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=True, methods=['get'])
     def download_pdf(self, request, pk=None):
         """Download contract as PDF"""
@@ -1220,9 +1413,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         from .utils_pdf import generate_contract_pdf
 
         contract = self.get_object()
+        tenant = getattr(request, 'tenant', None)
 
-        # Generate PDF
-        pdf_buffer = generate_contract_pdf(contract)
+        # Generate PDF with tenant information
+        pdf_buffer = generate_contract_pdf(contract, tenant)
 
         # Create the FileResponse
         response = FileResponse(
@@ -1241,9 +1435,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         from .utils_pdf import generate_contract_pdf
 
         contract = self.get_object()
+        tenant = getattr(request, 'tenant', None)
 
-        # Generate PDF
-        pdf_buffer = generate_contract_pdf(contract)
+        # Generate PDF with tenant information
+        pdf_buffer = generate_contract_pdf(contract, tenant)
 
         # Create the FileResponse (for viewing, not download)
         response = FileResponse(
@@ -1254,3 +1449,151 @@ class ContractViewSet(viewsets.ModelViewSet):
         )
 
         return response
+
+
+# Public API views (no authentication required)
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_contract_view(request, token):
+    """
+    Public endpoint to view contract details with a signature token.
+    No authentication required - uses token for access.
+    """
+    from .models_contracts import ContractSignatureToken, Contract
+    from .serializers import ContractSerializer
+
+    try:
+        # Get signature token
+        signature_token = ContractSignatureToken.objects.select_related(
+            'contract', 'contract__loan', 'contract__loan__customer'
+        ).get(token=token)
+
+        # Check if token is valid
+        if not signature_token.is_valid:
+            if signature_token.is_expired:
+                return Response(
+                    {'error': 'Este enlace ha expirado'},
+                    status=status.HTTP_410_GONE
+                )
+            elif signature_token.is_used:
+                return Response(
+                    {'error': 'Este enlace ya ha sido utilizado'},
+                    status=status.HTTP_410_GONE
+                )
+
+        contract = signature_token.contract
+
+        # Return contract details with token info
+        serializer = ContractSerializer(contract)
+        return Response({
+            'contract': serializer.data,
+            'token_permissions': {
+                'can_sign_as_customer': signature_token.can_sign_as_customer,
+                'can_sign_as_officer': signature_token.can_sign_as_officer,
+            },
+            'expires_at': signature_token.expires_at,
+        })
+
+    except ContractSignatureToken.DoesNotExist:
+        return Response(
+            {'error': 'Enlace de firma inválido'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def public_contract_sign(request, token):
+    """
+    Public endpoint to sign a contract with a signature token.
+    No authentication required - uses token for authorization.
+    """
+    import base64
+    import uuid
+    from django.core.files.base import ContentFile
+    from .models_contracts import ContractSignatureToken
+
+    try:
+        # Get signature token
+        signature_token = ContractSignatureToken.objects.select_related('contract').get(token=token)
+
+        # Check if token is valid
+        if not signature_token.is_valid:
+            if signature_token.is_expired:
+                return Response(
+                    {'error': 'Este enlace ha expirado'},
+                    status=status.HTTP_410_GONE
+                )
+            elif signature_token.is_used:
+                return Response(
+                    {'error': 'Este enlace ya ha sido utilizado'},
+                    status=status.HTTP_410_GONE
+                )
+
+        contract = signature_token.contract
+
+        # Get signature data
+        signature_data = request.data.get('signature_data')
+
+        if not signature_data:
+            return Response(
+                {'error': 'Se requiere una firma'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Process signature
+        try:
+            # Remove data URL prefix if present
+            if ',' in signature_data:
+                signature_data = signature_data.split(',')[1]
+
+            signature_binary = base64.b64decode(signature_data)
+            signature_file = ContentFile(signature_binary, name=f'signature_{uuid.uuid4()}.png')
+        except Exception as e:
+            return Response(
+                {'error': f'Error al procesar firma: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Apply signature based on permissions
+        if signature_token.can_sign_as_customer and not contract.customer_signed_at:
+            contract.customer_signature = signature_file
+            contract.customer_signed_at = timezone.now()
+            signature_type = 'customer'
+        elif signature_token.can_sign_as_officer and not contract.officer_signed_at:
+            contract.officer_signature = signature_file
+            contract.officer_signed_at = timezone.now()
+            signature_type = 'officer'
+        else:
+            return Response(
+                {'error': 'No tienes permisos para firmar este contrato o ya ha sido firmado'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Update contract status
+        if contract.status == 'draft':
+            contract.status = 'pending_signature'
+        elif contract.is_fully_signed:
+            contract.status = 'signed'
+
+        contract.save()
+
+        # Mark token as used
+        signature_token.mark_as_used()
+
+        return Response({
+            'message': 'Contrato firmado exitosamente',
+            'signed_as': signature_type,
+            'contract_status': contract.status,
+            'is_fully_signed': contract.is_fully_signed,
+        })
+
+    except ContractSignatureToken.DoesNotExist:
+        return Response(
+            {'error': 'Enlace de firma inválido'},
+            status=status.HTTP_404_NOT_FOUND
+        )

@@ -38,6 +38,9 @@ import {
   Calendar,
   Eye,
   FileDown,
+  Mail,
+  Send,
+  Archive,
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -69,6 +72,12 @@ export default function ViewContractPage() {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendEmail, setSendEmail] = useState('');
+  const [sendDaysValid, setSendDaysValid] = useState(7);
+  const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendError, setSendError] = useState('');
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -145,6 +154,60 @@ export default function ViewContractPage() {
     }
   };
 
+  const handleArchive = async () => {
+    if (!contract) return;
+    try {
+      setIsActionLoading(true);
+      setError('');
+      await contractsAPI.archive(contract.id);
+      setArchiveDialogOpen(false);
+      loadContract();
+    } catch (err: any) {
+      console.error('Error archiving contract:', err);
+      setError('Error al archivar el contrato');
+      setArchiveDialogOpen(false);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleSendForSignature = async () => {
+    if (!contract) return;
+    if (!sendEmail || !sendEmail.includes('@')) {
+      setSendError('Por favor ingrese un email válido');
+      return;
+    }
+
+    try {
+      setIsActionLoading(true);
+      setSendError('');
+      setSendSuccess(false);
+
+      const result = await contractsAPI.sendForSignature(
+        contract.id,
+        sendEmail,
+        sendDaysValid
+      );
+
+      setSendSuccess(true);
+      setSendError('');
+
+      // Reset form and close after 2 seconds
+      setTimeout(() => {
+        setSendDialogOpen(false);
+        setSendEmail('');
+        setSendDaysValid(7);
+        setSendSuccess(false);
+      }, 2000);
+    } catch (err: any) {
+      console.error('Error sending for signature:', err);
+      setSendError(err.message || 'Error al enviar el contrato');
+      setSendSuccess(false);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -216,30 +279,42 @@ export default function ViewContractPage() {
             </div>
 
             <div className="flex items-center gap-2 ml-4">
-              {(contract.status === 'pending_signature' ||
+              {(contract.status === 'draft' ||
+                contract.status === 'pending_signature' ||
                 contract.status === 'signed') && (
-                <Link href={`/contracts/${contract.id}/sign`}>
+                <>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                    onClick={() => setSendDialogOpen(true)}
+                    className="border-purple-200 text-purple-600 hover:bg-purple-50"
                   >
-                    <PenTool className="h-4 w-4 mr-1" />
-                    Firmar
+                    <Mail className="h-4 w-4 mr-1" />
+                    Enviar para Firma
                   </Button>
-                </Link>
-              )}
-              {contract.status === 'draft' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRegenerate}
-                  disabled={isActionLoading}
-                  className="border-slate-200"
-                >
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                  Regenerar
-                </Button>
+                  <Link href={`/contracts/${contract.id}/sign`}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                    >
+                      <PenTool className="h-4 w-4 mr-1" />
+                      Firmar
+                    </Button>
+                  </Link>
+                  {contract.status === 'draft' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRegenerate}
+                      disabled={isActionLoading}
+                      className="border-slate-200"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Regenerar
+                    </Button>
+                  )}
+                </>
               )}
               {contract.status === 'signed' && (
                 <Button
@@ -266,6 +341,18 @@ export default function ViewContractPage() {
                   Cancelar
                 </Button>
               )}
+              {contract.status === 'cancelled' && !contract.is_archived && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setArchiveDialogOpen(true)}
+                  disabled={isActionLoading}
+                  className="border-slate-400 text-slate-700 hover:bg-slate-100"
+                >
+                  <Archive className="h-4 w-4 mr-1" />
+                  Archivar
+                </Button>
+              )}
 
               {/* PDF Actions */}
               {contract.content && (
@@ -273,28 +360,88 @@ export default function ViewContractPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      const url = contractsAPI.getPdfViewUrl(contract.id);
-                      window.open(url, '_blank');
+                    onClick={async () => {
+                      try {
+                        const baseUrl = typeof window !== 'undefined'
+                          ? (window.location.hostname.includes('.localhost')
+                              ? `http://${window.location.hostname}:8000`
+                              : 'http://localhost:8000')
+                          : 'http://localhost:8000';
+
+                        const url = baseUrl + contractsAPI.getPdfViewUrl(contract.id);
+                        const token = localStorage.getItem('access_token');
+
+                        const response = await fetch(url, {
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                          },
+                        });
+
+                        if (!response.ok) {
+                          const errorText = await response.text();
+                          console.error('Error response:', errorText);
+                          throw new Error(`Error ${response.status}: No se pudo obtener el PDF`);
+                        }
+
+                        const blob = await response.blob();
+                        const blobUrl = window.URL.createObjectURL(blob);
+                        window.open(blobUrl, '_blank');
+                        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+                      } catch (err) {
+                        console.error('Error viewing PDF:', err);
+                        alert('Error al ver el PDF: ' + (err instanceof Error ? err.message : 'Error desconocido'));
+                      }
                     }}
                     className="border-slate-200"
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Ver PDF
                   </Button>
-                  <a
-                    href={contractsAPI.getPdfDownloadUrl(contract.id)}
-                    download={`${contract.contract_number}.pdf`}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const baseUrl = typeof window !== 'undefined'
+                          ? (window.location.hostname.includes('.localhost')
+                              ? `http://${window.location.hostname}:8000`
+                              : 'http://localhost:8000')
+                          : 'http://localhost:8000';
+
+                        const url = baseUrl + contractsAPI.getPdfDownloadUrl(contract.id);
+                        const token = localStorage.getItem('access_token');
+
+                        const response = await fetch(url, {
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                          },
+                        });
+
+                        if (!response.ok) {
+                          const errorText = await response.text();
+                          console.error('Download error response:', errorText);
+                          throw new Error(`Error ${response.status}: No se pudo descargar el PDF`);
+                        }
+
+                        const blob = await response.blob();
+                        const blobUrl = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = blobUrl;
+                        a.download = `${contract.contract_number}.pdf`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(blobUrl);
+                      } catch (err) {
+                        console.error('Error downloading PDF:', err);
+                        alert('Error al descargar el PDF: ' + (err instanceof Error ? err.message : 'Error desconocido'));
+                      }
+                    }}
+                    className="border-slate-200"
                   >
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-slate-200"
-                    >
-                      <FileDown className="h-4 w-4 mr-1" />
-                      Descargar PDF
-                    </Button>
-                  </a>
+                    <FileDown className="h-4 w-4 mr-1" />
+                    Descargar PDF
+                  </Button>
                 </>
               )}
             </div>
@@ -572,6 +719,149 @@ export default function ViewContractPage() {
                 )}
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Archive Confirmation Dialog */}
+        <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmar Archivo</DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que deseas archivar el contrato "
+                {contract.contract_number}"? El contrato archivado se ocultará de la
+                lista principal, pero podrás restaurarlo en cualquier momento.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-3 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => setArchiveDialogOpen(false)}
+                disabled={isActionLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleArchive}
+                disabled={isActionLoading}
+                className="bg-slate-600 hover:bg-slate-700"
+              >
+                {isActionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Archivando...
+                  </>
+                ) : (
+                  <>
+                    <Archive className="mr-2 h-4 w-4" />
+                    Sí, Archivar
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Send for Signature Dialog */}
+        <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Enviar Contrato para Firma</DialogTitle>
+              <DialogDescription>
+                Envía un enlace seguro por email para que el destinatario pueda firmar
+                el contrato digitalmente.
+              </DialogDescription>
+            </DialogHeader>
+
+            {sendSuccess ? (
+              <div className="py-6">
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  </div>
+                  <p className="text-sm font-medium text-green-800">
+                    ¡Contrato enviado exitosamente!
+                  </p>
+                  <p className="text-xs text-slate-600 text-center">
+                    Se ha enviado un correo a {sendEmail} con el enlace de firma.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium text-slate-700">
+                    Email del Destinatario
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={sendEmail}
+                    onChange={(e) => setSendEmail(e.target.value)}
+                    placeholder="cliente@ejemplo.com"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={isActionLoading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="days" className="text-sm font-medium text-slate-700">
+                    Días de Validez
+                  </label>
+                  <input
+                    id="days"
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={sendDaysValid}
+                    onChange={(e) => setSendDaysValid(parseInt(e.target.value) || 7)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={isActionLoading}
+                  />
+                  <p className="text-xs text-slate-500">
+                    El enlace expirará después de {sendDaysValid} día(s).
+                  </p>
+                </div>
+
+                {sendError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{sendError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSendDialogOpen(false);
+                      setSendEmail('');
+                      setSendDaysValid(7);
+                      setSendError('');
+                    }}
+                    disabled={isActionLoading}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSendForSignature}
+                    disabled={isActionLoading || !sendEmail}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    {isActionLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        Enviar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

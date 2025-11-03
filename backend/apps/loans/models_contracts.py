@@ -236,6 +236,25 @@ class Contract(models.Model):
     generated_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Archive
+    is_archived = models.BooleanField(
+        default=False,
+        help_text="Whether this contract has been archived"
+    )
+    archived_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this contract was archived"
+    )
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='archived_contracts',
+        help_text="User who archived this contract"
+    )
+
     class Meta:
         db_table = 'contracts'
         ordering = ['-generated_at']
@@ -278,3 +297,61 @@ class Contract(models.Model):
     def loan_number(self):
         """Get loan number"""
         return self.loan.loan_number
+
+
+class ContractSignatureToken(models.Model):
+    """
+    Tokens for secure contract signature links.
+    Allows customers to sign contracts via email link without authentication.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    contract = models.ForeignKey(
+        Contract,
+        on_delete=models.CASCADE,
+        related_name='signature_tokens'
+    )
+
+    # Token details
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    email = models.EmailField(help_text="Email address where the signature link was sent")
+
+    # Permissions
+    can_sign_as_customer = models.BooleanField(default=True)
+    can_sign_as_officer = models.BooleanField(default=False)
+
+    # Tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(help_text="When this token expires")
+    used_at = models.DateTimeField(null=True, blank=True, help_text="When the token was used to sign")
+    sent_at = models.DateTimeField(auto_now_add=True, help_text="When the email was sent")
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['token']),
+            models.Index(fields=['contract', 'email']),
+        ]
+
+    def __str__(self):
+        return f"Token for {self.contract.contract_number} - {self.email}"
+
+    @property
+    def is_expired(self):
+        """Check if token has expired"""
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_used(self):
+        """Check if token has been used"""
+        return self.used_at is not None
+
+    @property
+    def is_valid(self):
+        """Check if token is valid (not expired and not used)"""
+        return not self.is_expired and not self.is_used
+
+    def mark_as_used(self):
+        """Mark token as used"""
+        self.used_at = timezone.now()
+        self.save()

@@ -8,7 +8,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
-from .models_contracts import ContractTemplate, Contract
+from .models_contracts import ContractTemplate, Contract, ContractSignatureToken
 
 
 def is_tenant_schema():
@@ -1139,3 +1139,57 @@ class ContractAdmin(ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.select_related('loan', 'loan__customer', 'template', 'generated_by')
+
+
+@admin.register(ContractSignatureToken)
+class ContractSignatureTokenAdmin(ModelAdmin):
+    """Admin interface for ContractSignatureToken model"""
+
+    list_fullwidth = True
+    list_display = [
+        'contract',
+        'email',
+        'can_sign_as_customer',
+        'can_sign_as_officer',
+        'sent_at',
+        'expires_at',
+        'used_at',
+        'is_valid_status',
+    ]
+    list_filter = [
+        'can_sign_as_customer',
+        'can_sign_as_officer',
+        'sent_at',
+        'expires_at',
+    ]
+    search_fields = ['email', 'contract__contract_number', 'token']
+    readonly_fields = ['id', 'token', 'sent_at', 'used_at', 'created_at']
+
+    fieldsets = [
+        ('Contract Information', {
+            'fields': ['contract', 'email']
+        }),
+        ('Permissions', {
+            'fields': ['can_sign_as_customer', 'can_sign_as_officer']
+        }),
+        ('Token Details', {
+            'fields': ['token', 'expires_at']
+        }),
+        ('Tracking', {
+            'fields': ['sent_at', 'used_at', 'created_at']
+        }),
+    ]
+
+    def is_valid_status(self, obj):
+        """Display whether token is valid"""
+        if obj.is_valid:
+            return format_html('<span style="color: green;">✓ Valid</span>')
+        elif obj.is_used:
+            return format_html('<span style="color: gray;">Used</span>')
+        else:
+            return format_html('<span style="color: red;">Expired</span>')
+    is_valid_status.short_description = 'Status'
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('contract', 'contract__loan')

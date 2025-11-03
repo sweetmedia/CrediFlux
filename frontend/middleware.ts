@@ -18,7 +18,8 @@ export function middleware(request: NextRequest) {
     if (pathname === '/select-tenant' ||
         pathname === '/api' ||
         pathname.startsWith('/_next') ||
-        pathname.startsWith('/static')) {
+        pathname.startsWith('/static') ||
+        pathname.startsWith('/sign/')) {
       return NextResponse.next();
     }
 

@@ -42,6 +42,9 @@ export interface Contract {
   generated_at: string;
   updated_at: string;
   is_fully_signed: boolean;
+  is_archived: boolean;
+  archived_at?: string;
+  archived_by?: string;
 }
 
 export interface ContractVariable {
@@ -165,10 +168,19 @@ export const contractsAPI = {
   },
 
   // Sign as customer
-  async signCustomer(id: string, signature?: File): Promise<{ message: string }> {
+  async signCustomer(id: string, signatureData?: string | File): Promise<{ message: string }> {
+    // If signatureData is a string (base64), send as JSON
+    if (typeof signatureData === 'string') {
+      return apiClient.post<{ message: string }>(
+        `/api/loans/contracts/${id}/sign_customer/`,
+        { signature_data: signatureData }
+      );
+    }
+
+    // If signatureData is a File, send as FormData
     const formData = new FormData();
-    if (signature) {
-      formData.append('signature', signature);
+    if (signatureData) {
+      formData.append('signature', signatureData);
     }
     return apiClient.post<{ message: string }>(
       `/api/loans/contracts/${id}/sign_customer/`,
@@ -182,10 +194,19 @@ export const contractsAPI = {
   },
 
   // Sign as officer
-  async signOfficer(id: string, signature?: File): Promise<{ message: string }> {
+  async signOfficer(id: string, signatureData?: string | File): Promise<{ message: string }> {
+    // If signatureData is a string (base64), send as JSON
+    if (typeof signatureData === 'string') {
+      return apiClient.post<{ message: string }>(
+        `/api/loans/contracts/${id}/sign_officer/`,
+        { signature_data: signatureData }
+      );
+    }
+
+    // If signatureData is a File, send as FormData
     const formData = new FormData();
-    if (signature) {
-      formData.append('signature', signature);
+    if (signatureData) {
+      formData.append('signature', signatureData);
     }
     return apiClient.post<{ message: string }>(
       `/api/loans/contracts/${id}/sign_officer/`,
@@ -208,6 +229,28 @@ export const contractsAPI = {
     return apiClient.post<{ message: string }>(`/api/loans/contracts/${id}/cancel/`, {});
   },
 
+  // Archive contract (only for cancelled contracts)
+  async archive(id: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(`/api/loans/contracts/${id}/archive/`, {});
+  },
+
+  // Unarchive contract
+  async unarchive(id: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(`/api/loans/contracts/${id}/unarchive/`, {});
+  },
+
+  // Send contract for signature via email
+  async sendForSignature(id: string, email: string, days_valid?: number): Promise<{
+    message: string;
+    token_id: string;
+    expires_at: string;
+  }> {
+    return apiClient.post(`/api/loans/contracts/${id}/send_for_signature/`, {
+      email,
+      days_valid: days_valid || 7,
+    });
+  },
+
   // Get PDF download URL
   getPdfDownloadUrl(id: string): string {
     return `/api/loans/contracts/${id}/download_pdf/`;
@@ -216,5 +259,47 @@ export const contractsAPI = {
   // Get PDF view URL
   getPdfViewUrl(id: string): string {
     return `/api/loans/contracts/${id}/view_pdf/`;
+  },
+};
+
+// Public contract signature API (no authentication required)
+export const publicContractAPI = {
+  // Get contract details by token
+  async getContractByToken(token: string): Promise<{
+    contract: Contract;
+    token_permissions: {
+      can_sign_as_customer: boolean;
+      can_sign_as_officer: boolean;
+    };
+    expires_at: string;
+  }> {
+    const response = await fetch(`/api/loans/public/contracts/${token}/`);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to fetch contract');
+    }
+    return response.json();
+  },
+
+  // Sign contract with token
+  async signWithToken(token: string, signature_data: string): Promise<{
+    message: string;
+    signed_as: string;
+    contract_status: string;
+    is_fully_signed: boolean;
+  }> {
+    const response = await fetch(`/api/loans/public/contracts/${token}/sign/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ signature_data }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to sign contract');
+    }
+    return response.json();
   },
 };

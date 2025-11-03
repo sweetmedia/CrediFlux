@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { customersAPI } from '@/lib/api/customers';
+import { contractsAPI } from '@/lib/api/contracts';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -32,6 +33,8 @@ import {
   Edit,
   TrendingUp,
   AlertCircle,
+  FileCheck,
+  Eye,
 } from 'lucide-react';
 import { CustomerDocuments } from '@/components/documents';
 
@@ -84,6 +87,19 @@ interface Loan {
   days_overdue?: number;
 }
 
+interface Contract {
+  id: string;
+  contract_number: string;
+  loan: string;
+  loan_number: string;
+  status: 'draft' | 'pending_signature' | 'signed' | 'active' | 'completed' | 'cancelled';
+  customer_signed_at?: string;
+  officer_signed_at?: string;
+  generated_at: string;
+  is_fully_signed: boolean;
+  template_name?: string;
+}
+
 export default function CustomerDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -93,6 +109,7 @@ export default function CustomerDetailPage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
@@ -122,6 +139,25 @@ export default function CustomerDetailPage() {
 
       setCustomer(customerData);
       setLoans(loansData);
+
+      // Load contracts for all customer loans
+      if (loansData && loansData.length > 0) {
+        try {
+          const allContracts = await Promise.all(
+            loansData.map(loan =>
+              contractsAPI.getContracts({ loan: loan.id }).then(response => response.results || [])
+            )
+          );
+          // Flatten the array of arrays and filter only signed/active/completed contracts
+          const customerContracts = allContracts.flat().filter(contract =>
+            ['signed', 'active', 'completed'].includes(contract.status)
+          );
+          setContracts(customerContracts);
+        } catch (contractErr) {
+          console.error('Error loading contracts:', contractErr);
+          // Don't show error to user, just log it
+        }
+      }
     } catch (err: any) {
       console.error('Error loading customer:', err);
       setError('Error al cargar los datos del cliente');
@@ -195,6 +231,36 @@ export default function CustomerDetailPage() {
 
   const calculateTotalPaid = () => {
     return loans.reduce((sum, loan) => sum + (loan.total_paid || 0), 0);
+  };
+
+  const getContractStatusBadge = (status: string) => {
+    const statusStyles: Record<string, string> = {
+      draft: 'bg-slate-100 text-slate-800 border-slate-200',
+      pending_signature: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      signed: 'bg-blue-100 text-blue-800 border-blue-200',
+      active: 'bg-green-100 text-green-800 border-green-200',
+      completed: 'bg-purple-100 text-purple-800 border-purple-200',
+      cancelled: 'bg-red-100 text-red-800 border-red-200',
+    };
+
+    const statusLabels: Record<string, string> = {
+      draft: 'Borrador',
+      pending_signature: 'Pendiente Firma',
+      signed: 'Firmado',
+      active: 'Activo',
+      completed: 'Completado',
+      cancelled: 'Cancelado',
+    };
+
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
+          statusStyles[status] || 'bg-gray-50 text-gray-700 border-gray-200'
+        }`}
+      >
+        {statusLabels[status] || status}
+      </span>
+    );
   };
 
   // Show loading state while checking authentication
@@ -636,6 +702,89 @@ export default function CustomerDetailPage() {
                               </div>
                             </div>
                           )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Contracts Section */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <FileCheck className="h-5 w-5 text-blue-600" />
+                    Contratos ({contracts.length})
+                  </CardTitle>
+                </div>
+                <CardDescription>
+                  Contratos firmados del cliente
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {contracts.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileCheck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-gray-600">
+                      Este cliente no tiene contratos firmados
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {contracts.map((contract) => (
+                      <div
+                        key={contract.id}
+                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-semibold text-gray-900">
+                                {contract.contract_number}
+                              </h4>
+                              {getContractStatusBadge(contract.status)}
+                              {contract.is_fully_signed && (
+                                <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                  <FileCheck className="h-3 w-3" />
+                                  Completamente Firmado
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              Préstamo: {contract.loan_number}
+                              {contract.template_name && ` • ${contract.template_name}`}
+                            </p>
+                            <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+                              <span>
+                                Generado: {formatDate(contract.generated_at)}
+                              </span>
+                              {contract.customer_signed_at && (
+                                <span className="text-green-600">
+                                  Cliente firmó: {formatDate(contract.customer_signed_at)}
+                                </span>
+                              )}
+                              {contract.officer_signed_at && (
+                                <span className="text-blue-600">
+                                  Oficial firmó: {formatDate(contract.officer_signed_at)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Link href={`/contracts/${contract.id}`}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-slate-200"
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Ver Contrato
+                              </Button>
+                            </Link>
+                          </div>
                         </div>
                       </div>
                     ))}

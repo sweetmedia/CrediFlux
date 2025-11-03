@@ -35,6 +35,7 @@ import {
   FileClock,
   FileX,
   FileEdit,
+  Archive,
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -73,6 +74,7 @@ export default function ContractsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showArchived, setShowArchived] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Redirect if not authenticated
@@ -87,7 +89,7 @@ export default function ContractsPage() {
     if (isAuthenticated) {
       loadContracts();
     }
-  }, [isAuthenticated, currentPage, searchTerm, statusFilter]);
+  }, [isAuthenticated, currentPage, searchTerm, statusFilter, showArchived]);
 
   const loadContracts = async () => {
     try {
@@ -100,6 +102,7 @@ export default function ContractsPage() {
 
       if (searchTerm) params.search = searchTerm;
       if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
+      if (showArchived) params.show_archived = 'true';
 
       const response = await contractsAPI.getContracts(params);
       setContracts(response.results || []);
@@ -259,6 +262,18 @@ export default function ContractsPage() {
                     <SelectItem value="cancelled">Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
+                <label className="flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-md bg-white hover:bg-slate-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showArchived}
+                    onChange={(e) => setShowArchived(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <Archive className="h-4 w-4 text-slate-600" />
+                  <span className="text-sm font-medium text-slate-700">
+                    Mostrar archivados
+                  </span>
+                </label>
                 <div className="relative w-80">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
@@ -331,6 +346,12 @@ export default function ContractsPage() {
                               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 <CheckCircle2 className="h-3 w-3" />
                                 Firmado Completamente
+                              </span>
+                            )}
+                            {contract.is_archived && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                                <Archive className="h-3 w-3" />
+                                Archivado
                               </span>
                             )}
                           </div>

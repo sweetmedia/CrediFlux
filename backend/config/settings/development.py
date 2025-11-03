@@ -7,13 +7,13 @@ DEBUG = True
 
 # Add development-only apps
 INSTALLED_APPS += [
-    'debug_toolbar',
+    # 'debug_toolbar',  # Temporarily disabled due to namespace issue
     'django_extensions',
 ]
 
 # Add development middleware
 MIDDLEWARE += [
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
+    # 'debug_toolbar.middleware.DebugToolbarMiddleware',  # Temporarily disabled
 ]
 
 # Debug Toolbar Configuration
