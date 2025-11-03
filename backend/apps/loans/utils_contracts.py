@@ -6,6 +6,27 @@ from django.utils import timezone
 import re
 
 
+def get_spanish_month_name(month_number):
+    """
+    Get Spanish month name from month number (1-12).
+    """
+    spanish_months = {
+        1: 'enero',
+        2: 'febrero',
+        3: 'marzo',
+        4: 'abril',
+        5: 'mayo',
+        6: 'junio',
+        7: 'julio',
+        8: 'agosto',
+        9: 'septiembre',
+        10: 'octubre',
+        11: 'noviembre',
+        12: 'diciembre'
+    }
+    return spanish_months.get(month_number, str(month_number))
+
+
 def number_to_words_es(number):
     """
     Convert a number to words in Spanish (Dominican Republic format).
@@ -92,14 +113,14 @@ def replace_contract_variables(template_content, loan, tenant=None):
         '{{total_amount}}': f"${loan.total_amount.amount:,.2f}" if hasattr(loan, 'total_amount') and loan.total_amount else 'N/A',
 
         # Dates
-        '{{disbursement_date}}': loan.disbursement_date.strftime('%d de %B de %Y') if loan.disbursement_date else 'Pendiente',
-        '{{first_payment_date}}': loan.first_payment_date.strftime('%d de %B de %Y') if loan.first_payment_date else 'N/A',
-        '{{final_payment_date}}': loan.maturity_date.strftime('%d de %B de %Y') if loan.maturity_date else 'N/A',
-        '{{contract_date}}': now.strftime('%d de %B de %Y'),
+        '{{disbursement_date}}': f"{loan.disbursement_date.day} de {get_spanish_month_name(loan.disbursement_date.month)} de {loan.disbursement_date.year}" if loan.disbursement_date else 'Pendiente',
+        '{{first_payment_date}}': f"{loan.first_payment_date.day} de {get_spanish_month_name(loan.first_payment_date.month)} de {loan.first_payment_date.year}" if loan.first_payment_date else 'N/A',
+        '{{final_payment_date}}': f"{loan.maturity_date.day} de {get_spanish_month_name(loan.maturity_date.month)} de {loan.maturity_date.year}" if loan.maturity_date else 'N/A',
+        '{{contract_date}}': f"{now.day} de {get_spanish_month_name(now.month)} de {now.year}",
 
         # Date components
         '{{año}}': str(now.year),
-        '{{mes}}': now.strftime('%B'),
+        '{{mes}}': get_spanish_month_name(now.month),
         '{{dia}}': str(now.day),
 
         # Loan officer
