@@ -54,6 +54,13 @@ def replace_contract_variables(template_content, loan, tenant=None):
     - {{company_phone}}: Tenant phone
     - {{company_email}}: Tenant email
     - {{contract_date}}: Date contract was generated
+    - {{año}}: Current year
+    - {{mes}}: Current month (name)
+    - {{dia}}: Current day
+    - {{ciudad}}: Tenant city
+    - {{municipio}}: Tenant municipality
+    - {{provincia}}: Tenant province/state
+    - {{pais}}: Tenant country
     - {{guarantor_name}}: Guarantor name (if applicable)
     - {{guarantor_id}}: Guarantor ID (if applicable)
     - {{collateral_description}}: Description of collaterals
@@ -61,6 +68,9 @@ def replace_contract_variables(template_content, loan, tenant=None):
 
     customer = loan.customer
     content = template_content
+
+    # Get current date
+    now = timezone.now()
 
     # Customer variables
     replacements = {
@@ -85,7 +95,12 @@ def replace_contract_variables(template_content, loan, tenant=None):
         '{{disbursement_date}}': loan.disbursement_date.strftime('%d de %B de %Y') if loan.disbursement_date else 'Pendiente',
         '{{first_payment_date}}': loan.first_payment_date.strftime('%d de %B de %Y') if loan.first_payment_date else 'N/A',
         '{{final_payment_date}}': loan.maturity_date.strftime('%d de %B de %Y') if loan.maturity_date else 'N/A',
-        '{{contract_date}}': timezone.now().strftime('%d de %B de %Y'),
+        '{{contract_date}}': now.strftime('%d de %B de %Y'),
+
+        # Date components
+        '{{año}}': str(now.year),
+        '{{mes}}': now.strftime('%B'),
+        '{{dia}}': str(now.day),
 
         # Loan officer
         '{{loan_officer}}': loan.loan_officer.get_full_name() if loan.loan_officer else 'N/A',
@@ -98,6 +113,10 @@ def replace_contract_variables(template_content, loan, tenant=None):
             '{{company_address}}': f"{tenant.address or ''}, {tenant.city or ''}, {tenant.state or ''}".strip(', '),
             '{{company_phone}}': str(tenant.phone) if tenant.phone else 'N/A',
             '{{company_email}}': tenant.email or 'N/A',
+            '{{ciudad}}': tenant.city or 'N/A',
+            '{{municipio}}': tenant.city or 'N/A',  # Using city as municipality
+            '{{provincia}}': tenant.state or 'N/A',
+            '{{pais}}': tenant.country or 'República Dominicana',
         })
     else:
         replacements.update({
@@ -105,6 +124,10 @@ def replace_contract_variables(template_content, loan, tenant=None):
             '{{company_address}}': 'N/A',
             '{{company_phone}}': 'N/A',
             '{{company_email}}': 'N/A',
+            '{{ciudad}}': 'N/A',
+            '{{municipio}}': 'N/A',
+            '{{provincia}}': 'N/A',
+            '{{pais}}': 'N/A',
         })
 
     # Guarantor variables (if available)
@@ -155,12 +178,19 @@ def get_available_variables():
         {'variable': '{{disbursement_date}}', 'description': 'Fecha de desembolso'},
         {'variable': '{{first_payment_date}}', 'description': 'Fecha del primer pago'},
         {'variable': '{{final_payment_date}}', 'description': 'Fecha del último pago'},
+        {'variable': '{{contract_date}}', 'description': 'Fecha de generación del contrato'},
+        {'variable': '{{año}}', 'description': 'Año actual'},
+        {'variable': '{{mes}}', 'description': 'Mes actual (nombre completo)'},
+        {'variable': '{{dia}}', 'description': 'Día actual'},
         {'variable': '{{loan_officer}}', 'description': 'Nombre del oficial de crédito'},
         {'variable': '{{company_name}}', 'description': 'Nombre de la empresa'},
         {'variable': '{{company_address}}', 'description': 'Dirección de la empresa'},
         {'variable': '{{company_phone}}', 'description': 'Teléfono de la empresa'},
         {'variable': '{{company_email}}', 'description': 'Correo de la empresa'},
-        {'variable': '{{contract_date}}', 'description': 'Fecha de generación del contrato'},
+        {'variable': '{{ciudad}}', 'description': 'Ciudad de la empresa'},
+        {'variable': '{{municipio}}', 'description': 'Municipio de la empresa'},
+        {'variable': '{{provincia}}', 'description': 'Provincia/Estado de la empresa'},
+        {'variable': '{{pais}}', 'description': 'País de la empresa'},
         {'variable': '{{guarantor_name}}', 'description': 'Nombre del garante (si aplica)'},
         {'variable': '{{guarantor_id}}', 'description': 'Cédula del garante (si aplica)'},
         {'variable': '{{collateral_description}}', 'description': 'Descripción de garantías'},
