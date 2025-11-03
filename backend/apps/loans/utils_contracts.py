@@ -107,10 +107,10 @@ def replace_contract_variables(template_content, loan, tenant=None):
         '{{loan_amount}}': f"${loan.principal_amount.amount:,.2f}",
         '{{loan_amount_words}}': number_to_words_es(loan.principal_amount.amount),
         '{{interest_rate}}': f"{loan.interest_rate}%",
-        '{{loan_term}}': str(loan.loan_term_months),
+        '{{loan_term}}': str(loan.term_months),
         '{{payment_frequency}}': loan.get_payment_frequency_display(),
-        '{{monthly_payment}}': f"${loan.monthly_payment.amount:,.2f}" if hasattr(loan, 'monthly_payment') and loan.monthly_payment else 'N/A',
-        '{{total_amount}}': f"${loan.total_amount.amount:,.2f}" if hasattr(loan, 'total_amount') and loan.total_amount else 'N/A',
+        '{{monthly_payment}}': f"${loan.payment_amount.amount:,.2f}" if loan.payment_amount else 'N/A',
+        '{{total_amount}}': f"${loan.outstanding_balance.amount:,.2f}" if loan.outstanding_balance else 'N/A',
 
         # Dates
         '{{disbursement_date}}': f"{loan.disbursement_date.day} de {get_spanish_month_name(loan.disbursement_date.month)} de {loan.disbursement_date.year}" if loan.disbursement_date else 'Pendiente',
