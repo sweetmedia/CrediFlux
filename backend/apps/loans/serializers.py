@@ -738,7 +738,8 @@ class ContractCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Contract
-        fields = ['loan', 'template', 'special_terms', 'notes']
+        fields = ['id', 'contract_number', 'loan', 'template', 'special_terms', 'notes', 'status', 'generated_at']
+        read_only_fields = ['id', 'contract_number', 'status', 'generated_at']
 
     def validate_loan(self, value):
         """Validate that loan doesn't already have an active contract"""
