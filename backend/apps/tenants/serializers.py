@@ -321,6 +321,10 @@ class TenantSerializer(serializers.ModelSerializer):
             # Notification Configuration
             'enable_email_reminders', 'enable_sms_reminders', 'enable_whatsapp_reminders',
             'reminder_days_before', 'notification_email_from',
+
+            # WhatsApp API Configuration
+            'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_business_account_id',
+            'whatsapp_verify_token',
         ]
         read_only_fields = ['id', 'schema_name', 'created_on', 'updated_on']
 
@@ -376,6 +380,10 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
             # Notification Configuration
             'enable_email_reminders', 'enable_sms_reminders', 'enable_whatsapp_reminders',
             'reminder_days_before', 'notification_email_from',
+
+            # WhatsApp API Configuration
+            'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_business_account_id',
+            'whatsapp_verify_token',
         ]
 
     def validate_email(self, value):
