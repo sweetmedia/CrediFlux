@@ -47,7 +47,8 @@ import {
   Lock,
   Bell,
   Briefcase,
-  DollarSign
+  DollarSign,
+  MessageSquare
 } from 'lucide-react';
 
 const tenantSettingsSchema = z.object({
@@ -63,6 +64,11 @@ const tenantSettingsSchema = z.object({
   primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color debe ser formato hexadecimal (ej: #6366f1)').optional(),
   default_currency: z.enum(['USD', 'DOP', 'EUR', 'GBP']).optional(),
   currency_symbol: z.string().max(10, 'Símbolo de moneda debe tener máximo 10 caracteres').optional(),
+  enable_whatsapp_reminders: z.boolean().optional(),
+  whatsapp_phone_id: z.string().optional(),
+  whatsapp_token: z.string().optional(),
+  whatsapp_business_account_id: z.string().optional(),
+  whatsapp_verify_token: z.string().optional(),
 });
 
 const profileSchema = z.object({
@@ -177,6 +183,11 @@ export default function TenantSettingsPage() {
       setValue('primary_color', data.primary_color || '#6366f1');
       setValue('default_currency', data.default_currency || 'USD');
       setValue('currency_symbol', data.currency_symbol || '$');
+      setValue('enable_whatsapp_reminders', data.enable_whatsapp_reminders || false);
+      setValue('whatsapp_phone_id', data.whatsapp_phone_id || '');
+      setValue('whatsapp_token', data.whatsapp_token || '');
+      setValue('whatsapp_business_account_id', data.whatsapp_business_account_id || '');
+      setValue('whatsapp_verify_token', data.whatsapp_verify_token || '');
 
       // Set logo preview - prepend API URL if logo is a relative path
       if (data.logo) {
@@ -213,6 +224,11 @@ export default function TenantSettingsPage() {
         primary_color: data.primary_color || undefined,
         default_currency: data.default_currency || undefined,
         currency_symbol: data.currency_symbol || undefined,
+        enable_whatsapp_reminders: data.enable_whatsapp_reminders,
+        whatsapp_phone_id: data.whatsapp_phone_id || undefined,
+        whatsapp_token: data.whatsapp_token || undefined,
+        whatsapp_business_account_id: data.whatsapp_business_account_id || undefined,
+        whatsapp_verify_token: data.whatsapp_verify_token || undefined,
       };
 
       const response = await tenantsAPI.updateSettings(updateData);
@@ -608,10 +624,11 @@ export default function TenantSettingsPage() {
           </div>
         ) : (
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-100">
+            <TabsList className="grid w-full grid-cols-5 mb-6 bg-slate-100">
               <TabsTrigger value="profile" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Perfil</TabsTrigger>
               <TabsTrigger value="security" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Seguridad</TabsTrigger>
               <TabsTrigger value="business" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Negocio</TabsTrigger>
+              <TabsTrigger value="notifications" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Notificaciones</TabsTrigger>
               <TabsTrigger value="appearance" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Apariencia</TabsTrigger>
             </TabsList>
 
@@ -1180,6 +1197,151 @@ export default function TenantSettingsPage() {
                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Guardar Información del Negocio
+                </Button>
+              </div>
+            </form>
+            </TabsContent>
+
+            {/* NOTIFICATIONS TAB */}
+            <TabsContent value="notifications">
+            <form onSubmit={handleSubmit(onSubmit)}>
+              {/* WhatsApp Configuration */}
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <MessageSquare className="h-5 w-5 text-green-600" />
+                    Configuración de WhatsApp
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">
+                    Configura WhatsApp Cloud API para enviar notificaciones automáticas
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Enable WhatsApp Toggle */}
+                  <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <input
+                      type="checkbox"
+                      id="enable_whatsapp_reminders"
+                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 mt-1"
+                      {...register('enable_whatsapp_reminders')}
+                      disabled={isSaving}
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="enable_whatsapp_reminders" className="font-semibold cursor-pointer">
+                        Habilitar Recordatorios por WhatsApp
+                      </Label>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Activa el envío automático de recordatorios de pago, enlaces de firma de contratos y recibos por WhatsApp
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Credentials Info */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-900 mb-2">Cómo obtener las credenciales de WhatsApp:</h4>
+                    <ol className="text-sm text-yellow-800 space-y-1 list-decimal list-inside">
+                      <li>Crea una cuenta en <a href="https://business.facebook.com/" target="_blank" rel="noopener noreferrer" className="underline">Meta Business Suite</a></li>
+                      <li>Configura WhatsApp Business API</li>
+                      <li>Obtén tu Phone Number ID y Access Token</li>
+                      <li>Copia el Business Account ID</li>
+                      <li>Genera un Verify Token para webhooks</li>
+                    </ol>
+                  </div>
+
+                  {/* WhatsApp Phone ID */}
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp_phone_id">
+                      WhatsApp Phone Number ID
+                    </Label>
+                    <Input
+                      id="whatsapp_phone_id"
+                      placeholder="123456789012345"
+                      {...register('whatsapp_phone_id')}
+                      disabled={isSaving}
+                    />
+                    <p className="text-xs text-gray-500">
+                      ID del número de teléfono de WhatsApp Business desde Meta Business
+                    </p>
+                  </div>
+
+                  {/* WhatsApp Token */}
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp_token">
+                      WhatsApp Access Token
+                    </Label>
+                    <Input
+                      id="whatsapp_token"
+                      type="password"
+                      placeholder="EAAxxxxxxxxxxxxxxxx"
+                      {...register('whatsapp_token')}
+                      disabled={isSaving}
+                    />
+                    <p className="text-xs text-gray-500">
+                      Token de acceso de Meta Business (se guardará encriptado)
+                    </p>
+                  </div>
+
+                  {/* WhatsApp Business Account ID */}
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp_business_account_id">
+                      WhatsApp Business Account ID
+                    </Label>
+                    <Input
+                      id="whatsapp_business_account_id"
+                      placeholder="123456789012345"
+                      {...register('whatsapp_business_account_id')}
+                      disabled={isSaving}
+                    />
+                    <p className="text-xs text-gray-500">
+                      ID de la cuenta business de WhatsApp
+                    </p>
+                  </div>
+
+                  {/* Webhook Verify Token */}
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp_verify_token">
+                      Webhook Verify Token
+                    </Label>
+                    <Input
+                      id="whatsapp_verify_token"
+                      type="password"
+                      placeholder="mi_token_secreto_123"
+                      {...register('whatsapp_verify_token')}
+                      disabled={isSaving}
+                    />
+                    <p className="text-xs text-gray-500">
+                      Token para validar webhooks de WhatsApp
+                    </p>
+                  </div>
+
+                  {/* Features Info */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Funcionalidades de WhatsApp:
+                    </h4>
+                    <ul className="text-sm text-green-800 space-y-1 list-disc list-inside">
+                      <li>Recordatorios automáticos de pago (7, 3 y 1 día antes)</li>
+                      <li>Notificaciones de pagos vencidos (1, 3 y 7 días después)</li>
+                      <li>Envío de enlaces de firma de contratos</li>
+                      <li>Recibos de pago automáticos</li>
+                      <li>Notificaciones de aprobación de préstamos</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 mt-6">
+                <Link href="/dashboard">
+                  <Button type="button" variant="outline" disabled={isSaving}>
+                    Cancelar
+                  </Button>
+                </Link>
+                <Button type="submit" disabled={isSaving} className="bg-green-600 hover:bg-green-700">
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Save className="mr-2 h-4 w-4" />
+                  Guardar Configuración de WhatsApp
                 </Button>
               </div>
             </form>

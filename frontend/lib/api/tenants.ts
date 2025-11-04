@@ -97,6 +97,13 @@ export interface Tenant {
   enable_whatsapp_reminders?: boolean;
   reminder_days_before?: number;
   notification_email_from?: string;
+
+  // WhatsApp API Configuration
+  whatsapp_phone_id?: string;
+  whatsapp_token?: string;
+  whatsapp_business_account_id?: string;
+  whatsapp_verify_token?: string;
+  currency_symbol?: string;
 }
 
 export interface TenantUpdateData {
@@ -180,6 +187,13 @@ export interface TenantUpdateData {
   enable_whatsapp_reminders?: boolean;
   reminder_days_before?: number;
   notification_email_from?: string;
+
+  // WhatsApp API Configuration
+  whatsapp_phone_id?: string;
+  whatsapp_token?: string;
+  whatsapp_business_account_id?: string;
+  whatsapp_verify_token?: string;
+  currency_symbol?: string;
 }
 
 export interface TenantUpdateResponse {
