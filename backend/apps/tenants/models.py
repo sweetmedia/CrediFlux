@@ -153,6 +153,80 @@ class Tenant(TenantMixin):
     )
 
     # ============================================================
+    # SMTP/IMAP EMAIL CONFIGURATION (Configuración de Email)
+    # ============================================================
+    smtp_host = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='Servidor SMTP para envío de correos (ej: smtp.gmail.com)'
+    )
+
+    smtp_port = models.IntegerField(
+        default=587,
+        blank=True,
+        null=True,
+        help_text='Puerto SMTP (587 para TLS, 465 para SSL)'
+    )
+
+    smtp_username = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='Usuario para autenticación SMTP'
+    )
+
+    smtp_password = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='Contraseña SMTP (se almacena encriptada)'
+    )
+
+    smtp_use_tls = models.BooleanField(
+        default=True,
+        help_text='Usar TLS para conexión SMTP'
+    )
+
+    smtp_use_ssl = models.BooleanField(
+        default=False,
+        help_text='Usar SSL para conexión SMTP (alternativa a TLS)'
+    )
+
+    imap_host = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='Servidor IMAP para recepción de correos (ej: imap.gmail.com)'
+    )
+
+    imap_port = models.IntegerField(
+        default=993,
+        blank=True,
+        null=True,
+        help_text='Puerto IMAP (993 para SSL, 143 para no SSL)'
+    )
+
+    imap_username = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='Usuario para autenticación IMAP (puede ser el mismo que SMTP)'
+    )
+
+    imap_password = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='Contraseña IMAP (se almacena encriptada)'
+    )
+
+    imap_use_ssl = models.BooleanField(
+        default=True,
+        help_text='Usar SSL para conexión IMAP'
+    )
+
+    # ============================================================
     # PAYMENT GATEWAY CONFIGURATION (Pasarelas de Pago)
     # ============================================================
     enable_stripe = models.BooleanField(

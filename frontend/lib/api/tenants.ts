@@ -104,6 +104,19 @@ export interface Tenant {
   whatsapp_business_account_id?: string;
   whatsapp_verify_token?: string;
   currency_symbol?: string;
+
+  // SMTP/IMAP Email Configuration
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_username?: string;
+  smtp_password?: string;
+  smtp_use_tls?: boolean;
+  smtp_use_ssl?: boolean;
+  imap_host?: string;
+  imap_port?: number;
+  imap_username?: string;
+  imap_password?: string;
+  imap_use_ssl?: boolean;
 }
 
 export interface TenantUpdateData {
@@ -194,6 +207,19 @@ export interface TenantUpdateData {
   whatsapp_business_account_id?: string;
   whatsapp_verify_token?: string;
   currency_symbol?: string;
+
+  // SMTP/IMAP Email Configuration
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_username?: string;
+  smtp_password?: string;
+  smtp_use_tls?: boolean;
+  smtp_use_ssl?: boolean;
+  imap_host?: string;
+  imap_port?: number;
+  imap_username?: string;
+  imap_password?: string;
+  imap_use_ssl?: boolean;
 }
 
 export interface TenantUpdateResponse {

@@ -325,6 +325,10 @@ class TenantSerializer(serializers.ModelSerializer):
             # WhatsApp API Configuration
             'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_business_account_id',
             'whatsapp_verify_token',
+
+            # SMTP/IMAP Email Configuration
+            'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_use_tls', 'smtp_use_ssl',
+            'imap_host', 'imap_port', 'imap_username', 'imap_password', 'imap_use_ssl',
         ]
         read_only_fields = ['id', 'schema_name', 'created_on', 'updated_on']
 
@@ -384,6 +388,10 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
             # WhatsApp API Configuration
             'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_business_account_id',
             'whatsapp_verify_token',
+
+            # SMTP/IMAP Email Configuration
+            'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_use_tls', 'smtp_use_ssl',
+            'imap_host', 'imap_port', 'imap_username', 'imap_password', 'imap_use_ssl',
         ]
 
     def validate_email(self, value):
