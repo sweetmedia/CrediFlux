@@ -56,6 +56,7 @@ SHARED_APPS = [
 TENANT_APPS = [
     # Tenant-specific apps
     'apps.loans',
+    'apps.communications',
 ]
 
 INSTALLED_APPS = list(SHARED_APPS) + [
