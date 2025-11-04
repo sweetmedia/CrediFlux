@@ -69,6 +69,18 @@ const tenantSettingsSchema = z.object({
   whatsapp_token: z.string().optional(),
   whatsapp_business_account_id: z.string().optional(),
   whatsapp_verify_token: z.string().optional(),
+  // SMTP/IMAP Email Configuration
+  smtp_host: z.string().optional(),
+  smtp_port: z.number().int().positive().optional(),
+  smtp_username: z.string().optional(),
+  smtp_password: z.string().optional(),
+  smtp_use_tls: z.boolean().optional(),
+  smtp_use_ssl: z.boolean().optional(),
+  imap_host: z.string().optional(),
+  imap_port: z.number().int().positive().optional(),
+  imap_username: z.string().optional(),
+  imap_password: z.string().optional(),
+  imap_use_ssl: z.boolean().optional(),
 });
 
 const profileSchema = z.object({
@@ -188,6 +200,18 @@ export default function TenantSettingsPage() {
       setValue('whatsapp_token', data.whatsapp_token || '');
       setValue('whatsapp_business_account_id', data.whatsapp_business_account_id || '');
       setValue('whatsapp_verify_token', data.whatsapp_verify_token || '');
+      // SMTP/IMAP Email Configuration
+      setValue('smtp_host', data.smtp_host || '');
+      setValue('smtp_port', data.smtp_port || 587);
+      setValue('smtp_username', data.smtp_username || '');
+      setValue('smtp_password', data.smtp_password || '');
+      setValue('smtp_use_tls', data.smtp_use_tls ?? true);
+      setValue('smtp_use_ssl', data.smtp_use_ssl ?? false);
+      setValue('imap_host', data.imap_host || '');
+      setValue('imap_port', data.imap_port || 993);
+      setValue('imap_username', data.imap_username || '');
+      setValue('imap_password', data.imap_password || '');
+      setValue('imap_use_ssl', data.imap_use_ssl ?? true);
 
       // Set logo preview - prepend API URL if logo is a relative path
       if (data.logo) {
@@ -229,6 +253,18 @@ export default function TenantSettingsPage() {
         whatsapp_token: data.whatsapp_token || undefined,
         whatsapp_business_account_id: data.whatsapp_business_account_id || undefined,
         whatsapp_verify_token: data.whatsapp_verify_token || undefined,
+        // SMTP/IMAP Email Configuration
+        smtp_host: data.smtp_host || undefined,
+        smtp_port: data.smtp_port || undefined,
+        smtp_username: data.smtp_username || undefined,
+        smtp_password: data.smtp_password || undefined,
+        smtp_use_tls: data.smtp_use_tls,
+        smtp_use_ssl: data.smtp_use_ssl,
+        imap_host: data.imap_host || undefined,
+        imap_port: data.imap_port || undefined,
+        imap_username: data.imap_username || undefined,
+        imap_password: data.imap_password || undefined,
+        imap_use_ssl: data.imap_use_ssl,
       };
 
       const response = await tenantsAPI.updateSettings(updateData);
@@ -624,10 +660,11 @@ export default function TenantSettingsPage() {
           </div>
         ) : (
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid w-full grid-cols-5 mb-6 bg-slate-100">
+            <TabsList className="grid w-full grid-cols-6 mb-6 bg-slate-100">
               <TabsTrigger value="profile" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Perfil</TabsTrigger>
               <TabsTrigger value="security" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Seguridad</TabsTrigger>
               <TabsTrigger value="business" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Negocio</TabsTrigger>
+              <TabsTrigger value="email" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Email</TabsTrigger>
               <TabsTrigger value="notifications" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Notificaciones</TabsTrigger>
               <TabsTrigger value="appearance" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Apariencia</TabsTrigger>
             </TabsList>
@@ -1197,6 +1234,227 @@ export default function TenantSettingsPage() {
                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Guardar Información del Negocio
+                </Button>
+              </div>
+            </form>
+            </TabsContent>
+
+            {/* EMAIL CONFIGURATION TAB */}
+            <TabsContent value="email">
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <Mail className="h-5 w-5 text-blue-600" />
+                    Configuración de Email (SMTP/IMAP)
+                  </CardTitle>
+                  <CardDescription>
+                    Configura tu servidor de correo para enviar y recibir emails desde la aplicación
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Quick Presets */}
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700">Configuración Rápida</Label>
+                    <div className="grid grid-cols-3 gap-3 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setValue('smtp_host', 'smtp.gmail.com');
+                          setValue('smtp_port', 587);
+                          setValue('smtp_use_tls', true);
+                          setValue('smtp_use_ssl', false);
+                          setValue('imap_host', 'imap.gmail.com');
+                          setValue('imap_port', 993);
+                          setValue('imap_use_ssl', true);
+                        }}
+                        className="flex items-center justify-center gap-2"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Gmail
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setValue('smtp_host', 'smtp-mail.outlook.com');
+                          setValue('smtp_port', 587);
+                          setValue('smtp_use_tls', true);
+                          setValue('smtp_use_ssl', false);
+                          setValue('imap_host', 'outlook.office365.com');
+                          setValue('imap_port', 993);
+                          setValue('imap_use_ssl', true);
+                        }}
+                        className="flex items-center justify-center gap-2"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Outlook
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setValue('smtp_host', 'smtp.mail.yahoo.com');
+                          setValue('smtp_port', 587);
+                          setValue('smtp_use_tls', true);
+                          setValue('smtp_use_ssl', false);
+                          setValue('imap_host', 'imap.mail.yahoo.com');
+                          setValue('imap_port', 993);
+                          setValue('imap_use_ssl', true);
+                        }}
+                        className="flex items-center justify-center gap-2"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Yahoo
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* SMTP Configuration */}
+                  <div className="border-t pt-6">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-4">Configuración SMTP (Envío)</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="smtp_host">Servidor SMTP</Label>
+                        <Input
+                          id="smtp_host"
+                          placeholder="smtp.gmail.com"
+                          {...register('smtp_host')}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="smtp_port">Puerto</Label>
+                        <Input
+                          id="smtp_port"
+                          type="number"
+                          placeholder="587"
+                          {...register('smtp_port', { valueAsNumber: true })}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="smtp_username">Usuario</Label>
+                        <Input
+                          id="smtp_username"
+                          placeholder="tu-email@gmail.com"
+                          {...register('smtp_username')}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="smtp_password">Contraseña</Label>
+                        <Input
+                          id="smtp_password"
+                          type="password"
+                          placeholder="••••••••"
+                          {...register('smtp_password')}
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="smtp_use_tls"
+                          {...register('smtp_use_tls')}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <Label htmlFor="smtp_use_tls" className="font-normal">
+                          Usar TLS (Recomendado)
+                        </Label>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="smtp_use_ssl"
+                          {...register('smtp_use_ssl')}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <Label htmlFor="smtp_use_ssl" className="font-normal">
+                          Usar SSL
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* IMAP Configuration */}
+                  <div className="border-t pt-6">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-4">Configuración IMAP (Recepción)</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="imap_host">Servidor IMAP</Label>
+                        <Input
+                          id="imap_host"
+                          placeholder="imap.gmail.com"
+                          {...register('imap_host')}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="imap_port">Puerto</Label>
+                        <Input
+                          id="imap_port"
+                          type="number"
+                          placeholder="993"
+                          {...register('imap_port', { valueAsNumber: true })}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="imap_username">Usuario</Label>
+                        <Input
+                          id="imap_username"
+                          placeholder="tu-email@gmail.com"
+                          {...register('imap_username')}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="imap_password">Contraseña</Label>
+                        <Input
+                          id="imap_password"
+                          type="password"
+                          placeholder="••••••••"
+                          {...register('imap_password')}
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="imap_use_ssl"
+                          {...register('imap_use_ssl')}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <Label htmlFor="imap_use_ssl" className="font-normal">
+                          Usar SSL (Recomendado)
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Help Text */}
+                  <Alert>
+                    <Mail className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Nota:</strong> Para Gmail, necesitas crear una "Contraseña de aplicación" en tu configuración de seguridad de Google.
+                      Para Outlook, usa tu contraseña normal o habilita la autenticación de aplicaciones si tienes 2FA activado.
+                    </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end mt-6">
+                <Button
+                  type="submit"
+                  disabled={isSaving}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Save className="mr-2 h-4 w-4" />
+                  Guardar Configuración de Email
                 </Button>
               </div>
             </form>
