@@ -21,6 +21,7 @@ import {
   FileSignature,
   ScrollText,
   MessageSquare,
+  CheckSquare,
 } from 'lucide-react';
 
 interface NavItem {
@@ -73,6 +74,7 @@ export function Sidebar() {
     { href: '/collections', icon: Phone, label: 'Cobranza' },
     { href: '/payments', icon: DollarSign, label: 'Pagos' },
     { href: '/communications', icon: MessageSquare, label: 'Comunicaciones' },
+    { href: '/tasks', icon: CheckSquare, label: 'Tareas' },
   ];
 
   const adminNavItems = [
