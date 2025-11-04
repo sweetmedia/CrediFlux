@@ -24,14 +24,11 @@ import {
   MessageSquare,
   Send,
   Inbox,
-  Settings as SettingsIcon,
   Loader2,
   Plus,
   Search,
   RefreshCw,
   Clock,
-  CheckCircle2,
-  AlertCircle,
 } from 'lucide-react';
 
 interface Email {
@@ -53,20 +50,10 @@ interface WhatsAppMessage {
   status: 'sent' | 'delivered' | 'read' | 'failed';
 }
 
-interface SMTPSettings {
-  smtp_host?: string;
-  smtp_port?: number;
-  smtp_username?: string;
-  smtp_password?: string;
-  smtp_use_tls?: boolean;
-  imap_host?: string;
-  imap_port?: number;
-}
-
 export default function CommunicationsPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'email' | 'whatsapp'>('email');
-  const [emailView, setEmailView] = useState<'inbox' | 'compose' | 'settings'>('inbox');
+  const [emailView, setEmailView] = useState<'inbox' | 'compose'>('inbox');
 
   // Email states
   const [emails, setEmails] = useState<Email[]>([]);
@@ -78,12 +65,6 @@ export default function CommunicationsPage() {
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
-
-  // SMTP settings states
-  const [smtpSettings, setSMTPSettings] = useState<SMTPSettings>({});
-  const [isSavingSMTP, setIsSavingSMTP] = useState(false);
-  const [smtpSuccess, setSMTPSuccess] = useState('');
-  const [smtpError, setSMTPError] = useState('');
 
   // WhatsApp states
   const [whatsappMessages, setWhatsAppMessages] = useState<WhatsAppMessage[]>([]);
@@ -151,25 +132,6 @@ export default function CommunicationsPage() {
       alert('Error al enviar email');
     } finally {
       setIsSendingEmail(false);
-    }
-  };
-
-  const handleSaveSMTPSettings = async () => {
-    setIsSavingSMTP(true);
-    setSMTPSuccess('');
-    setSMTPError('');
-
-    try {
-      // TODO: Implementar llamada a API para guardar configuración SMTP
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-
-      setSMTPSuccess('Configuración SMTP guardada exitosamente');
-      setTimeout(() => setSMTPSuccess(''), 5000);
-    } catch (error) {
-      console.error('Error saving SMTP settings:', error);
-      setSMTPError('Error al guardar configuración SMTP');
-    } finally {
-      setIsSavingSMTP(false);
     }
   };
 
@@ -283,14 +245,6 @@ export default function CommunicationsPage() {
                     >
                       <Plus className="mr-2 h-4 w-4" />
                       Redactar
-                    </Button>
-                    <Button
-                      variant={emailView === 'settings' ? 'default' : 'ghost'}
-                      className="w-full justify-start"
-                      onClick={() => setEmailView('settings')}
-                    >
-                      <SettingsIcon className="mr-2 h-4 w-4" />
-                      Configuración SMTP
                     </Button>
                   </CardContent>
                 </Card>
@@ -440,138 +394,6 @@ export default function CommunicationsPage() {
                         </Button>
                         <Button variant="outline" onClick={() => setEmailView('inbox')}>
                           Cancelar
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* SMTP SETTINGS VIEW */}
-                {emailView === 'settings' && (
-                  <Card className="border-slate-200">
-                    <CardHeader>
-                      <CardTitle>Configuración SMTP/IMAP</CardTitle>
-                      <CardDescription>
-                        Configura tu servidor de correo para enviar y recibir emails
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      {smtpSuccess && (
-                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-800">
-                          <CheckCircle2 className="h-4 w-4" />
-                          {smtpSuccess}
-                        </div>
-                      )}
-                      {smtpError && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
-                          <AlertCircle className="h-4 w-4" />
-                          {smtpError}
-                        </div>
-                      )}
-
-                      <div className="space-y-4">
-                        <h3 className="font-semibold text-lg">Configuración SMTP (Envío)</h3>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="smtp_host">Servidor SMTP</Label>
-                            <Input
-                              id="smtp_host"
-                              placeholder="smtp.gmail.com"
-                              value={smtpSettings.smtp_host || ''}
-                              onChange={(e) => setSMTPSettings({...smtpSettings, smtp_host: e.target.value})}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="smtp_port">Puerto</Label>
-                            <Input
-                              id="smtp_port"
-                              type="number"
-                              placeholder="587"
-                              value={smtpSettings.smtp_port || ''}
-                              onChange={(e) => setSMTPSettings({...smtpSettings, smtp_port: parseInt(e.target.value)})}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="smtp_username">Usuario</Label>
-                            <Input
-                              id="smtp_username"
-                              placeholder="tu-email@gmail.com"
-                              value={smtpSettings.smtp_username || ''}
-                              onChange={(e) => setSMTPSettings({...smtpSettings, smtp_username: e.target.value})}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="smtp_password">Contraseña</Label>
-                            <Input
-                              id="smtp_password"
-                              type="password"
-                              placeholder="••••••••"
-                              value={smtpSettings.smtp_password || ''}
-                              onChange={(e) => setSMTPSettings({...smtpSettings, smtp_password: e.target.value})}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id="smtp_use_tls"
-                            className="w-4 h-4"
-                            checked={smtpSettings.smtp_use_tls || false}
-                            onChange={(e) => setSMTPSettings({...smtpSettings, smtp_use_tls: e.target.checked})}
-                          />
-                          <Label htmlFor="smtp_use_tls" className="cursor-pointer">
-                            Usar TLS/SSL
-                          </Label>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4 pt-6 border-t">
-                        <h3 className="font-semibold text-lg">Configuración IMAP (Recepción)</h3>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="imap_host">Servidor IMAP</Label>
-                            <Input
-                              id="imap_host"
-                              placeholder="imap.gmail.com"
-                              value={smtpSettings.imap_host || ''}
-                              onChange={(e) => setSMTPSettings({...smtpSettings, imap_host: e.target.value})}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="imap_port">Puerto</Label>
-                            <Input
-                              id="imap_port"
-                              type="number"
-                              placeholder="993"
-                              value={smtpSettings.imap_port || ''}
-                              onChange={(e) => setSMTPSettings({...smtpSettings, imap_port: parseInt(e.target.value)})}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-900 mb-2">Configuraciones comunes:</h4>
-                        <ul className="text-sm text-blue-800 space-y-1">
-                          <li><strong>Gmail:</strong> smtp.gmail.com:587 / imap.gmail.com:993</li>
-                          <li><strong>Outlook:</strong> smtp.office365.com:587 / outlook.office365.com:993</li>
-                          <li><strong>Yahoo:</strong> smtp.mail.yahoo.com:587 / imap.mail.yahoo.com:993</li>
-                        </ul>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button onClick={handleSaveSMTPSettings} disabled={isSavingSMTP}>
-                          {isSavingSMTP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Guardar Configuración
-                        </Button>
-                        <Button variant="outline">
-                          Probar Conexión
                         </Button>
                       </div>
                     </CardContent>
