@@ -608,8 +608,10 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         """
         Confirm a pending payment.
         Updates loan schedule and outstanding balance.
+        Optionally sends WhatsApp receipt.
         """
         from moneyed import Money
+        from .utils_whatsapp import get_whatsapp_service
 
         payment = self.get_object()
 
@@ -618,6 +620,10 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
                 {'error': 'Solo se pueden confirmar pagos pendientes'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        # Get optional WhatsApp sending parameters
+        send_whatsapp = request.data.get('send_whatsapp', False)
+        phone = request.data.get('phone')
 
         # Update payment status
         payment.status = 'completed'
@@ -653,11 +659,40 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
             schedule.save()
 
+        # Send WhatsApp receipt if requested
+        whatsapp_sent = False
+        whatsapp_error = None
+        if send_whatsapp:
+            if not phone:
+                # Try to get phone from customer
+                phone = payment.loan.customer.phone
+
+            if phone:
+                try:
+                    tenant = getattr(request, 'tenant', None)
+                    whatsapp_service = get_whatsapp_service(tenant)
+                    whatsapp_sent = whatsapp_service.send_payment_receipt(payment, phone)
+                    if not whatsapp_sent:
+                        whatsapp_error = 'WhatsApp no está configurado o el envío falló'
+                except Exception as e:
+                    whatsapp_error = f'Error al enviar WhatsApp: {str(e)}'
+            else:
+                whatsapp_error = 'No se proporcionó número de teléfono'
+
         serializer = self.get_serializer(payment)
-        return Response({
+        response_data = {
             'message': 'Pago confirmado exitosamente',
             'payment': serializer.data
-        })
+        }
+
+        # Include WhatsApp status if it was requested
+        if send_whatsapp:
+            response_data['whatsapp'] = {
+                'sent': whatsapp_sent,
+                'error': whatsapp_error
+            }
+
+        return Response(response_data)
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
@@ -1319,20 +1354,34 @@ class ContractViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def send_for_signature(self, request, pk=None):
-        """Send contract via email for signature"""
+        """Send contract via email and/or WhatsApp for signature"""
         import secrets
         from datetime import timedelta
         from django.core.mail import send_mail
         from django.conf import settings
         from .models_contracts import ContractSignatureToken
+        from .utils_whatsapp import get_whatsapp_service
 
         contract = self.get_object()
         email = request.data.get('email')
+        phone = request.data.get('phone')
+        send_via = request.data.get('send_via', 'email')  # 'email', 'whatsapp', or 'both'
         days_valid = request.data.get('days_valid', 7)  # Default 7 days
 
-        if not email:
+        # Validation: at least one delivery method required
+        if send_via == 'email' and not email:
             return Response(
                 {'error': 'Se requiere un email'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if send_via == 'whatsapp' and not phone:
+            return Response(
+                {'error': 'Se requiere un número de teléfono'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if send_via == 'both' and (not email or not phone):
+            return Response(
+                {'error': 'Se requiere email y teléfono para enviar por ambos medios'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1349,13 +1398,13 @@ class ContractViewSet(viewsets.ModelViewSet):
         signature_token = ContractSignatureToken.objects.create(
             contract=contract,
             token=token,
-            email=email,
+            email=email or '',
             expires_at=expires_at,
             can_sign_as_customer=True,
             can_sign_as_officer=False,
         )
 
-        # Get tenant for email
+        # Get tenant for messaging
         tenant = getattr(request, 'tenant', None)
         company_name = tenant.business_name if tenant else 'CrediFlux'
 
@@ -1363,10 +1412,16 @@ class ContractViewSet(viewsets.ModelViewSet):
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
         signature_url = f"{frontend_url}/sign/{token}"
 
-        # Send email
-        try:
-            subject = f'Firma de Contrato - {contract.contract_number}'
-            message = f"""
+        # Track sending results
+        sent_via_email = False
+        sent_via_whatsapp = False
+        errors = []
+
+        # Send via email
+        if send_via in ['email', 'both']:
+            try:
+                subject = f'Firma de Contrato - {contract.contract_number}'
+                message = f"""
 Hola,
 
 {company_name} te ha enviado un contrato para tu firma.
@@ -1383,28 +1438,64 @@ Si no solicitaste este contrato, puedes ignorar este mensaje.
 
 Saludos,
 {company_name}
-            """
+                """
 
-            send_mail(
-                subject,
-                message,
-                settings.DEFAULT_FROM_EMAIL,
-                [email],
-                fail_silently=False,
-            )
+                send_mail(
+                    subject,
+                    message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [email],
+                    fail_silently=False,
+                )
+                sent_via_email = True
+            except Exception as e:
+                errors.append(f'Error al enviar email: {str(e)}')
 
-            return Response({
-                'message': f'Contrato enviado a {email}',
-                'token_id': str(signature_token.id),
-                'expires_at': signature_token.expires_at,
-            })
-        except Exception as e:
-            # Delete token if email fails
+        # Send via WhatsApp
+        if send_via in ['whatsapp', 'both']:
+            try:
+                whatsapp_service = get_whatsapp_service(tenant)
+                if whatsapp_service.send_contract_signature_link(contract, phone, signature_url):
+                    sent_via_whatsapp = True
+                else:
+                    errors.append('Error al enviar WhatsApp: El servicio no está configurado o falló el envío')
+            except Exception as e:
+                errors.append(f'Error al enviar WhatsApp: {str(e)}')
+
+        # Check if at least one method succeeded
+        if not sent_via_email and not sent_via_whatsapp:
+            # Delete token if all methods failed
             signature_token.delete()
             return Response(
-                {'error': f'Error al enviar email: {str(e)}'},
+                {
+                    'error': 'No se pudo enviar el contrato por ningún medio',
+                    'details': errors
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+        # Build success message
+        sent_methods = []
+        if sent_via_email:
+            sent_methods.append(f'email ({email})')
+        if sent_via_whatsapp:
+            sent_methods.append(f'WhatsApp ({phone})')
+
+        response_data = {
+            'message': f'Contrato enviado vía {" y ".join(sent_methods)}',
+            'token_id': str(signature_token.id),
+            'expires_at': signature_token.expires_at,
+            'sent_via': {
+                'email': sent_via_email,
+                'whatsapp': sent_via_whatsapp,
+            }
+        }
+
+        # Include partial errors if some methods failed
+        if errors:
+            response_data['warnings'] = errors
+
+        return Response(response_data)
 
     @action(detail=True, methods=['get'])
     def download_pdf(self, request, pk=None):
