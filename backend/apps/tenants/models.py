@@ -122,6 +122,37 @@ class Tenant(TenantMixin):
     )
 
     # ============================================================
+    # WHATSAPP API CONFIGURATION (Configuración de WhatsApp Cloud API)
+    # ============================================================
+    whatsapp_phone_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='WhatsApp Phone Number ID from Meta Business'
+    )
+
+    whatsapp_token = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text='WhatsApp Access Token from Meta Business (encriptado)'
+    )
+
+    whatsapp_business_account_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='WhatsApp Business Account ID'
+    )
+
+    whatsapp_verify_token = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Webhook Verify Token (para validar webhooks)'
+    )
+
+    # ============================================================
     # PAYMENT GATEWAY CONFIGURATION (Pasarelas de Pago)
     # ============================================================
     enable_stripe = models.BooleanField(

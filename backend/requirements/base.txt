@@ -57,3 +57,6 @@ reportlab==4.2.2
 # Security
 django-ratelimit==4.1.0
 django-filter==24.3
+
+# WhatsApp Integration
+pywa==3.4.0
