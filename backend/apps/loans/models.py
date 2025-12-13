@@ -691,7 +691,7 @@ class Collateral(UUIDModel, AuditModel):
     collateral_type = models.CharField(max_length=50, choices=COLLATERAL_TYPE_CHOICES)
 
     # Collateral Details
-    description = models.TextField()
+    description = models.TextField(blank=True, default='')
     estimated_value = MoneyField(
         max_digits=14,
         decimal_places=2,
@@ -727,6 +727,12 @@ class Collateral(UUIDModel, AuditModel):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
 
     notes = models.TextField(blank=True, null=True)
+
+    # Type-specific metadata stored as JSON
+    # For vehicles: {brand, model, year, plate, color, vin, engine_number}
+    # For property: {address, size_sqm, title_deed_number, registry_number}
+    # For equipment: {brand, model, serial_number}
+    metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = 'loan_collaterals'

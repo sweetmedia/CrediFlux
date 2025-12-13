@@ -14,11 +14,12 @@ export function usePasswordReset() {
   });
 
   return {
-    requestReset: requestResetMutation.mutate,
+    // Use mutateAsync for async/await support in components
+    requestReset: requestResetMutation.mutateAsync,
     isRequesting: requestResetMutation.isPending,
     requestError: requestResetMutation.error,
     requestSuccess: requestResetMutation.isSuccess,
-    confirmReset: confirmResetMutation.mutate,
+    confirmReset: confirmResetMutation.mutateAsync,
     isConfirming: confirmResetMutation.isPending,
     confirmError: confirmResetMutation.error,
     confirmSuccess: confirmResetMutation.isSuccess,

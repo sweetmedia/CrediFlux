@@ -236,10 +236,38 @@ export interface LoanPayment {
 }
 
 // Collateral Types
+export type CollateralType = 'vehicle' | 'property' | 'equipment' | 'inventory' | 'securities' | 'cash_deposit' | 'other';
+
+// Type-specific metadata interfaces
+export interface VehicleMetadata {
+  brand?: string;
+  model?: string;
+  year?: number;
+  plate?: string;
+  color?: string;
+  vin?: string;
+  engine_number?: string;
+}
+
+export interface PropertyMetadata {
+  address?: string;
+  size_sqm?: number;
+  title_deed_number?: string;
+  registry_number?: string;
+}
+
+export interface EquipmentMetadata {
+  brand?: string;
+  model?: string;
+  serial_number?: string;
+}
+
+export type CollateralMetadata = VehicleMetadata | PropertyMetadata | EquipmentMetadata | Record<string, any>;
+
 export interface Collateral {
   id: string;
   loan: string;
-  collateral_type: 'vehicle' | 'property' | 'equipment' | 'inventory' | 'securities' | 'cash_deposit' | 'other';
+  collateral_type: CollateralType;
   description: string;
   estimated_value: number;
   appraisal_value?: number;
@@ -248,12 +276,13 @@ export interface Collateral {
   photos?: string;
   status: 'active' | 'released' | 'liquidated';
   notes?: string;
+  metadata?: CollateralMetadata;
   created_at: string;
   updated_at: string;
 }
 
 export interface CollateralCreate {
-  collateral_type: 'vehicle' | 'property' | 'equipment' | 'inventory' | 'securities' | 'cash_deposit' | 'other';
+  collateral_type: CollateralType;
   description: string;
   estimated_value: number;
   appraisal_value?: number;
@@ -261,6 +290,7 @@ export interface CollateralCreate {
   documents?: File;
   photos?: File;
   notes?: string;
+  metadata?: CollateralMetadata;
 }
 
 // Tenant Types
@@ -538,4 +568,84 @@ export interface CollectionContactCreate {
   notes: string;
   next_contact_date?: string;
   requires_escalation?: boolean;
+}
+
+// Task Types (Kanban Board)
+export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
+export type TaskPriority = 'low' | 'medium' | 'high';
+
+export interface TaskCustomerInfo {
+  id: string;
+  customer_id: string;
+  full_name: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  alternate_phone: string | null;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  status_display: string;
+  priority: TaskPriority;
+  priority_display: string;
+  assignee: string | null;
+  assignee_name: string | null;
+  customer: string | null;
+  customer_name: string | null;
+  customer_info: TaskCustomerInfo | null;
+  due_date: string | null;
+  tags: string[];
+  position: number;
+  is_overdue: boolean;
+  created_by: string;
+  created_by_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskCreate {
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  assignee?: string;
+  customer?: string;
+  due_date?: string;
+  tags?: string[];
+  position?: number;
+}
+
+export interface TaskUpdate extends Partial<TaskCreate> {}
+
+export interface TaskMove {
+  status: TaskStatus;
+  position?: number;
+}
+
+export interface TasksByStatus {
+  todo: Task[];
+  in_progress: Task[];
+  review: Task[];
+  done: Task[];
+}
+
+export interface TaskStatistics {
+  total: number;
+  by_status: {
+    todo: number;
+    in_progress: number;
+    review: number;
+    done: number;
+  };
+  by_priority: {
+    low: number;
+    medium: number;
+    high: number;
+  };
+  overdue: number;
 }

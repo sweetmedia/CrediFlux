@@ -797,6 +797,15 @@ class CollateralViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'estimated_value']
     ordering = ['-created_at']
 
+    def create(self, request, *args, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Collateral create request data: {request.data}")
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning(f"Collateral validation errors: {serializer.errors}")
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 

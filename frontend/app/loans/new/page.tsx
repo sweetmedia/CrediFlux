@@ -46,8 +46,11 @@ import {
   CheckCircle,
   Calendar,
   Percent,
+  Car,
+  Home,
+  Wrench,
 } from 'lucide-react';
-import { CollateralCreate } from '@/types';
+import { CollateralCreate, VehicleMetadata, PropertyMetadata, EquipmentMetadata } from '@/types';
 
 const loanSchema = z.object({
   customer: z.string().min(1, 'Cliente requerido'),
@@ -286,12 +289,30 @@ export default function NewLoanPage() {
       collateral_type: 'vehicle',
       description: '',
       estimated_value: 0,
+      metadata: {},
     }]);
   };
 
   const updateCollateral = (index: number, field: keyof CollateralCreate, value: any) => {
     const updated = [...collaterals];
-    updated[index] = { ...updated[index], [field]: value };
+    // When changing type, reset metadata
+    if (field === 'collateral_type' && updated[index].collateral_type !== value) {
+      updated[index] = { ...updated[index], [field]: value, metadata: {} };
+    } else {
+      updated[index] = { ...updated[index], [field]: value };
+    }
+    setCollaterals(updated);
+  };
+
+  const updateCollateralMetadata = (index: number, metaField: string, value: any) => {
+    const updated = [...collaterals];
+    updated[index] = {
+      ...updated[index],
+      metadata: {
+        ...updated[index].metadata,
+        [metaField]: value,
+      },
+    };
     setCollaterals(updated);
   };
 
@@ -304,11 +325,22 @@ export default function NewLoanPage() {
   const validateCollaterals = (): string | null => {
     for (let i = 0; i < collaterals.length; i++) {
       const c = collaterals[i];
-      if (!c.description || c.description.trim() === '') {
-        return `Garantía ${i + 1}: La descripción es requerida`;
-      }
       if (!c.estimated_value || c.estimated_value <= 0) {
         return `Garantía ${i + 1}: El valor estimado debe ser mayor a 0`;
+      }
+      // For vehicle, require at least brand and model
+      if (c.collateral_type === 'vehicle') {
+        const meta = c.metadata as VehicleMetadata || {};
+        if (!meta.brand || !meta.model) {
+          return `Garantía ${i + 1}: Marca y Modelo son requeridos para vehículos`;
+        }
+      }
+      // For property, require address
+      if (c.collateral_type === 'property') {
+        const meta = c.metadata as PropertyMetadata || {};
+        if (!meta.address) {
+          return `Garantía ${i + 1}: La dirección es requerida para propiedades`;
+        }
       }
     }
     return null;
@@ -478,8 +510,18 @@ export default function NewLoanPage() {
           if (collateral.notes) {
             collateralData.notes = collateral.notes;
           }
+          // Include metadata if present
+          if (collateral.metadata && Object.keys(collateral.metadata).length > 0) {
+            collateralData.metadata = collateral.metadata;
+          }
 
-          return collateralsAPI.createCollateral(collateralData);
+          console.log('Creating collateral with data:', collateralData);
+          try {
+            return await collateralsAPI.createCollateral(collateralData);
+          } catch (collateralError: any) {
+            console.error('Collateral creation error:', collateralError.response?.data);
+            throw collateralError;
+          }
         });
         await Promise.all(collateralPromises);
       }
@@ -1091,18 +1133,160 @@ export default function NewLoanPage() {
                               onChange={(e) => updateCollateral(index, 'estimated_value', parseFloat(e.target.value) || 0)}
                             />
                           </div>
+                        </div>
 
-                          <div className="space-y-2 col-span-2">
-                            <Label className="text-sm font-medium text-slate-700">
-                              Descripción <span className="text-red-500">*</span>
-                            </Label>
-                            <Textarea
-                              placeholder="Descripción detallada (marca, modelo, año, placa, etc.)"
-                              rows={2}
-                              value={collateral.description}
-                              onChange={(e) => updateCollateral(index, 'description', e.target.value)}
-                            />
+                        {/* Dynamic fields based on collateral type */}
+                        {collateral.collateral_type === 'vehicle' && (
+                          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <h5 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+                              <Car className="h-4 w-4" />
+                              Información del Vehículo
+                            </h5>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">Marca</Label>
+                                <Input
+                                  placeholder="Ej: Toyota, Honda, Ford..."
+                                  value={(collateral.metadata as VehicleMetadata)?.brand || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'brand', e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">Modelo</Label>
+                                <Input
+                                  placeholder="Ej: Corolla, Civic, F-150..."
+                                  value={(collateral.metadata as VehicleMetadata)?.model || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'model', e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">Año</Label>
+                                <Input
+                                  type="number"
+                                  placeholder="Ej: 2020"
+                                  min="1900"
+                                  max={new Date().getFullYear() + 1}
+                                  value={(collateral.metadata as VehicleMetadata)?.year || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'year', parseInt(e.target.value) || undefined)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">Placa</Label>
+                                <Input
+                                  placeholder="Ej: A123456"
+                                  value={(collateral.metadata as VehicleMetadata)?.plate || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'plate', e.target.value.toUpperCase())}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">Color</Label>
+                                <Input
+                                  placeholder="Ej: Blanco, Negro, Rojo..."
+                                  value={(collateral.metadata as VehicleMetadata)?.color || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'color', e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">VIN (Chasis)</Label>
+                                <Input
+                                  placeholder="Número de chasis"
+                                  value={(collateral.metadata as VehicleMetadata)?.vin || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'vin', e.target.value.toUpperCase())}
+                                />
+                              </div>
+                            </div>
                           </div>
+                        )}
+
+                        {collateral.collateral_type === 'property' && (
+                          <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                            <h5 className="font-medium text-green-900 mb-3 flex items-center gap-2">
+                              <Home className="h-4 w-4" />
+                              Información de la Propiedad
+                            </h5>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2 col-span-2">
+                                <Label className="text-sm font-medium text-slate-700">Dirección</Label>
+                                <Input
+                                  placeholder="Dirección completa de la propiedad"
+                                  value={(collateral.metadata as PropertyMetadata)?.address || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'address', e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">Tamaño (m²)</Label>
+                                <Input
+                                  type="number"
+                                  placeholder="Ej: 150"
+                                  value={(collateral.metadata as PropertyMetadata)?.size_sqm || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'size_sqm', parseFloat(e.target.value) || undefined)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">No. Título</Label>
+                                <Input
+                                  placeholder="Número de título de propiedad"
+                                  value={(collateral.metadata as PropertyMetadata)?.title_deed_number || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'title_deed_number', e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">No. Registro</Label>
+                                <Input
+                                  placeholder="Número de registro catastral"
+                                  value={(collateral.metadata as PropertyMetadata)?.registry_number || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'registry_number', e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {collateral.collateral_type === 'equipment' && (
+                          <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                            <h5 className="font-medium text-amber-900 mb-3 flex items-center gap-2">
+                              <Wrench className="h-4 w-4" />
+                              Información del Equipamiento
+                            </h5>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">Marca</Label>
+                                <Input
+                                  placeholder="Marca del equipo"
+                                  value={(collateral.metadata as EquipmentMetadata)?.brand || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'brand', e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">Modelo</Label>
+                                <Input
+                                  placeholder="Modelo del equipo"
+                                  value={(collateral.metadata as EquipmentMetadata)?.model || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'model', e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2 col-span-2">
+                                <Label className="text-sm font-medium text-slate-700">Número de Serie</Label>
+                                <Input
+                                  placeholder="Número de serie del equipo"
+                                  value={(collateral.metadata as EquipmentMetadata)?.serial_number || ''}
+                                  onChange={(e) => updateCollateralMetadata(index, 'serial_number', e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-2 mt-4">
+                          <Label className="text-sm font-medium text-slate-700">
+                            Descripción Adicional
+                          </Label>
+                          <Textarea
+                            placeholder="Información adicional sobre la garantía..."
+                            rows={2}
+                            value={collateral.description}
+                            onChange={(e) => updateCollateral(index, 'description', e.target.value)}
+                          />
                         </div>
                       </div>
                     ))}
@@ -1230,13 +1414,48 @@ export default function NewLoanPage() {
                         <Shield className="h-4 w-4 text-blue-600" />
                         Garantías ({collaterals.length})
                       </h3>
-                      <div className="space-y-2">
-                        {collaterals.map((col, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-sm">
-                            <span className="text-slate-600">{getCollateralTypeLabel(col.collateral_type)}</span>
-                            <span className="font-medium text-slate-900">{formatCurrency(col.estimated_value)}</span>
-                          </div>
-                        ))}
+                      <div className="space-y-3">
+                        {collaterals.map((col, idx) => {
+                          const meta = col.metadata || {};
+                          return (
+                            <div key={idx} className="bg-white rounded-lg p-3 border border-slate-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {col.collateral_type === 'vehicle' && <Car className="h-4 w-4 text-blue-600" />}
+                                  {col.collateral_type === 'property' && <Home className="h-4 w-4 text-green-600" />}
+                                  {col.collateral_type === 'equipment' && <Wrench className="h-4 w-4 text-amber-600" />}
+                                  {!['vehicle', 'property', 'equipment'].includes(col.collateral_type) && <Shield className="h-4 w-4 text-slate-600" />}
+                                  <span className="font-medium text-slate-900">{getCollateralTypeLabel(col.collateral_type)}</span>
+                                </div>
+                                <span className="font-bold text-blue-600">{formatCurrency(col.estimated_value)}</span>
+                              </div>
+                              {col.collateral_type === 'vehicle' && (meta as VehicleMetadata).brand && (
+                                <div className="text-sm text-slate-600 space-y-1">
+                                  <p><strong>Vehículo:</strong> {(meta as VehicleMetadata).brand} {(meta as VehicleMetadata).model} {(meta as VehicleMetadata).year}</p>
+                                  {(meta as VehicleMetadata).plate && <p><strong>Placa:</strong> {(meta as VehicleMetadata).plate}</p>}
+                                  {(meta as VehicleMetadata).color && <p><strong>Color:</strong> {(meta as VehicleMetadata).color}</p>}
+                                  {(meta as VehicleMetadata).vin && <p><strong>VIN:</strong> {(meta as VehicleMetadata).vin}</p>}
+                                </div>
+                              )}
+                              {col.collateral_type === 'property' && (meta as PropertyMetadata).address && (
+                                <div className="text-sm text-slate-600 space-y-1">
+                                  <p><strong>Dirección:</strong> {(meta as PropertyMetadata).address}</p>
+                                  {(meta as PropertyMetadata).size_sqm && <p><strong>Tamaño:</strong> {(meta as PropertyMetadata).size_sqm} m²</p>}
+                                  {(meta as PropertyMetadata).title_deed_number && <p><strong>No. Título:</strong> {(meta as PropertyMetadata).title_deed_number}</p>}
+                                </div>
+                              )}
+                              {col.collateral_type === 'equipment' && (meta as EquipmentMetadata).brand && (
+                                <div className="text-sm text-slate-600 space-y-1">
+                                  <p><strong>Equipo:</strong> {(meta as EquipmentMetadata).brand} {(meta as EquipmentMetadata).model}</p>
+                                  {(meta as EquipmentMetadata).serial_number && <p><strong>No. Serie:</strong> {(meta as EquipmentMetadata).serial_number}</p>}
+                                </div>
+                              )}
+                              {col.description && (
+                                <p className="text-sm text-slate-500 mt-2 italic">{col.description}</p>
+                              )}
+                            </div>
+                          );
+                        })}
                         <div className="flex items-center justify-between text-sm font-bold border-t border-slate-300 pt-2 mt-2">
                           <span className="text-slate-900">Total:</span>
                           <span className="text-blue-600">{formatCurrency(getTotalCollateralValue())}</span>

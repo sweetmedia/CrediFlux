@@ -5,6 +5,7 @@ export const customersAPI = {
   // Get all customers
   async getCustomers(params?: {
     page?: number;
+    page_size?: number;
     search?: string;
     status?: string;
     employment_status?: string;

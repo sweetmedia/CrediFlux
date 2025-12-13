@@ -164,19 +164,65 @@ class CustomerListSerializer(serializers.ModelSerializer):
 
 class CollateralSerializer(serializers.ModelSerializer):
     """Serializer for Collateral model"""
-    # Convert Money fields to decimal for frontend
-    estimated_value = serializers.DecimalField(source='estimated_value.amount', max_digits=14, decimal_places=2)
-    appraisal_value = serializers.DecimalField(source='appraisal_value.amount', max_digits=14, decimal_places=2, allow_null=True, required=False)
+    # For reading, convert Money fields to decimal
+    estimated_value = serializers.DecimalField(max_digits=14, decimal_places=2)
+    appraisal_value = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True, required=False)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
 
     class Meta:
         model = Collateral
         fields = [
             'id', 'loan', 'collateral_type', 'description',
             'estimated_value', 'appraisal_value', 'appraisal_date',
-            'documents', 'photos', 'status', 'notes',
+            'documents', 'photos', 'status', 'notes', 'metadata',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def to_representation(self, instance):
+        """Convert Money fields to decimal for reading"""
+        data = super().to_representation(instance)
+        if instance.estimated_value:
+            data['estimated_value'] = float(instance.estimated_value.amount)
+        if instance.appraisal_value:
+            data['appraisal_value'] = float(instance.appraisal_value.amount)
+        return data
+
+    def create(self, validated_data):
+        """Handle Money field creation"""
+        from djmoney.money import Money
+
+        # Convert decimal to Money for estimated_value
+        if 'estimated_value' in validated_data:
+            validated_data['estimated_value'] = Money(
+                validated_data['estimated_value'], 'USD'
+            )
+
+        # Convert decimal to Money for appraisal_value if present
+        if validated_data.get('appraisal_value'):
+            validated_data['appraisal_value'] = Money(
+                validated_data['appraisal_value'], 'USD'
+            )
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        """Handle Money field updates"""
+        from djmoney.money import Money
+
+        # Convert decimal to Money for estimated_value
+        if 'estimated_value' in validated_data:
+            validated_data['estimated_value'] = Money(
+                validated_data['estimated_value'], 'USD'
+            )
+
+        # Convert decimal to Money for appraisal_value if present
+        if validated_data.get('appraisal_value'):
+            validated_data['appraisal_value'] = Money(
+                validated_data['appraisal_value'], 'USD'
+            )
+
+        return super().update(instance, validated_data)
 
 
 class LoanScheduleSerializer(serializers.ModelSerializer):

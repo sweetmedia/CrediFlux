@@ -1,6 +1,7 @@
 """
 Communications models for Email and WhatsApp messaging
 """
+import uuid
 from django.db import models
 from django.conf import settings
 from apps.loans.models import Customer
@@ -382,3 +383,133 @@ class WhatsAppMessage(models.Model):
         direction_symbol = '→' if self.direction == 'outbound' else '←'
         content_preview = self.content[:50] if self.content else f'[{self.message_type}]'
         return f"{direction_symbol} {content_preview} ({self.from_phone} → {self.to_phone})"
+
+
+class Task(models.Model):
+    """
+    Task model for Kanban board task management
+    Multi-tenant aware (shared model, isolated by tenant schema)
+    """
+
+    STATUS_CHOICES = [
+        ('todo', 'Por Hacer'),
+        ('in_progress', 'En Progreso'),
+        ('review', 'En Revisión'),
+        ('done', 'Completado'),
+    ]
+
+    PRIORITY_CHOICES = [
+        ('low', 'Baja'),
+        ('medium', 'Media'),
+        ('high', 'Alta'),
+    ]
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text='ID único de la tarea'
+    )
+
+    title = models.CharField(
+        max_length=255,
+        help_text='Título de la tarea'
+    )
+
+    description = models.TextField(
+        blank=True,
+        default='',
+        help_text='Descripción detallada de la tarea'
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='todo',
+        help_text='Estado actual de la tarea'
+    )
+
+    priority = models.CharField(
+        max_length=20,
+        choices=PRIORITY_CHOICES,
+        default='medium',
+        help_text='Prioridad de la tarea'
+    )
+
+    assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_tasks',
+        help_text='Usuario asignado a la tarea'
+    )
+
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tasks',
+        help_text='Cliente/Contacto relacionado con la tarea'
+    )
+
+    due_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Fecha límite de la tarea'
+    )
+
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Etiquetas de la tarea (lista de strings)'
+    )
+
+    position = models.IntegerField(
+        default=0,
+        help_text='Posición de la tarea en la columna (para ordenamiento)'
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_tasks',
+        help_text='Usuario que creó la tarea'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='Fecha de creación'
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text='Fecha de última actualización'
+    )
+
+    class Meta:
+        ordering = ['position', '-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['priority']),
+            models.Index(fields=['assignee']),
+            models.Index(fields=['customer']),
+            models.Index(fields=['due_date']),
+            models.Index(fields=['position']),
+            models.Index(fields=['-created_at']),
+        ]
+        verbose_name = 'Tarea'
+        verbose_name_plural = 'Tareas'
+
+    def __str__(self):
+        return f"{self.title} ({self.get_status_display()})"
+
+    @property
+    def is_overdue(self):
+        """Check if task is overdue"""
+        from datetime import date
+        if self.due_date and self.status != 'done':
+            return self.due_date < date.today()
+        return False

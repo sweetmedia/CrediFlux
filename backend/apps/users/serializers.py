@@ -120,6 +120,8 @@ class EmailVerificationSendSerializer(serializers.Serializer):
 
     def save(self):
         """Generate verification token and send email"""
+        from urllib.parse import urlparse, urlunparse
+
         email = self.validated_data['email']
         user = User.objects.get(email=email)
 
@@ -127,8 +129,22 @@ class EmailVerificationSendSerializer(serializers.Serializer):
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
 
-        # Create verification URL (you can customize this based on your frontend)
+        # Create verification URL with tenant subdomain
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+
+        # If user belongs to a tenant, add subdomain to URL
+        if user.tenant:
+            parsed = urlparse(frontend_url)
+            tenant_host = f"{user.tenant.schema_name}.{parsed.netloc}"
+            frontend_url = urlunparse((
+                parsed.scheme,
+                tenant_host,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment
+            ))
+
         verification_url = f"{frontend_url}/verify-email?uid={uid}&token={token}"
 
         # Send email
@@ -227,6 +243,8 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
     def save(self):
         """Generate reset token and send email"""
+        from urllib.parse import urlparse, urlunparse
+
         email = self.validated_data['email']
 
         try:
@@ -236,8 +254,23 @@ class PasswordResetRequestSerializer(serializers.Serializer):
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
 
-            # Create reset URL
+            # Create reset URL with tenant subdomain
             frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+
+            # If user belongs to a tenant, add subdomain to URL
+            if user.tenant:
+                parsed = urlparse(frontend_url)
+                # Add tenant subdomain to the host
+                tenant_host = f"{user.tenant.schema_name}.{parsed.netloc}"
+                frontend_url = urlunparse((
+                    parsed.scheme,
+                    tenant_host,
+                    parsed.path,
+                    parsed.params,
+                    parsed.query,
+                    parsed.fragment
+                ))
+
             reset_url = f"{frontend_url}/reset-password?uid={uid}&token={token}"
 
             # Send email
