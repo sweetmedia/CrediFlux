@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, RefObject } from 'react';
-import gsap from 'gsap';
 
 type AnimationType = 'fadeIn' | 'fadeInUp' | 'fadeInDown' | 'fadeInLeft' | 'fadeInRight' | 'scaleIn' | 'slideIn';
 
@@ -12,7 +11,7 @@ interface AnimationOptions {
   stagger?: number;
 }
 
-const animationConfigs: Record<AnimationType, gsap.TweenVars> = {
+const animationConfigs: Record<AnimationType, { from: object; to: object }> = {
   fadeIn: {
     from: { opacity: 0 },
     to: { opacity: 1 },
@@ -58,11 +57,13 @@ export function useGsapAnimation<T extends HTMLElement>(
     const config = animationConfigs[type];
     const { duration = 0.5, delay = 0, ease = 'power2.out' } = options;
 
-    gsap.fromTo(ref.current, config.from as gsap.TweenVars, {
-      ...config.to,
-      duration,
-      delay,
-      ease,
+    import('gsap').then(({ default: gsap }) => {
+      gsap.fromTo(ref.current, config.from, {
+        ...config.to,
+        duration,
+        delay,
+        ease,
+      });
     });
   }, [type, options.duration, options.delay, options.ease]);
 
@@ -87,12 +88,14 @@ export function useGsapStagger<T extends HTMLElement>(
     const children = containerRef.current.children;
     if (children.length === 0) return;
 
-    gsap.fromTo(children, config.from as gsap.TweenVars, {
-      ...config.to,
-      duration,
-      delay,
-      ease,
-      stagger,
+    import('gsap').then(({ default: gsap }) => {
+      gsap.fromTo(children, config.from, {
+        ...config.to,
+        duration,
+        delay,
+        ease,
+        stagger,
+      });
     });
   }, [type, options.duration, options.delay, options.ease, options.stagger]);
 
@@ -106,33 +109,38 @@ export const animate = {
   fadeIn: (element: HTMLElement | null, options: AnimationOptions = {}) => {
     if (!element) return;
     const { duration = 0.5, delay = 0, ease = 'power2.out' } = options;
-    gsap.fromTo(element, { opacity: 0 }, { opacity: 1, duration, delay, ease });
+    import('gsap').then(({ default: gsap }) => {
+      gsap.fromTo(element, { opacity: 0 }, { opacity: 1, duration, delay, ease });
+    });
   },
 
   fadeInUp: (element: HTMLElement | null, options: AnimationOptions = {}) => {
     if (!element) return;
     const { duration = 0.5, delay = 0, ease = 'power2.out' } = options;
-    gsap.fromTo(element, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration, delay, ease });
+    import('gsap').then(({ default: gsap }) => {
+      gsap.fromTo(element, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration, delay, ease });
+    });
   },
 
   fadeOut: (element: HTMLElement | null, options: AnimationOptions = {}) => {
     if (!element) return;
     const { duration = 0.3, delay = 0, ease = 'power2.in' } = options;
-    gsap.to(element, { opacity: 0, duration, delay, ease });
+    import('gsap').then(({ default: gsap }) => {
+      gsap.to(element, { opacity: 0, duration, delay, ease });
+    });
   },
 
   stagger: (elements: HTMLElement[] | NodeListOf<Element>, type: AnimationType = 'fadeInUp', options: AnimationOptions = {}) => {
     const config = animationConfigs[type];
     const { duration = 0.5, delay = 0, ease = 'power2.out', stagger = 0.1 } = options;
-    gsap.fromTo(elements, config.from as gsap.TweenVars, {
-      ...config.to,
-      duration,
-      delay,
-      ease,
-      stagger,
+    import('gsap').then(({ default: gsap }) => {
+      gsap.fromTo(elements, config.from, {
+        ...config.to,
+        duration,
+        delay,
+        ease,
+        stagger,
+      });
     });
   },
-
-  // Utility for scroll-triggered animations (requires ScrollTrigger plugin)
-  timeline: () => gsap.timeline(),
 };

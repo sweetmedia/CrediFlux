@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import gsap from 'gsap';
 
 export function NavigationProgress() {
   const pathname = usePathname();
@@ -14,41 +13,44 @@ export function NavigationProgress() {
   useEffect(() => {
     if (!progressRef.current || !containerRef.current) return;
 
-    // Show and animate progress bar
-    setIsNavigating(true);
+    // Dynamically import GSAP
+    import('gsap').then((gsapModule) => {
+      const gsap = gsapModule.default;
 
-    // Reset and show
-    gsap.set(containerRef.current, { opacity: 1 });
-    gsap.set(progressRef.current, { width: '0%' });
+      // Show and animate progress bar
+      setIsNavigating(true);
 
-    // Animate to 90% quickly
-    gsap.to(progressRef.current, {
-      width: '90%',
-      duration: 0.5,
-      ease: 'power2.out',
-    });
+      // Reset and show
+      gsap.set(containerRef.current, { opacity: 1 });
+      gsap.set(progressRef.current, { width: '0%' });
 
-    // Complete the animation after a short delay
-    const completeTimer = setTimeout(() => {
+      // Animate to 90% quickly
       gsap.to(progressRef.current, {
-        width: '100%',
-        duration: 0.2,
-        ease: 'power1.in',
-        onComplete: () => {
-          // Fade out
-          gsap.to(containerRef.current, {
-            opacity: 0,
-            duration: 0.3,
-            delay: 0.1,
-            onComplete: () => {
-              setIsNavigating(false);
-            },
-          });
-        },
+        width: '90%',
+        duration: 0.5,
+        ease: 'power2.out',
       });
-    }, 300);
 
-    return () => clearTimeout(completeTimer);
+      // Complete the animation after a short delay
+      setTimeout(() => {
+        gsap.to(progressRef.current, {
+          width: '100%',
+          duration: 0.2,
+          ease: 'power1.in',
+          onComplete: () => {
+            // Fade out
+            gsap.to(containerRef.current, {
+              opacity: 0,
+              duration: 0.3,
+              delay: 0.1,
+              onComplete: () => {
+                setIsNavigating(false);
+              },
+            });
+          },
+        });
+      }, 300);
+    });
   }, [pathname, searchParams]);
 
   return (
