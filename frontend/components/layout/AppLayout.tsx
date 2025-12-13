@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
 import { Loader2 } from 'lucide-react';
+import { SimplePageTransition } from '@/components/PageTransition';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -47,7 +48,11 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // If it's a public page, don't show sidebar
   if (isPublicPage) {
-    return <>{children}</>;
+    return (
+      <SimplePageTransition>
+        {children}
+      </SimplePageTransition>
+    );
   }
 
   // If authenticated, show sidebar with content
@@ -56,7 +61,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="min-h-screen bg-slate-50">
         <Sidebar />
         <div className="ml-64">
-          {children}
+          <SimplePageTransition>
+            {children}
+          </SimplePageTransition>
         </div>
       </div>
     );

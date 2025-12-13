@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { NavigationProgress } from '@/components/NavigationProgress';
+import { Suspense } from 'react';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -54,6 +56,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers>
+          <Suspense fallback={null}>
+            <NavigationProgress />
+          </Suspense>
           <AppLayout>{children}</AppLayout>
         </Providers>
       </body>
