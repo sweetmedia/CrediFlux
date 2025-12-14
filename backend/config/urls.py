@@ -50,6 +50,7 @@ urlpatterns = [
     path('api/users/', include('apps.users.urls')),
     path('api/tenants/', include('apps.tenants.urls')),
     path('api/communications/', include('apps.communications.urls')),
+    path('api/audit/', include('apps.audit.urls')),
 ]
 
 # Serve media files in development

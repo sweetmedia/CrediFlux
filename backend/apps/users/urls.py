@@ -19,6 +19,12 @@ from .views import (
     TeamMemberListView,
     TeamMemberCreateView,
     TeamMemberDetailView,
+    # Two-Factor Authentication
+    TwoFactorSetupView,
+    TwoFactorVerifyView,
+    TwoFactorLoginVerifyView,
+    TwoFactorDisableView,
+    TwoFactorBackupCodesView,
 )
 
 app_name = 'users'
@@ -54,4 +60,13 @@ urlpatterns = [
     path('team/', TeamMemberListView.as_view(), name='team-list'),
     path('team/create/', TeamMemberCreateView.as_view(), name='team-create'),
     path('team/<int:pk>/', TeamMemberDetailView.as_view(), name='team-detail'),
+
+    # ========================================================================
+    # TWO-FACTOR AUTHENTICATION
+    # ========================================================================
+    path('auth/2fa/setup/', TwoFactorSetupView.as_view(), name='2fa-setup'),
+    path('auth/2fa/verify/', TwoFactorVerifyView.as_view(), name='2fa-verify'),
+    path('auth/2fa/login/', TwoFactorLoginVerifyView.as_view(), name='2fa-login'),
+    path('auth/2fa/disable/', TwoFactorDisableView.as_view(), name='2fa-disable'),
+    path('auth/2fa/backup-codes/', TwoFactorBackupCodesView.as_view(), name='2fa-backup-codes'),
 ]

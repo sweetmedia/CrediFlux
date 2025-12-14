@@ -2,7 +2,14 @@
 Core app URLs
 """
 from django.urls import path
-from .views import HealthCheckView, validate_rnc_view, rnc_database_status, get_ui_theme, get_tenant_config
+from .views import (
+    HealthCheckView,
+    validate_rnc_view,
+    rnc_database_status,
+    get_ui_theme,
+    get_tenant_config,
+    GlobalSearchView,
+)
 
 app_name = 'core'
 
@@ -12,4 +19,5 @@ urlpatterns = [
     path('rnc-database-status/', rnc_database_status, name='rnc-database-status'),
     path('ui-theme/', get_ui_theme, name='ui-theme'),
     path('config/', get_tenant_config, name='tenant-config'),
+    path('search/', GlobalSearchView.as_view(), name='global-search'),
 ]

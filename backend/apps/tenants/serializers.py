@@ -488,6 +488,7 @@ class TenantLoginSerializer(serializers.Serializer):
                 'is_tenant_owner': user.is_tenant_owner,
                 'is_staff': user.is_staff,
                 'is_superuser': user.is_superuser,
+                'is_2fa_enabled': user.is_2fa_enabled,
             }
         return None
 
@@ -587,7 +588,27 @@ class TenantLoginSerializer(serializers.Serializer):
 
             logger.warning(f"   ✅ ALLOWED: User belongs to this tenant")
 
-        # Generate JWT tokens
+        # Check if user has 2FA enabled
+        if user.is_2fa_enabled:
+            import secrets
+            from django.core.cache import cache
+
+            # Generate temporary token for 2FA verification
+            temp_token = secrets.token_urlsafe(32)
+
+            # Store user ID in cache for 5 minutes
+            cache.set(f'2fa_pending_{temp_token}', str(user.pk), timeout=300)
+
+            logger.warning(f"   🔐 2FA REQUIRED: User has 2FA enabled")
+
+            return {
+                'requires_2fa': True,
+                'temp_token': temp_token,
+                'user': user,
+                'tenant': user.tenant,
+            }
+
+        # Generate JWT tokens (no 2FA required)
         refresh = RefreshToken.for_user(user)
 
         # Update last login
@@ -604,8 +625,18 @@ class TenantLoginSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         """
-        Return formatted response with tokens and user/tenant info
+        Return formatted response with tokens and user/tenant info.
+        If 2FA is required, returns temp_token instead of JWT tokens.
         """
+        # Check if 2FA is required
+        if instance.get('requires_2fa'):
+            return {
+                'requires_2fa': True,
+                'temp_token': instance.get('temp_token'),
+                'message': 'Two-factor authentication required. Please provide your verification code.',
+            }
+
+        # Normal login response
         return {
             'access_token': instance.get('access_token'),
             'refresh_token': instance.get('refresh_token'),

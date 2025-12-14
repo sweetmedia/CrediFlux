@@ -48,8 +48,12 @@ import {
   Bell,
   Briefcase,
   DollarSign,
-  MessageSquare
+  MessageSquare,
+  Shield,
+  AlertTriangle,
+  KeyRound,
 } from 'lucide-react';
+import { TwoFactorSetup, BackupCodesDisplay } from '@/components/auth';
 
 const tenantSettingsSchema = z.object({
   business_name: z.string().min(2, 'Nombre del negocio debe tener al menos 2 caracteres'),
@@ -128,6 +132,20 @@ export default function TenantSettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string>('');
   const [passwordSuccess, setPasswordSuccess] = useState<string>('');
+
+  // 2FA states
+  const [is2FASetupOpen, setIs2FASetupOpen] = useState(false);
+  const [is2FADisabling, setIs2FADisabling] = useState(false);
+  const [twoFAError, setTwoFAError] = useState<string>('');
+  const [twoFASuccess, setTwoFASuccess] = useState<string>('');
+  const [showDisable2FAForm, setShowDisable2FAForm] = useState(false);
+  const [disable2FAPassword, setDisable2FAPassword] = useState('');
+  const [disable2FACode, setDisable2FACode] = useState('');
+  const [backupCodesStatus, setBackupCodesStatus] = useState<{ is_2fa_enabled: boolean; backup_codes_remaining: number } | null>(null);
+  const [isRegeneratingBackupCodes, setIsRegeneratingBackupCodes] = useState(false);
+  const [regeneratePassword, setRegeneratePassword] = useState('');
+  const [showRegenerateForm, setShowRegenerateForm] = useState(false);
+  const [newBackupCodes, setNewBackupCodes] = useState<string[]>([]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -539,6 +557,102 @@ export default function TenantSettingsPage() {
       setProfileError('Error al eliminar la foto de perfil');
     } finally {
       setIsUploadingAvatar(false);
+    }
+  };
+
+  // Load 2FA status
+  useEffect(() => {
+    if (user?.is_2fa_enabled) {
+      load2FAStatus();
+    }
+  }, [user?.is_2fa_enabled]);
+
+  const load2FAStatus = async () => {
+    try {
+      const status = await authAPI.get2FAStatus();
+      setBackupCodesStatus(status);
+    } catch (err) {
+      console.error('Error loading 2FA status:', err);
+    }
+  };
+
+  // Handle 2FA setup success
+  const handle2FASetupSuccess = async () => {
+    setTwoFASuccess('Autenticacion de dos factores habilitada exitosamente');
+    await refreshUser();
+    await load2FAStatus();
+    setTimeout(() => setTwoFASuccess(''), 5000);
+  };
+
+  // Handle disable 2FA
+  const handleDisable2FA = async () => {
+    if (!disable2FAPassword || !disable2FACode) {
+      setTwoFAError('Ingresa tu contrasena y codigo de verificacion');
+      return;
+    }
+
+    try {
+      setIs2FADisabling(true);
+      setTwoFAError('');
+
+      await authAPI.disable2FA(disable2FAPassword, disable2FACode);
+
+      setTwoFASuccess('Autenticacion de dos factores deshabilitada');
+      setShowDisable2FAForm(false);
+      setDisable2FAPassword('');
+      setDisable2FACode('');
+      await refreshUser();
+      setTimeout(() => setTwoFASuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error disabling 2FA:', err);
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        if (errorData.password) {
+          setTwoFAError(`Contrasena: ${errorData.password[0]}`);
+        } else if (errorData.code) {
+          setTwoFAError(`Codigo: ${errorData.code[0]}`);
+        } else if (errorData.error) {
+          setTwoFAError(errorData.error);
+        } else {
+          setTwoFAError('Error al deshabilitar 2FA');
+        }
+      } else {
+        setTwoFAError('Error al conectar con el servidor');
+      }
+    } finally {
+      setIs2FADisabling(false);
+    }
+  };
+
+  // Handle regenerate backup codes
+  const handleRegenerateBackupCodes = async () => {
+    if (!regeneratePassword) {
+      setTwoFAError('Ingresa tu contrasena');
+      return;
+    }
+
+    try {
+      setIsRegeneratingBackupCodes(true);
+      setTwoFAError('');
+
+      const response = await authAPI.regenerateBackupCodes(regeneratePassword);
+      setNewBackupCodes(response.backup_codes);
+      setShowRegenerateForm(false);
+      setRegeneratePassword('');
+      await load2FAStatus();
+      setTwoFASuccess('Codigos de respaldo regenerados');
+      setTimeout(() => setTwoFASuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error regenerating backup codes:', err);
+      if (err.response?.data?.password) {
+        setTwoFAError(`Contrasena: ${err.response.data.password[0]}`);
+      } else if (err.response?.data?.error) {
+        setTwoFAError(err.response.data.error);
+      } else {
+        setTwoFAError('Error al regenerar codigos de respaldo');
+      }
+    } finally {
+      setIsRegeneratingBackupCodes(false);
     }
   };
 
@@ -977,6 +1091,240 @@ export default function TenantSettingsPage() {
                 </CardContent>
               </Card>
             </form>
+
+              {/* Two-Factor Authentication Card */}
+              <Card className="border-slate-200 shadow-sm mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <Shield className="h-5 w-5 text-blue-600" />
+                    Autenticacion de Dos Factores (2FA)
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">
+                    Protege tu cuenta con una capa adicional de seguridad
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* 2FA Success/Error Messages */}
+                  {twoFASuccess && (
+                    <Alert className="bg-green-50 border-green-200">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800">
+                        {twoFASuccess}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {twoFAError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{twoFAError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {user?.is_2fa_enabled ? (
+                    <>
+                      {/* 2FA Enabled Status */}
+                      <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="p-2 bg-green-100 rounded-full">
+                          <Shield className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-green-900">2FA Habilitado</p>
+                          <p className="text-sm text-green-700">
+                            Tu cuenta esta protegida con autenticacion de dos factores
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Backup Codes Status */}
+                      {backupCodesStatus && (
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg border">
+                          <div className="p-2 bg-slate-100 rounded-full">
+                            <KeyRound className="h-5 w-5 text-slate-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-slate-900">Codigos de Respaldo</p>
+                            <p className="text-sm text-slate-600">
+                              {backupCodesStatus.backup_codes_remaining} codigos restantes
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowRegenerateForm(true)}
+                          >
+                            Regenerar
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Regenerate Backup Codes Form */}
+                      {showRegenerateForm && (
+                        <div className="p-4 bg-slate-50 rounded-lg border space-y-4">
+                          <p className="text-sm text-slate-700">
+                            Ingresa tu contrasena para regenerar los codigos de respaldo.
+                            Los codigos anteriores seran invalidados.
+                          </p>
+                          <div className="space-y-2">
+                            <Label htmlFor="regenerate_password">Contrasena</Label>
+                            <Input
+                              id="regenerate_password"
+                              type="password"
+                              value={regeneratePassword}
+                              onChange={(e) => setRegeneratePassword(e.target.value)}
+                              disabled={isRegeneratingBackupCodes}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowRegenerateForm(false);
+                                setRegeneratePassword('');
+                              }}
+                              disabled={isRegeneratingBackupCodes}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleRegenerateBackupCodes}
+                              disabled={isRegeneratingBackupCodes}
+                            >
+                              {isRegeneratingBackupCodes && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Regenerar Codigos
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* New Backup Codes Display */}
+                      {newBackupCodes.length > 0 && (
+                        <div className="space-y-3">
+                          <Alert>
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>
+                              Guarda estos nuevos codigos de respaldo. Los codigos anteriores ya no funcionaran.
+                            </AlertDescription>
+                          </Alert>
+                          <BackupCodesDisplay codes={newBackupCodes} />
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setNewBackupCodes([])}
+                          >
+                            Listo, he guardado mis codigos
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Disable 2FA Section */}
+                      {!showDisable2FAForm ? (
+                        <Button
+                          variant="outline"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => setShowDisable2FAForm(true)}
+                        >
+                          Deshabilitar 2FA
+                        </Button>
+                      ) : (
+                        <div className="p-4 bg-red-50 rounded-lg border border-red-200 space-y-4">
+                          <p className="text-sm text-red-700">
+                            Para deshabilitar 2FA, ingresa tu contrasena y un codigo de tu aplicacion de autenticacion.
+                          </p>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="disable_password">Contrasena</Label>
+                              <Input
+                                id="disable_password"
+                                type="password"
+                                value={disable2FAPassword}
+                                onChange={(e) => setDisable2FAPassword(e.target.value)}
+                                disabled={is2FADisabling}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="disable_code">Codigo 2FA</Label>
+                              <Input
+                                id="disable_code"
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={6}
+                                placeholder="000000"
+                                value={disable2FACode}
+                                onChange={(e) => setDisable2FACode(e.target.value.replace(/\D/g, ''))}
+                                disabled={is2FADisabling}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowDisable2FAForm(false);
+                                setDisable2FAPassword('');
+                                setDisable2FACode('');
+                                setTwoFAError('');
+                              }}
+                              disabled={is2FADisabling}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={handleDisable2FA}
+                              disabled={is2FADisabling}
+                            >
+                              {is2FADisabling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Deshabilitar 2FA
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* 2FA Not Enabled */}
+                      <div className="flex items-center gap-3 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                        <div className="p-2 bg-yellow-100 rounded-full">
+                          <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-yellow-900">2FA No Habilitado</p>
+                          <p className="text-sm text-yellow-700">
+                            Tu cuenta no tiene proteccion adicional
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <h4 className="font-medium text-blue-900 mb-2">Beneficios de 2FA:</h4>
+                        <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
+                          <li>Protege tu cuenta incluso si roban tu contrasena</li>
+                          <li>Compatible con Google Authenticator, Authy, etc.</li>
+                          <li>Codigos de respaldo para emergencias</li>
+                        </ul>
+                      </div>
+
+                      <Button
+                        className="bg-blue-600 hover:bg-blue-700"
+                        onClick={() => setIs2FASetupOpen(true)}
+                      >
+                        <Shield className="mr-2 h-4 w-4" />
+                        Configurar 2FA
+                      </Button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* 2FA Setup Dialog */}
+              <TwoFactorSetup
+                isOpen={is2FASetupOpen}
+                onClose={() => setIs2FASetupOpen(false)}
+                onSuccess={handle2FASetupSuccess}
+              />
             </TabsContent>
 
             {/* BUSINESS TAB */}

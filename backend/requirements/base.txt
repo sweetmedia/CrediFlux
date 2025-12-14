@@ -58,5 +58,9 @@ reportlab==4.2.2
 django-ratelimit==4.1.0
 django-filter==24.3
 
+# Two-Factor Authentication
+pyotp==2.9.0
+qrcode[pil]==8.0
+
 # WhatsApp Integration
 pywa==3.4.0

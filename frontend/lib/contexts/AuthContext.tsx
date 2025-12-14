@@ -3,14 +3,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { authAPI } from '@/lib/api/auth';
-import { User, Tenant, LoginCredentials, TenantLoginResponse } from '@/types';
+import { User, Tenant, LoginCredentials, TenantLoginResponse, TwoFactorLoginRequired } from '@/types';
 
 interface AuthContextType {
   user: User | null;
   tenant: Tenant | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (credentials: LoginCredentials) => Promise<TenantLoginResponse>;
+  login: (credentials: LoginCredentials) => Promise<TenantLoginResponse | TwoFactorLoginRequired>;
+  complete2FALogin: (code: string, tempToken: string, useBackupCode?: boolean) => Promise<TenantLoginResponse>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   refreshTenant: () => Promise<void>;
@@ -73,12 +74,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initializeAuth();
   }, [initializeAuth]);
 
-  const handleLogin = async (credentials: LoginCredentials): Promise<TenantLoginResponse> => {
+  const handleLogin = async (credentials: LoginCredentials): Promise<TenantLoginResponse | TwoFactorLoginRequired> => {
     try {
       const response = await authAPI.login(credentials);
 
+      // Check if 2FA is required
+      if ('requires_2fa' in response && response.requires_2fa) {
+        return response as TwoFactorLoginRequired;
+      }
+
+      // Normal login - set user and tenant
+      const loginResponse = response as TenantLoginResponse;
+      setUser(loginResponse.user);
+      setTenant(loginResponse.tenant);
+
+      return loginResponse;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const handle2FALogin = async (code: string, tempToken: string, useBackupCode: boolean = false): Promise<TenantLoginResponse> => {
+    try {
+      const response = await authAPI.verify2FALogin(code, tempToken, useBackupCode);
+
       setUser(response.user);
-      setTenant(response.tenant);
+
+      // Fetch tenant info since it might not be in 2FA response
+      try {
+        const { tenantsAPI } = await import('@/lib/api/tenants');
+        const tenantData = await tenantsAPI.getSettings();
+        setTenant(tenantData);
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('tenant', JSON.stringify(tenantData));
+        }
+      } catch (tenantError) {
+        console.error('Failed to fetch tenant after 2FA login:', tenantError);
+      }
 
       return response;
     } catch (error) {
@@ -136,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: !!user,
     isLoading,
     login: handleLogin,
+    complete2FALogin: handle2FALogin,
     logout: handleLogout,
     refreshUser,
     refreshTenant,

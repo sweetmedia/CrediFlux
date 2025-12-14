@@ -13,6 +13,10 @@ import {
   TeamMemberCreate,
   TeamMemberUpdate,
   User,
+  TwoFactorSetupResponse,
+  TwoFactorVerifyResponse,
+  TwoFactorLoginRequired,
+  TwoFactorBackupCodesStatus,
 } from '@/types';
 
 export const authAPI = {
@@ -29,19 +33,50 @@ export const authAPI = {
 
   /**
    * Login for tenant users
+   * Returns TenantLoginResponse for normal login, or TwoFactorLoginRequired if 2FA is enabled
    */
-  async login(credentials: LoginCredentials): Promise<TenantLoginResponse> {
-    const response = await apiClient.post<TenantLoginResponse>(
+  async login(credentials: LoginCredentials): Promise<TenantLoginResponse | TwoFactorLoginRequired> {
+    const response = await apiClient.post<TenantLoginResponse | TwoFactorLoginRequired>(
       '/api/tenants/login/',
       credentials
     );
 
+    // Check if 2FA is required
+    if ('requires_2fa' in response && response.requires_2fa) {
+      return response as TwoFactorLoginRequired;
+    }
+
+    // Normal login - save tokens and user/tenant info
+    const loginResponse = response as TenantLoginResponse;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('access_token', loginResponse.access_token);
+      localStorage.setItem('refresh_token', loginResponse.refresh_token);
+      localStorage.setItem('user', JSON.stringify(loginResponse.user));
+      localStorage.setItem('tenant', JSON.stringify(loginResponse.tenant));
+    }
+
+    return loginResponse;
+  },
+
+  /**
+   * Verify 2FA code during login and complete authentication
+   */
+  async verify2FALogin(code: string, tempToken: string, useBackupCode: boolean = false): Promise<TenantLoginResponse> {
+    const data = useBackupCode
+      ? { backup_code: code, temp_token: tempToken }
+      : { code, temp_token: tempToken };
+
+    const response = await apiClient.post<TenantLoginResponse>(
+      '/api/users/auth/2fa/login/',
+      data
+    );
+
     // Save tokens and user/tenant info
     if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
+      localStorage.setItem('access_token', response.access);
+      localStorage.setItem('refresh_token', response.refresh);
       localStorage.setItem('user', JSON.stringify(response.user));
-      localStorage.setItem('tenant', JSON.stringify(response.tenant));
+      // Fetch tenant info separately since it's not included in 2FA login response
     }
 
     return response;
@@ -242,5 +277,45 @@ export const authAPI = {
 
     const accessToken = localStorage.getItem('access_token');
     return !!accessToken;
+  },
+
+  // ============================================================================
+  // TWO-FACTOR AUTHENTICATION
+  // ============================================================================
+
+  /**
+   * Start 2FA setup - generates QR code and secret
+   */
+  async setup2FA(): Promise<TwoFactorSetupResponse> {
+    return apiClient.post<TwoFactorSetupResponse>('/api/users/auth/2fa/setup/');
+  },
+
+  /**
+   * Verify TOTP code and enable 2FA
+   * Returns backup codes on success
+   */
+  async verify2FA(code: string): Promise<TwoFactorVerifyResponse> {
+    return apiClient.post<TwoFactorVerifyResponse>('/api/users/auth/2fa/verify/', { code });
+  },
+
+  /**
+   * Disable 2FA (requires password and current TOTP code)
+   */
+  async disable2FA(password: string, code: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>('/api/users/auth/2fa/disable/', { password, code });
+  },
+
+  /**
+   * Get backup codes status (count remaining)
+   */
+  async get2FAStatus(): Promise<TwoFactorBackupCodesStatus> {
+    return apiClient.get<TwoFactorBackupCodesStatus>('/api/users/auth/2fa/backup-codes/');
+  },
+
+  /**
+   * Regenerate backup codes (requires password)
+   */
+  async regenerateBackupCodes(password: string): Promise<TwoFactorVerifyResponse> {
+    return apiClient.post<TwoFactorVerifyResponse>('/api/users/auth/2fa/backup-codes/', { password });
   },
 };

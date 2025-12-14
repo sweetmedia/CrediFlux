@@ -89,12 +89,12 @@ class UserSerializer(serializers.ModelSerializer):
             'phone', 'avatar', 'bio', 'job_title', 'department', 'role',
             'tenant', 'tenant_name', 'is_tenant_owner', 'is_staff',
             'is_superuser', 'email_verified', 'receive_notifications',
-            'created_at', 'last_login_at'
+            'is_2fa_enabled', 'created_at', 'last_login_at'
         ]
         read_only_fields = [
             'id', 'email', 'username', 'tenant', 'is_tenant_owner',
-            'is_staff', 'is_superuser', 'email_verified', 'created_at',
-            'last_login_at'
+            'is_staff', 'is_superuser', 'email_verified', 'is_2fa_enabled',
+            'created_at', 'last_login_at'
         ]
 
 
@@ -606,3 +606,261 @@ class TeamMemberListSerializer(serializers.ModelSerializer):
             'is_active', 'email_verified', 'last_login_at', 'created_at'
         ]
         read_only_fields = fields
+
+
+# ============================================================================
+# TWO-FACTOR AUTHENTICATION (2FA)
+# ============================================================================
+
+class TwoFactorSetupSerializer(serializers.Serializer):
+    """
+    Serializer for initiating 2FA setup.
+    Returns QR code and secret for Google Authenticator.
+    """
+
+    def create(self, validated_data):
+        """Generate TOTP secret and QR code"""
+        import pyotp
+        import qrcode
+        import io
+        import base64
+
+        user = self.context['request'].user
+
+        # Generate new secret
+        secret = pyotp.random_base32()
+
+        # Create TOTP provisioning URI for Google Authenticator
+        totp = pyotp.TOTP(secret)
+        issuer = 'CrediFlux'
+        provisioning_uri = totp.provisioning_uri(
+            name=user.email,
+            issuer_name=issuer
+        )
+
+        # Generate QR code as base64 image
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(provisioning_uri)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+
+        # Convert to base64
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+        # Store secret temporarily (not enabled yet)
+        user.totp_secret = secret
+        user.save(update_fields=['totp_secret'])
+
+        return {
+            'secret': secret,
+            'qr_code': f'data:image/png;base64,{qr_base64}',
+            'provisioning_uri': provisioning_uri,
+        }
+
+
+class TwoFactorVerifySerializer(serializers.Serializer):
+    """
+    Serializer for verifying TOTP code during 2FA setup.
+    Once verified, 2FA is enabled for the user.
+    """
+    code = serializers.CharField(min_length=6, max_length=6)
+
+    def validate_code(self, value):
+        """Validate TOTP code format"""
+        if not value.isdigit():
+            raise serializers.ValidationError("Code must contain only digits.")
+        return value
+
+    def validate(self, attrs):
+        """Verify the TOTP code against user's secret"""
+        import pyotp
+
+        user = self.context['request'].user
+        code = attrs['code']
+
+        if not user.totp_secret:
+            raise serializers.ValidationError({
+                'code': 'Please setup 2FA first by calling the setup endpoint.'
+            })
+
+        # Verify TOTP code
+        totp = pyotp.TOTP(user.totp_secret)
+        if not totp.verify(code):
+            raise serializers.ValidationError({
+                'code': 'Invalid verification code. Please try again.'
+            })
+
+        return attrs
+
+    def save(self):
+        """Enable 2FA and generate backup codes"""
+        import secrets
+
+        user = self.context['request'].user
+
+        # Generate 10 backup codes
+        backup_codes = [secrets.token_hex(4).upper() for _ in range(10)]
+
+        # Enable 2FA
+        user.is_2fa_enabled = True
+        user.backup_codes = backup_codes
+        user.save(update_fields=['is_2fa_enabled', 'backup_codes'])
+
+        return {
+            'message': 'Two-factor authentication enabled successfully.',
+            'backup_codes': backup_codes,
+        }
+
+
+class TwoFactorLoginSerializer(serializers.Serializer):
+    """
+    Serializer for verifying 2FA code during login.
+    Supports both TOTP codes and backup codes.
+    """
+    code = serializers.CharField(required=False, allow_blank=True)
+    backup_code = serializers.CharField(required=False, allow_blank=True)
+    temp_token = serializers.CharField(required=True)
+
+    def validate(self, attrs):
+        """Validate either TOTP code or backup code"""
+        import pyotp
+        from django.core.cache import cache
+
+        code = attrs.get('code', '').strip()
+        backup_code = attrs.get('backup_code', '').strip()
+        temp_token = attrs['temp_token']
+
+        if not code and not backup_code:
+            raise serializers.ValidationError({
+                'code': 'Please provide either a verification code or backup code.'
+            })
+
+        # Get user ID from temp token (stored in cache during login)
+        user_id = cache.get(f'2fa_pending_{temp_token}')
+        if not user_id:
+            raise serializers.ValidationError({
+                'temp_token': 'Invalid or expired session. Please login again.'
+            })
+
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({
+                'temp_token': 'Invalid session. Please login again.'
+            })
+
+        # Verify TOTP code
+        if code:
+            if len(code) != 6 or not code.isdigit():
+                raise serializers.ValidationError({
+                    'code': 'Code must be 6 digits.'
+                })
+
+            totp = pyotp.TOTP(user.totp_secret)
+            if not totp.verify(code):
+                raise serializers.ValidationError({
+                    'code': 'Invalid verification code.'
+                })
+
+        # Verify backup code
+        elif backup_code:
+            backup_code = backup_code.upper()
+            if backup_code not in user.backup_codes:
+                raise serializers.ValidationError({
+                    'backup_code': 'Invalid backup code.'
+                })
+
+            # Remove used backup code
+            user.backup_codes.remove(backup_code)
+            user.save(update_fields=['backup_codes'])
+
+        # Clear temp token from cache
+        cache.delete(f'2fa_pending_{temp_token}')
+
+        attrs['user'] = user
+        return attrs
+
+
+class TwoFactorDisableSerializer(serializers.Serializer):
+    """Serializer for disabling 2FA"""
+    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+    code = serializers.CharField(min_length=6, max_length=6)
+
+    def validate_code(self, value):
+        """Validate TOTP code format"""
+        if not value.isdigit():
+            raise serializers.ValidationError("Code must contain only digits.")
+        return value
+
+    def validate(self, attrs):
+        """Verify password and TOTP code"""
+        import pyotp
+
+        user = self.context['request'].user
+        password = attrs['password']
+        code = attrs['code']
+
+        # Verify password
+        if not user.check_password(password):
+            raise serializers.ValidationError({
+                'password': 'Incorrect password.'
+            })
+
+        # Verify TOTP code
+        if user.totp_secret:
+            totp = pyotp.TOTP(user.totp_secret)
+            if not totp.verify(code):
+                raise serializers.ValidationError({
+                    'code': 'Invalid verification code.'
+                })
+
+        return attrs
+
+    def save(self):
+        """Disable 2FA"""
+        user = self.context['request'].user
+
+        user.is_2fa_enabled = False
+        user.totp_secret = None
+        user.backup_codes = []
+        user.save(update_fields=['is_2fa_enabled', 'totp_secret', 'backup_codes'])
+
+        return {
+            'message': 'Two-factor authentication disabled successfully.',
+        }
+
+
+class BackupCodesRegenerateSerializer(serializers.Serializer):
+    """Serializer for regenerating backup codes"""
+    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+
+    def validate_password(self, value):
+        """Verify password"""
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Incorrect password.")
+        return value
+
+    def save(self):
+        """Generate new backup codes"""
+        import secrets
+
+        user = self.context['request'].user
+
+        if not user.is_2fa_enabled:
+            raise serializers.ValidationError({
+                'non_field_errors': '2FA is not enabled for this account.'
+            })
+
+        # Generate 10 new backup codes
+        backup_codes = [secrets.token_hex(4).upper() for _ in range(10)]
+
+        user.backup_codes = backup_codes
+        user.save(update_fields=['backup_codes'])
+
+        return {
+            'message': 'Backup codes regenerated successfully.',
+            'backup_codes': backup_codes,
+        }

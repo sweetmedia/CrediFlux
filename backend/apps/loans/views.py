@@ -381,6 +381,128 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         return Response(stats)
 
+    @action(detail=False, methods=['get'])
+    def dashboard_statistics(self, request):
+        """Get comprehensive dashboard statistics for charts"""
+        from django.utils import timezone
+        from django.db.models.functions import TruncMonth, TruncWeek
+        from datetime import timedelta
+
+        loans = self.get_queryset()
+        today = timezone.now().date()
+        six_months_ago = today - timedelta(days=180)
+
+        # Basic stats
+        basic_stats = {
+            'total_loans': loans.count(),
+            'active_loans': loans.filter(status='active').count(),
+            'pending_loans': loans.filter(status='pending').count(),
+            'paid_loans': loans.filter(status='paid').count(),
+            'defaulted_loans': loans.filter(status='defaulted').count(),
+        }
+
+        # Status distribution for pie chart
+        status_distribution = [
+            {'name': 'Activos', 'value': basic_stats['active_loans'], 'color': '#22c55e'},
+            {'name': 'Pendientes', 'value': basic_stats['pending_loans'], 'color': '#eab308'},
+            {'name': 'Pagados', 'value': basic_stats['paid_loans'], 'color': '#3b82f6'},
+            {'name': 'En mora', 'value': basic_stats['defaulted_loans'], 'color': '#ef4444'},
+        ]
+
+        # Monthly disbursements for bar chart
+        disbursements = loans.filter(
+            disbursement_date__gte=six_months_ago,
+            disbursement_date__isnull=False
+        ).annotate(
+            month=TruncMonth('disbursement_date')
+        ).values('month').annotate(
+            total=Sum('principal_amount')
+        ).order_by('month')
+
+        monthly_disbursements = []
+        for d in disbursements:
+            if d['month']:
+                monthly_disbursements.append({
+                    'month': d['month'].strftime('%b %Y'),
+                    'amount': float(d['total'].amount) if hasattr(d['total'], 'amount') else float(d['total'] or 0)
+                })
+
+        # Monthly collections for line chart
+        payments = LoanPayment.objects.filter(
+            loan__in=loans,
+            status='completed',
+            payment_date__gte=six_months_ago
+        ).annotate(
+            month=TruncMonth('payment_date')
+        ).values('month').annotate(
+            total=Sum('amount')
+        ).order_by('month')
+
+        monthly_collections = []
+        for p in payments:
+            if p['month']:
+                monthly_collections.append({
+                    'month': p['month'].strftime('%b %Y'),
+                    'amount': float(p['total'].amount) if hasattr(p['total'], 'amount') else float(p['total'] or 0)
+                })
+
+        # Loan type distribution
+        loan_types = loans.values('loan_type').annotate(
+            count=Count('id')
+        ).order_by('-count')
+
+        type_distribution = [
+            {'name': lt['loan_type'] or 'Otro', 'value': lt['count']}
+            for lt in loan_types
+        ]
+
+        # Recent activity - last 7 days
+        seven_days_ago = today - timedelta(days=7)
+        recent_loans = loans.filter(created_at__gte=seven_days_ago).count()
+        recent_payments = LoanPayment.objects.filter(
+            loan__in=loans,
+            status='completed',
+            payment_date__gte=seven_days_ago
+        ).count()
+
+        # Overdue count
+        overdue_schedules = LoanSchedule.objects.filter(
+            loan__in=loans,
+            status__in=['pending', 'partial'],
+            due_date__lt=today
+        ).count()
+
+        # Financial totals
+        total_disbursed = loans.filter(
+            status__in=['active', 'paid', 'defaulted']
+        ).aggregate(total=Sum('principal_amount'))['total']
+
+        total_outstanding = loans.filter(status='active').aggregate(
+            total=Sum('outstanding_balance')
+        )['total']
+
+        total_collected = loans.aggregate(total=Sum('total_paid'))['total']
+
+        return Response({
+            'summary': {
+                **basic_stats,
+                'overdue_schedules': overdue_schedules,
+                'recent_loans_7d': recent_loans,
+                'recent_payments_7d': recent_payments,
+            },
+            'financial': {
+                'total_disbursed': float(total_disbursed.amount) if hasattr(total_disbursed, 'amount') else float(total_disbursed or 0),
+                'total_outstanding': float(total_outstanding.amount) if hasattr(total_outstanding, 'amount') else float(total_outstanding or 0),
+                'total_collected': float(total_collected.amount) if hasattr(total_collected, 'amount') else float(total_collected or 0),
+            },
+            'charts': {
+                'status_distribution': status_distribution,
+                'monthly_disbursements': monthly_disbursements,
+                'monthly_collections': monthly_collections,
+                'type_distribution': type_distribution,
+            }
+        })
+
     def _generate_payment_schedule(self, loan):
         """Generate payment schedule for a loan"""
         from dateutil.relativedelta import relativedelta

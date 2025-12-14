@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api/client';
+import { GlobalSearch } from '@/components/search';
 import {
   LayoutDashboard,
   FileText,
@@ -22,6 +23,8 @@ import {
   ScrollText,
   MessageSquare,
   CheckSquare,
+  ClipboardList,
+  Search,
 } from 'lucide-react';
 
 interface NavItem {
@@ -36,6 +39,20 @@ export function Sidebar() {
   const router = useRouter();
   const { user, tenant, logout } = useAuth();
   const [expandedItems, setExpandedItems] = useState<string[]>(['contracts']);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Keyboard shortcut for search (Cmd+K or Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -79,7 +96,8 @@ export function Sidebar() {
 
   const adminNavItems = [
     { href: '/users', icon: UsersRound, label: 'Equipo' },
-    { href: '/settings', icon: Settings, label: 'Configuración' },
+    { href: '/audit', icon: ClipboardList, label: 'Auditoria' },
+    { href: '/settings', icon: Settings, label: 'Configuracion' },
   ];
 
   // Check if any submenu item is active
@@ -120,7 +138,22 @@ export function Sidebar() {
             </div>
           </div>
         )}
+
+        {/* Search Button */}
+        <button
+          onClick={() => setIsSearchOpen(true)}
+          className="mt-4 w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 bg-slate-800/50 hover:bg-slate-800 transition-all"
+        >
+          <div className="flex items-center gap-3">
+            <Search className="h-4 w-4" />
+            <span>Buscar...</span>
+          </div>
+          <kbd className="px-2 py-0.5 bg-slate-700 rounded text-xs">⌘K</kbd>
+        </button>
       </div>
+
+      {/* Global Search Dialog */}
+      <GlobalSearch isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-6 overflow-y-auto">

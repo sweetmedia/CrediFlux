@@ -22,9 +22,33 @@ export interface User {
   is_active: boolean;
   email_verified: boolean;
   receive_notifications: boolean;
+  is_2fa_enabled: boolean;
   created_at: string;
   updated_at?: string;
   last_login_at: string | null;
+}
+
+// Two-Factor Authentication Types
+export interface TwoFactorSetupResponse {
+  secret: string;
+  qr_code: string;
+  provisioning_uri: string;
+}
+
+export interface TwoFactorVerifyResponse {
+  message: string;
+  backup_codes: string[];
+}
+
+export interface TwoFactorLoginRequired {
+  requires_2fa: true;
+  temp_token: string;
+  message: string;
+}
+
+export interface TwoFactorBackupCodesStatus {
+  is_2fa_enabled: boolean;
+  backup_codes_remaining: number;
 }
 
 // Customer Types

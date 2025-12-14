@@ -51,6 +51,7 @@ SHARED_APPS = [
     'apps.core',
     'apps.tenants',
     'apps.users',  # User model must be shared for allauth
+    'apps.audit',  # Audit trail system
 ]
 
 TENANT_APPS = [
@@ -76,6 +77,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Tenant Access Control - Must be after AuthenticationMiddleware
     'apps.tenants.middleware.TenantAccessControlMiddleware',
+    # Audit Trail - Captures request context for logging
+    'apps.audit.middleware.AuditMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'

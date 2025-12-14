@@ -24,6 +24,11 @@ from .serializers import (
     TeamMemberCreateSerializer,
     TeamMemberUpdateSerializer,
     TeamMemberListSerializer,
+    TwoFactorSetupSerializer,
+    TwoFactorVerifySerializer,
+    TwoFactorLoginSerializer,
+    TwoFactorDisableSerializer,
+    BackupCodesRegenerateSerializer,
 )
 
 User = get_user_model()
@@ -632,6 +637,257 @@ class TeamMemberDetailView(APIView):
             {'message': 'User has been deactivated.'},
             status=status.HTTP_200_OK
         )
+
+
+# ============================================================================
+# TWO-FACTOR AUTHENTICATION (2FA)
+# ============================================================================
+
+class TwoFactorSetupView(APIView):
+    """
+    Setup two-factor authentication for the user.
+
+    **Authentication:** Required
+    """
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_id='setup_2fa',
+        operation_description='Generate QR code and secret for 2FA setup (Google Authenticator)',
+        responses={
+            200: openapi.Response(
+                description='2FA setup data',
+                examples={
+                    'application/json': {
+                        'secret': 'ABCDEFGHIJK...',
+                        'qr_code': 'data:image/png;base64,...',
+                        'provisioning_uri': 'otpauth://totp/...',
+                    }
+                }
+            ),
+            400: 'Bad request - 2FA already enabled'
+        },
+        tags=['Authentication - Two-Factor']
+    )
+    def post(self, request):
+        """Generate 2FA setup QR code"""
+        user = request.user
+
+        # Check if 2FA is already enabled
+        if user.is_2fa_enabled:
+            return Response(
+                {'error': 'Two-factor authentication is already enabled. Disable it first to reconfigure.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = TwoFactorSetupSerializer(data={}, context={'request': request})
+        if serializer.is_valid():
+            result = serializer.create({})
+            return Response(result, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TwoFactorVerifyView(APIView):
+    """
+    Verify TOTP code and enable 2FA.
+
+    **Authentication:** Required
+    """
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_id='verify_2fa_setup',
+        operation_description='Verify TOTP code to enable 2FA. Returns backup codes.',
+        request_body=TwoFactorVerifySerializer,
+        responses={
+            200: openapi.Response(
+                description='2FA enabled successfully',
+                examples={
+                    'application/json': {
+                        'message': 'Two-factor authentication enabled successfully.',
+                        'backup_codes': ['ABC123', 'DEF456', '...'],
+                    }
+                }
+            ),
+            400: 'Bad request - invalid code'
+        },
+        tags=['Authentication - Two-Factor']
+    )
+    def post(self, request):
+        """Verify TOTP code and enable 2FA"""
+        serializer = TwoFactorVerifySerializer(
+            data=request.data,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            result = serializer.save()
+            return Response(result, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TwoFactorLoginVerifyView(APIView):
+    """
+    Verify 2FA code during login process.
+
+    **Authentication:** Not required (uses temp token)
+    """
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_id='verify_2fa_login',
+        operation_description='Verify 2FA code during login. Returns JWT tokens on success.',
+        request_body=TwoFactorLoginSerializer,
+        responses={
+            200: openapi.Response(
+                description='Login successful',
+                examples={
+                    'application/json': {
+                        'access': 'eyJ...',
+                        'refresh': 'eyJ...',
+                        'user': {'id': 1, 'email': 'user@example.com', '...': '...'},
+                    }
+                }
+            ),
+            400: 'Bad request - invalid code or token'
+        },
+        tags=['Authentication - Two-Factor']
+    )
+    def post(self, request):
+        """Verify 2FA code during login"""
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        serializer = TwoFactorLoginSerializer(data=request.data)
+
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+
+            # Update last login
+            from django.utils import timezone
+            user.last_login_at = timezone.now()
+            user.save(update_fields=['last_login_at'])
+
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': UserSerializer(user).data,
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TwoFactorDisableView(APIView):
+    """
+    Disable two-factor authentication.
+
+    **Authentication:** Required
+    """
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_id='disable_2fa',
+        operation_description='Disable 2FA (requires password and current TOTP code)',
+        request_body=TwoFactorDisableSerializer,
+        responses={
+            200: openapi.Response(
+                description='2FA disabled',
+                examples={
+                    'application/json': {
+                        'message': 'Two-factor authentication disabled successfully.',
+                    }
+                }
+            ),
+            400: 'Bad request - invalid password or code'
+        },
+        tags=['Authentication - Two-Factor']
+    )
+    def post(self, request):
+        """Disable 2FA"""
+        if not request.user.is_2fa_enabled:
+            return Response(
+                {'error': 'Two-factor authentication is not enabled.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = TwoFactorDisableSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            result = serializer.save()
+            return Response(result, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TwoFactorBackupCodesView(APIView):
+    """
+    Regenerate backup codes for 2FA.
+
+    **Authentication:** Required
+    """
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_id='regenerate_backup_codes',
+        operation_description='Regenerate backup codes (invalidates old codes)',
+        request_body=BackupCodesRegenerateSerializer,
+        responses={
+            200: openapi.Response(
+                description='New backup codes generated',
+                examples={
+                    'application/json': {
+                        'message': 'Backup codes regenerated successfully.',
+                        'backup_codes': ['ABC123', 'DEF456', '...'],
+                    }
+                }
+            ),
+            400: 'Bad request - invalid password or 2FA not enabled'
+        },
+        tags=['Authentication - Two-Factor']
+    )
+    def post(self, request):
+        """Regenerate backup codes"""
+        serializer = BackupCodesRegenerateSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            result = serializer.save()
+            return Response(result, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        operation_id='get_backup_codes_count',
+        operation_description='Get remaining backup codes count',
+        responses={
+            200: openapi.Response(
+                description='Backup codes count',
+                examples={
+                    'application/json': {
+                        'is_2fa_enabled': True,
+                        'backup_codes_remaining': 8,
+                    }
+                }
+            ),
+        },
+        tags=['Authentication - Two-Factor']
+    )
+    def get(self, request):
+        """Get backup codes remaining count"""
+        user = request.user
+        return Response({
+            'is_2fa_enabled': user.is_2fa_enabled,
+            'backup_codes_remaining': len(user.backup_codes) if user.is_2fa_enabled else 0,
+        }, status=status.HTTP_200_OK)
 
 
 # ============================================================================

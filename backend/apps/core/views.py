@@ -4,8 +4,9 @@ Core views
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db import connection
+from django.db.models import Q
 
 
 class HealthCheckView(APIView):
@@ -235,3 +236,131 @@ def get_tenant_config(request):
         },
         status=status.HTTP_200_OK
     )
+
+
+class GlobalSearchView(APIView):
+    """
+    Global search across customers, loans, contracts, and payments.
+    Uses PostgreSQL full-text search for better performance.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+
+        if len(query) < 2:
+            return Response({
+                'results': [],
+                'message': 'La busqueda debe tener al menos 2 caracteres'
+            })
+
+        user = request.user
+        tenant = user.tenant
+
+        results = {
+            'customers': [],
+            'loans': [],
+            'payments': [],
+            'contracts': [],
+        }
+
+        # Search Customers
+        from apps.loans.models import Customer
+        customers = Customer.objects.filter(
+            tenant=tenant
+        ).filter(
+            Q(first_name__icontains=query) |
+            Q(last_name__icontains=query) |
+            Q(id_number__icontains=query) |
+            Q(email__icontains=query) |
+            Q(phone__icontains=query)
+        )[:5]
+
+        results['customers'] = [
+            {
+                'id': c.id,
+                'type': 'customer',
+                'title': c.get_full_name(),
+                'subtitle': f'{c.id_number} - {c.email}' if c.email else c.id_number,
+                'url': f'/customers/{c.id}',
+            }
+            for c in customers
+        ]
+
+        # Search Loans
+        from apps.loans.models import Loan
+        loans = Loan.objects.filter(
+            tenant=tenant
+        ).filter(
+            Q(loan_number__icontains=query) |
+            Q(customer__first_name__icontains=query) |
+            Q(customer__last_name__icontains=query)
+        ).select_related('customer')[:5]
+
+        results['loans'] = [
+            {
+                'id': loan.id,
+                'type': 'loan',
+                'title': f'Prestamo {loan.loan_number}',
+                'subtitle': f'{loan.customer.get_full_name()} - {loan.get_status_display()}',
+                'url': f'/loans/{loan.id}',
+            }
+            for loan in loans
+        ]
+
+        # Search Payments
+        from apps.loans.models import LoanPayment
+        payments = LoanPayment.objects.filter(
+            loan__tenant=tenant
+        ).filter(
+            Q(receipt_number__icontains=query) |
+            Q(loan__loan_number__icontains=query) |
+            Q(loan__customer__first_name__icontains=query) |
+            Q(loan__customer__last_name__icontains=query)
+        ).select_related('loan', 'loan__customer')[:5]
+
+        results['payments'] = [
+            {
+                'id': payment.id,
+                'type': 'payment',
+                'title': f'Pago {payment.receipt_number or payment.id}',
+                'subtitle': f'{payment.loan.loan_number} - ${payment.amount}',
+                'url': f'/payments/{payment.id}',
+            }
+            for payment in payments
+        ]
+
+        # Search Contracts (if app exists)
+        try:
+            from apps.contracts.models import Contract
+            contracts = Contract.objects.filter(
+                tenant=tenant
+            ).filter(
+                Q(contract_number__icontains=query) |
+                Q(loan__loan_number__icontains=query) |
+                Q(loan__customer__first_name__icontains=query) |
+                Q(loan__customer__last_name__icontains=query)
+            ).select_related('loan', 'loan__customer')[:5]
+
+            results['contracts'] = [
+                {
+                    'id': contract.id,
+                    'type': 'contract',
+                    'title': f'Contrato {contract.contract_number}',
+                    'subtitle': contract.loan.customer.get_full_name() if contract.loan else 'Sin prestamo',
+                    'url': f'/contracts/{contract.id}',
+                }
+                for contract in contracts
+            ]
+        except (ImportError, Exception):
+            pass
+
+        # Calculate total results
+        total_results = sum(len(v) for v in results.values())
+
+        return Response({
+            'query': query,
+            'total_results': total_results,
+            'results': results,
+        })

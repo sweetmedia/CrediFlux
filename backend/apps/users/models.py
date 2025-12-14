@@ -75,6 +75,23 @@ class User(AbstractUser):
     email_verified = models.BooleanField(default=False)
     receive_notifications = models.BooleanField(default=True)
 
+    # Two-Factor Authentication
+    totp_secret = models.CharField(
+        max_length=32,
+        blank=True,
+        null=True,
+        help_text='TOTP secret key for 2FA (Google Authenticator compatible)'
+    )
+    is_2fa_enabled = models.BooleanField(
+        default=False,
+        help_text='Whether two-factor authentication is enabled for this user'
+    )
+    backup_codes = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of backup codes for 2FA recovery'
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
