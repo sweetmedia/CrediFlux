@@ -241,7 +241,7 @@ def get_tenant_config(request):
 class GlobalSearchView(APIView):
     """
     Global search across customers, loans, contracts, and payments.
-    Uses PostgreSQL full-text search for better performance.
+    Uses django-tenants schema isolation - no need to filter by tenant.
     """
 
     permission_classes = [IsAuthenticated]
@@ -251,12 +251,16 @@ class GlobalSearchView(APIView):
 
         if len(query) < 2:
             return Response({
-                'results': [],
+                'query': query,
+                'total_results': 0,
+                'results': {
+                    'customers': [],
+                    'loans': [],
+                    'payments': [],
+                    'contracts': [],
+                },
                 'message': 'La busqueda debe tener al menos 2 caracteres'
             })
-
-        user = request.user
-        tenant = user.tenant
 
         results = {
             'customers': [],
@@ -265,11 +269,9 @@ class GlobalSearchView(APIView):
             'contracts': [],
         }
 
-        # Search Customers
+        # Search Customers (tenant isolation handled by django-tenants schema)
         from apps.loans.models import Customer
         customers = Customer.objects.filter(
-            tenant=tenant
-        ).filter(
             Q(first_name__icontains=query) |
             Q(last_name__icontains=query) |
             Q(id_number__icontains=query) |
@@ -279,7 +281,7 @@ class GlobalSearchView(APIView):
 
         results['customers'] = [
             {
-                'id': c.id,
+                'id': str(c.id),
                 'type': 'customer',
                 'title': c.get_full_name(),
                 'subtitle': f'{c.id_number} - {c.email}' if c.email else c.id_number,
@@ -291,8 +293,6 @@ class GlobalSearchView(APIView):
         # Search Loans
         from apps.loans.models import Loan
         loans = Loan.objects.filter(
-            tenant=tenant
-        ).filter(
             Q(loan_number__icontains=query) |
             Q(customer__first_name__icontains=query) |
             Q(customer__last_name__icontains=query)
@@ -300,7 +300,7 @@ class GlobalSearchView(APIView):
 
         results['loans'] = [
             {
-                'id': loan.id,
+                'id': str(loan.id),
                 'type': 'loan',
                 'title': f'Prestamo {loan.loan_number}',
                 'subtitle': f'{loan.customer.get_full_name()} - {loan.get_status_display()}',
@@ -312,8 +312,6 @@ class GlobalSearchView(APIView):
         # Search Payments
         from apps.loans.models import LoanPayment
         payments = LoanPayment.objects.filter(
-            loan__tenant=tenant
-        ).filter(
             Q(receipt_number__icontains=query) |
             Q(loan__loan_number__icontains=query) |
             Q(loan__customer__first_name__icontains=query) |
@@ -322,7 +320,7 @@ class GlobalSearchView(APIView):
 
         results['payments'] = [
             {
-                'id': payment.id,
+                'id': str(payment.id),
                 'type': 'payment',
                 'title': f'Pago {payment.receipt_number or payment.id}',
                 'subtitle': f'{payment.loan.loan_number} - ${payment.amount}',
@@ -335,8 +333,6 @@ class GlobalSearchView(APIView):
         try:
             from apps.contracts.models import Contract
             contracts = Contract.objects.filter(
-                tenant=tenant
-            ).filter(
                 Q(contract_number__icontains=query) |
                 Q(loan__loan_number__icontains=query) |
                 Q(loan__customer__first_name__icontains=query) |
@@ -345,7 +341,7 @@ class GlobalSearchView(APIView):
 
             results['contracts'] = [
                 {
-                    'id': contract.id,
+                    'id': str(contract.id),
                     'type': 'contract',
                     'title': f'Contrato {contract.contract_number}',
                     'subtitle': contract.loan.customer.get_full_name() if contract.loan else 'Sin prestamo',
