@@ -312,7 +312,7 @@ class GlobalSearchView(APIView):
         # Search Payments
         from apps.loans.models import LoanPayment
         payments = LoanPayment.objects.filter(
-            Q(receipt_number__icontains=query) |
+            Q(reference_number__icontains=query) |
             Q(loan__loan_number__icontains=query) |
             Q(loan__customer__first_name__icontains=query) |
             Q(loan__customer__last_name__icontains=query)
@@ -322,7 +322,7 @@ class GlobalSearchView(APIView):
             {
                 'id': str(payment.id),
                 'type': 'payment',
-                'title': f'Pago {payment.receipt_number or payment.id}',
+                'title': f'Pago #{payment.payment_number}',
                 'subtitle': f'{payment.loan.loan_number} - ${payment.amount}',
                 'url': f'/payments/{payment.id}',
             }
