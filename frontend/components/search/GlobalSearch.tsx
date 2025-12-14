@@ -6,6 +6,7 @@ import { searchAPI, SearchResult } from '@/lib/api/search';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -122,6 +123,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] p-0 gap-0 overflow-hidden">
+        <DialogTitle className="sr-only">Busqueda Global</DialogTitle>
         {/* Search Input */}
         <div className="flex items-center border-b px-4">
           <Search className="h-5 w-5 text-slate-400 mr-3" />

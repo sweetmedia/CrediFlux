@@ -88,8 +88,8 @@ export default function AuditPage() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedAction, setSelectedAction] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedAction, setSelectedAction] = useState<string>('all');
+  const [selectedModel, setSelectedModel] = useState<string>('all');
 
   // Detail dialog
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
@@ -129,8 +129,8 @@ export default function AuditPage() {
       };
 
       if (searchQuery) filters.search = searchQuery;
-      if (selectedAction) filters.action = selectedAction;
-      if (selectedModel) filters.model_name = selectedModel;
+      if (selectedAction && selectedAction !== 'all') filters.action = selectedAction;
+      if (selectedModel && selectedModel !== 'all') filters.model_name = selectedModel;
 
       const response = await auditAPI.getLogs(filters);
       setLogs(response.results);
@@ -260,7 +260,7 @@ export default function AuditPage() {
                     <SelectValue placeholder="Tipo de accion" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todas las acciones</SelectItem>
+                    <SelectItem value="all">Todas las acciones</SelectItem>
                     <SelectItem value="create">Crear</SelectItem>
                     <SelectItem value="update">Actualizar</SelectItem>
                     <SelectItem value="delete">Eliminar</SelectItem>
@@ -279,7 +279,7 @@ export default function AuditPage() {
                     <SelectValue placeholder="Tipo de objeto" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos los objetos</SelectItem>
+                    <SelectItem value="all">Todos los objetos</SelectItem>
                     <SelectItem value="Loan">Prestamos</SelectItem>
                     <SelectItem value="LoanPayment">Pagos</SelectItem>
                     <SelectItem value="Customer">Clientes</SelectItem>
