@@ -57,3 +57,5 @@ if SENTRY_DSN:
 
 # Logging to file
 LOGGING['handlers']['file']['filename'] = '/var/log/crediflux/production.log'
+
+SECURE_SSL_REDIRECT = True
