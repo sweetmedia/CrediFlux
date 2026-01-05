@@ -120,10 +120,6 @@ services:
       dockerfile: ../docker/documentation/Dockerfile
     container_name: crediflux_docs
     command: npm run dev -- -p 3001
-    volumes:
-      - ./documentation:/app
-      - /app/node_modules
-      - /app/.next
     ports:
       - "3001:3001"
 
