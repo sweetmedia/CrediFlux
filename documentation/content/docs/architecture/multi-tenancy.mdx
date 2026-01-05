@@ -35,26 +35,26 @@ CrediFlux usa **schema-based** porque ofrece:
 
 ### Estructura de PostgreSQL
 
-```
+```text
 PostgreSQL Database: crediflux_db
-│
+
 ├── public (schema compartido)
 │   ├── tenants_tenant
 │   ├── tenants_domain
 │   └── django_migrations
-│
+
 ├── caproinsa (tenant schema 1)
 │   ├── users_user
 │   ├── loans_customer
 │   ├── loans_loan
 │   ├── loans_loanpayment
 │   └── ...
-│
+
 ├── bancoprosa (tenant schema 2)
 │   ├── users_user
 │   ├── loans_customer
 │   └── ...
-│
+
 └── cooperativa_abc (tenant schema 3)
     └── ...
 ```
