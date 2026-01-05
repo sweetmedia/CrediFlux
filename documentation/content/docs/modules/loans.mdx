@@ -84,28 +84,7 @@ class LoanSchedule(BaseModel):
 
 ## Workflow de Aprobación
 
-```
-┌─────────────┐
-│   Borrador  │ (Cliente inicia solicitud)
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  Pendiente  │ (Oficial de crédito revisa)
-└──────┬──────┘
-       │
-       ├─────────────┬─────────────┐
-       ▼             ▼             ▼
-  ┌─────────┐  ┌──────────┐  ┌──────────┐
-  │ Activo  │  │Rechazado │  │Necesita  │
-  │         │  │          │  │más info  │
-  └────┬────┘  └──────────┘  └──────────┘
-       │
-       ▼
-  ┌─────────┐
-  │  Pagado │
-  └─────────┘
-```
+![Workflow de Aprobación de Préstamos](/images/loans-approval-workflow.png)
 
 ## Cálculo de Amortización
 
