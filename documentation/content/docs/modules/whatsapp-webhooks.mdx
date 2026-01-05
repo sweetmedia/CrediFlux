@@ -16,26 +16,7 @@ Esta guía explica cómo configurar la integración de WhatsApp Business Cloud A
 
 ## Arquitectura
 
-```
-Meta Platform (WhatsApp Cloud API)
-         │
-         │ POST /api/webhooks/whatsapp/
-         ▼
-┌─────────────────────────────────────┐
-│     WhatsAppWebhookView             │
-│  - Valida firma SHA256              │
-│  - Identifica tenant por phone_id   │
-│  - Encola tarea Celery              │
-└─────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│     Celery Worker                   │
-│  - Procesa mensaje/status           │
-│  - Guarda en WhatsAppMessage        │
-│  - Asocia con Customer si existe    │
-└─────────────────────────────────────┘
-```
+![Arquitectura de WhatsApp Webhooks](/images/whatsapp-webhooks-architecture.png)
 
 ## Paso 1: Configurar la Aplicación en Meta
 
