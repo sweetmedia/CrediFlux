@@ -1,0 +1,209 @@
+---
+title: Módulo de Préstamos
+description: Gestión del ciclo de vida completo de préstamos
+---
+
+# Módulo de Préstamos
+
+El módulo de préstamos es el núcleo de CrediFlux, encargado de gestionar todo el ciclo de vida de un préstamo desde la solicitud inicial hasta el pago completo.
+
+## Modelos
+
+### Loan (Préstamo)
+
+**Ubicación**: `backend/apps/loans/models.py`
+
+```python
+class Loan(BaseModel):
+    loan_number = CharField(max_length=50, unique=True)
+    customer = ForeignKey(Customer)
+    loan_type = CharField(choices=LOAN_TYPE_CHOICES)
+    status = CharField(choices=LOAN_STATUS_CHOICES)
+    principal_amount = MoneyField()
+    interest_rate = DecimalField(max_digits=5, decimal_places=2)
+    term_months = PositiveIntegerField()
+    payment_frequency = CharField(choices=PAYMENT_FREQUENCY_CHOICES)
+    disbursement_date = DateField()
+    first_payment_date = DateField()
+    maturity_date = DateField()
+    outstanding_balance = MoneyField()
+```
+
+### Estados del Préstamo
+
+| Estado | Descripción | Transiciones Permitidas |
+|--------|-------------|------------------------|
+| `draft` | Borrador, sin completar | → `pending` |
+| `pending` | Esperando aprobación | → `active`, `rejected` |
+| `active` | Aprobado y desembolsado | → `paid`, `defaulted`, `written_off` |
+| `defaulted` | En mora grave (90+ días) | → `paid`, `written_off` |
+| `paid` | Completamente pagado | (Estado final) |
+| `rejected` | Rechazado | (Estado final) |
+| `written_off` | Castigado | (Estado final) |
+
+### LoanSchedule (Cronograma de Pagos)
+
+```python
+class LoanSchedule(BaseModel):
+    loan = ForeignKey(Loan, related_name='payment_schedules')
+    installment_number = PositiveIntegerField()
+    due_date = DateField()
+    total_amount = MoneyField()
+    principal_amount = MoneyField()
+    interest_amount = MoneyField()
+    paid_amount = MoneyField(default=Money(0, 'DOP'))
+    status = CharField(choices=SCHEDULE_STATUS_CHOICES)
+    late_fee_amount = MoneyField(default=Money(0, 'DOP'))
+```
+
+## Tipos de Préstamos
+
+### Personal
+- **Monto**: Hasta $500,000 DOP
+- **Plazo**: 6-60 meses
+- **Tasa**: 15-25% anual
+- **Garantía**: No requerida para montos menores a $100,000
+
+### Auto
+- **Monto**: Hasta $2,000,000 DOP
+- **Plazo**: 12-84 meses
+- **Tasa**: 12-18% anual
+- **Garantía**: El propio vehículo
+
+### Hipotecario
+- **Monto**: Hasta $10,000,000 DOP
+- **Plazo**: 60-360 meses
+- **Tasa**: 8-12% anual
+- **Garantía**: Hipoteca sobre la propiedad
+
+### Negocio
+- **Monto**: Variable según plan de negocio
+- **Plazo**: 12-120 meses
+- **Tasa**: 14-22% anual
+- **Garantía**: Activos del negocio
+
+## Workflow de Aprobación
+
+```
+┌─────────────┐
+│   Borrador  │ (Cliente inicia solicitud)
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  Pendiente  │ (Oficial de crédito revisa)
+└──────┬──────┘
+       │
+       ├─────────────┬─────────────┐
+       ▼             ▼             ▼
+  ┌─────────┐  ┌──────────┐  ┌──────────┐
+  │ Activo  │  │Rechazado │  │Necesita  │
+  │         │  │          │  │más info  │
+  └────┬────┘  └──────────┘  └──────────┘
+       │
+       ▼
+  ┌─────────┐
+  │  Pagado │
+  └─────────┘
+```
+
+## Cálculo de Amortización
+
+### Método Francés (Cuota Fija)
+
+```
+Cuota = P × [r(1 + r)^n] / [(1 + r)^n - 1]
+
+Donde:
+P = Principal (monto del préstamo)
+r = Tasa de interés mensual (tasa_anual / 12 / 100)
+n = Número de pagos
+```
+
+**Ejemplo**:
+
+```
+Principal: $100,000 DOP
+Tasa: 18% anual = 1.5% mensual
+Plazo: 12 meses
+
+Cuota = 100000 × [0.015(1.015)^12] / [(1.015)^12 - 1]
+Cuota = $9,168.46 DOP
+```
+
+## API Endpoints
+
+### Listar Préstamos
+
+```bash
+GET /api/loans/
+```
+
+**Query Parameters**:
+- `status`: Filtrar por estado
+- `customer`: UUID del cliente
+- `loan_type`: Tipo de préstamo
+- `search`: Buscar por loan_number o customer name
+
+### Crear Préstamo
+
+```bash
+POST /api/loans/
+{
+  "customer": "customer-uuid",
+  "loan_type": "personal",
+  "principal_amount": "200000.00",
+  "interest_rate": "18.00",
+  "term_months": 24,
+  "payment_frequency": "monthly",
+  "purpose": "Consolidación de deudas"
+}
+```
+
+### Aprobar Préstamo
+
+```bash
+POST /api/loans/{id}/approve/
+{
+  "notes": "Cliente cumple con todos los requisitos"
+}
+```
+
+### Desembolsar Préstamo
+
+```bash
+POST /api/loans/{id}/disburse/
+```
+
+### Estadísticas
+
+```bash
+GET /api/loans/statistics/
+```
+
+**Response**:
+```json
+{
+  "total_loans": 500,
+  "active_loans": 320,
+  "total_disbursed": "50000000.00",
+  "total_outstanding": "35000000.00",
+  "default_rate": "5.2"
+}
+```
+
+## Troubleshooting
+
+### El cronograma no se genera
+
+**Causa**: Préstamo no ha sido desembolsado
+
+**Solución**: Ejecutar `POST /api/loans/{id}/disburse/`
+
+### Saldos no cuadran
+
+**Solución**:
+```python
+loan = Loan.objects.get(id='uuid')
+loan.recalculate_balance()
+```

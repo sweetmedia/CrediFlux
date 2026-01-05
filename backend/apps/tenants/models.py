@@ -152,6 +152,13 @@ class Tenant(TenantMixin):
         help_text='Webhook Verify Token (para validar webhooks)'
     )
 
+    whatsapp_app_secret = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='App Secret de Meta para validar firmas de webhook (HMAC-SHA256)'
+    )
+
     # ============================================================
     # SMTP/IMAP EMAIL CONFIGURATION (Configuración de Email)
     # ============================================================

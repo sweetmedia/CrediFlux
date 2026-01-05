@@ -1,0 +1,234 @@
+---
+title: WhatsApp Webhooks
+description: Configuración de webhooks para recibir mensajes y estados de WhatsApp
+---
+
+# Configuración de WhatsApp Webhooks
+
+Esta guía explica cómo configurar la integración de WhatsApp Business Cloud API para recibir mensajes entrantes y notificaciones de estado en CrediFlux.
+
+## Prerequisitos
+
+1. Una cuenta de Meta Business (Facebook Business)
+2. Una aplicación de Meta con WhatsApp Business API habilitada
+3. Un número de teléfono verificado en WhatsApp Business
+4. Acceso al panel de administración de CrediFlux
+
+## Arquitectura
+
+```
+Meta Platform (WhatsApp Cloud API)
+         │
+         │ POST /api/webhooks/whatsapp/
+         ▼
+┌─────────────────────────────────────┐
+│     WhatsAppWebhookView             │
+│  - Valida firma SHA256              │
+│  - Identifica tenant por phone_id   │
+│  - Encola tarea Celery              │
+└─────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────┐
+│     Celery Worker                   │
+│  - Procesa mensaje/status           │
+│  - Guarda en WhatsAppMessage        │
+│  - Asocia con Customer si existe    │
+└─────────────────────────────────────┘
+```
+
+## Paso 1: Configurar la Aplicación en Meta
+
+### 1.1 Crear una Aplicación de Meta
+
+1. Ve a [Meta for Developers](https://developers.facebook.com/)
+2. Haz clic en "My Apps" → "Create App"
+3. Selecciona "Business" como tipo de aplicación
+4. Completa los detalles de la aplicación
+
+### 1.2 Agregar WhatsApp Business API
+
+1. En el dashboard de tu app, haz clic en "Add Product"
+2. Busca "WhatsApp" y haz clic en "Set up"
+3. Sigue el asistente para conectar tu cuenta de WhatsApp Business
+
+### 1.3 Obtener Credenciales
+
+En la sección WhatsApp → API Setup, encontrarás:
+
+- **Phone Number ID**: Identificador único de tu número de WhatsApp
+- **Access Token**: Token de acceso permanente (generarlo en System Users)
+- **App Secret**: En Settings → Basic → App Secret
+
+## Paso 2: Configurar el Tenant en CrediFlux
+
+### 2.1 Acceder al Panel de Administración
+
+1. Inicia sesión en el admin de Django: `https://tu-dominio.com/admin/`
+2. Navega a **Tenants** → **Tenants**
+3. Selecciona el tenant que deseas configurar
+
+### 2.2 Configurar Credenciales de WhatsApp
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| **WhatsApp Phone ID** | Phone Number ID de Meta | `123456789012345` |
+| **WhatsApp Token** | Access Token permanente | `EAABc...xyz` |
+| **WhatsApp Verify Token** | Token para verificar webhooks | `mi_token_secreto_123` |
+| **WhatsApp App Secret** | App Secret de Meta | `abc123def456...` |
+
+### 2.3 Generar un Verify Token Seguro
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+## Paso 3: Configurar Webhook en Meta
+
+### 3.1 URL del Webhook
+
+```
+https://tu-dominio.com/api/webhooks/whatsapp/
+```
+
+<Callout type="warn">
+La URL debe usar HTTPS y ser accesible públicamente.
+</Callout>
+
+### 3.2 Configurar en Meta Developer Console
+
+1. Ve a tu aplicación en Meta for Developers
+2. Navega a **WhatsApp** → **Configuration**
+3. En la sección "Webhook", haz clic en **Edit**
+4. Completa los campos:
+   - **Callback URL**: `https://tu-dominio.com/api/webhooks/whatsapp/`
+   - **Verify Token**: El mismo valor que configuraste en el tenant
+5. Haz clic en **Verify and Save**
+
+### 3.3 Suscribirse a Eventos
+
+| Campo | Descripción |
+|-------|-------------|
+| `messages` | Mensajes entrantes (texto, imagen, audio, video, documentos) |
+| `message_status` | Actualizaciones de estado (sent, delivered, read, failed) |
+
+## Paso 4: Verificar la Configuración
+
+### 4.1 Prueba de Verificación
+
+Meta enviará una solicitud GET para verificar tu webhook:
+
+```
+GET /api/webhooks/whatsapp/?hub.mode=subscribe&hub.verify_token=TU_TOKEN&hub.challenge=XXXXX
+```
+
+### 4.2 Prueba de Mensaje
+
+1. Envía un mensaje de WhatsApp al número configurado
+2. Verifica en los logs de Celery:
+
+```bash
+docker-compose logs -f celery
+```
+
+Deberías ver:
+```
+[INFO] Processing WhatsApp webhook for tenant: mi_empresa
+[INFO] Saved inbound message wamid.xxx from +18091234567
+```
+
+### 4.3 Verificar en la Base de Datos
+
+```python
+from apps.communications.models import WhatsAppMessage
+WhatsAppMessage.objects.order_by('-created_at')[:5]
+```
+
+## Estructura del Payload
+
+### Mensaje Entrante
+
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "changes": [{
+      "value": {
+        "metadata": {
+          "phone_number_id": "123456789012345"
+        },
+        "contacts": [{
+          "profile": { "name": "Juan Pérez" },
+          "wa_id": "18097654321"
+        }],
+        "messages": [{
+          "id": "wamid.HBgLMTgwOTEyMzQ1Njc...",
+          "from": "18097654321",
+          "type": "text",
+          "text": { "body": "Hola, necesito información" }
+        }]
+      }
+    }]
+  }]
+}
+```
+
+### Actualización de Estado
+
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "changes": [{
+      "value": {
+        "metadata": { "phone_number_id": "123456789012345" },
+        "statuses": [{
+          "id": "wamid.HBgLMTgwOTEyMzQ1Njc...",
+          "status": "delivered",
+          "timestamp": "1704067300"
+        }]
+      }
+    }]
+  }]
+}
+```
+
+## Seguridad
+
+### Validación de Firma
+
+Todos los webhooks de Meta incluyen una firma HMAC-SHA256 en el header `X-Hub-Signature-256`. CrediFlux valida esta firma usando el **App Secret**.
+
+### Idempotencia
+
+Los mensajes se identifican por `wa_message_id`. Si Meta reenvía un webhook, el sistema detecta el duplicado y no crea registros repetidos.
+
+## Solución de Problemas
+
+### El webhook no se verifica
+
+1. Verifica que la URL sea accesible públicamente
+2. Confirma que el Verify Token coincida exactamente
+3. Revisa los logs: `docker-compose logs backend`
+
+### Mensajes no llegan
+
+1. Verifica suscripción al campo `messages`
+2. Revisa logs de Celery: `docker-compose logs celery`
+3. Confirma `whatsapp_phone_id` del tenant
+
+### Error 403 en webhooks
+
+1. Verifica `whatsapp_app_secret` esté configurado
+2. Confirma que el App Secret sea correcto
+
+## Referencia de Estados
+
+| Estado | Descripción |
+|--------|-------------|
+| `pending` | Mensaje creado, pendiente de envío |
+| `sent` | Enviado a servidores de WhatsApp |
+| `delivered` | Entregado al dispositivo |
+| `read` | Leído por el destinatario |
+| `failed` | Error en el envío |
+| `received` | Mensaje entrante recibido |

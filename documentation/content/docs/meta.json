@@ -1,0 +1,20 @@
+{
+  "title": "Documentación",
+  "pages": [
+    "index",
+    "getting-started",
+    "---Arquitectura---",
+    "architecture/multi-tenancy",
+    "---Módulos---",
+    "modules/loans",
+    "modules/payments",
+    "modules/collections",
+    "modules/whatsapp-webhooks",
+    "---API---",
+    "api/index",
+    "api/authentication",
+    "---Guías---",
+    "guides/customizing-reports",
+    "troubleshooting"
+  ]
+}

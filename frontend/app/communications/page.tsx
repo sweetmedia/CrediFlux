@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { whatsappAPI, WhatsAppConversation, WhatsAppMessage as WAMessage } from '@/lib/api/whatsapp';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -46,6 +47,9 @@ import {
   Reply,
   Forward,
   MoreVertical,
+  Check,
+  CheckCheck,
+  AlertCircle,
 } from 'lucide-react';
 
 interface EmailFolder {
@@ -76,14 +80,7 @@ interface Email {
   important: boolean;
 }
 
-interface WhatsAppMessage {
-  id: string;
-  from: string;
-  to: string;
-  message: string;
-  timestamp: string;
-  status: 'sent' | 'delivered' | 'read' | 'failed';
-}
+// WhatsAppMessage interface is now imported from API module
 
 export default function CommunicationsPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -105,10 +102,15 @@ export default function CommunicationsPage() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   // WhatsApp states
-  const [whatsappMessages, setWhatsAppMessages] = useState<WhatsAppMessage[]>([]);
+  const [conversations, setConversations] = useState<WhatsAppConversation[]>([]);
+  const [currentMessages, setCurrentMessages] = useState<WAMessage[]>([]);
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<WhatsAppConversation | null>(null);
   const [whatsappMessage, setWhatsAppMessage] = useState('');
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [whatsappSearch, setWhatsappSearch] = useState('');
 
   // Email folders
   const folders: EmailFolder[] = [
@@ -134,9 +136,68 @@ export default function CommunicationsPage() {
     { id: 'budget', name: 'budget', color: 'bg-yellow-600' },
   ];
 
-  // Mock data for development
+  // Load WhatsApp conversations
+  const fetchConversations = useCallback(async () => {
+    setIsLoadingConversations(true);
+    try {
+      const data = await whatsappAPI.getConversations(whatsappSearch);
+      setConversations(data);
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    } finally {
+      setIsLoadingConversations(false);
+    }
+  }, [whatsappSearch]);
+
+  // Load messages for selected conversation
+  const fetchMessages = useCallback(async (conversationId: string) => {
+    setIsLoadingMessages(true);
+    try {
+      const data = await whatsappAPI.getMessages(conversationId);
+      setCurrentMessages(data.messages);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, []);
+
+  // Load conversations when WhatsApp tab is active
   useEffect(() => {
-    // Simulate loading emails
+    if (activeTab === 'whatsapp' && isAuthenticated) {
+      fetchConversations();
+    }
+  }, [activeTab, isAuthenticated, fetchConversations]);
+
+  // Load messages when conversation is selected
+  useEffect(() => {
+    if (selectedChat) {
+      fetchMessages(selectedChat);
+      // Find the selected conversation
+      const conv = conversations.find(c => c.conversation_id === selectedChat);
+      setSelectedConversation(conv || null);
+    } else {
+      setCurrentMessages([]);
+      setSelectedConversation(null);
+    }
+  }, [selectedChat, fetchMessages, conversations]);
+
+  // Polling for new messages (every 30 seconds when WhatsApp tab is active)
+  useEffect(() => {
+    if (activeTab !== 'whatsapp' || !isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      fetchConversations();
+      if (selectedChat) {
+        fetchMessages(selectedChat);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [activeTab, isAuthenticated, selectedChat, fetchConversations, fetchMessages]);
+
+  // Mock data for emails (TODO: implement email API)
+  useEffect(() => {
     const mockEmails: Email[] = [
       {
         id: '1',
@@ -144,89 +205,15 @@ export default function CommunicationsPage() {
         fromName: 'William Smith',
         to: 'info@miempresa.com',
         subject: 'Meeting Tomorrow',
-        body: `Hi, let's have a meeting tomorrow to discuss the project. I've been reviewing the project details and have some ideas I'd like to share. It's crucial that we align on our next steps to ensure the project's success.
-
-Please come prepared with any questions or insights you may have. Looking forward to our meeting!
-
-Best regards,
-William`,
-        date: new Date(Date.now() - 120000).toISOString(), // about 2 minutes ago
+        body: `Hi, let's have a meeting tomorrow to discuss the project.`,
+        date: new Date(Date.now() - 120000).toISOString(),
         read: false,
         folder: 'inbox',
         labels: ['meeting', 'work', 'important'],
         important: true,
       },
-      {
-        id: '2',
-        from: 'alicesmith@example.com',
-        fromName: 'Alice Smith',
-        to: 'info@miempresa.com',
-        subject: 'Re: Project Update',
-        body: `Thank you for the project update. It looks great! I've gone through the report, and the progress is impressive. The team has done a fantastic job, and I appreciate the hard work everyone has put in.
-
-Let's schedule a follow-up meeting to discuss the next steps.`,
-        date: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
-        read: true,
-        folder: 'inbox',
-        labels: ['work', 'important'],
-        important: false,
-      },
-      {
-        id: '3',
-        from: 'bobjohnson@example.com',
-        fromName: 'Bob Johnson',
-        to: 'info@miempresa.com',
-        subject: 'Weekend Plans',
-        body: `Any plans for the weekend? I was thinking of going hiking in the nearby mountains. It's been a while since we had some outdoor fun. If you're interested, let me know!`,
-        date: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-        read: true,
-        folder: 'inbox',
-        labels: ['personal'],
-        important: false,
-      },
-      {
-        id: '4',
-        from: 'emilydavis@example.com',
-        fromName: 'Emily Davis',
-        to: 'info@miempresa.com',
-        subject: 'Re: Question about Budget',
-        body: `I have a question about the budget for the upcoming project. It seems like there's a discrepancy in the allocation of resources. I've reviewed the documents and think we need to discuss this further.
-
-Can we schedule a call to go over the details?`,
-        date: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
-        read: false,
-        folder: 'inbox',
-        labels: ['work', 'budget'],
-        important: false,
-      },
-      {
-        id: '5',
-        from: 'michaelwilson@example.com',
-        fromName: 'Michael Wilson',
-        to: 'info@miempresa.com',
-        subject: 'Important Announcement',
-        body: `I have an important announcement to make during our team meeting. It pertains to a strategic shift in our approach and some exciting upcoming changes. Please make sure to attend.`,
-        date: new Date(Date.now() - 345600000).toISOString(), // 4 days ago
-        read: false,
-        folder: 'inbox',
-        labels: ['work', 'important'],
-        important: true,
-      },
     ];
     setEmails(mockEmails);
-
-    // Simulate WhatsApp messages
-    const mockWhatsApp: WhatsAppMessage[] = [
-      {
-        id: '1',
-        from: '+18095551234',
-        to: '+18099999999',
-        message: 'Hola, recibí el recordatorio de pago',
-        timestamp: new Date().toISOString(),
-        status: 'read',
-      },
-    ];
-    setWhatsAppMessages(mockWhatsApp);
   }, []);
 
   // Get initials from name
@@ -294,25 +281,35 @@ Can we schedule a call to go over the details?`,
 
     setIsSendingWhatsApp(true);
     try {
-      // TODO: Implementar llamada a API para enviar WhatsApp
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-
-      const newMessage: WhatsAppMessage = {
-        id: Date.now().toString(),
-        from: '+18099999999',
-        to: selectedChat,
-        message: whatsappMessage,
-        timestamp: new Date().toISOString(),
-        status: 'sent',
-      };
-
-      setWhatsAppMessages([...whatsappMessages, newMessage]);
+      await whatsappAPI.sendMessage(selectedChat, whatsappMessage);
       setWhatsAppMessage('');
+      // Refresh messages after sending
+      await fetchMessages(selectedChat);
+      // Also refresh conversations to update last message
+      await fetchConversations();
     } catch (error) {
       console.error('Error sending WhatsApp:', error);
       alert('Error al enviar mensaje de WhatsApp');
     } finally {
       setIsSendingWhatsApp(false);
+    }
+  };
+
+  // Render message status icon
+  const renderMessageStatus = (status: string, direction: string) => {
+    if (direction === 'inbound') return null;
+
+    switch (status) {
+      case 'sent':
+        return <Check className="h-3 w-3 text-gray-400" />;
+      case 'delivered':
+        return <CheckCheck className="h-3 w-3 text-gray-400" />;
+      case 'read':
+        return <CheckCheck className="h-3 w-3 text-blue-500" />;
+      case 'failed':
+        return <AlertCircle className="h-3 w-3 text-red-500" />;
+      default:
+        return <Clock className="h-3 w-3 text-gray-400" />;
     }
   };
 
@@ -668,14 +665,28 @@ Can we schedule a call to go over the details?`,
           {/* WHATSAPP TAB */}
           <TabsContent value="whatsapp">
             <Card className="border-slate-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-green-600" />
-                  Conversaciones de WhatsApp
-                </CardTitle>
-                <CardDescription>
-                  Gestiona tus conversaciones de WhatsApp con clientes
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-green-600" />
+                    Conversaciones de WhatsApp
+                  </CardTitle>
+                  <CardDescription>
+                    Gestiona tus conversaciones de WhatsApp con clientes
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchConversations}
+                  disabled={isLoadingConversations}
+                >
+                  {isLoadingConversations ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </Button>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-12 gap-4">
@@ -687,31 +698,68 @@ Can we schedule a call to go over the details?`,
                         <Input
                           placeholder="Buscar conversaciones..."
                           className="pl-10"
+                          value={whatsappSearch}
+                          onChange={(e) => setWhatsappSearch(e.target.value)}
                         />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      {whatsappMessages.length === 0 ? (
+                    <div className="space-y-2 max-h-[450px] overflow-y-auto">
+                      {isLoadingConversations ? (
+                        <div className="text-center py-8">
+                          <Loader2 className="h-8 w-8 animate-spin mx-auto text-green-600" />
+                          <p className="text-sm text-gray-500 mt-2">Cargando conversaciones...</p>
+                        </div>
+                      ) : conversations.length === 0 ? (
                         <div className="text-center py-8 text-gray-500">
                           <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
                           <p className="text-sm">No hay conversaciones</p>
                         </div>
                       ) : (
-                        whatsappMessages.map((msg) => (
+                        conversations.map((conv) => (
                           <div
-                            key={msg.id}
+                            key={conv.conversation_id}
                             className={`p-3 border rounded-lg cursor-pointer transition-colors hover:bg-slate-50 ${
-                              selectedChat === msg.from ? 'bg-green-50 border-green-200' : 'border-slate-200'
+                              selectedChat === conv.conversation_id ? 'bg-green-50 border-green-200' : 'border-slate-200'
                             }`}
-                            onClick={() => setSelectedChat(msg.from)}
+                            onClick={() => setSelectedChat(conv.conversation_id)}
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold text-sm">{msg.from}</span>
-                              <span className="text-xs text-gray-500">
-                                {new Date(msg.timestamp).toLocaleTimeString()}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-semibold text-xs">
+                                  {conv.customer_name
+                                    ? getInitials(conv.customer_name)
+                                    : conv.profile_name
+                                    ? getInitials(conv.profile_name)
+                                    : conv.conversation_id.slice(-2)}
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-sm block">
+                                    {conv.customer_name || conv.profile_name || conv.conversation_id}
+                                  </span>
+                                  {conv.customer_name && (
+                                    <span className="text-xs text-gray-500">{conv.conversation_id}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs text-gray-500 block">
+                                  {getTimeAgo(conv.last_message_time)}
+                                </span>
+                                {conv.unread_count > 0 && (
+                                  <Badge className="bg-green-600 text-white text-xs mt-1">
+                                    {conv.unread_count}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-sm text-gray-600 mt-1 line-clamp-1">{msg.message}</p>
+                            <p className="text-sm text-gray-600 mt-2 line-clamp-1 flex items-center gap-1">
+                              {conv.last_direction === 'outbound' && (
+                                <span className="text-gray-400">
+                                  {renderMessageStatus(conv.last_status, 'outbound')}
+                                </span>
+                              )}
+                              {conv.last_message}
+                            </p>
                           </div>
                         ))
                       )}
@@ -724,35 +772,59 @@ Can we schedule a call to go over the details?`,
                       <div className="flex flex-col h-[500px]">
                         {/* Chat Header */}
                         <div className="pb-4 border-b">
-                          <h3 className="font-semibold">{selectedChat}</h3>
-                          <p className="text-sm text-gray-500">WhatsApp</p>
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-semibold">
+                              {selectedConversation?.customer_name
+                                ? getInitials(selectedConversation.customer_name)
+                                : selectedConversation?.profile_name
+                                ? getInitials(selectedConversation.profile_name)
+                                : selectedChat.slice(-2)}
+                            </div>
+                            <div>
+                              <h3 className="font-semibold">
+                                {selectedConversation?.customer_name || selectedConversation?.profile_name || selectedChat}
+                              </h3>
+                              <p className="text-sm text-gray-500">{selectedChat}</p>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Messages */}
                         <div className="flex-1 overflow-y-auto py-4 space-y-3">
-                          {whatsappMessages
-                            .filter(m => m.from === selectedChat || m.to === selectedChat)
-                            .map((msg) => (
+                          {isLoadingMessages ? (
+                            <div className="text-center py-8">
+                              <Loader2 className="h-6 w-6 animate-spin mx-auto text-green-600" />
+                            </div>
+                          ) : currentMessages.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                              <p className="text-sm">No hay mensajes en esta conversación</p>
+                            </div>
+                          ) : (
+                            currentMessages.map((msg) => (
                               <div
                                 key={msg.id}
-                                className={`flex ${msg.from === selectedChat ? 'justify-start' : 'justify-end'}`}
+                                className={`flex ${msg.direction === 'inbound' ? 'justify-start' : 'justify-end'}`}
                               >
                                 <div
                                   className={`max-w-xs px-4 py-2 rounded-lg ${
-                                    msg.from === selectedChat
+                                    msg.direction === 'inbound'
                                       ? 'bg-gray-100 text-gray-900'
                                       : 'bg-green-600 text-white'
                                   }`}
                                 >
-                                  <p className="text-sm">{msg.message}</p>
-                                  <p className={`text-xs mt-1 ${
-                                    msg.from === selectedChat ? 'text-gray-500' : 'text-green-100'
+                                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                  <div className={`flex items-center justify-end gap-1 mt-1 ${
+                                    msg.direction === 'inbound' ? 'text-gray-500' : 'text-green-100'
                                   }`}>
-                                    {new Date(msg.timestamp).toLocaleTimeString()}
-                                  </p>
+                                    <span className="text-xs">
+                                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    {renderMessageStatus(msg.status, msg.direction)}
+                                  </div>
                                 </div>
                               </div>
-                            ))}
+                            ))
+                          )}
                         </div>
 
                         {/* Input */}

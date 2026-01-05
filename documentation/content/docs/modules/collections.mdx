@@ -1,0 +1,225 @@
+---
+title: Módulo de Cobranza
+description: Automatización de cobranza, mora, recordatorios y promesas de pago
+---
+
+# Módulo de Cobranza
+
+El módulo de cobranza automatiza la gestión de pagos vencidos, cálculo de mora, recordatorios, gestión de contactos y seguimiento de promesas de pago.
+
+## Modelos
+
+### CollectionContact (Registro de Contacto)
+
+```python
+class CollectionContact(BaseModel):
+    loan = ForeignKey(Loan, related_name='collection_contacts')
+    contact_date = DateTimeField(default=timezone.now)
+    contact_type = CharField(choices=CONTACT_TYPE_CHOICES)
+    outcome = CharField(choices=CONTACT_OUTCOME_CHOICES)
+    promise_date = DateField(null=True, blank=True)
+    promise_amount = MoneyField(null=True, blank=True)
+    notes = TextField()
+    contacted_by = ForeignKey(User)
+```
+
+**Tipos de contacto**:
+- `phone_call`: Llamada telefónica
+- `email`: Correo electrónico
+- `whatsapp`: Mensaje WhatsApp
+- `sms`: Mensaje SMS
+- `in_person`: Visita personal
+
+**Resultados de contacto**:
+- `promise_to_pay`: Promesa de pago
+- `refused_to_pay`: Se niega a pagar
+- `dispute`: Disputa el monto
+- `no_answer`: No contestó
+- `payment_made`: Realizó el pago
+
+## Cálculo de Mora
+
+### Configuración por Tenant
+
+Cada tenant configura su política de mora:
+
+```python
+class Tenant(TenantMixin):
+    late_fee_type = CharField(choices=[
+        ('percentage', 'Porcentaje'),
+        ('fixed', 'Monto Fijo')
+    ])
+    late_fee_percentage = DecimalField(max_digits=5, decimal_places=2)
+    late_fee_frequency = CharField(choices=[
+        ('daily', 'Diario'),
+        ('monthly', 'Mensual'),
+        ('one_time', 'Una sola vez')
+    ])
+    grace_period_days = PositiveIntegerField(default=0)
+```
+
+### Ejemplo de Cálculo
+
+**Configuración**:
+- Tipo: Porcentaje (5% mensual)
+- Gracia: 5 días
+
+**Cuota vencida**:
+- Fecha vencimiento: 2025-10-01
+- Fecha actual: 2025-10-30
+- Días vencidos: 29
+- Días efectivos: 24 (29 - 5 gracia)
+- Balance: $10,000
+
+**Cálculo**:
+```
+Meses vencidos = 24 / 30 = 0.8 meses
+Mora = $10,000 × 5% × 0.8 = $400
+```
+
+### Comando de Cálculo
+
+```bash
+# Para un tenant específico
+docker-compose exec backend python manage.py calculate_late_fees --tenant caproinsa
+
+# Para todos los tenants
+docker-compose exec backend python manage.py calculate_late_fees --all
+```
+
+## Sistema de Recordatorios
+
+### Configuración
+
+```python
+REMINDER_SCHEDULE = {
+    'pre_due': -3,      # 3 días antes
+    'on_due': 0,        # Día de vencimiento
+    'overdue_1': 1,     # 1 día después
+    'overdue_7': 7,     # 7 días después
+    'overdue_15': 15,   # 15 días después
+    'overdue_30': 30,   # 30 días después
+}
+```
+
+### Plantilla de Mensaje
+
+```
+Estimado/a {customer_name},
+
+Su cuota del préstamo {loan_number} está vencida hace {days_overdue} días.
+
+Monto original: {original_amount}
+Mora acumulada: {late_fee}
+Total a pagar: {total_due}
+
+Por favor, regularice su situación lo antes posible.
+
+{company_name}
+```
+
+## Gestión de Contactos
+
+### Registrar Contacto
+
+```bash
+POST /api/loans/collection-contacts/
+{
+  "loan": "loan-uuid",
+  "contact_type": "phone_call",
+  "outcome": "promise_to_pay",
+  "promise_date": "2025-11-05",
+  "promise_amount": "10000.00",
+  "notes": "Cliente promete pagar el viernes"
+}
+```
+
+### Historial de Contactos
+
+```bash
+GET /api/loans/collection-contacts/?loan={loan-uuid}
+```
+
+## Promesas de Pago
+
+### Promesas para Hoy
+
+```bash
+GET /api/loans/collections/promises_due_today/
+```
+
+**Response**:
+```json
+{
+  "count": 12,
+  "total_promised": "120000.00",
+  "results": [
+    {
+      "loan_number": "LN-2025-ABC",
+      "customer_name": "Juan Pérez",
+      "promise_date": "2025-10-30",
+      "promise_amount": "10000.00",
+      "fulfilled": false
+    }
+  ]
+}
+```
+
+### Promesas Incumplidas
+
+```bash
+GET /api/loans/collections/broken_promises/
+```
+
+## Dashboard de Cobranza
+
+### Métricas Principales
+
+```bash
+GET /api/loans/collections/dashboard_stats/
+```
+
+**Response**:
+```json
+{
+  "overdueSchedules": 45,
+  "totalOverdue": "450000.00",
+  "totalLateFees": "22500.00",
+  "pendingReminders": 120,
+  "promisesToday": 8,
+  "brokenPromises": 15,
+  "escalationRequired": 3
+}
+```
+
+## Reportes
+
+### Reporte de Cartera Vencida
+
+```bash
+GET /api/loans/collections/aging_report/
+```
+
+**Response**:
+```json
+{
+  "as_of_date": "2025-10-30",
+  "total_portfolio": "50000000.00",
+  "current": {"count": 400, "percentage": "80.0"},
+  "1-30_days": {"count": 50, "percentage": "10.0"},
+  "31-60_days": {"count": 30, "percentage": "6.0"},
+  "61-90_days": {"count": 15, "percentage": "3.0"},
+  "90+_days": {"count": 5, "percentage": "1.0"}
+}
+```
+
+## Mejores Prácticas
+
+1. **Contacto Temprano**: Contactar ANTES del vencimiento
+2. **Múltiples Canales**: Teléfono, email, WhatsApp
+3. **Documentación Completa**: Registrar TODOS los contactos
+4. **Seguimiento de Promesas**: Revisar promesas diarias
+5. **Escalamiento Oportuno**:
+   - 30 días: Gerente de cobranza
+   - 60 días: Gerente de crédito
+   - 90 días: Legal/Externa

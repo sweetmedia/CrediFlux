@@ -1,0 +1,209 @@
+---
+title: Módulo de Pagos
+description: Gestión de pagos con distribución automática Mora → Interés → Capital
+---
+
+# Módulo de Pagos
+
+El módulo de pagos gestiona todos los registros de pagos realizados por clientes, aplicando automáticamente los montos a las cuotas vencidas con prioridad inteligente.
+
+## Prioridad de Distribución
+
+```
+1. MORA (Late Fees) de la cuota más vencida
+2. INTERÉS de la cuota más vencida
+3. CAPITAL de la cuota más vencida
+4. Si sobra dinero, se aplica a próximas cuotas
+```
+
+## Modelo LoanPayment
+
+```python
+class LoanPayment(BaseModel):
+    payment_number = CharField(max_length=50, unique=True)
+    loan = ForeignKey(Loan, related_name='payments')
+    schedule = ForeignKey(LoanSchedule, null=True, blank=True)
+
+    payment_date = DateField()
+    amount = MoneyField()
+
+    # Distribución del pago
+    principal_paid = MoneyField(default=Money(0, 'DOP'))
+    interest_paid = MoneyField(default=Money(0, 'DOP'))
+    late_fee_paid = MoneyField(default=Money(0, 'DOP'))
+
+    payment_method = CharField(choices=PAYMENT_METHOD_CHOICES)
+    reference_number = CharField(max_length=100, blank=True)
+    status = CharField(choices=PAYMENT_STATUS_CHOICES)
+```
+
+### Estados del Pago
+
+| Estado | Descripción |
+|--------|-------------|
+| `pending` | En proceso de verificación |
+| `completed` | Completado y aplicado |
+| `failed` | Falló (ej: cheque rechazado) |
+| `reversed` | Revertido por error |
+
+## Ejemplo de Distribución
+
+**Escenario**:
+- Cuota #5 vencida hace 30 días
+- Mora acumulada: $500
+- Interés pendiente: $1,500
+- Capital pendiente: $8,000
+- Cliente paga: $6,000
+
+**Resultado**:
+```
+1. Mora:     $500  (paga toda la mora)
+2. Interés:  $1,500 (paga todo el interés)
+3. Capital:  $4,000 (paga parte del capital)
+
+Total: $6,000
+Balance restante: $4,000 (solo capital)
+Estado de la cuota: PARTIAL
+```
+
+## Métodos de Pago
+
+| Método | Código | Requiere Referencia |
+|--------|--------|---------------------|
+| Efectivo | `cash` | No |
+| Cheque | `check` | Sí (# cheque) |
+| Transferencia | `bank_transfer` | Sí (# transacción) |
+| Tarjeta | `card` | Sí (últimos 4 dígitos) |
+| Pago Móvil | `mobile_payment` | Sí (# referencia) |
+
+## API Endpoints
+
+### Registrar Pago
+
+```bash
+POST /api/loans/payments/
+{
+  "loan": "loan-uuid",
+  "amount": "10000.00",
+  "payment_method": "cash",
+  "payment_date": "2025-10-30",
+  "notes": "Pago de cuota #5"
+}
+```
+
+**Response**:
+```json
+{
+  "id": "payment-uuid",
+  "payment_number": "PAY-2025-A1B2C3",
+  "amount": "10000.00",
+  "principal_paid": "8000.00",
+  "interest_paid": "1500.00",
+  "late_fee_paid": "500.00",
+  "status": "completed"
+}
+```
+
+### Listar Pagos
+
+```bash
+GET /api/loans/payments/
+```
+
+**Query Parameters**:
+- `loan`: UUID del préstamo
+- `customer`: UUID del cliente
+- `payment_method`: Filtrar por método
+- `status`: Filtrar por estado
+- `date_from`, `date_to`: Rango de fechas
+
+### Reversar Pago
+
+```bash
+POST /api/loans/payments/{id}/reverse/
+{
+  "reason": "Cheque devuelto por falta de fondos"
+}
+```
+
+**Permisos requeridos**: `can_reverse_payment`
+
+## Casos de Uso
+
+### Pago Puntual
+
+Cliente paga exactamente la cuota del mes:
+
+```bash
+POST /api/loans/payments/
+{
+  "loan": "loan-uuid",
+  "amount": "9168.46",
+  "payment_method": "bank_transfer",
+  "reference_number": "TXN-20251030-12345"
+}
+```
+
+### Pago con Mora
+
+Cliente paga cuota vencida hace 15 días con mora de $300:
+
+```bash
+POST /api/loans/payments/
+{
+  "loan": "loan-uuid",
+  "amount": "9468.46",
+  "payment_method": "cash"
+}
+```
+
+### Pago Total del Préstamo
+
+1. Obtener cotización de liquidación:
+```bash
+GET /api/loans/{loan-uuid}/payoff_quote/
+```
+
+2. Registrar pago total:
+```bash
+POST /api/loans/payments/
+{
+  "loan": "loan-uuid",
+  "amount": "154000.00",
+  "notes": "Liquidación total del préstamo"
+}
+```
+
+## Reportes
+
+### Reporte de Pagos Diarios
+
+```bash
+GET /api/loans/payments/daily_report/?date=2025-10-30
+```
+
+### Reporte de Morosidad
+
+```bash
+GET /api/loans/payments/arrears_report/
+```
+
+## Troubleshooting
+
+### El pago no se aplica correctamente
+
+**Verificar distribución**:
+```python
+payment = LoanPayment.objects.get(id='uuid')
+print(f"Principal: {payment.principal_paid}")
+print(f"Interest: {payment.interest_paid}")
+print(f"Late Fee: {payment.late_fee_paid}")
+```
+
+### Balance del préstamo no actualiza
+
+**Solución**:
+```python
+loan = Loan.objects.get(id='uuid')
+loan.update_outstanding_balance()
+```

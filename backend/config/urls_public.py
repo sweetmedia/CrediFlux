@@ -12,6 +12,8 @@ from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
+from apps.communications.webhooks.views import WhatsAppWebhookView
+
 # Swagger/OpenAPI configuration
 schema_view = get_schema_view(
     openapi.Info(
@@ -39,6 +41,9 @@ urlpatterns = [
     path('api/', include('apps.core.urls')),
     path('api/tenants/', include('apps.tenants.urls')),
     path('api/users/', include('apps.users.urls')),
+
+    # Webhooks (public, no authentication)
+    path('api/webhooks/whatsapp/', WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
 ]
 
 # Serve media files in development

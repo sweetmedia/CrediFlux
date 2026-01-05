@@ -1,0 +1,134 @@
+---
+title: Guía de Inicio
+description: Cómo comenzar con CrediFlux
+---
+
+# Guía de Inicio
+
+Esta guía te ayudará a configurar y ejecutar CrediFlux en tu entorno de desarrollo.
+
+## Requisitos del Sistema
+
+- Docker y Docker Compose
+- Git
+- Node.js 18+ (para el frontend)
+- Python 3.11+ (para desarrollo local sin Docker)
+
+## Instalación con Docker
+
+### 1. Clonar el Repositorio
+
+```bash
+git clone https://github.com/tu-org/crediflux.git
+cd crediflux
+```
+
+### 2. Configurar Variables de Entorno
+
+```bash
+cp .env.example .env
+```
+
+Edita `.env` con tus configuraciones:
+
+```env
+# Database
+POSTGRES_DB=crediflux_db
+POSTGRES_USER=crediflux
+POSTGRES_PASSWORD=tu_password_seguro
+
+# Django
+SECRET_KEY=tu_secret_key_muy_largo_y_seguro
+DEBUG=True
+
+# Redis
+REDIS_URL=redis://redis:6379/0
+```
+
+### 3. Iniciar los Servicios
+
+```bash
+docker-compose up -d
+```
+
+### 4. Ejecutar Migraciones
+
+```bash
+docker-compose exec backend python manage.py migrate_schemas
+```
+
+### 5. Crear Superusuario
+
+```bash
+docker-compose exec backend python manage.py createsuperuser
+```
+
+### 6. Iniciar el Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Acceder a la Aplicación
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000/api/
+- **Admin Django**: http://localhost:8000/admin/
+
+## Crear un Tenant de Prueba
+
+```python
+# En Django shell
+docker-compose exec backend python manage.py shell
+
+from apps.tenants.models import Tenant, Domain
+from decimal import Decimal
+
+tenant = Tenant.objects.create(
+    schema_name='demo',
+    name='Demo Company',
+    business_name='Demo Company SRL',
+    email='demo@example.com',
+    subscription_plan='professional',
+    late_fee_type='percentage',
+    late_fee_percentage=Decimal('5.0'),
+    late_fee_frequency='monthly',
+    grace_period_days=5
+)
+
+Domain.objects.create(
+    domain='demo.localhost',
+    tenant=tenant,
+    is_primary=True
+)
+```
+
+## Estructura del Proyecto
+
+```
+crediflux/
+├── backend/               # Django backend
+│   ├── apps/
+│   │   ├── core/         # Utilidades compartidas
+│   │   ├── loans/        # Módulo de préstamos
+│   │   ├── tenants/      # Multi-tenancy
+│   │   ├── users/        # Autenticación
+│   │   └── communications/ # WhatsApp, Email, Tasks
+│   └── config/           # Configuración Django
+├── frontend/             # Next.js frontend
+│   ├── app/             # App Router pages
+│   ├── components/      # Componentes React
+│   └── lib/             # Utilidades y API
+├── docker/              # Dockerfiles
+└── docs/                # Documentación
+```
+
+## Siguientes Pasos
+
+<Cards>
+  <Card title="Arquitectura Multi-Tenant" href="/docs/architecture/multi-tenancy" />
+  <Card title="Módulo de Préstamos" href="/docs/modules/loans" />
+  <Card title="API Reference" href="/docs/api" />
+</Cards>

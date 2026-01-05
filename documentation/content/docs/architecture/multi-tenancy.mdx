@@ -1,0 +1,245 @@
+---
+title: Arquitectura Multi-Tenant
+description: Guía completa sobre la arquitectura multi-tenant basada en schemas de PostgreSQL
+---
+
+# Arquitectura Multi-Tenant
+
+CrediFlux utiliza **django-tenants** para implementar una arquitectura multi-tenant basada en **schemas de PostgreSQL**. Cada organización (tenant) tiene su propio schema aislado con sus propias tablas.
+
+## Conceptos Clave
+
+### ¿Qué es Multi-Tenancy?
+
+Multi-tenancy permite que una sola instancia de la aplicación sirva a múltiples organizaciones (tenants), manteniendo sus datos completamente aislados.
+
+### Estrategias de Multi-Tenancy
+
+| Estrategia | Descripción | Ventajas | Desventajas |
+|------------|-------------|----------|-------------|
+| **Schema-based** (usado) | Un schema por tenant | Aislamiento completo, fácil backup | Más complejo, límite de schemas |
+| Database-based | Una DB por tenant | Máximo aislamiento | Muy complejo, costoso |
+| Row-based | Columna `tenant_id` | Simple, escalable | Riesgo de fugas de datos |
+
+### Por qué Schema-based
+
+CrediFlux usa **schema-based** porque ofrece:
+
+- Aislamiento completo de datos
+- Cumplimiento regulatorio (datos financieros sensibles)
+- Backup/restore por tenant individual
+- Personalización de esquema por tenant (futuro)
+- Migración sencilla a DB dedicada si es necesario
+
+## Modelo de Datos
+
+### Estructura de PostgreSQL
+
+```
+PostgreSQL Database: crediflux_db
+│
+├── public (schema compartido)
+│   ├── tenants_tenant
+│   ├── tenants_domain
+│   └── django_migrations
+│
+├── caproinsa (tenant schema 1)
+│   ├── users_user
+│   ├── loans_customer
+│   ├── loans_loan
+│   ├── loans_loanpayment
+│   └── ...
+│
+├── bancoprosa (tenant schema 2)
+│   ├── users_user
+│   ├── loans_customer
+│   └── ...
+│
+└── cooperativa_abc (tenant schema 3)
+    └── ...
+```
+
+### Schema Público (Compartido)
+
+**Modelos en `public`**:
+
+```python
+# apps/tenants/models.py
+from django_tenants.models import TenantMixin, DomainMixin
+
+class Tenant(TenantMixin):
+    name = CharField(max_length=100)
+    schema_name = CharField(max_length=63, unique=True)
+    business_name = CharField(max_length=200)
+    email = EmailField()
+
+    # Configuración de mora
+    late_fee_type = CharField(max_length=20)
+    late_fee_percentage = DecimalField(max_digits=5, decimal_places=2)
+    late_fee_frequency = CharField(max_length=20)
+
+    # Configuración de branding
+    logo = ImageField(upload_to='tenant_logos/', blank=True)
+    primary_color = CharField(max_length=7, default='#3B82F6')
+
+    # Suscripción
+    subscription_plan = CharField(max_length=50)
+    is_active = BooleanField(default=True)
+
+class Domain(DomainMixin):
+    pass
+```
+
+## Schema Routing
+
+### Middleware de Tenant
+
+**django-tenants** usa middleware para detectar el tenant actual:
+
+```python
+# config/settings/base.py
+MIDDLEWARE = [
+    'django_tenants.middleware.main.TenantMainMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    # ... otros middlewares
+]
+```
+
+### Detección por Dominio
+
+**Flujo de detección**:
+
+1. Usuario accede a `caproinsa.crediflux.com`
+2. Middleware extrae `caproinsa` del dominio
+3. Busca en `tenants_domain` el tenant asociado
+4. Establece `connection.schema_name = 'caproinsa'`
+5. Todas las queries van al schema `caproinsa`
+
+### Uso Manual de Schema Context
+
+Para operaciones admin o scripts:
+
+```python
+from django_tenants.utils import schema_context, tenant_context
+
+# Opción 1: Schema context
+with schema_context('caproinsa'):
+    customers = Customer.objects.all()
+    # Opera en schema 'caproinsa'
+
+# Opción 2: Tenant context
+tenant = Tenant.objects.get(schema_name='caproinsa')
+with tenant_context(tenant):
+    loans = Loan.objects.all()
+    # Opera en schema del tenant
+```
+
+## Migraciones
+
+### Migraciones Compartidas (Shared)
+
+**Apps en `SHARED_APPS`**:
+
+```python
+SHARED_APPS = [
+    'django_tenants',
+    'apps.tenants',
+    'django.contrib.contenttypes',
+    'django.contrib.auth',
+]
+```
+
+**Aplicar**:
+```bash
+python manage.py migrate_schemas --shared
+```
+
+### Migraciones de Tenant
+
+**Aplicar a un tenant específico**:
+```bash
+python manage.py migrate_schemas --schema=caproinsa
+```
+
+**Aplicar a todos los tenants**:
+```bash
+python manage.py migrate_schemas
+```
+
+## Gestión de Tenants
+
+### Crear Tenant
+
+```python
+from apps.tenants.models import Tenant, Domain
+from decimal import Decimal
+
+# Crear tenant
+tenant = Tenant.objects.create(
+    schema_name='nuevacooperativa',
+    name='Nueva Cooperativa',
+    business_name='Cooperativa de Ahorro y Crédito Nueva Cooperativa',
+    email='admin@nuevacooperativa.com',
+    subscription_plan='professional',
+    late_fee_type='percentage',
+    late_fee_percentage=Decimal('5.0'),
+    late_fee_frequency='monthly',
+    grace_period_days=5,
+    primary_color='#10B981'
+)
+
+# Crear dominio
+domain = Domain.objects.create(
+    domain='nuevacooperativa.localhost',
+    tenant=tenant,
+    is_primary=True
+)
+```
+
+## Mejores Prácticas
+
+### 1. Siempre Usar Schema Context en Scripts
+
+```python
+# Correcto
+from django_tenants.utils import schema_context
+
+with schema_context('caproinsa'):
+    from apps.loans.models import Loan
+    loans = Loan.objects.all()
+```
+
+### 2. Celery Tasks con Tenant
+
+```python
+from celery import shared_task
+from django_tenants.utils import schema_context
+
+@shared_task
+def calculate_late_fees_for_tenant(tenant_schema):
+    with schema_context(tenant_schema):
+        from apps.loans.models import LoanSchedule
+        schedules = LoanSchedule.objects.filter(...)
+```
+
+## Troubleshooting
+
+### "relation does not exist"
+
+**Causa**: Ejecutando query sin schema context
+
+**Solución**:
+```python
+with schema_context('caproinsa'):
+    # queries aquí
+```
+
+### Tenant no se detecta
+
+**Causa**: Dominio no configurado correctamente
+
+**Verificar**:
+```python
+from apps.tenants.models import Domain
+Domain.objects.filter(domain='caproinsa.localhost')
+```
