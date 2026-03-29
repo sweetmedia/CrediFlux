@@ -52,6 +52,12 @@ SHARED_APPS = [
     'apps.tenants',
     'apps.users',  # User model must be shared for allauth
     'apps.audit',  # Audit trail system
+
+    # Tenant apps also in shared so they exist in public schema
+    # (needed for single-tenant dev and public API access)
+    'apps.loans',
+    'apps.communications',
+    'apps.billing',
 ]
 
 TENANT_APPS = [
