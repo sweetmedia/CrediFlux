@@ -156,6 +156,17 @@ class CustomConstanceAdmin(ConstanceAdmin):
             return redirect('admin:constance_config_changelist')
 
         # For GET request, show confirmation page
+        # Try to get database stats from cache
+        from django.core.cache import cache
+        db_stats = None
+        meta = cache.get('dgii_rnc_database_meta')
+        if meta:
+            total = meta.get('total_records', 0)
+            db_stats = {
+                'total_records': f'{total:,}' if isinstance(total, int) else total,
+                'last_updated': meta.get('last_updated', '—'),
+            }
+
         context = {
             'title': 'Update RNC Database',
             'opts': self.model._meta,
@@ -165,6 +176,9 @@ class CustomConstanceAdmin(ConstanceAdmin):
             'rnc_enabled': constance_config.DGII_RNC_ENABLED,
             'rnc_url': constance_config.DGII_RNC_DATABASE_URL,
             'cache_timeout_days': constance_config.DGII_RNC_CACHE_TIMEOUT_DAYS,
+            'auto_update': constance_config.DGII_RNC_AUTO_UPDATE,
+            'update_hour': constance_config.DGII_RNC_UPDATE_HOUR,
+            'db_stats': db_stats,
         }
         return render(request, 'admin/constance_update_rnc.html', context)
 
