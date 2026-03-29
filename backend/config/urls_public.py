@@ -37,10 +37,18 @@ urlpatterns = [
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path('swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
 
-    # API endpoints
+    # API endpoints (core)
     path('api/', include('apps.core.urls')),
     path('api/tenants/', include('apps.tenants.urls')),
     path('api/users/', include('apps.users.urls')),
+
+    # Tenant APIs exposed on public schema for dev/single-tenant mode
+    path('api/auth/', include('dj_rest_auth.urls')),
+    path('api/auth/registration/', include('dj_rest_auth.registration.urls')),
+    path('api/loans/', include('apps.loans.urls')),
+    path('api/communications/', include('apps.communications.urls')),
+    path('api/audit/', include('apps.audit.urls')),
+    path('api/billing/', include('apps.billing.urls')),
 
     # Webhooks (public, no authentication)
     path('api/webhooks/whatsapp/', WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
