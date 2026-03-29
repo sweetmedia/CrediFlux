@@ -25,6 +25,9 @@ import {
   CheckSquare,
   ClipboardList,
   Search,
+  Receipt,
+  Shield,
+  Hash,
 } from 'lucide-react';
 
 interface NavItem {
@@ -90,6 +93,16 @@ export function Sidebar() {
     { href: '/customers', icon: Users, label: 'Clientes' },
     { href: '/collections', icon: Phone, label: 'Cobranza' },
     { href: '/payments', icon: DollarSign, label: 'Pagos' },
+    {
+      href: 'billing',
+      icon: Receipt,
+      label: 'Facturación',
+      subItems: [
+        { href: '/billing', icon: Receipt, label: 'Facturas e-CF' },
+        { href: '/billing/sequences', icon: Hash, label: 'Secuencias e-NCF' },
+        { href: '/billing/certificates', icon: Shield, label: 'Certificados' },
+      ],
+    },
     { href: '/communications', icon: MessageSquare, label: 'Comunicaciones' },
     { href: '/tasks', icon: CheckSquare, label: 'Tareas' },
   ];

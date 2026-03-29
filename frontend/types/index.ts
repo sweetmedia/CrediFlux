@@ -1,3 +1,6 @@
+// Billing Types (re-export)
+export * from './billing';
+
 // User Types
 export interface User {
   id: string;

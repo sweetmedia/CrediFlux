@@ -1,0 +1,164 @@
+version: '3.9'
+
+# CrediFlux - sweetmediabox deployment
+# Ports: Backend 8600, Frontend 3600, DB 5434, Redis 6381, MailHog 8625/1625
+# Network: crediflux_network (bridge)
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: crediflux_db
+    volumes:
+      - crediflux_pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      POSTGRES_DB: crediflux_db
+      POSTGRES_USER: crediflux_user
+      POSTGRES_PASSWORD: crediflux_pass_2026
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crediflux_user -d crediflux_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crediflux_network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: crediflux_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - crediflux_redis_data:/data
+    ports:
+      - "6381:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crediflux_network
+    restart: unless-stopped
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: crediflux_mailhog
+    ports:
+      - "1625:1025"
+      - "8625:8025"
+    networks:
+      - crediflux_network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    container_name: crediflux_backend
+    command: >
+      sh -c "
+        python manage.py migrate --noinput &&
+        python manage.py collectstatic --noinput &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./backend:/app
+      - crediflux_static:/app/static
+      - crediflux_media:/app/media
+    ports:
+      - "8600:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://crediflux_user:crediflux_pass_2026@db:5432/crediflux_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - EMAIL_HOST=mailhog
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - crediflux_network
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    container_name: crediflux_celery
+    command: celery -A config worker -l info --concurrency=2
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://crediflux_user:crediflux_pass_2026@db:5432/crediflux_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+      - backend
+    networks:
+      - crediflux_network
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    container_name: crediflux_celery_beat
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://crediflux_user:crediflux_pass_2026@db:5432/crediflux_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+      - backend
+    networks:
+      - crediflux_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend/Dockerfile
+    container_name: crediflux_frontend
+    command: npm run dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3600:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://10.0.0.93:8600
+    depends_on:
+      - backend
+    networks:
+      - crediflux_network
+    restart: unless-stopped
+
+volumes:
+  crediflux_pg_data:
+  crediflux_redis_data:
+  crediflux_static:
+  crediflux_media:
+
+networks:
+  crediflux_network:
+    driver: bridge
