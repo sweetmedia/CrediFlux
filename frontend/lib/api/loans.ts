@@ -6,6 +6,7 @@ import {
   Collateral,
   PaginatedResponse,
   LoanStatistics,
+  DashboardStatistics,
   CollectionReminder,
   CollectionReminderCreate,
   CollectionContact,
@@ -80,6 +81,11 @@ export const loansAPI = {
   // Get loan statistics
   async getStatistics(): Promise<LoanStatistics> {
     return apiClient.get<LoanStatistics>('/api/loans/statistics/');
+  },
+
+  // Get dashboard statistics
+  async getDashboardStatistics(): Promise<DashboardStatistics> {
+    return apiClient.get<DashboardStatistics>('/api/loans/dashboard_statistics/');
   },
 
   // Download Balance de Cuotas PDF report

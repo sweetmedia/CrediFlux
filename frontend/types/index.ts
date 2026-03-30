@@ -466,6 +466,31 @@ export interface ApiError {
   [key: string]: any;
 }
 
+// Dashboard Statistics Types
+export interface DashboardStatistics {
+  summary: {
+    total_loans: number;
+    active_loans: number;
+    pending_loans: number;
+    paid_loans: number;
+    defaulted_loans: number;
+    overdue_schedules: number;
+    recent_loans_7d: number;
+    recent_payments_7d: number;
+  };
+  financial: {
+    total_disbursed: number;
+    total_outstanding: number;
+    total_collected: number;
+  };
+  charts: {
+    status_distribution: Array<{ name: string; value: number; color: string }>;
+    monthly_disbursements: Array<{ month: string; amount: number }>;
+    monthly_collections: Array<{ month: string; amount: number }>;
+    type_distribution: Array<{ name: string; value: number }>;
+  };
+}
+
 // Statistics Types
 export interface LoanStatistics {
   total_loans: number;
