@@ -302,14 +302,214 @@ def dashboard_callback(request, context):
 
 def get_sidebar_navigation():
     """
-    Generate sidebar navigation structure for Unfold.
-    Returns different navigation based on context (public vs tenant schema).
+    Static fallback: Returns full navigation for both schemas.
+    Used only if the dynamic callback is not configured.
     """
     from django.urls import reverse_lazy
     from django.utils.translation import gettext_lazy as _
 
-    # Base navigation structure that works for both schemas
+    return _build_full_navigation()
+
+
+def get_sidebar_navigation_callback(request):
+    """
+    Dynamic sidebar navigation callback for Unfold.
+    Returns different navigation based on current schema (public vs tenant).
+    This is called per-request so it can adapt to the current context.
+    """
+    from django.db import connection
+    from django.urls import reverse_lazy
+    from django.utils.translation import gettext_lazy as _
+
+    schema_name = getattr(connection, 'schema_name', 'public')
+    is_tenant = schema_name != 'public'
+
+    # Common: Dashboard
     navigation = [
+        {
+            "title": _("Dashboard"),
+            "separator": True,
+            "items": [
+                {
+                    "title": _("Dashboard"),
+                    "icon": "dashboard",
+                    "link": reverse_lazy("admin:index"),
+                },
+            ],
+        },
+    ]
+
+    if is_tenant:
+        # ========== TENANT SCHEMA ==========
+        # Show loan management first (primary use case)
+        navigation.extend([
+            {
+                "title": _("Loan Management"),
+                "collapsible": False,
+                "items": [
+                    {
+                        "title": _("Customers"),
+                        "icon": "account_circle",
+                        "link": reverse_lazy("admin:loans_customer_changelist"),
+                    },
+                    {
+                        "title": _("Loans"),
+                        "icon": "account_balance",
+                        "link": reverse_lazy("admin:loans_loan_changelist"),
+                    },
+                    {
+                        "title": _("Loan Schedules"),
+                        "icon": "schedule",
+                        "link": reverse_lazy("admin:loans_loanschedule_changelist"),
+                    },
+                    {
+                        "title": _("Loan Payments"),
+                        "icon": "payment",
+                        "link": reverse_lazy("admin:loans_loanpayment_changelist"),
+                    },
+                    {
+                        "title": _("Collaterals"),
+                        "icon": "shield",
+                        "link": reverse_lazy("admin:loans_collateral_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Collections"),
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Reminders"),
+                        "icon": "notifications",
+                        "link": reverse_lazy("admin:loans_collectionreminder_changelist"),
+                    },
+                    {
+                        "title": _("Contact History"),
+                        "icon": "phone_in_talk",
+                        "link": reverse_lazy("admin:loans_collectioncontact_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Contracts"),
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Contracts"),
+                        "icon": "description",
+                        "link": reverse_lazy("admin:loans_contract_changelist"),
+                    },
+                    {
+                        "title": _("Templates"),
+                        "icon": "article",
+                        "link": reverse_lazy("admin:loans_contracttemplate_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("User Management"),
+                "collapsible": False,
+                "items": [
+                    {
+                        "title": _("Users"),
+                        "icon": "person",
+                        "link": reverse_lazy("admin:users_user_changelist"),
+                    },
+                    {
+                        "title": _("Groups"),
+                        "icon": "group_work",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Audit & Security"),
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Audit Log"),
+                        "icon": "history",
+                        "link": reverse_lazy("admin:audit_auditlog_changelist"),
+                    },
+                ],
+            },
+        ])
+    else:
+        # ========== PUBLIC SCHEMA (System Admin) ==========
+        # Show tenant management first
+        navigation.extend([
+            {
+                "title": _("Tenant Management"),
+                "collapsible": False,
+                "items": [
+                    {
+                        "title": _("Tenants"),
+                        "icon": "business_center",
+                        "link": reverse_lazy("admin:tenants_tenant_changelist"),
+                    },
+                    {
+                        "title": _("Domains"),
+                        "icon": "language",
+                        "link": reverse_lazy("admin:tenants_domain_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("User Management"),
+                "collapsible": False,
+                "items": [
+                    {
+                        "title": _("Users"),
+                        "icon": "person",
+                        "link": reverse_lazy("admin:users_user_changelist"),
+                    },
+                    {
+                        "title": _("Groups"),
+                        "icon": "group_work",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("System"),
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Scheduled Tasks"),
+                        "icon": "timer",
+                        "link": reverse_lazy("admin:django_celery_beat_periodictask_changelist"),
+                    },
+                    {
+                        "title": _("Audit Log"),
+                        "icon": "history",
+                        "link": reverse_lazy("admin:audit_auditlog_changelist"),
+                    },
+                ],
+            },
+        ])
+
+    # Common: Configuration (both schemas)
+    navigation.append({
+        "title": _("Configuration"),
+        "collapsible": False,
+        "items": [
+            {
+                "title": _("Settings"),
+                "icon": "settings",
+                "link": reverse_lazy("admin:constance_config_changelist"),
+            },
+        ],
+    })
+
+    return navigation
+
+
+def _build_full_navigation():
+    """Build full navigation with all items (static fallback)."""
+    from django.urls import reverse_lazy
+    from django.utils.translation import gettext_lazy as _
+
+    return [
         {
             "title": _("Dashboard"),
             "separator": True,
@@ -396,8 +596,6 @@ def get_sidebar_navigation():
             ],
         },
     ]
-
-    return navigation
 
 
 def get_tenant_dropdown(request):

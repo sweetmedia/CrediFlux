@@ -3,7 +3,11 @@ User admin configuration with Unfold best practices
 """
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.hashers import make_password
 from django.contrib import messages
+from django.shortcuts import render, redirect
+from django.urls import path, reverse
+from django.utils.crypto import get_random_string
 from unfold.admin import ModelAdmin
 from unfold.decorators import display, action
 from allauth.account.models import EmailAddress
@@ -44,6 +48,8 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             'admin': 'danger',
             'manager': 'warning',
             'loan_officer': 'info',
+            'collector': 'info',
+            'collection_supervisor': 'warning',
             'accountant': 'info',
             'cashier': 'success',
             'viewer': 'secondary',
@@ -89,9 +95,19 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         ('Professional Information', {
             'fields': ('job_title', 'department', 'role')
         }),
+        ('Collection Settings', {
+            'fields': ('collection_zone', 'daily_collection_target'),
+            'classes': ('collapse',),
+            'description': 'Only applicable for collectors and collection supervisors.'
+        }),
         ('Permissions', {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
             'classes': ('collapse',)
+        }),
+        ('Two-Factor Authentication', {
+            'fields': ('is_2fa_enabled',),
+            'classes': ('collapse',),
+            'description': 'Manage 2FA settings. Users configure TOTP via their profile.'
         }),
         ('Settings', {
             'fields': ('email_verified', 'receive_notifications')
@@ -110,9 +126,152 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     )
 
     readonly_fields = ['created_at', 'updated_at', 'last_login', 'date_joined']
-    actions = ['resend_verification_email']
+    actions = [
+        'reset_password_action',
+        'activate_users',
+        'deactivate_users',
+        'resend_verification_email',
+    ]
 
-    @action(description="Reenviar email de verificación", permissions=['change'])
+    # ------------------------------------------------------------------
+    # Custom URLs for password reset form
+    # ------------------------------------------------------------------
+
+    def get_urls(self):
+        """Add custom URL for password reset confirmation"""
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<int:user_id>/reset-password/',
+                self.admin_site.admin_view(self.reset_password_view),
+                name='users_user_reset_password',
+            ),
+        ]
+        return custom_urls + urls
+
+    def reset_password_view(self, request, user_id):
+        """View to reset a specific user's password with a form"""
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            messages.error(request, 'Usuario no encontrado.')
+            return redirect(reverse('admin:users_user_changelist'))
+
+        if request.method == 'POST':
+            new_password = request.POST.get('new_password', '').strip()
+            confirm_password = request.POST.get('confirm_password', '').strip()
+            generate_random = request.POST.get('generate_random') == 'true'
+
+            if generate_random:
+                new_password = get_random_string(12, 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$%')
+                user.set_password(new_password)
+                user.save()
+                messages.success(
+                    request,
+                    f'✅ Contraseña de {user.email} reseteada. '
+                    f'Nueva contraseña: {new_password} — Compártela de forma segura.'
+                )
+                return redirect(reverse('admin:users_user_changelist'))
+
+            if not new_password:
+                messages.error(request, 'La contraseña no puede estar vacía.')
+            elif new_password != confirm_password:
+                messages.error(request, 'Las contraseñas no coinciden.')
+            elif len(new_password) < 8:
+                messages.error(request, 'La contraseña debe tener al menos 8 caracteres.')
+            else:
+                user.set_password(new_password)
+                user.save()
+                messages.success(
+                    request,
+                    f'✅ Contraseña de {user.email} actualizada exitosamente.'
+                )
+                return redirect(reverse('admin:users_user_changelist'))
+
+            # On error, fall through to render form again
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': f'Reset Password — {user.get_full_name()}',
+            'user_obj': user,
+            'opts': self.model._meta,
+        }
+        return render(request, 'admin/users/reset_password.html', context)
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
+
+    @action(description="🔑 Resetear contraseña", permissions=['change'])
+    def reset_password_action(self, request, queryset):
+        """
+        Bulk action: If single user selected, redirect to reset form.
+        If multiple, generate random passwords for all.
+        """
+        if queryset.count() == 1:
+            user = queryset.first()
+            return redirect(
+                reverse('admin:users_user_reset_password', args=[user.pk])
+            )
+
+        # Multiple users: generate random passwords
+        results = []
+        for user in queryset:
+            new_password = get_random_string(12, 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$%')
+            user.set_password(new_password)
+            user.save()
+            results.append(f'{user.email}: {new_password}')
+
+        self.message_user(
+            request,
+            f'🔑 Contraseñas reseteadas para {len(results)} usuario(s). '
+            f'Revisa los logs o comparte las credenciales de forma segura.',
+            level=messages.SUCCESS
+        )
+
+        # Log the passwords (they show in the Django messages, visible only to the admin)
+        for result in results:
+            self.message_user(request, f'  → {result}', level=messages.INFO)
+
+    @action(description="✅ Activar usuarios seleccionados", permissions=['change'])
+    def activate_users(self, request, queryset):
+        """Activate selected users"""
+        count = queryset.filter(is_active=False).update(is_active=True)
+        if count:
+            self.message_user(
+                request,
+                f'✅ {count} usuario(s) activado(s) exitosamente.',
+                level=messages.SUCCESS
+            )
+        else:
+            self.message_user(
+                request,
+                'Todos los usuarios seleccionados ya están activos.',
+                level=messages.INFO
+            )
+
+    @action(description="🚫 Desactivar usuarios seleccionados", permissions=['change'])
+    def deactivate_users(self, request, queryset):
+        """Deactivate selected users (excluding yourself and tenant owners)"""
+        # Exclude current user and tenant owners from deactivation
+        safe_qs = queryset.exclude(pk=request.user.pk).exclude(is_tenant_owner=True)
+        skipped = queryset.count() - safe_qs.count()
+        count = safe_qs.filter(is_active=True).update(is_active=False)
+
+        if count:
+            self.message_user(
+                request,
+                f'🚫 {count} usuario(s) desactivado(s) exitosamente.',
+                level=messages.SUCCESS
+            )
+        if skipped:
+            self.message_user(
+                request,
+                f'⚠️ {skipped} usuario(s) omitido(s) (tu cuenta o tenant owners no se pueden desactivar).',
+                level=messages.WARNING
+            )
+
+    @action(description="📧 Reenviar email de verificación", permissions=['change'])
     def resend_verification_email(self, request, queryset):
         """
         Admin action to resend email verification to selected users.
@@ -123,7 +282,6 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         error_count = 0
 
         for user in queryset:
-            # Check if user email is already verified
             try:
                 email_address = EmailAddress.objects.get(user=user, email=user.email)
 
@@ -131,14 +289,12 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                     already_verified += 1
                     continue
 
-                # Send verification email
                 send_email_confirmation(request, user)
                 sent_count += 1
 
             except EmailAddress.DoesNotExist:
-                # Create EmailAddress record if it doesn't exist
                 try:
-                    email_address = EmailAddress.objects.create(
+                    EmailAddress.objects.create(
                         user=user,
                         email=user.email,
                         primary=True,
@@ -161,11 +317,10 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                     level=messages.ERROR
                 )
 
-        # Show summary message
         if sent_count > 0:
             self.message_user(
                 request,
-                f"Se enviaron {sent_count} email(s) de verificación exitosamente.",
+                f"📧 Se enviaron {sent_count} email(s) de verificación exitosamente.",
                 level=messages.SUCCESS
             )
 
@@ -183,6 +338,10 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 level=messages.WARNING
             )
 
+    # ------------------------------------------------------------------
+    # Queryset & Permissions
+    # ------------------------------------------------------------------
+
     def get_queryset(self, request):
         """
         Filter users based on tenant ownership.
@@ -191,71 +350,43 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         """
         qs = super().get_queryset(request)
 
-        # Superusers with no tenant can see everyone
         if request.user.is_superuser and request.user.tenant is None:
             return qs
 
-        # Tenant owners/admins can only see users from their tenant
         if request.user.tenant:
             return qs.filter(tenant=request.user.tenant)
 
-        # Default: no users
         return qs.none()
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """
         Limit tenant selection based on user permissions.
-        - Superusers can select any tenant
-        - Tenant owners can only select their own tenant
         """
         if db_field.name == "tenant":
-            # Superusers can select any tenant
             if request.user.is_superuser and request.user.tenant is None:
-                pass  # Show all tenants
-            # Tenant owners can only select their own tenant
+                pass
             elif request.user.tenant:
                 kwargs["queryset"] = request.user.tenant.__class__.objects.filter(pk=request.user.tenant.pk)
             else:
-                # No tenant available
                 kwargs["queryset"] = db_field.related_model.objects.none()
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def has_add_permission(self, request):
-        """
-        Only allow adding users if:
-        - User is a superuser (system admin), OR
-        - User is a tenant owner/admin
-        """
         return request.user.is_superuser or request.user.can_manage_users()
 
     def has_change_permission(self, request, obj=None):
-        """
-        Allow changing users if:
-        - User is a superuser (system admin), OR
-        - User belongs to the same tenant and can manage users
-        """
         if request.user.is_superuser and request.user.tenant is None:
             return True
-
         if obj and request.user.tenant:
             return obj.tenant == request.user.tenant and request.user.can_manage_users()
-
         return request.user.can_manage_users()
 
     def has_delete_permission(self, request, obj=None):
-        """
-        Allow deleting users if:
-        - User is a superuser (system admin), OR
-        - User belongs to the same tenant, can manage users, and obj is not the owner
-        """
         if request.user.is_superuser and request.user.tenant is None:
             return True
-
         if obj and request.user.tenant:
-            # Can't delete tenant owners (including yourself)
             if obj.is_tenant_owner:
                 return False
             return obj.tenant == request.user.tenant and request.user.can_manage_users()
-
         return False

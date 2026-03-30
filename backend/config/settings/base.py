@@ -6,7 +6,7 @@ from pathlib import Path
 from decouple import config, Csv
 from datetime import timedelta
 from django.templatetags.static import static
-from config.settings.utils import get_sidebar_navigation
+# Navigation is loaded dynamically via lambda in UNFOLD config (see SIDEBAR section)
 
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -588,11 +588,15 @@ UNFOLD = {
     # Dashboard Callback for dynamic content
     "DASHBOARD_CALLBACK": "config.settings.utils.dashboard_callback",
 
-    # Sidebar Navigation
+    # Sidebar Navigation — dynamic per-request callback
+    # Uses get_sidebar_navigation_callback() which returns different items
+    # for public vs tenant schemas
     "SIDEBAR": {
         "show_search": True,
         "show_all_applications": True,
-        "navigation": get_sidebar_navigation(),
+        "navigation": lambda request: __import__(
+            'config.settings.utils', fromlist=['get_sidebar_navigation_callback']
+        ).get_sidebar_navigation_callback(request),
     },
 
     # Tabs Configuration for Models
