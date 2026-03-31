@@ -77,16 +77,25 @@ def update_loan_on_payment(sender, instance, created, **kwargs):
     """
     if created and instance.status == 'completed':
         loan = instance.loan
+        loan_currency = loan.total_paid.currency
+
+        # Helper: convert Money to loan's currency (same amount, just re-tag)
+        # This handles the case where old loans are in USD but new payments are in DOP
+        # (or any currency mismatch from a tenant config change)
+        def to_loan_currency(money_value):
+            if money_value.currency == loan_currency:
+                return money_value
+            return Money(money_value.amount, loan_currency)
 
         # Update total paid
-        loan.total_paid += instance.amount
-        loan.total_interest_paid += instance.interest_paid
+        loan.total_paid += to_loan_currency(instance.amount)
+        loan.total_interest_paid += to_loan_currency(instance.interest_paid)
 
         # Update outstanding balance
-        loan.outstanding_balance -= instance.principal_paid
+        loan.outstanding_balance -= to_loan_currency(instance.principal_paid)
 
         # Check if loan is fully paid - compare with Money object
-        zero_amount = Money(Decimal('0'), loan.outstanding_balance.currency)
+        zero_amount = Money(Decimal('0'), loan_currency)
         if loan.outstanding_balance <= zero_amount:
             loan.status = 'paid'
             loan.outstanding_balance = zero_amount
@@ -164,11 +173,17 @@ def revert_loan_on_payment_delete(sender, instance, **kwargs):
     """
     if instance.status == 'completed':
         loan = instance.loan
+        loan_currency = loan.total_paid.currency
+
+        def to_loan_currency(money_value):
+            if money_value.currency == loan_currency:
+                return money_value
+            return Money(money_value.amount, loan_currency)
 
         # Revert totals
-        loan.total_paid -= instance.amount
-        loan.total_interest_paid -= instance.interest_paid
-        loan.outstanding_balance += instance.principal_paid
+        loan.total_paid -= to_loan_currency(instance.amount)
+        loan.total_interest_paid -= to_loan_currency(instance.interest_paid)
+        loan.outstanding_balance += to_loan_currency(instance.principal_paid)
 
         # Update status
         if loan.status == 'paid':
