@@ -8,7 +8,7 @@ from .views import (
     LoanScheduleViewSet, CollateralViewSet, CollectionReminderViewSet, CollectionContactViewSet,
     ContractTemplateViewSet, ContractViewSet,
     public_contract_view, public_contract_sign,
-    LoanCalculatorView,
+    LoanCalculatorView, GuarantorViewSet,
 )
 
 app_name = 'loans'
@@ -23,6 +23,7 @@ router.register(r'collection-reminders', CollectionReminderViewSet, basename='co
 router.register(r'collection-contacts', CollectionContactViewSet, basename='collection-contact')
 router.register(r'contract-templates', ContractTemplateViewSet, basename='contract-template')
 router.register(r'contracts', ContractViewSet, basename='contract')
+router.register(r'guarantors', GuarantorViewSet, basename='guarantor')
 router.register(r'', LoanViewSet, basename='loan')  # Root viewset must be last
 
 urlpatterns = [

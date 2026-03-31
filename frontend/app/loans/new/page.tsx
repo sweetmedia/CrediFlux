@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useConfig } from '@/lib/contexts/ConfigContext';
-import { loansAPI, collateralsAPI } from '@/lib/api/loans';
+import { loansAPI, collateralsAPI, collectionsAPI } from '@/lib/api/loans';
 import { customersAPI } from '@/lib/api/customers';
 import { Button } from '@/components/ui/button';
 import {
@@ -49,6 +49,7 @@ import {
   Car,
   Home,
   Wrench,
+  UsersRound,
 } from 'lucide-react';
 import { CollateralCreate, VehicleMetadata, PropertyMetadata, EquipmentMetadata } from '@/types';
 
@@ -73,7 +74,8 @@ const STEPS = [
   { id: 2, name: 'Préstamo', icon: DollarSign, description: 'Información básica' },
   { id: 3, name: 'Términos', icon: Calendar, description: 'Fechas y frecuencia' },
   { id: 4, name: 'Garantías', icon: Shield, description: 'Colaterales (opcional)' },
-  { id: 5, name: 'Revisión', icon: CheckCircle, description: 'Confirmar y crear' },
+  { id: 5, name: 'Garantes', icon: UsersRound, description: 'Fiadores (opcional)' },
+  { id: 6, name: 'Revisión', icon: CheckCircle, description: 'Confirmar y crear' },
 ];
 
 export default function NewLoanPage() {
@@ -96,6 +98,9 @@ export default function NewLoanPage() {
 
   // Collateral states
   const [collaterals, setCollaterals] = useState<CollateralCreate[]>([]);
+
+  // Guarantor states
+  const [guarantors, setGuarantors] = useState<any[]>([]);
 
   const {
     register,
@@ -322,6 +327,36 @@ export default function NewLoanPage() {
     }
   };
 
+  const addGuarantor = () => {
+    if (guarantors.length >= 3) return;
+    setGuarantors([...guarantors, {
+      first_name: '',
+      last_name: '',
+      id_type: 'cedula',
+      id_number: '',
+      phone: '',
+      email: '',
+      address: '',
+      employer_name: '',
+      occupation: '',
+      monthly_income: '',
+      relationship: 'otro',
+      notes: '',
+    }]);
+  };
+
+  const updateGuarantor = (index: number, field: string, value: any) => {
+    const updated = [...guarantors];
+    updated[index] = { ...updated[index], [field]: value };
+    setGuarantors(updated);
+  };
+
+  const removeGuarantor = (index: number) => {
+    if (confirm('¿Estás seguro de que deseas eliminar este garante?')) {
+      setGuarantors(guarantors.filter((_, i) => i !== index));
+    }
+  };
+
   const validateCollaterals = (): string | null => {
     for (let i = 0; i < collaterals.length; i++) {
       const c = collaterals[i];
@@ -433,6 +468,9 @@ export default function NewLoanPage() {
           }
         }
         break;
+      case 5:
+        // Guarantors are optional — no required validation
+        break;
     }
 
     const isValid = await trigger(fieldsToValidate);
@@ -524,6 +562,33 @@ export default function NewLoanPage() {
           }
         });
         await Promise.all(collateralPromises);
+      }
+
+      if (guarantors.length > 0) {
+        const guarantorPromises = guarantors.map(async (guarantor) => {
+          const guarantorData: any = {
+            loan: createdLoan.id,
+            first_name: guarantor.first_name,
+            last_name: guarantor.last_name,
+            id_type: guarantor.id_type,
+            id_number: guarantor.id_number,
+            phone: guarantor.phone,
+            relationship: guarantor.relationship,
+          };
+          if (guarantor.email) guarantorData.email = guarantor.email;
+          if (guarantor.address) guarantorData.address = guarantor.address;
+          if (guarantor.employer_name) guarantorData.employer_name = guarantor.employer_name;
+          if (guarantor.occupation) guarantorData.occupation = guarantor.occupation;
+          if (guarantor.monthly_income) guarantorData.monthly_income = parseFloat(guarantor.monthly_income) || 0;
+          if (guarantor.notes) guarantorData.notes = guarantor.notes;
+          try {
+            return await collectionsAPI.createGuarantor(guarantorData);
+          } catch (guarantorError: any) {
+            console.error('Guarantor creation error:', guarantorError.response?.data);
+            throw guarantorError;
+          }
+        });
+        await Promise.all(guarantorPromises);
       }
 
       router.push('/loans');
@@ -1320,8 +1385,262 @@ export default function NewLoanPage() {
             </Card>
           )}
 
-          {/* Step 5: Review */}
+          {/* Step 5: Guarantors */}
           {currentStep === 5 && (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-slate-900">
+                      <UsersRound className="h-5 w-5" style={{ color: '#163300' }} />
+                      Garantes / Fiadores
+                      <span className="ml-2 text-xs font-normal text-slate-500">(Opcional)</span>
+                    </CardTitle>
+                    <CardDescription className="text-slate-600">
+                      Agrega hasta 3 garantes o fiadores para este préstamo
+                    </CardDescription>
+                  </div>
+                  {guarantors.length < 3 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addGuarantor}
+                      className="border-[#163300] text-[#163300] hover:bg-[#163300] hover:text-white"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Agregar Garante
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {guarantors.length === 0 ? (
+                  <div className="text-center py-12">
+                    <UsersRound className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Sin garantes</h3>
+                    <p className="text-slate-600 mb-4">
+                      Este préstamo no tiene garantes asociados. Puedes continuar sin agregar garantes.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addGuarantor}
+                      className="border-[#163300] text-[#163300] hover:bg-[#163300] hover:text-white"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Agregar Primer Garante
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {guarantors.map((guarantor, index) => (
+                      <Card key={index} className="border-2 border-slate-200">
+                        <CardHeader className="pb-3 border-b border-slate-100">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <UsersRound className="h-4 w-4" style={{ color: '#163300' }} />
+                              <h4 className="font-medium text-slate-900">Garante {index + 1}</h4>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeGuarantor(index)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-4 space-y-4">
+                          {/* Name row */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">
+                                Nombre <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                placeholder="Nombre"
+                                value={guarantor.first_name}
+                                onChange={(e) => updateGuarantor(index, 'first_name', e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">
+                                Apellido <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                placeholder="Apellido"
+                                value={guarantor.last_name}
+                                onChange={(e) => updateGuarantor(index, 'last_name', e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* ID row */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">
+                                Tipo de Documento <span className="text-red-500">*</span>
+                              </Label>
+                              <NativeSelect
+                                value={guarantor.id_type}
+                                onChange={(e) => updateGuarantor(index, 'id_type', e.target.value)}
+                              >
+                                <option value="cedula">Cédula</option>
+                                <option value="pasaporte">Pasaporte</option>
+                                <option value="rnc">RNC</option>
+                              </NativeSelect>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">
+                                Número de Documento <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                placeholder="Ej: 001-1234567-8"
+                                value={guarantor.id_number}
+                                onChange={(e) => updateGuarantor(index, 'id_number', e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Contact row */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">Teléfono</Label>
+                              <Input
+                                placeholder="Ej: 809-555-0000"
+                                value={guarantor.phone}
+                                onChange={(e) => updateGuarantor(index, 'phone', e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">Correo Electrónico</Label>
+                              <Input
+                                type="email"
+                                placeholder="correo@ejemplo.com"
+                                value={guarantor.email}
+                                onChange={(e) => updateGuarantor(index, 'email', e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Address */}
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-slate-700">Dirección</Label>
+                            <Textarea
+                              placeholder="Dirección completa del garante..."
+                              rows={2}
+                              value={guarantor.address}
+                              onChange={(e) => updateGuarantor(index, 'address', e.target.value)}
+                            />
+                          </div>
+
+                          {/* Employment row */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">Empresa / Empleador</Label>
+                              <Input
+                                placeholder="Nombre de la empresa"
+                                value={guarantor.employer_name}
+                                onChange={(e) => updateGuarantor(index, 'employer_name', e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">Ocupación / Cargo</Label>
+                              <Input
+                                placeholder="Ej: Contador, Ingeniero..."
+                                value={guarantor.occupation}
+                                onChange={(e) => updateGuarantor(index, 'occupation', e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Income + Relationship row */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">
+                                Ingreso Mensual (RD$)
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={guarantor.monthly_income}
+                                onChange={(e) => updateGuarantor(index, 'monthly_income', e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">
+                                Relación con el Cliente <span className="text-red-500">*</span>
+                              </Label>
+                              <NativeSelect
+                                value={guarantor.relationship}
+                                onChange={(e) => updateGuarantor(index, 'relationship', e.target.value)}
+                              >
+                                <option value="conyuge">Cónyuge</option>
+                                <option value="padre_madre">Padre/Madre</option>
+                                <option value="hermano_a">Hermano/a</option>
+                                <option value="amigo_a">Amigo/a</option>
+                                <option value="socio">Socio</option>
+                                <option value="compañero_trabajo">Compañero de trabajo</option>
+                                <option value="otro">Otro</option>
+                              </NativeSelect>
+                            </div>
+                          </div>
+
+                          {/* Notes */}
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-slate-700">
+                              Notas
+                              <span className="ml-2 text-xs font-normal text-slate-500">(Opcional)</span>
+                            </Label>
+                            <Textarea
+                              placeholder="Información adicional sobre el garante..."
+                              rows={2}
+                              value={guarantor.notes}
+                              onChange={(e) => updateGuarantor(index, 'notes', e.target.value)}
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    {guarantors.length < 3 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={addGuarantor}
+                        className="w-full border-dashed border-[#163300] text-[#163300] hover:bg-[#163300] hover:text-white"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Agregar Otro Garante ({guarantors.length}/3)
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="border-t border-slate-200 flex justify-between">
+                <Button type="button" variant="outline" onClick={prevStep}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  onClick={nextStep}
+                  style={{ backgroundColor: '#163300' }}
+                  className="hover:opacity-90 text-white"
+                >
+                  Siguiente
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+
+          {/* Step 6: Review */}
+          {currentStep === 6 && (
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="flex items-center gap-2 text-slate-900">
@@ -1406,6 +1725,52 @@ export default function NewLoanPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Guarantors */}
+                  {guarantors.length > 0 && (
+                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                      <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                        <UsersRound className="h-4 w-4" style={{ color: '#163300' }} />
+                        Garantes ({guarantors.length})
+                      </h3>
+                      <div className="space-y-3">
+                        {guarantors.map((g, idx) => {
+                          const relationshipLabels: Record<string, string> = {
+                            conyuge: 'Cónyuge',
+                            padre_madre: 'Padre/Madre',
+                            hermano_a: 'Hermano/a',
+                            amigo_a: 'Amigo/a',
+                            socio: 'Socio',
+                            compañero_trabajo: 'Compañero de trabajo',
+                            otro: 'Otro',
+                          };
+                          return (
+                            <div key={idx} className="bg-white rounded-lg p-3 border border-slate-200">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-medium text-slate-900">
+                                  {g.first_name} {g.last_name}
+                                </span>
+                                <span className="text-xs text-white px-2 py-0.5 rounded-full" style={{ backgroundColor: '#163300' }}>
+                                  {relationshipLabels[g.relationship] || g.relationship}
+                                </span>
+                              </div>
+                              <div className="text-sm text-slate-600 space-y-0.5">
+                                {g.id_number && (
+                                  <p><strong>Cédula/Doc:</strong> {g.id_number}</p>
+                                )}
+                                {g.phone && (
+                                  <p><strong>Teléfono:</strong> {g.phone}</p>
+                                )}
+                                {g.monthly_income && (
+                                  <p><strong>Ingreso Mensual:</strong> {formatCurrency(parseFloat(g.monthly_income) || 0)}</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Collaterals */}
                   {collaterals.length > 0 && (

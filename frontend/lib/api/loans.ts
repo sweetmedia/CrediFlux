@@ -382,6 +382,11 @@ export const collectionsAPI = {
     );
   },
 
+  // Create guarantor
+  async createGuarantor(data: any): Promise<any> {
+    return apiClient.post<any>('/api/loans/guarantors/', data);
+  },
+
   // Loan Calculator
   async calculateLoan(data: {
     principal_amount: string;

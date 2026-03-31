@@ -5,6 +5,7 @@ from rest_framework import serializers
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
 from .models_contracts import ContractTemplate, Contract
+from .models_guarantors import Guarantor
 
 
 class CustomerDocumentSerializer(serializers.ModelSerializer):
@@ -853,3 +854,52 @@ class ContractCreateSerializer(serializers.ModelSerializer):
             )
 
         return value
+
+
+class GuarantorSerializer(serializers.ModelSerializer):
+    """Full serializer for Guarantor CRUD"""
+    full_name = serializers.SerializerMethodField()
+    monthly_income = serializers.SerializerMethodField()
+    relationship_display = serializers.CharField(source='get_relationship_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    id_type_display = serializers.CharField(source='get_id_type_display', read_only=True)
+
+    class Meta:
+        model = Guarantor
+        fields = [
+            'id', 'loan',
+            'first_name', 'last_name', 'full_name',
+            'id_type', 'id_type_display', 'id_number', 'date_of_birth', 'gender',
+            'phone', 'alternate_phone', 'email',
+            'address', 'city', 'province',
+            'employer_name', 'occupation', 'monthly_income',
+            'relationship', 'relationship_display',
+            'id_document', 'proof_of_income',
+            'status', 'status_display', 'notes',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_full_name(self, obj):
+        return obj.get_full_name()
+
+    def get_monthly_income(self, obj):
+        return float(obj.monthly_income.amount) if obj.monthly_income else None
+
+
+class GuarantorListSerializer(serializers.ModelSerializer):
+    """Compact serializer for guarantor list views"""
+    full_name = serializers.SerializerMethodField()
+    relationship_display = serializers.CharField(source='get_relationship_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = Guarantor
+        fields = [
+            'id', 'loan', 'full_name', 'id_type', 'id_number',
+            'phone', 'relationship', 'relationship_display',
+            'status', 'status_display', 'created_at',
+        ]
+
+    def get_full_name(self, obj):
+        return obj.get_full_name()

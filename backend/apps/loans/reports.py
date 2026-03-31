@@ -19,7 +19,7 @@ from django.conf import settings
 from constance import config
 import os
 
-from .models import Loan, LoanPayment
+from .models import Loan, LoanPayment, Customer
 
 
 class LoanBalanceReport:
@@ -593,6 +593,323 @@ class PaymentReceiptReport:
         self._draw_footer(pdf, width)
 
         pdf.save()
+        pdf_data = self.buffer.getvalue()
+        self.buffer.close()
+        return pdf_data
+
+
+class CustomerStatementReport:
+    """
+    Generates an Estado de Cuenta (Customer Statement) PDF in portrait letter format.
+    Shows all active loans and their payment schedules for a customer.
+    """
+
+    # Column widths for the schedule table (portrait, usable width ~532pt)
+    COL_WIDTHS = [42, 62, 62, 62, 62, 52, 62, 64]  # sum = 468 (leaves room for margins)
+    COL_HEADERS = ["CUOTA#", "FECHA", "MONTO", "CAPITAL", "INTERÉS", "MORA", "PAGADO", "BALANCE"]
+
+    def __init__(self, customer: Customer):
+        self.customer = customer
+        self.buffer = BytesIO()
+
+    def _fmt_money(self, value) -> str:
+        """Format a Decimal/Money value as RD$ X,XXX.XX"""
+        try:
+            amount = float(value.amount) if hasattr(value, 'amount') else float(value)
+        except (AttributeError, TypeError, ValueError):
+            amount = 0.0
+        return f"RD$ {amount:,.2f}"
+
+    def _fmt_num(self, value) -> str:
+        """Format a number as X,XXX.XX (no currency prefix)"""
+        try:
+            amount = float(value.amount) if hasattr(value, 'amount') else float(value)
+        except (AttributeError, TypeError, ValueError):
+            amount = 0.0
+        return f"{amount:,.2f}"
+
+    def _format_cedula(self, cedula: str) -> str:
+        if not cedula:
+            return ''
+        clean = cedula.replace('-', '').replace(' ', '')
+        if len(clean) == 11:
+            return f"{clean[:3]}-{clean[3:10]}-{clean[10]}"
+        return cedula
+
+    def _draw_footer(self, pdf, width):
+        pdf.saveState()
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColorRGB(0.5, 0.5, 0.5)
+        now_str = datetime.now().strftime('%d/%m/%Y %H:%M')
+        footer_text = f"Generado por CrediFlux — {now_str}"
+        pdf.drawCentredString(width / 2, 20, footer_text)
+        pdf.restoreState()
+
+    def _check_page(self, pdf, y, width, height, min_y=80):
+        """Start a new page if y is below min_y. Returns new y."""
+        if y < min_y:
+            self._draw_footer(pdf, width)
+            pdf.showPage()
+            pdf.setFont("Helvetica", 9)
+            return height - 40
+        return y
+
+    def generate(self):
+        """Generate the customer statement PDF and return bytes."""
+        pdf = canvas.Canvas(self.buffer, pagesize=letter)
+        width, height = letter  # 612 x 792
+
+        left = 40
+        right = width - 40
+        y = height - 40
+
+        tenant = connection.tenant
+        customer = self.customer
+
+        # --- Logo ---
+        logo_height = 0
+        if tenant and hasattr(tenant, 'logo') and tenant.logo:
+            try:
+                logo_path = os.path.join(settings.MEDIA_ROOT, str(tenant.logo))
+                if os.path.exists(logo_path):
+                    logo_width = 70
+                    logo_height = 45
+                    pdf.drawImage(logo_path, left, y - logo_height,
+                                  width=logo_width, height=logo_height,
+                                  preserveAspectRatio=True, mask='auto')
+            except Exception as e:
+                print(f"Warning: Could not load tenant logo: {e}")
+                logo_height = 0
+
+        # --- Tenant header ---
+        header_x = left + (80 if logo_height > 0 else 0)
+        business_name = getattr(tenant, 'business_name', '') if tenant else ''
+        tenant_address = getattr(tenant, 'address', '') if tenant else ''
+        tax_id = getattr(tenant, 'tax_id', '') if tenant else ''
+
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(header_x, y - 10, business_name.upper())
+        pdf.setFont("Helvetica", 8)
+        if tenant_address:
+            pdf.drawString(header_x, y - 22, tenant_address)
+        if tax_id:
+            pdf.drawString(header_x, y - 33, f"RNC: {tax_id}")
+
+        # Date top-right
+        pdf.setFont("Helvetica", 8)
+        pdf.drawRightString(right, y - 10, datetime.now().strftime('%d/%m/%Y'))
+
+        y -= max(logo_height + 10, 50)
+
+        # --- Title ---
+        pdf.setFont("Helvetica-Bold", 15)
+        title = "ESTADO DE CUENTA"
+        pdf.drawCentredString(width / 2, y, title)
+        y -= 6
+
+        # Underline title
+        pdf.setLineWidth(1.5)
+        title_w = pdf.stringWidth(title, "Helvetica-Bold", 15)
+        pdf.line((width - title_w) / 2, y, (width + title_w) / 2, y)
+        y -= 16
+
+        # --- Customer section ---
+        pdf.setLineWidth(0.5)
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(left, y, "DATOS DEL CLIENTE")
+        y -= 12
+
+        label_w = 85
+        pdf.setFont("Helvetica", 9)
+
+        def draw_kv(label, value):
+            nonlocal y
+            pdf.setFont("Helvetica-Bold", 9)
+            pdf.drawString(left, y, label)
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(left + label_w, y, f": {value}")
+            y -= 12
+
+        draw_kv("Cliente", customer.get_full_name().upper())
+        draw_kv("Cédula", self._format_cedula(customer.id_number))
+        draw_kv("Teléfono", str(customer.phone or ''))
+        cust_address = customer.address_line1 or ''
+        if customer.city:
+            cust_address += f", {customer.city}"
+        draw_kv("Dirección", cust_address)
+        if customer.email:
+            draw_kv("Email", customer.email)
+
+        y -= 5
+        pdf.line(left, y, right, y)
+        y -= 14
+
+        # --- Loans ---
+        active_loans = customer.loans.filter(
+            status__in=['active', 'approved', 'disbursed']
+        ).order_by('created_at')
+
+        # Summary accumulators
+        total_cartera = Decimal('0.00')
+        total_pagado = Decimal('0.00')
+        total_pendiente = Decimal('0.00')
+        total_mora = Decimal('0.00')
+
+        for loan in active_loans:
+            y = self._check_page(pdf, y, width, height, min_y=120)
+
+            # --- Loan header ---
+            pdf.setFont("Helvetica-Bold", 9)
+            loan_type = loan.get_loan_type_display() if hasattr(loan, 'get_loan_type_display') else loan.loan_type
+            disbursed = loan.disbursement_date.strftime('%d/%m/%Y') if loan.disbursement_date else 'N/D'
+            pdf.drawString(left, y,
+                f"Préstamo: {loan.loan_number}  |  Tipo: {loan_type}  |  Estado: {loan.get_status_display()}  |  Desembolso: {disbursed}")
+            y -= 11
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(left, y,
+                f"Principal: {self._fmt_money(loan.principal_amount)}  |  "
+                f"Tasa: {loan.interest_rate}%  |  "
+                f"Balance pendiente: {self._fmt_money(loan.outstanding_balance)}")
+            y -= 8
+            pdf.setLineWidth(0.3)
+            pdf.line(left, y, right, y)
+            y -= 11
+
+            # --- Column headers ---
+            pdf.setFont("Helvetica-Bold", 7.5)
+            x = left
+            for i, header in enumerate(self.COL_HEADERS):
+                if i == 0:
+                    pdf.drawString(x, y, header)
+                elif i == 1:
+                    pdf.drawString(x, y, header)
+                else:
+                    pdf.drawRightString(x + self.COL_WIDTHS[i], y, header)
+                x += self.COL_WIDTHS[i]
+
+            y -= 10
+            pdf.setLineWidth(0.5)
+            pdf.line(left, y, right, y)
+            y -= 10
+
+            # --- Schedule rows ---
+            schedules = loan.payment_schedules.all().order_by('installment_number')
+            total_count = schedules.count()
+
+            sub_capital = Decimal('0.00')
+            sub_interest = Decimal('0.00')
+            sub_mora = Decimal('0.00')
+            sub_pagado = Decimal('0.00')
+
+            today = datetime.now().date()
+
+            for sched in schedules:
+                y = self._check_page(pdf, y, width, height)
+
+                is_overdue = (
+                    sched.status in ('pending', 'overdue', 'partial') and
+                    sched.due_date < today
+                )
+
+                if is_overdue:
+                    pdf.setFillColorRGB(0.75, 0.1, 0.1)  # Red for overdue
+                else:
+                    pdf.setFillColorRGB(0, 0, 0)
+
+                pdf.setFont("Helvetica", 7.5)
+
+                capital = sched.principal_amount.amount
+                interest = sched.interest_amount.amount
+                mora = sched.late_fee_amount.amount if sched.late_fee_amount else Decimal('0.00')
+                pagado = sched.paid_amount.amount if sched.paid_amount else Decimal('0.00')
+                balance = sched.balance.amount if sched.balance else sched.total_amount.amount
+
+                sub_capital += capital
+                sub_interest += interest
+                sub_mora += mora
+                sub_pagado += pagado
+
+                x = left
+                cuota_label = f"{sched.installment_number}/{total_count}"
+                fecha_label = sched.due_date.strftime('%d/%m/%Y')
+
+                pdf.drawString(x, y, cuota_label)
+                x += self.COL_WIDTHS[0]
+                pdf.drawString(x, y, fecha_label)
+                x += self.COL_WIDTHS[1]
+                pdf.drawRightString(x + self.COL_WIDTHS[2], y, self._fmt_num(sched.total_amount))
+                x += self.COL_WIDTHS[2]
+                pdf.drawRightString(x + self.COL_WIDTHS[3], y, self._fmt_num(capital))
+                x += self.COL_WIDTHS[3]
+                pdf.drawRightString(x + self.COL_WIDTHS[4], y, self._fmt_num(interest))
+                x += self.COL_WIDTHS[4]
+                pdf.drawRightString(x + self.COL_WIDTHS[5], y, self._fmt_num(mora))
+                x += self.COL_WIDTHS[5]
+                pdf.drawRightString(x + self.COL_WIDTHS[6], y, self._fmt_num(pagado))
+                x += self.COL_WIDTHS[6]
+                pdf.drawRightString(x + self.COL_WIDTHS[7], y, self._fmt_num(balance))
+
+                y -= 10
+
+            # Reset color
+            pdf.setFillColorRGB(0, 0, 0)
+
+            # --- Loan sub-totals ---
+            y = self._check_page(pdf, y, width, height)
+            pdf.setLineWidth(0.3)
+            pdf.line(left + self.COL_WIDTHS[0] + self.COL_WIDTHS[1], y, right, y)
+            y -= 10
+
+            pdf.setFont("Helvetica-Bold", 7.5)
+            x = left + self.COL_WIDTHS[0] + self.COL_WIDTHS[1]
+            pdf.drawRightString(x + self.COL_WIDTHS[2], y, "Sub-totales:")
+            x += self.COL_WIDTHS[2]
+            pdf.drawRightString(x + self.COL_WIDTHS[3], y, self._fmt_num(sub_capital))
+            x += self.COL_WIDTHS[3]
+            pdf.drawRightString(x + self.COL_WIDTHS[4], y, self._fmt_num(sub_interest))
+            x += self.COL_WIDTHS[4]
+            pdf.drawRightString(x + self.COL_WIDTHS[5], y, self._fmt_num(sub_mora))
+            x += self.COL_WIDTHS[5]
+            pdf.drawRightString(x + self.COL_WIDTHS[6], y, self._fmt_num(sub_pagado))
+
+            y -= 16
+
+            # Accumulate global totals
+            total_cartera += loan.principal_amount.amount
+            total_pagado += sub_pagado
+            total_pendiente += loan.outstanding_balance.amount
+            total_mora += sub_mora
+
+        # --- Summary block ---
+        y = self._check_page(pdf, y, width, height, min_y=120)
+        pdf.setLineWidth(1)
+        pdf.line(left, y, right, y)
+        y -= 14
+
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(left, y, "RESUMEN GENERAL")
+        y -= 12
+
+        sum_label_w = 150
+        pdf.setFont("Helvetica", 9)
+
+        def draw_summary(label, value_str):
+            nonlocal y
+            pdf.setFont("Helvetica-Bold", 9)
+            pdf.drawString(left, y, label)
+            pdf.setFont("Helvetica", 9)
+            pdf.drawRightString(left + sum_label_w + 120, y, value_str)
+            y -= 12
+
+        draw_summary("Total cartera activa:", f"RD$ {float(total_cartera):,.2f}")
+        draw_summary("Total pagado:", f"RD$ {float(total_pagado):,.2f}")
+        draw_summary("Total pendiente:", f"RD$ {float(total_pendiente):,.2f}")
+        draw_summary("Total mora:", f"RD$ {float(total_mora):,.2f}")
+
+        # --- Footer ---
+        self._draw_footer(pdf, width)
+        pdf.save()
+
         pdf_data = self.buffer.getvalue()
         self.buffer.close()
         return pdf_data

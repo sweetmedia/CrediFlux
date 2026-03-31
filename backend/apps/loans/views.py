@@ -14,6 +14,7 @@ from decimal import Decimal
 
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
+from .models_guarantors import Guarantor
 from .serializers import (
     CustomerSerializer, CustomerListSerializer,
     CustomerDocumentSerializer, CustomerDocumentListSerializer,
@@ -22,6 +23,7 @@ from .serializers import (
     CollateralSerializer, CollectionReminderSerializer, CollectionReminderCreateSerializer,
     CollectionContactSerializer, CollectionContactCreateSerializer,
     LoanCalculatorInputSerializer, LoanCalculatorResultSerializer,
+    GuarantorSerializer, GuarantorListSerializer,
 )
 from .permissions import CanApproveLoan, CanManageLoans
 
@@ -74,6 +76,32 @@ class CustomerViewSet(viewsets.ModelViewSet):
         }
 
         return Response(stats)
+
+    @action(detail=True, methods=['get'], url_path='statement-pdf')
+    def statement_pdf(self, request, pk=None):
+        """Generate and download customer statement PDF (attachment)."""
+        from .reports import CustomerStatementReport
+
+        customer = self.get_object()
+        report = CustomerStatementReport(customer)
+        pdf_data = report.generate()
+
+        response = HttpResponse(pdf_data, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="estado_cuenta_{customer.customer_id}.pdf"'
+        return response
+
+    @action(detail=True, methods=['get'], url_path='statement-preview')
+    def statement_preview(self, request, pk=None):
+        """Generate and preview customer statement PDF inline in browser."""
+        from .reports import CustomerStatementReport
+
+        customer = self.get_object()
+        report = CustomerStatementReport(customer)
+        pdf_data = report.generate()
+
+        response = HttpResponse(pdf_data, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="estado_cuenta_{customer.customer_id}.pdf"'
+        return response
 
 
 class CustomerDocumentViewSet(viewsets.ModelViewSet):
@@ -2174,3 +2202,27 @@ class LoanCalculatorView(APIView):
             })
 
         return schedule, payment, total_interest
+
+
+class GuarantorViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing loan guarantors (garantes/fiadores)
+    """
+    queryset = Guarantor.objects.select_related('loan', 'loan__customer').all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['loan', 'status', 'relationship', 'id_type']
+    search_fields = ['first_name', 'last_name', 'id_number', 'phone', 'email']
+    ordering_fields = ['created_at', 'last_name']
+    ordering = ['-created_at']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return GuarantorListSerializer
+        return GuarantorSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
