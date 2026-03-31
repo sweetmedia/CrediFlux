@@ -90,6 +90,7 @@ export default function NewCustomerPage() {
     resolver: zodResolver(customerSchema),
     defaultValues: {
       country: 'Dominican Republic',
+      phone: '+1',
     },
   });
 
@@ -153,11 +154,11 @@ export default function NewCustomerPage() {
       setRncData(null);
 
       if (err.response?.status === 503) {
-        setRncValidationMessage('Base de datos de RNC no disponible temporalmente');
-        setRncValidationStatus('error');
+        setRncValidationMessage('No se pudo validar el RNC. Puede continuar sin validación.');
+        setRncValidationStatus('warning');
       } else {
-        setRncValidationMessage('');
-        setRncValidationStatus(null);
+        setRncValidationMessage('No se pudo validar el RNC. Puede continuar sin validación.');
+        setRncValidationStatus('warning');
       }
     } finally {
       setIsValidatingRnc(false);
@@ -401,7 +402,15 @@ export default function NewCustomerPage() {
                     <Input
                       id="phone"
                       placeholder="+1 (809) 555-1234"
-                      {...register('phone')}
+                      {...register('phone', {
+                        onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                          let val = e.target.value;
+                          if (!val.startsWith('+1')) {
+                            val = '+1' + val.replace(/^\+?1?/, '');
+                          }
+                          setValue('phone', val);
+                        }
+                      })}
                       disabled={isLoading}
                     />
                     {errors.phone && (
