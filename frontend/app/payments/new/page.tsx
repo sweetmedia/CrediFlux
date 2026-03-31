@@ -219,8 +219,8 @@ export default function NewPaymentPage() {
 
       await paymentsAPI.createPayment(submitData);
 
-      // Redirect to payments list or loan detail
-      router.push(`/loans/${data.loan}`);
+      // Redirect to payments list (using window.location to avoid Next.js navigation errors)
+      window.location.href = `/loans/${data.loan}`;
     } catch (err: any) {
       console.error('Error creating payment:', err);
 

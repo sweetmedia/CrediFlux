@@ -149,6 +149,9 @@ export default function CalculatorPage() {
 
     try {
       setIsCalculating(true);
+      if (typeof loansAPI.calculateLoan !== 'function') {
+        throw new Error('calculateLoan no está disponible. Reinicia el servidor de desarrollo.');
+      }
       const data = await loansAPI.calculateLoan({
         principal_amount: principalAmount,
         interest_rate: interestRate,
