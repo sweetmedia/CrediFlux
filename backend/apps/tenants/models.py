@@ -44,7 +44,7 @@ class Tenant(TenantMixin):
 
     # Logo and branding
     logo = models.ImageField(upload_to='tenants/logos/', blank=True, null=True)
-    primary_color = models.CharField(max_length=7, default='#6366f1')
+    primary_color = models.CharField(max_length=7, default='#163300')
 
     # ============================================================
     # LATE FEE CONFIGURATION (Configuración de Mora)
@@ -512,7 +512,7 @@ class Tenant(TenantMixin):
     # ============================================================
     default_currency = models.CharField(
         max_length=3,
-        default='USD',
+        default='DOP',
         choices=[
             ('USD', 'US Dollar ($)'),
             ('DOP', 'Dominican Peso (RD$)'),
@@ -524,7 +524,7 @@ class Tenant(TenantMixin):
 
     currency_symbol = models.CharField(
         max_length=10,
-        default='$',
+        default='RD$',
         help_text='Símbolo de la moneda (ej: $, RD$, €, £)'
     )
 
