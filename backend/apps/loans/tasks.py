@@ -151,6 +151,107 @@ def send_tenant_payment_reminders(tenant: Tenant):
     return sent_count, failed_count
 
 
+@shared_task(name='loans.send_payment_confirmation')
+def send_payment_confirmation(payment_id: str, tenant_schema: str):
+    """
+    Automatically send payment confirmation via WhatsApp after recording a payment.
+    Called from the LoanPaymentViewSet after successful payment creation.
+    """
+    try:
+        tenant = Tenant.objects.get(schema_name=tenant_schema)
+
+        with schema_context(tenant_schema):
+            from .models import LoanPayment
+            payment = LoanPayment.objects.select_related('loan', 'loan__customer').get(id=payment_id)
+
+            phone = payment.loan.customer.phone
+            if not phone:
+                logger.warning(f"No phone for customer {payment.loan.customer.get_full_name()}")
+                return {'success': False, 'error': 'No phone number'}
+
+            whatsapp_service = get_whatsapp_service(tenant)
+            if not whatsapp_service.is_configured():
+                return {'success': False, 'error': 'WhatsApp not configured'}
+
+            success = whatsapp_service.send_payment_receipt(payment, phone)
+            return {
+                'success': success,
+                'payment_number': payment.payment_number,
+                'phone': str(phone),
+            }
+
+    except Exception as e:
+        logger.error(f"Error sending payment confirmation: {str(e)}")
+        return {'success': False, 'error': str(e)}
+
+
+@shared_task(name='loans.send_overdue_notice')
+def send_overdue_notice():
+    """
+    Daily task to send overdue notices for significantly past-due payments.
+    More urgent than reminders — sent for 15, 30, 60, 90 days overdue.
+    """
+    logger.info("Starting overdue notices task")
+
+    tenants = Tenant.objects.filter(
+        is_active=True,
+        enable_whatsapp_reminders=True,
+    )
+
+    total_sent = 0
+    today = date.today()
+    overdue_thresholds = [15, 30, 60, 90]
+
+    for tenant in tenants:
+        try:
+            with schema_context(tenant.schema_name):
+                whatsapp_service = get_whatsapp_service(tenant)
+                if not whatsapp_service.is_configured():
+                    continue
+
+                for threshold in overdue_thresholds:
+                    target_date = today - timedelta(days=threshold)
+                    schedules = LoanSchedule.objects.filter(
+                        status__in=['pending', 'partial', 'overdue'],
+                        due_date=target_date,
+                        loan__status='active',
+                    ).select_related('loan', 'loan__customer')
+
+                    for schedule in schedules:
+                        phone = schedule.loan.customer.phone
+                        if not phone:
+                            continue
+
+                        customer_name = schedule.loan.customer.get_full_name()
+                        amount = schedule.total_amount.amount - (schedule.paid_amount.amount if schedule.paid_amount else 0)
+                        company = tenant.business_name
+
+                        message = (
+                            f"⚠️ *Aviso de Mora — {threshold} días*\n\n"
+                            f"Estimado/a {customer_name},\n\n"
+                            f"Su cuota del préstamo {schedule.loan.loan_number} "
+                            f"tiene {threshold} días de atraso.\n\n"
+                            f"💰 *Monto pendiente:* RD${float(amount):,.2f}\n"
+                            f"📅 *Fecha vencimiento:* {schedule.due_date.strftime('%d/%m/%Y')}\n\n"
+                            f"Le invitamos a regularizar su pago lo antes posible "
+                            f"para evitar cargos adicionales por mora.\n\n"
+                            f"{company}"
+                        )
+
+                        try:
+                            formatted = whatsapp_service._format_phone(phone)
+                            whatsapp_service.wa_client.send_message(to=formatted, text=message)
+                            total_sent += 1
+                        except Exception as e:
+                            logger.error(f"Failed overdue notice for {schedule.loan.loan_number}: {e}")
+
+        except Exception as e:
+            logger.error(f"Error processing overdue notices for {tenant.name}: {e}")
+
+    logger.info(f"Overdue notices completed. Sent: {total_sent}")
+    return {'total_sent': total_sent}
+
+
 @shared_task(name='loans.send_loan_approval_notification')
 def send_loan_approval_notification(loan_id: str, tenant_schema: str):
     """

@@ -917,10 +917,12 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
             schedule.save()
 
-        # Send WhatsApp receipt if requested
+        # Send WhatsApp receipt — either explicitly requested or auto-enabled
         whatsapp_sent = False
         whatsapp_error = None
-        if send_whatsapp:
+        tenant = getattr(request, 'tenant', None)
+        auto_whatsapp = getattr(tenant, 'enable_whatsapp_reminders', False) if tenant else False
+        if send_whatsapp or auto_whatsapp:
             if not phone:
                 # Try to get phone from customer
                 phone = payment.loan.customer.phone
