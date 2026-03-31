@@ -19,7 +19,7 @@ from django.conf import settings
 from constance import config
 import os
 
-from .models import Loan
+from .models import Loan, LoanPayment
 
 
 class LoanBalanceReport:
@@ -398,3 +398,201 @@ class LoanBalanceReport:
         schedules = self.loan.payment_schedules.all()
         total = sum(float(s.balance.amount) if s.balance else float(s.total_amount.amount) for s in schedules)
         return total
+
+
+class PaymentReceiptReport:
+    """
+    Generates a professional payment receipt (Recibo de Pago) PDF in portrait format.
+    """
+
+    PAYMENT_METHOD_LABELS = {
+        'cash': 'Efectivo',
+        'check': 'Cheque',
+        'bank_transfer': 'Transferencia',
+        'card': 'Tarjeta',
+        'mobile_payment': 'Pago Móvil',
+    }
+
+    def __init__(self, payment: LoanPayment):
+        self.payment = payment
+        self.buffer = BytesIO()
+
+    def _format_cedula(self, cedula: str) -> str:
+        """Format cedula with dashes (XXX-XXXXXXX-X)"""
+        if not cedula:
+            return ''
+        clean = cedula.replace('-', '').replace(' ', '')
+        if len(clean) == 11:
+            return f"{clean[:3]}-{clean[3:10]}-{clean[10]}"
+        return cedula
+
+    def _fmt_money(self, value) -> str:
+        """Format a Decimal/Money value as RD$ X,XXX.XX"""
+        try:
+            amount = float(value.amount) if hasattr(value, 'amount') else float(value)
+        except (AttributeError, TypeError, ValueError):
+            amount = 0.0
+        return f"RD$ {amount:,.2f}"
+
+    def _draw_footer(self, pdf, width):
+        """Draw footer on current page"""
+        pdf.saveState()
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColorRGB(0.5, 0.5, 0.5)
+        now_str = datetime.now().strftime('%d/%m/%Y %H:%M')
+        footer_text = f"Generado por CrediFlux — {now_str}"
+        pdf.drawCentredString(width / 2, 20, footer_text)
+        pdf.restoreState()
+
+    def generate(self):
+        """Generate the payment receipt PDF and return bytes."""
+        pdf = canvas.Canvas(self.buffer, pagesize=letter)
+        width, height = letter  # 612 x 792 points (portrait)
+
+        payment = self.payment
+        loan = payment.loan
+        customer = loan.customer
+        schedule = payment.schedule
+
+        tenant = connection.tenant
+        left_margin = 50
+        right_margin = width - 50
+        y = height - 40
+
+        # --- Logo ---
+        logo_height = 0
+        if tenant and hasattr(tenant, 'logo') and tenant.logo:
+            try:
+                logo_path = os.path.join(settings.MEDIA_ROOT, str(tenant.logo))
+                if os.path.exists(logo_path):
+                    logo_width = 70
+                    logo_height = 45
+                    pdf.drawImage(logo_path, left_margin, y - logo_height,
+                                  width=logo_width, height=logo_height,
+                                  preserveAspectRatio=True, mask='auto')
+            except Exception as e:
+                print(f"Warning: Could not load tenant logo: {e}")
+                logo_height = 0
+
+        # --- Tenant header (right of logo) ---
+        header_x = left_margin + (80 if logo_height > 0 else 0)
+        business_name = getattr(tenant, 'business_name', '') if tenant else ''
+        address = getattr(tenant, 'address', '') if tenant else ''
+        tax_id = getattr(tenant, 'tax_id', '') if tenant else ''
+
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(header_x, y - 10, business_name.upper())
+        pdf.setFont("Helvetica", 8)
+        if address:
+            pdf.drawString(header_x, y - 22, address)
+        if tax_id:
+            pdf.drawString(header_x, y - 33, f"RNC: {tax_id}")
+
+        y -= max(logo_height + 10, 50)
+
+        # --- Title ---
+        pdf.setFont("Helvetica-Bold", 16)
+        title = "RECIBO DE PAGO"
+        title_width = pdf.stringWidth(title, "Helvetica-Bold", 16)
+        pdf.drawString((width - title_width) / 2, y, title)
+        y -= 22
+
+        # --- Receipt number and date (two columns) ---
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(left_margin, y, f"No.: {payment.payment_number}")
+        payment_date_str = payment.payment_date.strftime('%d/%m/%Y') if payment.payment_date else 'N/A'
+        date_label = f"Fecha: {payment_date_str}"
+        pdf.drawRightString(right_margin, y, date_label)
+        y -= 5
+
+        # --- Separator ---
+        pdf.setStrokeColorRGB(0.2, 0.2, 0.2)
+        pdf.setLineWidth(1)
+        pdf.line(left_margin, y, right_margin, y)
+        y -= 14
+
+        # --- Customer info ---
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(left_margin, y, "DATOS DEL CLIENTE")
+        y -= 12
+
+        pdf.setFont("Helvetica", 9)
+        label_w = 90  # width of label column
+
+        def draw_row(label, value):
+            nonlocal y
+            pdf.setFont("Helvetica-Bold", 9)
+            pdf.drawString(left_margin, y, label)
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(left_margin + label_w, y, f": {value}")
+            y -= 12
+
+        draw_row("Cliente", customer.get_full_name().upper())
+        draw_row("Cédula", self._format_cedula(customer.id_number))
+        draw_row("Teléfono", customer.phone or '')
+        draw_row("Préstamo No.", loan.loan_number)
+
+        if schedule:
+            total_schedules = loan.payment_schedules.count()
+            draw_row("Cuota", f"{schedule.installment_number} de {total_schedules}")
+
+        y -= 3
+        pdf.setLineWidth(0.5)
+        pdf.line(left_margin, y, right_margin, y)
+        y -= 14
+
+        # --- Payment details ---
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(left_margin, y, "DETALLE DEL PAGO")
+        y -= 12
+
+        # Monto del pago (total)
+        draw_row("Monto del Pago", self._fmt_money(payment.amount))
+        draw_row("Capital", self._fmt_money(payment.principal_paid))
+        draw_row("Interés", self._fmt_money(payment.interest_paid))
+        draw_row("Mora", self._fmt_money(payment.late_fee_paid))
+
+        method_label = self.PAYMENT_METHOD_LABELS.get(payment.payment_method, payment.payment_method or '')
+        draw_row("Método de Pago", method_label)
+
+        if payment.reference_number:
+            draw_row("Referencia", payment.reference_number)
+
+        y -= 3
+        pdf.setLineWidth(0.5)
+        pdf.line(left_margin, y, right_margin, y)
+        y -= 14
+
+        # --- Loan balance after payment ---
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(left_margin, y, "SALDO DEL PRÉSTAMO")
+        y -= 12
+
+        draw_row("Balance Pendiente", self._fmt_money(loan.outstanding_balance))
+
+        y -= 10
+        pdf.setLineWidth(1)
+        pdf.line(left_margin, y, right_margin, y)
+        y -= 30
+
+        # --- Signature lines ---
+        sig_y = y
+        center = width / 2
+
+        # Left signature: client
+        pdf.setFont("Helvetica", 9)
+        line_len = 120
+        pdf.line(left_margin, sig_y, left_margin + line_len, sig_y)
+        pdf.drawCentredString(left_margin + line_len / 2, sig_y - 12, "Firma del Cliente")
+
+        # Right signature: cashier
+        pdf.line(right_margin - line_len, sig_y, right_margin, sig_y)
+        pdf.drawCentredString(right_margin - line_len / 2, sig_y - 12, "Cajero / Oficial")
+
+        # --- Footer ---
+        self._draw_footer(pdf, width)
+
+        pdf.save()
+        pdf_data = self.buffer.getvalue()
+        self.buffer.close()
+        return pdf_data

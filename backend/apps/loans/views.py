@@ -807,6 +807,32 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    @action(detail=True, methods=['get'], url_path='receipt-pdf')
+    def receipt_pdf(self, request, pk=None):
+        """Generate and download payment receipt PDF (attachment)."""
+        from .reports import PaymentReceiptReport
+
+        payment = self.get_object()
+        report = PaymentReceiptReport(payment)
+        pdf_data = report.generate()
+
+        response = HttpResponse(pdf_data, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="recibo-{payment.payment_number}.pdf"'
+        return response
+
+    @action(detail=True, methods=['get'], url_path='receipt-preview')
+    def receipt_preview(self, request, pk=None):
+        """Generate and preview payment receipt PDF inline in browser."""
+        from .reports import PaymentReceiptReport
+
+        payment = self.get_object()
+        report = PaymentReceiptReport(payment)
+        pdf_data = report.generate()
+
+        response = HttpResponse(pdf_data, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="recibo-{payment.payment_number}.pdf"'
+        return response
+
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
         """

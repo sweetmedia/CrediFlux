@@ -29,6 +29,7 @@ import {
   XCircle,
   RotateCcw,
   Printer,
+  Download,
 } from 'lucide-react';
 
 export default function PaymentDetailPage() {
@@ -90,6 +91,12 @@ export default function PaymentDetailPage() {
 
   const handlePrintReceipt = () => {
     window.print();
+  };
+
+  const handleDownloadReceipt = () => {
+    // Open the receipt PDF in a new tab for download
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    window.open(`${baseUrl}/api/loans/payments/${paymentId}/receipt-pdf/`, '_blank');
   };
 
   const formatCurrency = (amount: number | undefined) => {
@@ -212,6 +219,10 @@ export default function PaymentDetailPage() {
                 Volver
               </Button>
             </Link>
+            <Button variant="outline" onClick={handleDownloadReceipt}>
+              <Download className="mr-2 h-4 w-4" />
+              Descargar PDF
+            </Button>
             <Button variant="outline" onClick={handlePrintReceipt}>
               <Printer className="mr-2 h-4 w-4" />
               Imprimir
