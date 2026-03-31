@@ -261,3 +261,124 @@ class ECFSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ECFSubmission.objects.all()
     serializer_class = ECFSubmissionSerializer
     permission_classes = [IsAuthenticated]
+
+
+class DGIIReportViewSet(viewsets.ViewSet):
+    """
+    Endpoints para generar reportes DGII 606 y 607.
+    
+    Usage:
+        GET /api/billing/dgii-reports/607/?year=2026&month=3  → summary JSON
+        GET /api/billing/dgii-reports/607/csv/?year=2026&month=3  → CSV download
+        GET /api/billing/dgii-reports/606/?year=2026&month=3  → summary JSON
+        GET /api/billing/dgii-reports/606/csv/?year=2026&month=3  → CSV download
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _parse_period(self, request):
+        """Extract year and month from query params"""
+        now = timezone.now()
+        try:
+            year = int(request.query_params.get('year', now.year))
+            month = int(request.query_params.get('month', now.month))
+        except (ValueError, TypeError):
+            return None, None, Response(
+                {'error': 'Parámetros year/month inválidos'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if month < 1 or month > 12:
+            return None, None, Response(
+                {'error': 'Mes debe estar entre 1 y 12'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return year, month, None
+
+    @action(detail=False, methods=['get'], url_path='607')
+    def report_607_summary(self, request):
+        """Resumen del reporte 607 (ventas/ingresos) para el período"""
+        from .reports_dgii import DGIIReport607
+
+        year, month, err = self._parse_period(request)
+        if err:
+            return err
+
+        report = DGIIReport607(year, month)
+        summary = report.get_summary()
+        data = report.generate_data()
+
+        # Add row details (without internal _ fields)
+        detail_rows = []
+        for row in data:
+            detail_rows.append({
+                'cliente': row['_customer_name'],
+                'rnc_cedula': row['rnc_cedula'],
+                'prestamo': row['_loan_number'],
+                'pago': row['_payment_number'],
+                'fecha': row['fecha_comprobante'],
+                'monto': row['monto_facturado'],
+                'interes': row['_interest_paid'],
+                'capital': row['_principal_paid'],
+                'mora': row['_late_fee_paid'],
+                'metodo_efectivo': row['efectivo'],
+                'metodo_cheque': row['cheque_transferencia'],
+                'metodo_tarjeta': row['tarjeta'],
+            })
+
+        return Response({
+            'tipo': '607',
+            'descripcion': 'Ventas de Bienes y Servicios',
+            'resumen': summary,
+            'detalle': detail_rows,
+        })
+
+    @action(detail=False, methods=['get'], url_path='607/csv')
+    def report_607_csv(self, request):
+        """Descargar reporte 607 en formato CSV (compatible DGII)"""
+        from .reports_dgii import DGIIReport607
+        from django.http import HttpResponse
+
+        year, month, err = self._parse_period(request)
+        if err:
+            return err
+
+        report = DGIIReport607(year, month)
+        csv_content = report.generate_csv()
+
+        response = HttpResponse(csv_content, content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="607-{year}{month:02d}.csv"'
+        return response
+
+    @action(detail=False, methods=['get'], url_path='606')
+    def report_606_summary(self, request):
+        """Resumen del reporte 606 (compras/gastos) para el período"""
+        from .reports_dgii import DGIIReport606
+
+        year, month, err = self._parse_period(request)
+        if err:
+            return err
+
+        report = DGIIReport606(year, month)
+        summary = report.get_summary()
+
+        return Response({
+            'tipo': '606',
+            'descripcion': 'Compras de Bienes y Servicios',
+            'resumen': summary,
+        })
+
+    @action(detail=False, methods=['get'], url_path='606/csv')
+    def report_606_csv(self, request):
+        """Descargar reporte 606 en formato CSV (template — gastos no implementados)"""
+        from .reports_dgii import DGIIReport606
+        from django.http import HttpResponse
+
+        year, month, err = self._parse_period(request)
+        if err:
+            return err
+
+        report = DGIIReport606(year, month)
+        csv_content = report.generate_csv()
+
+        response = HttpResponse(csv_content, content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="606-{year}{month:02d}.csv"'
+        return response

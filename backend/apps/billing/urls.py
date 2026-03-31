@@ -8,6 +8,7 @@ from .views import (
     FiscalSequenceViewSet,
     InvoiceViewSet,
     ECFSubmissionViewSet,
+    DGIIReportViewSet,
 )
 
 router = DefaultRouter()
@@ -15,6 +16,7 @@ router.register(r'certificates', DigitalCertificateViewSet, basename='certificat
 router.register(r'sequences', FiscalSequenceViewSet, basename='sequence')
 router.register(r'invoices', InvoiceViewSet, basename='invoice')
 router.register(r'submissions', ECFSubmissionViewSet, basename='submission')
+router.register(r'dgii-reports', DGIIReportViewSet, basename='dgii-report')
 
 app_name = 'billing'
 

@@ -30,6 +30,7 @@ import {
   Hash,
   Calculator,
   MapPin,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface NavItem {
@@ -101,6 +102,7 @@ export function Sidebar() {
         { href: '/billing', icon: Receipt, label: 'Facturas e-CF' },
         { href: '/billing/sequences', icon: Hash, label: 'Secuencias e-NCF' },
         { href: '/billing/certificates', icon: Shield, label: 'Certificados' },
+        { href: '/billing/dgii-reports', icon: FileSpreadsheet, label: 'Reportes DGII' },
       ],
     },
     { href: '/communications', icon: MessageSquare, label: 'Comunicaciones' },
