@@ -14,6 +14,20 @@ import {
 } from '@/types';
 
 export const loansAPI = {
+  // Loan Calculator
+  async calculateLoan(data: {
+    principal_amount: string;
+    interest_rate: string;
+    term: number;
+    payment_frequency: string;
+    amortization_method: string;
+    legal_fees?: string;
+    legal_fees_condition?: string;
+    start_date: string;
+  }): Promise<any> {
+    return apiClient.post<any>('/api/loans/calculate/', data);
+  },
+
   // Get all loans
   async getLoans(params?: {
     page?: number;

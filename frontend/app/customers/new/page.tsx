@@ -232,23 +232,28 @@ export default function NewCustomerPage() {
       // Redirect to customers list
       router.push('/customers');
     } catch (err: any) {
-      console.error('Error creating customer:', err);
-
       if (err.response?.data) {
         const errorData = err.response.data;
 
         // Handle field-specific errors
-        const fieldErrors = [];
-        if (errorData.id_number) fieldErrors.push(`RNC: ${errorData.id_number[0]}`);
-        if (errorData.email) fieldErrors.push(`Email: ${errorData.email[0]}`);
-        if (errorData.phone) fieldErrors.push(`Teléfono: ${errorData.phone[0]}`);
-        if (errorData.date_of_birth) fieldErrors.push(`Fecha de nacimiento: ${errorData.date_of_birth[0]}`);
-        if (errorData.address_line1) fieldErrors.push(`Dirección: ${errorData.address_line1[0]}`);
+        const fieldErrors: string[] = [];
+        for (const [key, value] of Object.entries(errorData)) {
+          if (Array.isArray(value)) {
+            const label = {
+              id_number: 'RNC/Cédula', email: 'Email', phone: 'Teléfono',
+              date_of_birth: 'Fecha de nacimiento', address_line1: 'Dirección',
+              first_name: 'Nombre', last_name: 'Apellido', monthly_income: 'Ingreso mensual',
+            }[key] || key;
+            fieldErrors.push(`${label}: ${(value as string[])[0]}`);
+          }
+        }
 
         if (fieldErrors.length > 0) {
-          setError(fieldErrors.join(', '));
+          setError(fieldErrors.join(' | '));
         } else if (errorData.detail) {
           setError(errorData.detail);
+        } else if (errorData.non_field_errors) {
+          setError(errorData.non_field_errors[0]);
         } else {
           setError('Error al crear el cliente. Por favor verifica los datos.');
         }
