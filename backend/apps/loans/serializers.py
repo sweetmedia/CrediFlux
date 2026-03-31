@@ -230,6 +230,9 @@ class LoanScheduleSerializer(serializers.ModelSerializer):
     """Serializer for LoanSchedule model"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
+    customer_phone = serializers.CharField(source='loan.customer.phone', read_only=True)
+    customer_address = serializers.CharField(source='loan.customer.address_line1', read_only=True)
+    customer_id = serializers.UUIDField(source='loan.customer.id', read_only=True)
 
     # Convert Money fields to decimal for frontend
     total_amount = serializers.DecimalField(source='total_amount.amount', max_digits=14, decimal_places=2, read_only=True)
@@ -243,13 +246,14 @@ class LoanScheduleSerializer(serializers.ModelSerializer):
     class Meta:
         model = LoanSchedule
         fields = [
-            'id', 'loan', 'loan_number', 'customer_name', 'installment_number', 'due_date',
+            'id', 'loan', 'loan_number', 'customer_name', 'customer_phone', 'customer_address', 'customer_id',
+            'installment_number', 'due_date',
             'total_amount', 'principal_amount', 'interest_amount',
             'paid_amount', 'paid_date', 'status', 'balance',
             'actual_payment_date', 'days_overdue', 'late_fee_amount', 'late_fee_paid',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'loan_number', 'customer_name', 'days_overdue', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'loan_number', 'customer_name', 'customer_phone', 'customer_address', 'customer_id', 'days_overdue', 'created_at', 'updated_at']
 
 
 class LoanPaymentSerializer(serializers.ModelSerializer):

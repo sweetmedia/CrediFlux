@@ -29,6 +29,7 @@ import {
   Shield,
   Hash,
   Calculator,
+  MapPin,
 } from 'lucide-react';
 
 interface NavItem {
@@ -90,6 +91,7 @@ export function Sidebar() {
     },
     { href: '/customers', icon: Users, label: 'Clientes' },
     { href: '/collections', icon: Phone, label: 'Cobranza' },
+    { href: '/collector', icon: MapPin, label: 'Cobrador Móvil' },
     { href: '/payments', icon: DollarSign, label: 'Pagos' },
     {
       href: 'billing',
