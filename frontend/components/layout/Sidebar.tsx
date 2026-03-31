@@ -41,7 +41,12 @@ interface NavItem {
   subItems?: { href: string; icon: any; label: string }[];
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, tenant, logout } = useAuth();
@@ -126,7 +131,9 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col h-screen fixed left-0 top-0 z-40"
+      className={`flex flex-col h-screen fixed left-0 top-0 z-50 transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
       style={{ width: 240, backgroundColor: '#163300' }}
     >
       {/* Logo & Tenant */}
