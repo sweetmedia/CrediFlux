@@ -31,6 +31,7 @@ import {
   Calculator,
   MapPin,
   FileSpreadsheet,
+  Banknote,
 } from 'lucide-react';
 
 interface NavItem {
@@ -93,6 +94,7 @@ export function Sidebar() {
     { href: '/customers', icon: Users, label: 'Clientes' },
     { href: '/collections', icon: Phone, label: 'Cobranza' },
     { href: '/collector', icon: MapPin, label: 'Cobrador Móvil' },
+    { href: '/cashbox', icon: Banknote, label: 'Caja' },
     { href: '/payments', icon: DollarSign, label: 'Pagos' },
     {
       href: 'billing',

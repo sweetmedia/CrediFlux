@@ -58,6 +58,7 @@ SHARED_APPS = [
     'apps.loans',
     'apps.communications',
     'apps.billing',
+    'apps.cashbox',
 ]
 
 TENANT_APPS = [
@@ -65,6 +66,7 @@ TENANT_APPS = [
     'apps.loans',
     'apps.communications',
     'apps.billing',
+    'apps.cashbox',
 ]
 
 INSTALLED_APPS = list(SHARED_APPS) + [
