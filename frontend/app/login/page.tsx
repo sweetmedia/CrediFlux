@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
 } from '@/components/ui/card';
@@ -59,23 +58,16 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       setError('');
-
       const response = await login(data);
-
-      // Check if 2FA is required
       if ('requires_2fa' in response && response.requires_2fa) {
         setRequires2FA(true);
         setTempToken(response.temp_token);
         return;
       }
-
-      // Normal login - redirect to dashboard
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Login error:', err);
-
       if (err.response?.data) {
-        // Handle API errors
         const errorData = err.response.data;
         if (errorData.non_field_errors) {
           setError(errorData.non_field_errors[0]);
@@ -96,14 +88,10 @@ export default function LoginPage() {
     try {
       setIs2FALoading(true);
       setTwoFactorError(null);
-
       await complete2FALogin(code, tempToken, isBackupCode);
-
-      // Redirect to dashboard
       router.push('/dashboard');
     } catch (err: any) {
       console.error('2FA verification error:', err);
-
       if (err.response?.data) {
         const errorData = err.response.data;
         if (errorData.code) {
@@ -131,24 +119,23 @@ export default function LoginPage() {
     setTwoFactorError(null);
   };
 
-  // Show 2FA verification if required
   if (requires2FA) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-4 pb-2">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-sm border-border shadow-none">
+          <CardHeader className="pb-4 pt-8 px-8">
             <div className="flex justify-center">
               <Image
                 src="/logo.svg"
                 alt="CrediFlux"
-                width={200}
-                height={50}
-                className="h-12 w-auto"
+                width={160}
+                height={40}
+                className="h-9 w-auto"
                 priority
               />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-8 pb-8">
             <TwoFactorVerify
               onVerify={handle2FAVerify}
               onCancel={handleCancel2FA}
@@ -162,92 +149,104 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-4">
-          <div className="flex justify-center">
-            <Image
-              src="/logo.svg"
-              alt="CrediFlux"
-              width={200}
-              height={50}
-              className="h-12 w-auto"
-              priority
-            />
-          </div>
-          <CardDescription className="text-center">
-            Ingresa a tu cuenta para continuar
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            {showVerified && (
-              <Alert className="border-green-200 bg-green-50 text-green-800">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertDescription>
-                  Tu correo electronico ha sido verificado exitosamente. Ya puedes iniciar sesion.
-                </AlertDescription>
-              </Alert>
-            )}
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-sm">
+        {/* Logo above card */}
+        <div className="flex justify-center mb-8">
+          <Image
+            src="/logo.svg"
+            alt="CrediFlux"
+            width={160}
+            height={40}
+            className="h-9 w-auto"
+            priority
+          />
+        </div>
 
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+        <Card className="border-border shadow-none">
+          <CardHeader className="px-7 pt-7 pb-1">
+            <h2 className="text-base font-semibold text-foreground text-center">Iniciar Sesión</h2>
+            <p className="text-sm text-muted-foreground text-center mt-0.5">
+              Ingresa a tu cuenta para continuar
+            </p>
+          </CardHeader>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="tu@email.com"
-                {...register('email')}
-                disabled={isLoading}
-              />
-              {errors.email && (
-                <p className="text-sm text-red-500">{errors.email.message}</p>
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <CardContent className="px-7 py-5 space-y-4">
+              {showVerified && (
+                <Alert className="border-green-200 bg-green-50 text-green-800">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-xs">
+                    Tu correo electronico ha sido verificado exitosamente. Ya puedes iniciar sesion.
+                  </AlertDescription>
+                </Alert>
               )}
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Contrasena</Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Olvidaste tu contrasena?
-                </Link>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription className="text-xs">{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-sm">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="tu@email.com"
+                  {...register('email')}
+                  disabled={isLoading}
+                  className="h-9 border-border shadow-none text-sm"
+                />
+                {errors.email && (
+                  <p className="text-xs text-destructive">{errors.email.message}</p>
+                )}
               </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                {...register('password')}
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm">Contraseña</Label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  {...register('password')}
+                  disabled={isLoading}
+                  className="h-9 border-border shadow-none text-sm"
+                />
+                {errors.password && (
+                  <p className="text-xs text-destructive">{errors.password.message}</p>
+                )}
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-4 px-7 pb-7 pt-0">
+              <Button
+                type="submit"
+                className="w-full h-9 bg-primary hover:bg-primary/90 text-primary-foreground shadow-none text-sm"
                 disabled={isLoading}
-              />
-              {errors.password && (
-                <p className="text-sm text-red-500">{errors.password.message}</p>
-              )}
-            </div>
-          </CardContent>
+              >
+                {isLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                Iniciar Sesión
+              </Button>
 
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Iniciar Sesion
-            </Button>
-
-            <div className="text-sm text-center text-gray-600">
-              No tienes cuenta?{' '}
-              <Link href="/register" className="text-blue-600 hover:underline font-medium">
-                Registrate aqui
-              </Link>
-            </div>
-          </CardFooter>
-        </form>
-      </Card>
+              <p className="text-xs text-center text-muted-foreground">
+                ¿No tienes cuenta?{' '}
+                <Link href="/register" className="text-primary hover:underline font-medium">
+                  Regístrate aquí
+                </Link>
+              </p>
+            </CardFooter>
+          </form>
+        </Card>
+      </div>
     </div>
   );
 }

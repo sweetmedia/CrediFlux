@@ -32,7 +32,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
         <Image
           src="/logo.svg"
           alt="CrediFlux"
@@ -41,7 +41,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           className="h-12 w-auto"
           priority
         />
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-7 w-7 animate-spin text-primary" />
       </div>
     );
   }
@@ -58,9 +58,9 @@ export function AppLayout({ children }: AppLayoutProps) {
   // If authenticated, show sidebar with content
   if (isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-background">
         <Sidebar />
-        <div className="ml-64">
+        <div className="ml-[240px]">
           <SimplePageTransition>
             {children}
           </SimplePageTransition>

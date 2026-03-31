@@ -44,7 +44,6 @@ export function Sidebar() {
   const [expandedItems, setExpandedItems] = useState<string[]>(['contracts']);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // Keyboard shortcut for search (Cmd+K or Ctrl+K)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -52,7 +51,6 @@ export function Sidebar() {
         setIsSearchOpen(true);
       }
     };
-
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
@@ -72,9 +70,7 @@ export function Sidebar() {
 
   const toggleExpanded = (href: string) => {
     setExpandedItems((prev) =>
-      prev.includes(href)
-        ? prev.filter((item) => item !== href)
-        : [...prev, href]
+      prev.includes(href) ? prev.filter((item) => item !== href) : [...prev, href]
     );
   };
 
@@ -113,16 +109,20 @@ export function Sidebar() {
     { href: '/settings', icon: Settings, label: 'Configuracion' },
   ];
 
-  // Check if any submenu item is active
   const isAnySubItemActive = (subItems?: { href: string }[]) => {
     if (!subItems) return false;
     return subItems.some((subItem) => isActive(subItem.href));
   };
 
+  const initials = `${user?.first_name?.charAt(0) ?? ''}${user?.last_name?.charAt(0) ?? ''}`;
+
   return (
-    <aside className="w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0">
+    <aside
+      className="flex flex-col h-screen fixed left-0 top-0 z-40"
+      style={{ width: 240, backgroundColor: '#163300' }}
+    >
       {/* Logo & Tenant */}
-      <div className="p-6 border-b border-slate-800">
+      <div className="px-5 py-5 border-b border-white/10">
         {tenant?.logo ? (
           <img
             src={
@@ -131,46 +131,43 @@ export function Sidebar() {
                 : `${getApiUrl()}${tenant.logo}`
             }
             alt={tenant.business_name}
-            className="h-8 w-auto object-contain mb-3 brightness-0 invert"
+            className="h-7 w-auto object-contain mb-3 brightness-0 invert"
           />
         ) : (
           <Image
             src="/logo.svg"
             alt="CrediFlux"
-            width={140}
-            height={35}
-            className="h-8 w-auto mb-3 brightness-0 invert"
+            width={130}
+            height={32}
+            className="h-7 w-auto mb-3 brightness-0 invert"
             priority
           />
         )}
         {tenant && (
-          <div className="mt-3 pt-3 border-t border-slate-800">
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <Building2 className="h-3 w-3" />
-              <span className="truncate">{tenant.business_name}</span>
-            </div>
+          <div className="flex items-center gap-1.5 text-xs text-white/40 mt-2">
+            <Building2 className="h-3 w-3 shrink-0" />
+            <span className="truncate">{tenant.business_name}</span>
           </div>
         )}
 
-        {/* Search Button */}
+        {/* Search */}
         <button
           onClick={() => setIsSearchOpen(true)}
-          className="mt-4 w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 bg-slate-800/50 hover:bg-slate-800 transition-all"
+          className="mt-4 w-full flex items-center justify-between px-3 py-2 rounded-md text-xs text-white/50 bg-white/5 hover:bg-white/10 transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <Search className="h-4 w-4" />
+          <div className="flex items-center gap-2">
+            <Search className="h-3.5 w-3.5" />
             <span>Buscar...</span>
           </div>
-          <kbd className="px-2 py-0.5 bg-slate-700 rounded text-xs">⌘K</kbd>
+          <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/40" style={{ fontSize: 10 }}>⌘K</kbd>
         </button>
       </div>
 
-      {/* Global Search Dialog */}
       <GlobalSearch isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-6 overflow-y-auto">
-        <div className="space-y-1">
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        <div className="space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const hasSubItems = item.subItems && item.subItems.length > 0;
@@ -181,32 +178,26 @@ export function Sidebar() {
             return (
               <div key={item.href}>
                 {hasSubItems ? (
-                  // Parent item with submenu
                   <>
                     <button
                       onClick={() => toggleExpanded(item.href)}
-                      className={`
-                        w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                        ${anySubActive
-                          ? 'bg-slate-800 text-white'
-                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }
-                      `}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors ${
+                        anySubActive
+                          ? 'text-white bg-white/10'
+                          : 'text-white/60 hover:text-white hover:bg-white/5'
+                      }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <Icon className="h-4 w-4" />
+                      <div className="flex items-center gap-2.5">
+                        <Icon className="h-4 w-4 shrink-0" />
                         <span>{item.label}</span>
                       </div>
                       <ChevronDown
-                        className={`h-4 w-4 transition-transform ${
-                          isExpanded ? 'transform rotate-180' : ''
-                        }`}
+                        className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                       />
                     </button>
 
-                    {/* Submenu items */}
                     {isExpanded && (
-                      <div className="mt-1 ml-4 space-y-1">
+                      <div className="mt-0.5 ml-3 pl-3 border-l border-white/10 space-y-0.5">
                         {item.subItems?.map((subItem) => {
                           const SubIcon = subItem.icon;
                           const subActive = isActive(subItem.href);
@@ -214,19 +205,14 @@ export function Sidebar() {
                             <Link
                               key={subItem.href}
                               href={subItem.href}
-                              className={`
-                                flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all
-                                ${subActive
-                                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50'
-                                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                                }
-                              `}
+                              className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                                subActive
+                                  ? 'text-white bg-white/10'
+                                  : 'text-white/50 hover:text-white hover:bg-white/5'
+                              }`}
                             >
-                              <div className="flex items-center gap-3">
-                                <SubIcon className="h-4 w-4" />
-                                <span>{subItem.label}</span>
-                              </div>
-                              {subActive && <ChevronRight className="h-4 w-4" />}
+                              <SubIcon className="h-3.5 w-3.5 shrink-0" />
+                              <span>{subItem.label}</span>
                             </Link>
                           );
                         })}
@@ -234,22 +220,21 @@ export function Sidebar() {
                     )}
                   </>
                 ) : (
-                  // Regular item without submenu
                   <Link
                     href={item.href}
-                    className={`
-                      flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                      ${active
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                      }
-                    `}
+                    className={`relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
+                      active
+                        ? 'text-white bg-white/10'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <Icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </div>
-                    {active && <ChevronRight className="h-4 w-4" />}
+                    {active && (
+                      <span
+                        className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-[#FFE026]"
+                      />
+                    )}
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{item.label}</span>
                   </Link>
                 )}
               </div>
@@ -259,11 +244,11 @@ export function Sidebar() {
 
         {/* Admin Section */}
         {(user?.is_tenant_owner || user?.role === 'admin') && (
-          <div className="mt-8">
-            <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <div className="mt-6">
+            <p className="px-3 mb-1.5 text-[10px] font-semibold text-white/30 uppercase tracking-widest">
               Administración
             </p>
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {adminNavItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
@@ -271,19 +256,17 @@ export function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`
-                      flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                      ${active
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                      }
-                    `}
+                    className={`relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
+                      active
+                        ? 'text-white bg-white/10'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <Icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </div>
-                    {active && <ChevronRight className="h-4 w-4" />}
+                    {active && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-[#FFE026]" />
+                    )}
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{item.label}</span>
                   </Link>
                 );
               })}
@@ -293,25 +276,25 @@ export function Sidebar() {
       </nav>
 
       {/* User Profile */}
-      <div className="p-4 border-t border-slate-800">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
-            {user?.first_name?.charAt(0)}{user?.last_name?.charAt(0)}
+      <div className="px-3 py-4 border-t border-white/10">
+        <div className="flex items-center gap-3 px-2 mb-2">
+          <div className="h-8 w-8 rounded-full bg-[#738566] flex items-center justify-center text-white text-xs font-semibold shrink-0">
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">
+            <p className="text-sm font-medium text-white truncate leading-tight">
               {user?.full_name}
             </p>
-            <p className="text-xs text-slate-400 capitalize truncate">
+            <p className="text-xs text-white/40 capitalize truncate">
               {user?.role.replace('_', ' ')}
             </p>
           </div>
         </div>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4 shrink-0" />
           <span>Cerrar Sesión</span>
         </button>
       </div>

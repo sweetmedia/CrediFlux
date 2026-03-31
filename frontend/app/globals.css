@@ -4,72 +4,66 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* CrediFlux Brand — Stripe-style layout with CrediFlux green/gold palette
+       Brand colors:
+       - Dark Forest Green: #163300  (primary, sidebar, headings)
+       - Sage Green: #738566         (secondary text, subtle accents)
+       - Golden Yellow: #FFE026      (highlights, CTAs, badges)
+       - Vibrant Orange: #FF7503     (warm accents, alerts)
+    */
+    --background: 100 10% 97%;       /* very light warm gray-green #f5f6f4 */
+    --foreground: 100 100% 10%;      /* #163300 dark forest green */
+    --card: 0 0% 100%;               /* white */
+    --card-foreground: 100 100% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 262.1 83.3% 57.8%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 262.1 83.3% 57.8%;
-    --radius: 0.5rem;
-  }
-
-  /* CrediFlux v2 Theme (Green) */
-  body.theme-v2 {
-    --background: 0 0% 100%;
-    --foreground: 142.9 70.5% 8.3%;
-    --card: 0 0% 100%;
-    --card-foreground: 142.9 70.5% 8.3%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 142.9 70.5% 8.3%;
-    --primary: 122.4 39.4% 49.2%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 150 14.3% 40.2%;
+    --popover-foreground: 100 100% 10%;
+    --primary: 100 100% 10%;         /* #163300 dark forest green */
+    --primary-foreground: 0 0% 100%; /* white on green */
+    --secondary: 95 14% 46%;         /* #738566 sage green */
     --secondary-foreground: 0 0% 100%;
-    --muted: 120 7.7% 92.9%;
-    --muted-foreground: 142.1 12.5% 40.2%;
-    --accent: 122.4 39.4% 49.2%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 84.2% 60.2%;
+    --muted: 100 8% 93%;             /* light sage tint */
+    --muted-foreground: 95 14% 46%;  /* #738566 sage */
+    --accent: 52 100% 57%;           /* #FFE026 golden yellow */
+    --accent-foreground: 100 100% 10%; /* dark green on yellow */
+    --destructive: 25 100% 51%;      /* #FF7503 vibrant orange (used as warning/destructive) */
     --destructive-foreground: 0 0% 100%;
-    --border: 120 4.8% 87.8%;
-    --input: 120 4.8% 87.8%;
-    --ring: 122.4 39.4% 49.2%;
-    --radius: 0.5rem;
+    --border: 100 8% 88%;            /* soft green-gray border */
+    --input: 100 8% 88%;
+    --ring: 100 100% 10%;            /* dark green ring */
+    --radius: 0.375rem;
+
+    /* Extended CrediFlux palette for charts/badges */
+    --cf-green-dark: #163300;
+    --cf-green-sage: #738566;
+    --cf-gold: #FFE026;
+    --cf-orange: #FF7503;
+    --cf-green-light: #e8eddf;
+    --cf-success: #2d6a2e;
+    --cf-danger: #c0392b;
+    --cf-warning: #FF7503;
+    --cf-info: #2980b9;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 262.1 83.3% 57.8%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 263.4 70% 50.4%;
+    --background: 100 30% 6%;        /* very dark green */
+    --foreground: 80 20% 90%;
+    --card: 100 25% 10%;
+    --card-foreground: 80 20% 90%;
+    --popover: 100 25% 10%;
+    --popover-foreground: 80 20% 90%;
+    --primary: 52 100% 57%;          /* golden yellow as primary in dark mode */
+    --primary-foreground: 100 100% 10%;
+    --secondary: 100 20% 20%;
+    --secondary-foreground: 80 20% 90%;
+    --muted: 100 20% 15%;
+    --muted-foreground: 95 10% 55%;
+    --accent: 52 100% 57%;
+    --accent-foreground: 100 100% 10%;
+    --destructive: 25 100% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 100 15% 18%;
+    --input: 100 15% 18%;
+    --ring: 52 100% 57%;
   }
 }
 
@@ -79,19 +73,6 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-
-  /* Apply Inter Tight font when v2 theme is active */
-  body.theme-v2 {
-    font-family: var(--font-body);
-  }
-
-  body.theme-v2 h1,
-  body.theme-v2 h2,
-  body.theme-v2 h3,
-  body.theme-v2 h4,
-  body.theme-v2 h5,
-  body.theme-v2 h6 {
-    font-family: var(--font-heading);
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

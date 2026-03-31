@@ -61,7 +61,7 @@ export function NavigationProgress() {
     >
       <div
         ref={progressRef}
-        className="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 shadow-lg shadow-blue-500/50"
+        className="h-full bg-gradient-to-r from-[#163300] via-[#738566] to-[#163300] shadow-lg shadow-[#163300]/30"
         style={{ width: '0%' }}
       />
     </div>

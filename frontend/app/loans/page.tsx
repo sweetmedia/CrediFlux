@@ -9,27 +9,21 @@ import { loansAPI } from '@/lib/api/loans';
 import { Loan } from '@/types';
 import LoanApprovalDialog from '@/components/loans/LoanApprovalDialog';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { NativeSelect as Select } from '@/components/ui/native-select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { StatusBadge } from '@/components/ui/status-badge';
 import {
   Loader2,
   Plus,
   Search,
-  Filter,
   DollarSign,
   FileText,
   AlertCircle,
   CheckCircle,
   TrendingUp,
+  X,
 } from 'lucide-react';
 
 export default function LoansListPage() {
@@ -49,32 +43,26 @@ export default function LoansListPage() {
     overdue_loans: 0,
   });
 
-  // Filters and pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [loanTypeFilter, setLoanTypeFilter] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
 
-  // Approval dialog state
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
 
-  // Check if user can approve loans
   const canApproveLoan = user && (
     user.is_superuser ||
     user.is_tenant_owner ||
     ['admin', 'manager', 'loan_officer'].includes(user.role)
   );
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [authLoading, isAuthenticated, router]);
 
-  // Load loans only when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       loadLoans();
@@ -86,15 +74,10 @@ export default function LoansListPage() {
     try {
       setIsLoading(true);
       setError('');
-
-      const params: any = {
-        page: currentPage,
-      };
-
+      const params: any = { page: currentPage };
       if (searchTerm) params.search = searchTerm;
       if (statusFilter) params.status = statusFilter;
       if (loanTypeFilter) params.loan_type = loanTypeFilter;
-
       const response = await loansAPI.getLoans(params);
       setLoans(response.results || []);
       setTotalCount(response.count || 0);
@@ -144,7 +127,6 @@ export default function LoansListPage() {
 
   const handleApprove = async (notes?: string) => {
     if (!selectedLoan) return;
-
     try {
       await loansAPI.approveLoan(selectedLoan.id, notes);
       await loadLoans();
@@ -158,7 +140,6 @@ export default function LoansListPage() {
 
   const handleReject = async (notes: string) => {
     if (!selectedLoan) return;
-
     try {
       await loansAPI.rejectLoan(selectedLoan.id, notes);
       await loadLoans();
@@ -171,9 +152,9 @@ export default function LoansListPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+    return `RD$ ${amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     })}`;
   };
 
@@ -183,34 +164,6 @@ export default function LoansListPage() {
       month: 'short',
       day: 'numeric',
     });
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusStyles: Record<string, string> = {
-      active: 'bg-green-100 text-green-700',
-      pending: 'bg-yellow-100 text-yellow-700',
-      approved: 'bg-blue-100 text-blue-700',
-      paid: 'bg-slate-100 text-slate-700',
-      defaulted: 'bg-red-100 text-red-700',
-      rejected: 'bg-red-100 text-red-700',
-      completed: 'bg-green-100 text-green-700',
-    };
-
-    const statusLabels: Record<string, string> = {
-      active: 'Activo',
-      pending: 'Pendiente',
-      approved: 'Aprobado',
-      paid: 'Pagado',
-      defaulted: 'Moroso',
-      rejected: 'Rechazado',
-      completed: 'Completado',
-    };
-
-    return (
-      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusStyles[status] || 'bg-slate-100 text-slate-700'}`}>
-        {statusLabels[status] || status}
-      </span>
-    );
   };
 
   const getLoanTypeLabel = (type: string) => {
@@ -225,11 +178,12 @@ export default function LoansListPage() {
   };
 
   const totalPages = Math.ceil(totalCount / 20);
+  const hasFilters = searchTerm || statusFilter || loanTypeFilter;
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-7 w-7 animate-spin text-primary" />
       </div>
     );
   }
@@ -237,185 +191,148 @@ export default function LoansListPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Gestión de Préstamos</h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Administra y monitorea todos los préstamos del sistema
-            </p>
-          </div>
-          <Link href="/loans/new">
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Préstamo
-            </Button>
-          </Link>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Gestión de Préstamos</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Administra y monitorea todos los préstamos del sistema
+          </p>
         </div>
+        <Link href="/loans/new">
+          <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-md shadow-none">
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Nuevo Préstamo
+          </Button>
+        </Link>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-6 mb-8">
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                <FileText className="h-6 w-6 text-blue-600" />
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <Card className="border-border shadow-none">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div className="h-9 w-9 rounded-lg bg-[#e8eddf] flex items-center justify-center">
+                <FileText className="h-4.5 w-4.5 text-primary" style={{ height: 18, width: 18 }} />
               </div>
-              <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+              <div className="flex items-center gap-1 text-xs text-green-600">
                 <TrendingUp className="h-3 w-3" />
                 +8.2%
               </div>
             </div>
-            <p className="text-sm text-slate-600 mb-1">Total Préstamos</p>
-            <p className="text-2xl font-bold text-slate-900">{totalCount}</p>
+            <p className="text-xs text-muted-foreground mb-1">Total Préstamos</p>
+            <p className="text-2xl font-semibold text-foreground">{totalCount}</p>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-green-100 flex items-center justify-center">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-              </div>
+        <Card className="border-border shadow-none">
+          <CardContent className="p-5">
+            <div className="h-9 w-9 rounded-lg bg-green-50 flex items-center justify-center mb-3">
+              <CheckCircle className="h-4.5 w-4.5 text-green-600" style={{ height: 18, width: 18 }} />
             </div>
-            <p className="text-sm text-slate-600 mb-1">Activos</p>
-            <p className="text-2xl font-bold text-slate-900">{statistics.active_loans}</p>
+            <p className="text-xs text-muted-foreground mb-1">Activos</p>
+            <p className="text-2xl font-semibold text-foreground">{statistics.active_loans}</p>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-yellow-100 flex items-center justify-center">
-                <AlertCircle className="h-6 w-6 text-yellow-600" />
-              </div>
+        <Card className="border-border shadow-none">
+          <CardContent className="p-5">
+            <div className="h-9 w-9 rounded-lg bg-yellow-50 flex items-center justify-center mb-3">
+              <AlertCircle className="h-4.5 w-4.5 text-yellow-600" style={{ height: 18, width: 18 }} />
             </div>
-            <p className="text-sm text-slate-600 mb-1">Pendientes</p>
-            <p className="text-2xl font-bold text-slate-900">{statistics.pending_loans}</p>
+            <p className="text-xs text-muted-foreground mb-1">Pendientes</p>
+            <p className="text-2xl font-semibold text-foreground">{statistics.pending_loans}</p>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-red-100 flex items-center justify-center">
-                <AlertCircle className="h-6 w-6 text-red-600" />
-              </div>
+        <Card className="border-border shadow-none">
+          <CardContent className="p-5">
+            <div className="h-9 w-9 rounded-lg bg-red-50 flex items-center justify-center mb-3">
+              <AlertCircle className="h-4.5 w-4.5 text-red-600" style={{ height: 18, width: 18 }} />
             </div>
-            <p className="text-sm text-slate-600 mb-1">Morosos</p>
-            <p className="text-2xl font-bold text-slate-900">{statistics.overdue_loans}</p>
+            <p className="text-xs text-muted-foreground mb-1">Morosos</p>
+            <p className="text-2xl font-semibold text-foreground">{statistics.overdue_loans}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-6 border-slate-200 shadow-sm">
-        <CardHeader className="border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold text-slate-900">Filtros</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <Filter className="mr-2 h-4 w-4" />
-              {showFilters ? 'Ocultar' : 'Mostrar'}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="search" className="text-sm font-medium text-slate-700">Buscar</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="search"
-                  placeholder="Buscar por número de préstamo, cliente..."
-                  value={searchTerm}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
+      {/* Inline Filter Bar */}
+      <div className="flex items-center gap-3 mb-5">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por número o cliente..."
+            value={searchTerm}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="pl-9 h-8 text-sm border-border bg-card shadow-none"
+          />
+        </div>
+        <Select
+          value={statusFilter}
+          onChange={(e) => handleStatusFilter(e.target.value)}
+          className="h-8 text-sm border-border bg-card shadow-none w-40"
+        >
+          <option value="">Todos los estados</option>
+          <option value="pending">Pendiente</option>
+          <option value="approved">Aprobado</option>
+          <option value="rejected">Rechazado</option>
+          <option value="active">Activo</option>
+          <option value="paid">Pagado</option>
+          <option value="defaulted">Moroso</option>
+          <option value="completed">Completado</option>
+        </Select>
+        <Select
+          value={loanTypeFilter}
+          onChange={(e) => handleLoanTypeFilter(e.target.value)}
+          className="h-8 text-sm border-border bg-card shadow-none w-40"
+        >
+          <option value="">Todos los tipos</option>
+          <option value="personal">Personal</option>
+          <option value="auto">Automóvil</option>
+          <option value="mortgage">Hipotecario</option>
+          <option value="business">Empresarial</option>
+          <option value="other">Otro</option>
+        </Select>
+        {hasFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="h-8 text-xs text-muted-foreground hover:text-foreground px-2"
+          >
+            <X className="h-3.5 w-3.5 mr-1" />
+            Limpiar
+          </Button>
+        )}
+      </div>
 
-            {showFilters && (
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-200">
-                <div className="space-y-2">
-                  <Label htmlFor="status" className="text-sm font-medium text-slate-700">Estado</Label>
-                  <Select
-                    id="status"
-                    value={statusFilter}
-                    onChange={(e) => handleStatusFilter(e.target.value)}
-                  >
-                    <option value="">Todos los estados</option>
-                    <option value="pending">Pendiente</option>
-                    <option value="approved">Aprobado</option>
-                    <option value="rejected">Rechazado</option>
-                    <option value="active">Activo</option>
-                    <option value="paid">Pagado</option>
-                    <option value="defaulted">Moroso</option>
-                    <option value="completed">Completado</option>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="loan_type" className="text-sm font-medium text-slate-700">Tipo de Préstamo</Label>
-                  <Select
-                    id="loan_type"
-                    value={loanTypeFilter}
-                    onChange={(e) => handleLoanTypeFilter(e.target.value)}
-                  >
-                    <option value="">Todos los tipos</option>
-                    <option value="personal">Personal</option>
-                    <option value="auto">Automóvil</option>
-                    <option value="mortgage">Hipotecario</option>
-                    <option value="business">Empresarial</option>
-                    <option value="other">Otro</option>
-                  </Select>
-                </div>
-
-                <div className="flex items-end">
-                  <Button variant="outline" onClick={clearFilters} className="w-full">
-                    Limpiar Filtros
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Error */}
       {error && (
-        <Alert variant="destructive" className="mb-6">
+        <Alert variant="destructive" className="mb-5">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {/* Loans Table */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-12">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
-          <p className="text-slate-600">Cargando préstamos...</p>
+        <div className="flex flex-col items-center justify-center py-16">
+          <Loader2 className="h-7 w-7 animate-spin text-primary mb-3" />
+          <p className="text-sm text-muted-foreground">Cargando préstamos...</p>
         </div>
       ) : loans.length === 0 ? (
-        <Card className="border-slate-200">
-          <CardContent className="text-center py-12">
-            <div className="flex flex-col items-center gap-4">
-              <div className="rounded-full bg-slate-100 p-6">
-                <FileText className="h-12 w-12 text-slate-400" />
+        <Card className="border-border shadow-none">
+          <CardContent className="text-center py-14">
+            <div className="flex flex-col items-center gap-3">
+              <div className="rounded-full bg-muted p-5">
+                <FileText className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-semibold text-slate-900">No se encontraron préstamos</h3>
-              <p className="text-slate-600">
-                {searchTerm || statusFilter || loanTypeFilter
+              <h3 className="text-base font-semibold text-foreground">No se encontraron préstamos</h3>
+              <p className="text-sm text-muted-foreground">
+                {hasFilters
                   ? 'Intenta ajustar los filtros de búsqueda'
                   : 'Comienza creando tu primer préstamo'}
               </p>
               <Link href="/loans/new">
-                <Button className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-none mt-1">
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Crear Primer Préstamo
                 </Button>
               </Link>
@@ -423,63 +340,59 @@ export default function LoansListPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-border shadow-none">
           <CardContent className="p-0">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Cliente</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Préstamo</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Monto</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Pagado</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Balance</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Estado</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Acciones</th>
+                <tr className="border-b border-border">
+                  <th className="text-left py-2.5 px-5 text-xs font-medium text-muted-foreground">Cliente</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Préstamo</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Monto</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Pagado</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Balance</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Estado</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {loans.map((loan) => (
-                  <tr key={loan.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => router.push(`/loans/${loan.id}`)}>
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="font-medium text-slate-900">{loan.customer_name}</p>
-                        <p className="text-xs text-slate-500">{formatDate(loan.disbursement_date)}</p>
-                      </div>
+                  <tr
+                    key={loan.id}
+                    className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors cursor-pointer"
+                    onClick={() => router.push(`/loans/${loan.id}`)}
+                  >
+                    <td className="py-3 px-5">
+                      <p className="text-sm font-medium text-foreground">{loan.customer_name}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(loan.disbursement_date)}</p>
                     </td>
                     <td className="py-3 px-4">
-                      <div>
-                        <p className="font-medium text-slate-900">{loan.loan_number}</p>
-                        <p className="text-xs text-slate-500">{getLoanTypeLabel(loan.loan_type)}</p>
-                      </div>
+                      <p className="text-sm font-medium text-foreground">{loan.loan_number}</p>
+                      <p className="text-xs text-muted-foreground">{getLoanTypeLabel(loan.loan_type)}</p>
                     </td>
                     <td className="py-3 px-4">
-                      <p className="font-medium text-slate-900">{formatCurrency(loan.principal_amount)}</p>
-                      <p className="text-xs text-slate-500">{loan.interest_rate}% interés</p>
+                      <p className="text-sm font-medium text-foreground">{formatCurrency(loan.principal_amount)}</p>
+                      <p className="text-xs text-muted-foreground">{loan.interest_rate}% interés</p>
                     </td>
                     <td className="py-3 px-4">
-                      <p className="font-medium text-green-600">{formatCurrency(loan.total_paid || 0)}</p>
+                      <p className="text-sm font-medium text-green-600">{formatCurrency(loan.total_paid || 0)}</p>
                     </td>
                     <td className="py-3 px-4">
-                      <div>
-                        <p className="font-medium text-blue-600">{formatCurrency(loan.outstanding_balance)}</p>
-                        {loan.days_overdue > 0 && (
-                          <p className="text-xs text-red-600 font-medium">{loan.days_overdue}d mora</p>
-                        )}
-                      </div>
+                      <p className="text-sm font-medium text-foreground">{formatCurrency(loan.outstanding_balance)}</p>
+                      {loan.days_overdue > 0 && (
+                        <p className="text-xs text-red-500 font-medium">{loan.days_overdue}d mora</p>
+                      )}
                     </td>
                     <td className="py-3 px-4">
-                      {getStatusBadge(loan.status)}
+                      <StatusBadge status={loan.status} />
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                         {loan.status === 'pending' && canApproveLoan && (
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenApprovalDialog(loan);
-                            }}
+                            className="h-7 text-xs border-border shadow-none"
+                            onClick={() => handleOpenApprovalDialog(loan)}
                           >
                             Gestionar
                           </Button>
@@ -487,11 +400,8 @@ export default function LoansListPage() {
                         {loan.status === 'active' && (
                           <Button
                             size="sm"
-                            className="bg-blue-600 hover:bg-blue-700"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/payments/new?loan=${loan.id}`);
-                            }}
+                            className="h-7 text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-none"
+                            onClick={() => router.push(`/payments/new?loan=${loan.id}`)}
                           >
                             <DollarSign className="mr-1 h-3 w-3" />
                             Pagar
@@ -506,23 +416,28 @@ export default function LoansListPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="border-t border-slate-200 p-4">
+              <div className="border-t border-border px-5 py-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-slate-600">
-                    Mostrando {(currentPage - 1) * 20 + 1} a {Math.min(currentPage * 20, totalCount)} de {totalCount} préstamos
+                  <p className="text-xs text-muted-foreground">
+                    Mostrando {(currentPage - 1) * 20 + 1}–{Math.min(currentPage * 20, totalCount)} de {totalCount} préstamos
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-1">
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-7 text-xs border-border shadow-none"
                       onClick={() => setCurrentPage(currentPage - 1)}
                       disabled={currentPage === 1}
                     >
                       Anterior
                     </Button>
+                    <span className="px-3 text-xs text-muted-foreground">
+                      {currentPage} / {totalPages}
+                    </span>
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-7 text-xs border-border shadow-none"
                       onClick={() => setCurrentPage(currentPage + 1)}
                       disabled={currentPage === totalPages}
                     >
@@ -536,7 +451,6 @@ export default function LoansListPage() {
         </Card>
       )}
 
-      {/* Loan Approval/Rejection Dialog */}
       <LoanApprovalDialog
         loan={selectedLoan}
         open={approvalDialogOpen}

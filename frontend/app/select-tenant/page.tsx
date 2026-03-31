@@ -27,7 +27,7 @@ export default function SelectTenantPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#f0f3ec] via-white to-[#f0f3ec] flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
         <div className="text-center mb-12">
           <div className="flex items-center justify-center mb-6">
@@ -55,10 +55,10 @@ export default function SelectTenantPage() {
               href={tenant.url}
               className="block transition-all hover:scale-105"
             >
-              <Card className="h-full cursor-pointer hover:shadow-lg border-2 hover:border-indigo-500">
+              <Card className="h-full cursor-pointer hover:shadow-lg border-2 hover:border-[#738566]">
                 <CardHeader>
                   <div className="flex items-center justify-between mb-2">
-                    <Building2 className="h-8 w-8 text-indigo-600" />
+                    <Building2 className="h-8 w-8 text-[#163300]" />
                     <ChevronRight className="h-5 w-5 text-gray-400" />
                   </div>
                   <CardTitle className="text-xl">{tenant.name}</CardTitle>
@@ -88,7 +88,7 @@ export default function SelectTenantPage() {
               </p>
               <a
                 href="http://localhost:8000/admin/"
-                className="inline-flex items-center justify-center px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                className="inline-flex items-center justify-center px-6 py-3 bg-[#163300] text-white rounded-lg hover:bg-[#0f2400] transition-colors font-medium"
               >
                 Ir al Admin del Sistema
                 <ChevronRight className="ml-2 h-4 w-4" />
@@ -100,7 +100,7 @@ export default function SelectTenantPage() {
         <div className="mt-8 text-center text-sm text-gray-500">
           <p>
             ¿No encuentras tu organización?{' '}
-            <a href="mailto:support@crediflux.com" className="text-indigo-600 hover:underline">
+            <a href="mailto:support@crediflux.com" className="text-[#163300] hover:underline">
               Contacta soporte
             </a>
           </p>

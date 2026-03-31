@@ -327,7 +327,7 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0f3ec] via-white to-[#f0f3ec] p-4">
         <Card className="w-full max-w-md shadow-2xl">
           <CardHeader className="space-y-1">
             <div className="flex justify-center mb-4">
@@ -350,7 +350,7 @@ export default function RegisterPage() {
           <CardContent>
             <Button
               onClick={() => router.push('/login')}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              className="w-full bg-gradient-to-r from-blue-600 to-[#163300] hover:from-blue-700 hover:to-[#0f2400]"
             >
               Ir al Login
             </Button>
@@ -361,7 +361,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0f3ec] via-white to-[#f0f3ec] p-4 py-8">
       <Card className="w-full max-w-4xl shadow-2xl">
         <CardHeader className="space-y-4 pb-8">
           <div className="flex justify-center">
@@ -791,7 +791,7 @@ export default function RegisterPage() {
                       >
                         {plan.popular && (
                           <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                            <span className="bg-gradient-to-r from-blue-600 to-[#163300] text-white text-xs font-bold px-3 py-1 rounded-full">
                               Más Popular
                             </span>
                           </div>
@@ -807,7 +807,7 @@ export default function RegisterPage() {
                           <CheckCircle className="absolute top-4 right-4 h-6 w-6 text-blue-500" />
                         )}
                         <span className="font-bold text-xl text-gray-900">{plan.name}</span>
-                        <span className="text-3xl font-bold my-4 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                        <span className="text-3xl font-bold my-4 bg-gradient-to-r from-blue-600 to-[#163300] bg-clip-text text-transparent">
                           {plan.price}
                         </span>
                         <ul className="space-y-2 flex-grow">
@@ -852,7 +852,7 @@ export default function RegisterPage() {
                   type="button"
                   onClick={nextStep}
                   disabled={isLoading}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-[#163300] hover:from-blue-700 hover:to-[#0f2400]"
                 >
                   Siguiente
                   <ArrowRight className="ml-2 h-4 w-4" />

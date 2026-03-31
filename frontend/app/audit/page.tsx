@@ -60,7 +60,7 @@ const ACTION_COLORS: Record<string, string> = {
   login: 'bg-purple-100 text-purple-800',
   logout: 'bg-gray-100 text-gray-800',
   payment: 'bg-teal-100 text-teal-800',
-  '2fa_enable': 'bg-indigo-100 text-indigo-800',
+  '2fa_enable': 'bg-[#e8eddf] text-[#163300]',
   '2fa_disable': 'bg-amber-100 text-amber-800',
   password_change: 'bg-yellow-100 text-yellow-800',
 };

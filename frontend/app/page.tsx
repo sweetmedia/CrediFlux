@@ -54,7 +54,7 @@ export default function Home() {
               <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
                 Sign In
               </Link>
-              <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+              <Button asChild size="sm" className="bg-[#163300] hover:bg-[#0f2400]">
                 <Link href="/register">Get Started</Link>
               </Button>
             </div>
@@ -63,17 +63,17 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50 via-white to-white">
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#f0f3ec] via-white to-white">
         <div className="absolute inset-0 bg-grid-gray-900/[0.04] bg-[size:20px_20px]" />
         <div className="container relative mx-auto px-4 lg:px-8 py-20 lg:py-32">
           <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-8 inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-4 py-1.5 text-sm text-indigo-700">
+            <div className="mb-8 inline-flex items-center rounded-full border border-[#c5d1b8] bg-[#f0f3ec] px-4 py-1.5 text-sm text-[#163300]">
               <Zap className="mr-2 h-4 w-4" />
               <span className="font-medium">Multi-tenant SaaS Platform</span>
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl mb-6">
               Complete Financial Management
-              <span className="block bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="block bg-gradient-to-r from-[#163300] to-[#738566] bg-clip-text text-transparent">
                 for Modern Institutions
               </span>
             </h1>
@@ -81,7 +81,7 @@ export default function Home() {
               Streamline loans, invoicing, accounts receivable, inventory, accounting, and payroll with our powerful all-in-one platform. Built for scale, security, and ease of use.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" asChild className="bg-indigo-600 hover:bg-indigo-700 text-base px-8 h-12">
+              <Button size="lg" asChild className="bg-[#163300] hover:bg-[#0f2400] text-base px-8 h-12">
                 <Link href="/register">
                   Start Free Trial <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
@@ -110,7 +110,7 @@ export default function Home() {
       <section id="features" className="py-20 lg:py-32 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-base font-semibold text-indigo-600 mb-3">FEATURES</h2>
+            <h2 className="text-base font-semibold text-[#163300] mb-3">FEATURES</h2>
             <h3 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
               Everything you need to manage finances
             </h3>
@@ -121,10 +121,10 @@ export default function Home() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Feature Card 1 */}
-            <Card className="border-gray-200 hover:border-indigo-300 transition-colors">
+            <Card className="border-gray-200 hover:border-[#738566] transition-colors">
               <CardHeader>
-                <div className="h-12 w-12 rounded-lg bg-indigo-100 flex items-center justify-center mb-4">
-                  <DollarSign className="h-6 w-6 text-indigo-600" />
+                <div className="h-12 w-12 rounded-lg bg-[#e8eddf] flex items-center justify-center mb-4">
+                  <DollarSign className="h-6 w-6 text-[#163300]" />
                 </div>
                 <CardTitle className="text-xl">Loan Management</CardTitle>
                 <CardDescription className="text-base">
@@ -154,7 +154,7 @@ export default function Home() {
             </Card>
 
             {/* Feature Card 2 */}
-            <Card className="border-gray-200 hover:border-indigo-300 transition-colors">
+            <Card className="border-gray-200 hover:border-[#738566] transition-colors">
               <CardHeader>
                 <div className="h-12 w-12 rounded-lg bg-purple-100 flex items-center justify-center mb-4">
                   <Globe className="h-6 w-6 text-purple-600" />
@@ -187,7 +187,7 @@ export default function Home() {
             </Card>
 
             {/* Feature Card 3 */}
-            <Card className="border-gray-200 hover:border-indigo-300 transition-colors">
+            <Card className="border-gray-200 hover:border-[#738566] transition-colors">
               <CardHeader>
                 <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
                   <BarChart3 className="h-6 w-6 text-blue-600" />
@@ -220,7 +220,7 @@ export default function Home() {
             </Card>
 
             {/* Feature Card 4 */}
-            <Card className="border-gray-200 hover:border-indigo-300 transition-colors">
+            <Card className="border-gray-200 hover:border-[#738566] transition-colors">
               <CardHeader>
                 <div className="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center mb-4">
                   <Lock className="h-6 w-6 text-green-600" />
@@ -253,7 +253,7 @@ export default function Home() {
             </Card>
 
             {/* Feature Card 5 */}
-            <Card className="border-gray-200 hover:border-indigo-300 transition-colors">
+            <Card className="border-gray-200 hover:border-[#738566] transition-colors">
               <CardHeader>
                 <div className="h-12 w-12 rounded-lg bg-orange-100 flex items-center justify-center mb-4">
                   <Users className="h-6 w-6 text-orange-600" />
@@ -286,7 +286,7 @@ export default function Home() {
             </Card>
 
             {/* Feature Card 6 */}
-            <Card className="border-gray-200 hover:border-indigo-300 transition-colors">
+            <Card className="border-gray-200 hover:border-[#738566] transition-colors">
               <CardHeader>
                 <div className="h-12 w-12 rounded-lg bg-pink-100 flex items-center justify-center mb-4">
                   <HeadphonesIcon className="h-6 w-6 text-pink-600" />
@@ -322,20 +322,20 @@ export default function Home() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-gradient-to-b from-indigo-600 to-indigo-700 text-white">
+      <section className="py-20 bg-gradient-to-b from-[#163300] to-[#0f2400] text-white">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="grid md:grid-cols-3 gap-8 text-center">
             <div>
               <div className="text-4xl lg:text-5xl font-bold mb-2">500+</div>
-              <div className="text-indigo-100 text-lg">Financial Institutions</div>
+              <div className="text-[#e8eddf] text-lg">Financial Institutions</div>
             </div>
             <div>
               <div className="text-4xl lg:text-5xl font-bold mb-2">$2.5B+</div>
-              <div className="text-indigo-100 text-lg">Loans Processed</div>
+              <div className="text-[#e8eddf] text-lg">Loans Processed</div>
             </div>
             <div>
               <div className="text-4xl lg:text-5xl font-bold mb-2">99.9%</div>
-              <div className="text-indigo-100 text-lg">Uptime SLA</div>
+              <div className="text-[#e8eddf] text-lg">Uptime SLA</div>
             </div>
           </div>
         </div>
@@ -344,18 +344,18 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-20 lg:py-32 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
-          <Card className="border-0 shadow-2xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white overflow-hidden">
+          <Card className="border-0 shadow-2xl bg-gradient-to-br from-[#163300] to-[#163300] text-white overflow-hidden">
             <CardContent className="p-12 lg:p-16 text-center relative">
               <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
               <div className="relative">
                 <h2 className="text-3xl lg:text-4xl font-bold mb-4">
                   Ready to Transform Your Operations?
                 </h2>
-                <p className="text-xl text-indigo-100 mb-10 max-w-2xl mx-auto">
+                <p className="text-xl text-[#e8eddf] mb-10 max-w-2xl mx-auto">
                   Join hundreds of financial institutions using CrediFlux to streamline their operations
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <Button size="lg" variant="secondary" asChild className="bg-white text-indigo-600 hover:bg-gray-100 text-base px-8 h-12">
+                  <Button size="lg" variant="secondary" asChild className="bg-white text-[#163300] hover:bg-gray-100 text-base px-8 h-12">
                     <Link href="/register">
                       Start Free Trial <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>

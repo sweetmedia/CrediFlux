@@ -9,6 +9,7 @@ import { loansAPI } from '@/lib/api/loans';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { StatusBadge } from '@/components/ui/status-badge';
 import {
   DollarSign,
   TrendingUp,
@@ -63,12 +64,10 @@ export default function DashboardPage() {
     try {
       setIsLoadingStats(true);
       setError('');
-
       const [statsData, loansData] = await Promise.all([
         loansAPI.getDashboardStatistics(),
         loansAPI.getLoans({ page: 1 }),
       ]);
-
       setDashboardStats(statsData);
       setRecentLoans(loansData.results.slice(0, 5));
     } catch (err: any) {
@@ -80,7 +79,7 @@ export default function DashboardPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return `${config.currency_symbol}${amount.toLocaleString('en-US', {
+    return `RD$ ${amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
@@ -88,9 +87,9 @@ export default function DashboardPage() {
 
   const formatCompactCurrency = (amount: number) => {
     if (amount >= 1000000) {
-      return `${config.currency_symbol}${(amount / 1000000).toFixed(1)}M`;
+      return `RD$ ${(amount / 1000000).toFixed(1)}M`;
     } else if (amount >= 1000) {
-      return `${config.currency_symbol}${(amount / 1000).toFixed(1)}K`;
+      return `RD$ ${(amount / 1000).toFixed(1)}K`;
     }
     return formatCurrency(amount);
   };
@@ -102,27 +101,23 @@ export default function DashboardPage() {
     });
   };
 
-  // Merge monthly_disbursements + monthly_collections into unified chart data
   const buildChartData = (stats: DashboardStatistics) => {
     const months: Record<string, { month: string; desembolsado: number; recaudado: number }> = {};
-
     stats.charts.monthly_disbursements.forEach(({ month, amount }) => {
       if (!months[month]) months[month] = { month, desembolsado: 0, recaudado: 0 };
       months[month].desembolsado = amount;
     });
-
     stats.charts.monthly_collections.forEach(({ month, amount }) => {
       if (!months[month]) months[month] = { month, desembolsado: 0, recaudado: 0 };
       months[month].recaudado = amount;
     });
-
     return Object.values(months).sort((a, b) => a.month.localeCompare(b.month));
   };
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-7 w-7 animate-spin text-primary" />
       </div>
     );
   }
@@ -133,21 +128,24 @@ export default function DashboardPage() {
       : 0
     : 0;
 
+  const getLoanTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      personal: 'Personal', auto: 'Auto', mortgage: 'Hipoteca',
+      business: 'Negocio', student: 'Estudiantil', payday: 'Nómina',
+    };
+    return labels[type] ?? type;
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="px-8 py-6">
+    <div className="min-h-screen bg-background">
+      {/* Page header */}
+      <div className="bg-card border-b border-border">
+        <div className="px-8 py-5">
           <div className="flex items-center justify-between">
             <div>
-              <div className="flex items-center gap-3 mb-1">
-                <h1 className="text-2xl font-bold text-slate-900">Dashboard Ejecutivo</h1>
-                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
-                  En Vivo
-                </span>
-              </div>
-              <p className="text-sm text-slate-500 flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
+              <h1 className="text-xl font-semibold text-foreground">Dashboard Ejecutivo</h1>
+              <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
                 {new Date().toLocaleDateString('es-ES', {
                   weekday: 'long',
                   year: 'numeric',
@@ -156,9 +154,9 @@ export default function DashboardPage() {
                 })}
               </p>
             </div>
-            <Button asChild className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/30">
+            <Button asChild size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-md shadow-none">
               <Link href="/loans/new">
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
                 Nuevo Préstamo
               </Link>
             </Button>
@@ -174,218 +172,181 @@ export default function DashboardPage() {
         )}
 
         {isLoadingStats ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-7 w-7 animate-spin text-primary" />
           </div>
         ) : dashboardStats ? (
           <>
-            {/* Row 1: 5 KPI Cards */}
-            <div className="grid grid-cols-5 gap-4 mb-8">
-              {/* Valor de Cartera */}
-              <Card className="border-slate-200 shadow-sm">
+            {/* KPI Row */}
+            <div className="grid grid-cols-5 gap-4 mb-6">
+              {/* Cartera Activa */}
+              <Card className="border-border shadow-none">
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                      <Wallet className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div className="flex items-center gap-1 text-xs font-medium text-green-600">
-                      <TrendingUp className="h-3 w-3" />
-                      Activa
-                    </div>
-                  </div>
-                  <p className="text-xs font-medium text-slate-500 mb-1">Valor de Cartera</p>
-                  <p className="text-xl font-bold text-slate-900">
+                  <p className="text-xs font-medium text-muted-foreground mb-3">Cartera Activa</p>
+                  <p className="text-2xl font-semibold text-foreground leading-none mb-2">
                     {formatCompactCurrency(dashboardStats.financial.total_outstanding)}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {dashboardStats.summary.active_loans} préstamos activos
-                  </p>
+                  <div className="flex items-center gap-1 text-xs text-green-600">
+                    <TrendingUp className="h-3 w-3" />
+                    <span>{dashboardStats.summary.active_loans} activos</span>
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* Total Desembolsado */}
-              <Card className="border-slate-200 shadow-sm">
+              {/* Desembolsado */}
+              <Card className="border-border shadow-none">
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="h-10 w-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-                      <Banknote className="h-5 w-5 text-indigo-600" />
-                    </div>
-                  </div>
-                  <p className="text-xs font-medium text-slate-500 mb-1">Total Desembolsado</p>
-                  <p className="text-xl font-bold text-slate-900">
+                  <p className="text-xs font-medium text-muted-foreground mb-3">Total Desembolsado</p>
+                  <p className="text-2xl font-semibold text-foreground leading-none mb-2">
                     {formatCompactCurrency(dashboardStats.financial.total_disbursed)}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-muted-foreground">
                     {dashboardStats.summary.total_loans} préstamos totales
                   </p>
                 </CardContent>
               </Card>
 
-              {/* Total Recaudado */}
-              <Card className="border-slate-200 shadow-sm">
+              {/* Recaudado */}
+              <Card className="border-border shadow-none">
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center">
-                      <DollarSign className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div className="flex items-center gap-1 text-xs font-medium text-green-600">
-                      <TrendingUp className="h-3 w-3" />
-                      Cobrado
-                    </div>
-                  </div>
-                  <p className="text-xs font-medium text-slate-500 mb-1">Total Recaudado</p>
-                  <p className="text-xl font-bold text-slate-900">
+                  <p className="text-xs font-medium text-muted-foreground mb-3">Total Recaudado</p>
+                  <p className="text-2xl font-semibold text-foreground leading-none mb-2">
                     {formatCompactCurrency(dashboardStats.financial.total_collected)}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {dashboardStats.summary.recent_payments_7d} pagos últimos 7d
-                  </p>
+                  <div className="flex items-center gap-1 text-xs text-green-600">
+                    <TrendingUp className="h-3 w-3" />
+                    <span>{dashboardStats.summary.recent_payments_7d} pagos (7d)</span>
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* Mora - RED */}
-              <Card className="border-red-200 shadow-sm bg-red-50">
+              {/* Mora */}
+              <Card className="border-red-200 shadow-none bg-red-50/50">
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="h-10 w-10 rounded-xl bg-red-100 flex items-center justify-center">
-                      <AlertCircle className="h-5 w-5 text-red-600" />
-                    </div>
-                    <div className="flex items-center gap-1 text-xs font-medium text-red-600">
-                      <TrendingDown className="h-3 w-3" />
-                      Alerta
-                    </div>
-                  </div>
-                  <p className="text-xs font-medium text-red-700 mb-1">En Mora</p>
-                  <p className="text-xl font-bold text-red-900">
+                  <p className="text-xs font-medium text-red-600/80 mb-3">En Mora</p>
+                  <p className="text-2xl font-semibold text-red-700 leading-none mb-2">
                     {dashboardStats.summary.defaulted_loans}
                   </p>
-                  <p className="text-xs text-red-700 mt-1">
-                    {dashboardStats.summary.overdue_schedules} cuotas vencidas
-                  </p>
+                  <div className="flex items-center gap-1 text-xs text-red-500">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>{dashboardStats.summary.overdue_schedules} cuotas vencidas</span>
+                  </div>
                 </CardContent>
               </Card>
 
               {/* Tasa de Recuperación */}
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="border-border shadow-none">
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                      <Target className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div className="flex items-center gap-1 text-xs font-medium text-green-600">
-                      <TrendingUp className="h-3 w-3" />
-                    </div>
-                  </div>
-                  <p className="text-xs font-medium text-slate-500 mb-1">Tasa de Recuperación</p>
-                  <p className="text-xl font-bold text-slate-900">{recoveryRate}%</p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs font-medium text-muted-foreground mb-3">Tasa de Recuperación</p>
+                  <p className="text-2xl font-semibold text-foreground leading-none mb-2">{recoveryRate}%</p>
+                  <p className="text-xs text-muted-foreground">
                     {dashboardStats.summary.paid_loans} préstamos pagados
                   </p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Row 2: Charts */}
-            <div className="grid grid-cols-3 gap-6 mb-8">
-              {/* Area Chart - monthly performance */}
-              <Card className="col-span-2 border-slate-200 shadow-sm">
-                <CardHeader>
+            {/* Charts Row */}
+            <div className="grid grid-cols-3 gap-5 mb-6">
+              {/* Area Chart */}
+              <Card className="col-span-2 border-border shadow-none">
+                <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-base font-bold text-slate-900">
-                        Rendimiento Mensual
-                      </CardTitle>
-                      <CardDescription>Desembolsos vs Recaudación</CardDescription>
+                      <CardTitle className="text-sm font-semibold text-foreground">Rendimiento Mensual</CardTitle>
+                      <CardDescription className="text-xs">Desembolsos vs Recaudación</CardDescription>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" size="sm" asChild className="h-7 text-xs border-border shadow-none">
                       <Link href="/loans">
                         Ver Reporte
-                        <ArrowUpRight className="ml-2 h-4 w-4" />
+                        <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
                       </Link>
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <AreaChart data={buildChartData(dashboardStats)}>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={buildChartData(dashboardStats)} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="gradDesembolsado" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#163300" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#163300" stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="gradRecaudado" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#30B130" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#30B130" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                      <XAxis dataKey="month" stroke="#64748B" fontSize={12} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e3e8ee" vertical={false} />
+                      <XAxis dataKey="month" stroke="#697386" fontSize={11} tickLine={false} axisLine={false} />
                       <YAxis
-                        stroke="#64748B"
-                        fontSize={11}
+                        stroke="#697386"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
                         tickFormatter={(v) => formatCompactCurrency(v)}
+                        width={70}
                       />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: 'white',
-                          border: '1px solid #E2E8F0',
-                          borderRadius: '8px',
-                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                          border: '1px solid #e3e8ee',
+                          borderRadius: '6px',
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                          fontSize: 12,
                         }}
                         formatter={(value) => [formatCompactCurrency(Number(value)), '']}
                       />
-                      <Legend />
+                      <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
                       <Area
                         type="monotone"
                         dataKey="desembolsado"
-                        stroke="#3B82F6"
-                        strokeWidth={2}
+                        stroke="#163300"
+                        strokeWidth={1.5}
                         fillOpacity={1}
                         fill="url(#gradDesembolsado)"
                         name="Desembolsado"
+                        dot={false}
                       />
                       <Area
                         type="monotone"
                         dataKey="recaudado"
-                        stroke="#10B981"
-                        strokeWidth={2}
+                        stroke="#30B130"
+                        strokeWidth={1.5}
                         fillOpacity={1}
                         fill="url(#gradRecaudado)"
                         name="Recaudado"
+                        dot={false}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
 
-              {/* Portfolio quality - status distribution */}
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base font-bold text-slate-900">
-                    Distribución de Cartera
-                  </CardTitle>
-                  <CardDescription>Por estado de préstamo</CardDescription>
+              {/* Portfolio Distribution */}
+              <Card className="border-border shadow-none">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-sm font-semibold text-foreground">Distribución de Cartera</CardTitle>
+                  <CardDescription className="text-xs">Por estado de préstamo</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
+                  <div className="space-y-3.5">
                     {dashboardStats.charts.status_distribution.map((item) => {
                       const total = dashboardStats.charts.status_distribution.reduce(
-                        (sum, s) => sum + s.value,
-                        0
+                        (sum, s) => sum + s.value, 0
                       );
                       const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
                       return (
                         <div key={item.name}>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-sm font-medium text-slate-700">{item.name}</span>
-                            <span className="text-sm font-bold text-slate-900">
-                              {item.value}{' '}
-                              <span className="text-xs font-normal text-slate-500">({pct}%)</span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-foreground">{item.name}</span>
+                            <span className="text-xs font-semibold text-foreground">
+                              {item.value} <span className="font-normal text-muted-foreground">({pct}%)</span>
                             </span>
                           </div>
-                          <div className="w-full bg-slate-200 rounded-full h-2">
+                          <div className="w-full bg-secondary rounded-full h-1.5">
                             <div
-                              className="h-2 rounded-full transition-all duration-500"
+                              className="h-1.5 rounded-full transition-all duration-500"
                               style={{ width: `${pct}%`, backgroundColor: item.color }}
                             />
                           </div>
@@ -393,235 +354,151 @@ export default function DashboardPage() {
                       );
                     })}
                     {dashboardStats.charts.status_distribution.length === 0 && (
-                      <p className="text-sm text-slate-500 text-center py-4">Sin datos</p>
+                      <p className="text-xs text-muted-foreground text-center py-4">Sin datos</p>
                     )}
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Row 3: Quick Actions */}
-            <div className="grid grid-cols-3 gap-6 mb-8">
-              {/* Overdue schedules */}
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-amber-500" />
-                    <CardTitle className="text-base font-bold text-slate-900">
-                      Cuotas Vencidas
-                    </CardTitle>
+            {/* Quick Actions */}
+            <div className="grid grid-cols-3 gap-5 mb-6">
+              <Card className="border-border shadow-none">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Clock className="h-4 w-4 text-amber-500" />
+                    <p className="text-sm font-semibold text-foreground">Cuotas Vencidas</p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="text-4xl font-bold text-amber-600">
-                      {dashboardStats.summary.overdue_schedules}
-                    </div>
-                    <div className="text-sm text-slate-600">cuotas pendientes de cobro</div>
-                  </div>
-                  <p className="text-xs text-slate-500 mb-4">
-                    {dashboardStats.summary.defaulted_loans} préstamos en mora actualmente
+                  <p className="text-3xl font-semibold text-amber-600 mb-1">
+                    {dashboardStats.summary.overdue_schedules}
                   </p>
-                  <Button variant="outline" size="sm" className="w-full" asChild>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    {dashboardStats.summary.defaulted_loans} préstamos en mora
+                  </p>
+                  <Button variant="outline" size="sm" className="w-full text-xs h-8 border-border shadow-none" asChild>
                     <Link href="/collections">
                       Gestionar Cobros
-                      <ArrowUpRight className="ml-2 h-4 w-4" />
+                      <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
                     </Link>
                   </Button>
                 </CardContent>
               </Card>
 
-              {/* Pending loans */}
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-blue-500" />
-                    <CardTitle className="text-base font-bold text-slate-900">
-                      Pendientes de Aprobación
-                    </CardTitle>
+              <Card className="border-border shadow-none">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">Pendientes de Aprobación</p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="text-4xl font-bold text-blue-600">
-                      {dashboardStats.summary.pending_loans}
-                    </div>
-                    <div className="text-sm text-slate-600">solicitudes esperando revisión</div>
-                  </div>
-                  <p className="text-xs text-slate-500 mb-4">
-                    Requieren aprobación del oficial de crédito
+                  <p className="text-3xl font-semibold text-primary mb-1">
+                    {dashboardStats.summary.pending_loans}
                   </p>
-                  <Button variant="outline" size="sm" className="w-full" asChild>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Solicitudes esperando revisión
+                  </p>
+                  <Button variant="outline" size="sm" className="w-full text-xs h-8 border-border shadow-none" asChild>
                     <Link href="/loans?status=pending">
                       Revisar Solicitudes
-                      <ArrowUpRight className="ml-2 h-4 w-4" />
+                      <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
                     </Link>
                   </Button>
                 </CardContent>
               </Card>
 
-              {/* Recent activity */}
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-green-500" />
-                    <CardTitle className="text-base font-bold text-slate-900">
-                      Actividad Reciente
-                    </CardTitle>
+              <Card className="border-border shadow-none">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Activity className="h-4 w-4 text-green-500" />
+                    <p className="text-sm font-semibold text-foreground">Actividad Reciente</p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between py-2 px-3 bg-[#e8eddf] rounded-md">
                       <div className="flex items-center gap-2">
-                        <Banknote className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-medium text-slate-700">Nuevos Préstamos</span>
+                        <Banknote className="h-3.5 w-3.5 text-[#163300]" />
+                        <span className="text-xs text-foreground">Nuevos Préstamos</span>
                       </div>
-                      <span className="text-lg font-bold text-blue-700">
+                      <span className="text-sm font-semibold text-[#163300]">
                         {dashboardStats.summary.recent_loans_7d}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <div className="flex items-center justify-between py-2 px-3 bg-green-50 rounded-md">
                       <div className="flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-green-600" />
-                        <span className="text-sm font-medium text-slate-700">Pagos Recibidos</span>
+                        <DollarSign className="h-3.5 w-3.5 text-green-500" />
+                        <span className="text-xs text-foreground">Pagos Recibidos</span>
                       </div>
-                      <span className="text-lg font-bold text-green-700">
+                      <span className="text-sm font-semibold text-green-700">
                         {dashboardStats.summary.recent_payments_7d}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 text-center">Últimos 7 días</p>
+                    <p className="text-xs text-muted-foreground text-center">Últimos 7 días</p>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Row 4: Recent Loans Table */}
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader>
+            {/* Recent Loans Table */}
+            <Card className="border-border shadow-none">
+              <CardHeader className="pb-0">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-base font-bold text-slate-900">
-                      Préstamos Recientes
-                    </CardTitle>
-                    <CardDescription>Últimas solicitudes y desembolsos</CardDescription>
+                    <CardTitle className="text-sm font-semibold text-foreground">Préstamos Recientes</CardTitle>
+                    <CardDescription className="text-xs">Últimas solicitudes y desembolsos</CardDescription>
                   </div>
-                  <Button variant="outline" size="sm" asChild>
+                  <Button variant="outline" size="sm" asChild className="h-7 text-xs border-border shadow-none">
                     <Link href="/loans">
                       Ver Todos
-                      <ArrowUpRight className="ml-2 h-4 w-4" />
+                      <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
                     </Link>
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-hidden">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Cliente / Préstamo
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Tipo
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Monto
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Estado
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Fecha
-                        </th>
+              <CardContent className="px-0 pb-0">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-y border-border">
+                      <th className="text-left py-2.5 px-6 text-xs font-medium text-muted-foreground">Cliente / Préstamo</th>
+                      <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Tipo</th>
+                      <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Monto</th>
+                      <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Estado</th>
+                      <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentLoans.map((loan) => (
+                      <tr
+                        key={loan.id}
+                        className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors cursor-pointer"
+                        onClick={() => router.push(`/loans/${loan.id}`)}
+                      >
+                        <td className="py-3 px-6">
+                          <p className="text-sm font-medium text-foreground">{loan.customer_name}</p>
+                          <p className="text-xs text-muted-foreground">{loan.loan_number}</p>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-sm text-muted-foreground">{getLoanTypeLabel(loan.loan_type)}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-sm font-medium text-foreground">
+                            {formatCurrency(loan.principal_amount)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <StatusBadge status={loan.status} />
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-sm text-muted-foreground">{formatDate(loan.created_at)}</span>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {recentLoans.map((loan) => (
-                        <tr
-                          key={loan.id}
-                          className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
-                        >
-                          <td className="py-3 px-4">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">
-                                {loan.customer_name}
-                              </p>
-                              <p className="text-xs text-slate-500">{loan.loan_number}</p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="text-sm text-slate-600">
-                              {loan.loan_type === 'personal'
-                                ? 'Personal'
-                                : loan.loan_type === 'auto'
-                                ? 'Auto'
-                                : loan.loan_type === 'mortgage'
-                                ? 'Hipoteca'
-                                : loan.loan_type === 'business'
-                                ? 'Negocio'
-                                : loan.loan_type === 'student'
-                                ? 'Estudiantil'
-                                : loan.loan_type === 'payday'
-                                ? 'Nómina'
-                                : loan.loan_type}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="text-sm font-bold text-slate-900">
-                              {formatCurrency(loan.principal_amount)}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                loan.status === 'active'
-                                  ? 'bg-green-100 text-green-700'
-                                  : loan.status === 'pending'
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : loan.status === 'defaulted'
-                                  ? 'bg-red-100 text-red-700'
-                                  : loan.status === 'paid'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : loan.status === 'approved'
-                                  ? 'bg-teal-100 text-teal-700'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {loan.status === 'active'
-                                ? 'Activo'
-                                : loan.status === 'pending'
-                                ? 'Pendiente'
-                                : loan.status === 'defaulted'
-                                ? 'Mora'
-                                : loan.status === 'paid'
-                                ? 'Pagado'
-                                : loan.status === 'approved'
-                                ? 'Aprobado'
-                                : loan.status === 'rejected'
-                                ? 'Rechazado'
-                                : loan.status === 'written_off'
-                                ? 'Castigado'
-                                : loan.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="text-sm text-slate-500">
-                              {formatDate(loan.created_at)}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {recentLoans.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="py-8 text-center text-sm text-slate-500">
-                            No hay préstamos registrados
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                    {recentLoans.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                          No hay préstamos registrados
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </CardContent>
             </Card>
           </>
