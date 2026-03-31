@@ -72,7 +72,7 @@ class Customer(UUIDModel, AuditModel):
     monthly_income = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         blank=True,
         null=True
     )
@@ -279,7 +279,7 @@ class Loan(UUIDModel, AuditModel):
     principal_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD'
+        default_currency='DOP'
     )
     interest_rate = models.DecimalField(
         max_digits=5,
@@ -322,7 +322,7 @@ class Loan(UUIDModel, AuditModel):
     payment_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         help_text="Regular payment amount"
     )
 
@@ -350,25 +350,25 @@ class Loan(UUIDModel, AuditModel):
     outstanding_balance = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=0
     )
     total_paid = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=0
     )
     total_interest_paid = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=0
     )
     late_fees = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=0
     )
 
@@ -493,24 +493,24 @@ class LoanSchedule(UUIDModel, TimeStampedModel):
     total_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD'
+        default_currency='DOP'
     )
     principal_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD'
+        default_currency='DOP'
     )
     interest_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD'
+        default_currency='DOP'
     )
 
     # Payment tracking
     paid_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=0
     )
     paid_date = models.DateField(blank=True, null=True)
@@ -530,7 +530,7 @@ class LoanSchedule(UUIDModel, TimeStampedModel):
     late_fee_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=Decimal('0.00'),
         help_text='Monto de mora acumulado'
     )
@@ -538,7 +538,7 @@ class LoanSchedule(UUIDModel, TimeStampedModel):
     late_fee_paid = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=Decimal('0.00'),
         help_text='Mora pagada'
     )
@@ -589,26 +589,26 @@ class LoanPayment(UUIDModel, AuditModel):
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD'
+        default_currency='DOP'
     )
 
     # Amount allocation
     principal_paid = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=0
     )
     interest_paid = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=0
     )
     late_fee_paid = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=0
     )
 
@@ -695,12 +695,12 @@ class Collateral(UUIDModel, AuditModel):
     estimated_value = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD'
+        default_currency='DOP'
     )
     appraisal_value = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         blank=True,
         null=True
     )

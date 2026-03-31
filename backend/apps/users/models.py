@@ -64,7 +64,7 @@ class User(AbstractUser):
     daily_collection_target = MoneyField(
         max_digits=12,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         null=True,
         blank=True,
         help_text='Meta diaria de cobros para el cobrador'

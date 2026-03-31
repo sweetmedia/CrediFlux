@@ -7,7 +7,8 @@ from .views import (
     CustomerViewSet, CustomerDocumentViewSet, LoanViewSet, LoanPaymentViewSet,
     LoanScheduleViewSet, CollateralViewSet, CollectionReminderViewSet, CollectionContactViewSet,
     ContractTemplateViewSet, ContractViewSet,
-    public_contract_view, public_contract_sign
+    public_contract_view, public_contract_sign,
+    LoanCalculatorView,
 )
 
 app_name = 'loans'
@@ -25,6 +26,9 @@ router.register(r'contracts', ContractViewSet, basename='contract')
 router.register(r'', LoanViewSet, basename='loan')  # Root viewset must be last
 
 urlpatterns = [
+    # Loan calculator (no loan record created)
+    path('calculate/', LoanCalculatorView.as_view(), name='loan-calculate'),
+
     # Public contract signature endpoints (no auth required)
     path('public/contracts/<str:token>/', public_contract_view, name='public-contract-view'),
     path('public/contracts/<str:token>/sign/', public_contract_sign, name='public-contract-sign'),

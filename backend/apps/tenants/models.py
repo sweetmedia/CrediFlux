@@ -70,7 +70,7 @@ class Tenant(TenantMixin):
     late_fee_fixed_amount = MoneyField(
         max_digits=10,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=Decimal('0.00'),
         help_text='Monto fijo de mora'
     )
@@ -339,7 +339,7 @@ class Tenant(TenantMixin):
     min_loan_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=Decimal('100.00'),
         help_text='Monto mínimo de préstamo'
     )
@@ -347,7 +347,7 @@ class Tenant(TenantMixin):
     max_loan_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=Decimal('50000.00'),
         help_text='Monto máximo de préstamo'
     )
@@ -404,7 +404,7 @@ class Tenant(TenantMixin):
     collateral_required_above = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=Decimal('10000.00'),
         null=True,
         blank=True,
@@ -420,7 +420,7 @@ class Tenant(TenantMixin):
     auto_approval_max_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=Decimal('1000.00'),
         null=True,
         blank=True,
@@ -571,7 +571,7 @@ class Tenant(TenantMixin):
     enhanced_verification_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=Decimal('5000.00'),
         null=True,
         blank=True,
@@ -607,7 +607,7 @@ class Tenant(TenantMixin):
     guarantor_required_above = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         default=Decimal('10000.00'),
         null=True,
         blank=True,

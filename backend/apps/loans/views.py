@@ -5,6 +5,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q, Sum, Count
@@ -19,7 +20,8 @@ from .serializers import (
     LoanSerializer, LoanListSerializer, LoanCreateSerializer,
     LoanScheduleSerializer, LoanPaymentSerializer, LoanPaymentCreateSerializer,
     CollateralSerializer, CollectionReminderSerializer, CollectionReminderCreateSerializer,
-    CollectionContactSerializer, CollectionContactCreateSerializer
+    CollectionContactSerializer, CollectionContactCreateSerializer,
+    LoanCalculatorInputSerializer, LoanCalculatorResultSerializer,
 )
 from .permissions import CanApproveLoan, CanManageLoans
 
@@ -483,24 +485,104 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         total_collected = loans.aggregate(total=Sum('total_paid'))['total']
 
+        # --- Enhanced stats ---
+        # Portfolio totals
+        total_portfolio_amount = loans.filter(status='active').aggregate(
+            total=Sum('outstanding_balance')
+        )['total']
+        total_portfolio = float(total_portfolio_amount.amount) if hasattr(total_portfolio_amount, 'amount') else float(total_portfolio_amount or 0)
+
+        # Overdue active loans: active loans with at least one overdue unpaid schedule item
+        overdue_loan_ids = LoanSchedule.objects.filter(
+            loan__in=loans.filter(status='active'),
+            status__in=['pending', 'partial'],
+            due_date__lt=today
+        ).values_list('loan_id', flat=True).distinct()
+
+        total_overdue_amount = loans.filter(id__in=overdue_loan_ids).aggregate(
+            total=Sum('outstanding_balance')
+        )['total']
+        total_overdue = float(total_overdue_amount.amount) if hasattr(total_overdue_amount, 'amount') else float(total_overdue_amount or 0)
+
+        overdue_percentage = round((total_overdue / total_portfolio * 100) if total_portfolio else 0, 2)
+
+        # Collections (completed payments only)
+        week_start = today - timedelta(days=today.weekday())
+        month_start = today.replace(day=1)
+
+        def _sum_payments(qs):
+            v = qs.aggregate(total=Sum('amount'))['total']
+            return float(v.amount) if hasattr(v, 'amount') else float(v or 0)
+
+        base_payments = LoanPayment.objects.filter(loan__in=loans, status='completed')
+        collections_today = _sum_payments(base_payments.filter(payment_date=today))
+        collections_this_week = _sum_payments(base_payments.filter(payment_date__gte=week_start))
+        collections_this_month = _sum_payments(base_payments.filter(payment_date__gte=month_start))
+
+        # Pending approvals
+        pending_approvals = loans.filter(status='pending').count()
+
+        # Loans by status
+        loans_by_status = {
+            item['status']: item['count']
+            for item in loans.values('status').annotate(count=Count('id'))
+        }
+
+        # Top 5 overdue customers
+        overdue_schedules_qs = LoanSchedule.objects.filter(
+            loan__in=loans.filter(status='active'),
+            status__in=['pending', 'partial'],
+            due_date__lt=today
+        ).select_related('loan__customer').order_by('due_date')
+
+        # Aggregate per loan: max days overdue and outstanding balance
+        top_overdue_map = {}
+        for sched in overdue_schedules_qs:
+            loan_obj = sched.loan
+            lid = str(loan_obj.id)
+            days = (today - sched.due_date).days
+            if lid not in top_overdue_map or days > top_overdue_map[lid]['days_overdue']:
+                outstanding = loan_obj.outstanding_balance
+                top_overdue_map[lid] = {
+                    'customer_name': loan_obj.customer.get_full_name(),
+                    'loan_number': loan_obj.loan_number,
+                    'days_overdue': days,
+                    'overdue_amount': float(outstanding.amount) if hasattr(outstanding, 'amount') else float(outstanding or 0),
+                }
+
+        top_overdue_customers = sorted(
+            top_overdue_map.values(), key=lambda x: x['days_overdue'], reverse=True
+        )[:5]
+
         return Response({
             'summary': {
                 **basic_stats,
                 'overdue_schedules': overdue_schedules,
                 'recent_loans_7d': recent_loans,
                 'recent_payments_7d': recent_payments,
+                'pending_approvals': pending_approvals,
+                'loans_by_status': loans_by_status,
             },
             'financial': {
                 'total_disbursed': float(total_disbursed.amount) if hasattr(total_disbursed, 'amount') else float(total_disbursed or 0),
                 'total_outstanding': float(total_outstanding.amount) if hasattr(total_outstanding, 'amount') else float(total_outstanding or 0),
                 'total_collected': float(total_collected.amount) if hasattr(total_collected, 'amount') else float(total_collected or 0),
+                'total_portfolio_amount': total_portfolio,
+                'total_overdue_amount': total_overdue,
+                'overdue_percentage': overdue_percentage,
+                'collections_today': collections_today,
+                'collections_this_week': collections_this_week,
+                'collections_this_month': collections_this_month,
             },
             'charts': {
                 'status_distribution': status_distribution,
                 'monthly_disbursements': monthly_disbursements,
                 'monthly_collections': monthly_collections,
                 'type_distribution': type_distribution,
-            }
+                'disbursements_by_month': monthly_disbursements,
+                'collections_by_month': monthly_collections,
+            },
+            'top_overdue_customers': top_overdue_customers,
         })
 
     def _generate_payment_schedule(self, loan):
@@ -1819,3 +1901,250 @@ def public_contract_sign(request, token):
             {'error': 'Enlace de firma inválido'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+
+class LoanCalculatorView(APIView):
+    """
+    POST /api/loans/calculate/
+
+    Calculates an amortization schedule without creating a loan record.
+    Supports four amortization methods used in Dominican Republic financieras:
+
+    - saldo_insoluto: Reducing balance. Principal portion is fixed; interest is
+      calculated on the outstanding balance each period.
+    - french: Equal installments (standard annuity formula). Most common globally.
+    - german: Equal principal each period; interest portion declines over time.
+    - flat: Interest is computed on the original principal for the full term and
+      spread equally across all payments (very common for small/short loans in RD).
+
+    The interest_rate is the MONTHLY rate in percentage (e.g. 3.5 = 3.5% per month).
+    For non-monthly payment frequencies the monthly rate is converted to a per-period
+    rate proportionally:
+        weekly   → monthly_rate / 4
+        biweekly → monthly_rate / 2
+        daily    → monthly_rate / 30
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    # Maps payment_frequency to date increment args and the divisor used to
+    # convert monthly rate to per-period rate.
+    FREQUENCY_CONFIG = {
+        'daily':    {'delta': {'days': 1},    'rate_divisor': Decimal('30')},
+        'weekly':   {'delta': {'weeks': 1},   'rate_divisor': Decimal('4')},
+        'biweekly': {'delta': {'weeks': 2},   'rate_divisor': Decimal('2')},
+        'monthly':  {'delta': {'months': 1},  'rate_divisor': Decimal('1')},
+    }
+
+    def post(self, request, *args, **kwargs):
+        serializer = LoanCalculatorInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        result = self._calculate(data)
+        return Response(result, status=status.HTTP_200_OK)
+
+    def _calculate(self, data):
+        from dateutil.relativedelta import relativedelta
+
+        principal = Decimal(str(data['principal_amount']))
+        monthly_rate_pct = Decimal(str(data['interest_rate']))  # e.g. 3.5 for 3.5 %
+        monthly_rate = monthly_rate_pct / Decimal('100')
+        num_payments = int(data['term'])
+        frequency = data['payment_frequency']
+        method = data['amortization_method']
+        legal_fees = Decimal(str(data.get('legal_fees') or 0))
+        legal_fees_condition = data.get('legal_fees_condition', 'deducted')
+        start_date = data['start_date']
+
+        freq_cfg = self.FREQUENCY_CONFIG[frequency]
+        period_rate = monthly_rate / freq_cfg['rate_divisor']
+        date_delta = freq_cfg['delta']
+
+        # Legal fees: financed → added to principal; deducted → subtracted from disbursement
+        if legal_fees_condition == 'financed':
+            loan_principal = principal + legal_fees
+            total_disbursed = principal
+        else:
+            loan_principal = principal
+            total_disbursed = principal - legal_fees
+
+        dispatch = {
+            'saldo_insoluto': self._saldo_insoluto,
+            'french': self._french,
+            'german': self._german,
+            'flat': self._flat,
+        }
+
+        if method == 'flat':
+            schedule, payment_amount, total_interest = dispatch[method](
+                loan_principal, monthly_rate, num_payments, start_date, date_delta
+            )
+        else:
+            schedule, payment_amount, total_interest = dispatch[method](
+                loan_principal, period_rate, num_payments, start_date, date_delta
+            )
+
+        total_loan = loan_principal + total_interest
+
+        return {
+            'payment_amount': round(payment_amount, 2),
+            'total_loan': round(total_loan, 2),
+            'total_interest': round(total_interest, 2),
+            'total_disbursed': round(total_disbursed, 2),
+            'schedule': schedule,
+        }
+
+    # ------------------------------------------------------------------
+    # Amortization method implementations
+    # ------------------------------------------------------------------
+
+    def _saldo_insoluto(self, principal, period_rate, num_payments, start_date, date_delta):
+        """
+        Reducing balance (saldo insoluto / cuota variable).
+        Equal principal portions; interest computed on outstanding balance each period.
+        """
+        from dateutil.relativedelta import relativedelta
+
+        principal_per_payment = (principal / num_payments).quantize(Decimal('0.01'))
+        balance = principal
+        total_interest = Decimal('0')
+        schedule = []
+
+        for i in range(1, num_payments + 1):
+            interest = (balance * period_rate).quantize(Decimal('0.01'))
+            principal_portion = balance if i == num_payments else principal_per_payment
+            payment = principal_portion + interest
+            balance -= principal_portion
+            total_interest += interest
+
+            due_date = start_date + relativedelta(**date_delta) * i
+            schedule.append({
+                'installment_number': i,
+                'due_date': due_date.isoformat(),
+                'payment': round(payment, 2),
+                'principal': round(principal_portion, 2),
+                'interest': round(interest, 2),
+                'balance': round(max(balance, Decimal('0')), 2),
+            })
+
+        # Return first-payment amount as the representative "payment_amount"
+        first_payment = Decimal(str(schedule[0]['payment'])) if schedule else Decimal('0')
+        return schedule, first_payment, total_interest
+
+    def _french(self, principal, period_rate, num_payments, start_date, date_delta):
+        """
+        French / equal installment amortization (standard annuity formula).
+        """
+        from dateutil.relativedelta import relativedelta
+
+        if period_rate == 0:
+            payment = (principal / num_payments).quantize(Decimal('0.01'))
+        else:
+            r = period_rate
+            n = num_payments
+            payment = (principal * r * (1 + r) ** n / ((1 + r) ** n - 1)).quantize(Decimal('0.01'))
+
+        balance = principal
+        total_interest = Decimal('0')
+        schedule = []
+
+        for i in range(1, num_payments + 1):
+            interest = (balance * period_rate).quantize(Decimal('0.01'))
+            if i == num_payments:
+                # Last payment absorbs rounding drift
+                principal_portion = balance
+                payment_actual = principal_portion + interest
+            else:
+                principal_portion = payment - interest
+                payment_actual = payment
+            balance -= principal_portion
+            total_interest += interest
+
+            due_date = start_date + relativedelta(**date_delta) * i
+            schedule.append({
+                'installment_number': i,
+                'due_date': due_date.isoformat(),
+                'payment': round(payment_actual, 2),
+                'principal': round(principal_portion, 2),
+                'interest': round(interest, 2),
+                'balance': round(max(balance, Decimal('0')), 2),
+            })
+
+        return schedule, payment, total_interest
+
+    def _german(self, principal, period_rate, num_payments, start_date, date_delta):
+        """
+        German amortization: equal principal portions, declining total payment.
+        """
+        from dateutil.relativedelta import relativedelta
+
+        principal_per_payment = (principal / num_payments).quantize(Decimal('0.01'))
+        balance = principal
+        total_interest = Decimal('0')
+        schedule = []
+
+        for i in range(1, num_payments + 1):
+            interest = (balance * period_rate).quantize(Decimal('0.01'))
+            principal_portion = balance if i == num_payments else principal_per_payment
+            payment = principal_portion + interest
+            balance -= principal_portion
+            total_interest += interest
+
+            due_date = start_date + relativedelta(**date_delta) * i
+            schedule.append({
+                'installment_number': i,
+                'due_date': due_date.isoformat(),
+                'payment': round(payment, 2),
+                'principal': round(principal_portion, 2),
+                'interest': round(interest, 2),
+                'balance': round(max(balance, Decimal('0')), 2),
+            })
+
+        first_payment = Decimal(str(schedule[0]['payment'])) if schedule else Decimal('0')
+        return schedule, first_payment, total_interest
+
+    def _flat(self, principal, monthly_rate, num_payments, start_date, date_delta):
+        """
+        Flat rate (interés sobre saldo original / tasa plana).
+        Total interest = principal * monthly_rate * num_payments.
+        Payment = (principal + total_interest) / num_payments.
+
+        In DR financieras this is the default for short personal and payday loans.
+        The monthly_rate is used directly regardless of payment frequency so the
+        calculation stays transparent for the borrower.
+        """
+        from dateutil.relativedelta import relativedelta
+
+        total_interest = (principal * monthly_rate * num_payments).quantize(Decimal('0.01'))
+        total_amount = principal + total_interest
+        payment = (total_amount / num_payments).quantize(Decimal('0.01'))
+        principal_per_payment = (principal / num_payments).quantize(Decimal('0.01'))
+        interest_per_payment = (total_interest / num_payments).quantize(Decimal('0.01'))
+
+        balance = principal
+        schedule = []
+
+        for i in range(1, num_payments + 1):
+            if i == num_payments:
+                principal_portion = balance
+                interest_portion = total_interest - interest_per_payment * (num_payments - 1)
+                payment_actual = principal_portion + interest_portion
+            else:
+                principal_portion = principal_per_payment
+                interest_portion = interest_per_payment
+                payment_actual = payment
+            balance -= principal_portion
+
+            due_date = start_date + relativedelta(**date_delta) * i
+            schedule.append({
+                'installment_number': i,
+                'due_date': due_date.isoformat(),
+                'payment': round(payment_actual, 2),
+                'principal': round(principal_portion, 2),
+                'interest': round(interest_portion, 2),
+                'balance': round(max(balance, Decimal('0')), 2),
+            })
+
+        return schedule, payment, total_interest

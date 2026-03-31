@@ -779,6 +779,59 @@ class ContractListSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class LoanCalculatorInputSerializer(serializers.Serializer):
+    """Input serializer for the loan calculator endpoint"""
+
+    principal_amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    interest_rate = serializers.DecimalField(
+        max_digits=5, decimal_places=4,
+        help_text="Monthly interest rate as a percentage (e.g. 3.5 means 3.5% per month)"
+    )
+    term = serializers.IntegerField(min_value=1, help_text="Number of payments")
+    payment_frequency = serializers.ChoiceField(
+        choices=['daily', 'weekly', 'biweekly', 'monthly']
+    )
+    amortization_method = serializers.ChoiceField(
+        choices=['saldo_insoluto', 'french', 'german', 'flat']
+    )
+    legal_fees = serializers.DecimalField(
+        max_digits=14, decimal_places=2, required=False, default=0
+    )
+    legal_fees_condition = serializers.ChoiceField(
+        choices=['financed', 'deducted'], required=False, default='deducted'
+    )
+    start_date = serializers.DateField()
+
+    def validate_principal_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("El monto principal debe ser mayor que cero.")
+        return value
+
+    def validate_interest_rate(self, value):
+        if value < 0:
+            raise serializers.ValidationError("La tasa de interés no puede ser negativa.")
+        return value
+
+
+class LoanCalculatorScheduleItemSerializer(serializers.Serializer):
+    """A single row in the amortization schedule"""
+    installment_number = serializers.IntegerField()
+    due_date = serializers.DateField()
+    payment = serializers.DecimalField(max_digits=14, decimal_places=2)
+    principal = serializers.DecimalField(max_digits=14, decimal_places=2)
+    interest = serializers.DecimalField(max_digits=14, decimal_places=2)
+    balance = serializers.DecimalField(max_digits=14, decimal_places=2)
+
+
+class LoanCalculatorResultSerializer(serializers.Serializer):
+    """Output serializer for the loan calculator endpoint"""
+    payment_amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    total_loan = serializers.DecimalField(max_digits=14, decimal_places=2)
+    total_interest = serializers.DecimalField(max_digits=14, decimal_places=2)
+    total_disbursed = serializers.DecimalField(max_digits=14, decimal_places=2)
+    schedule = LoanCalculatorScheduleItemSerializer(many=True)
+
+
 class ContractCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating a new contract"""
 
