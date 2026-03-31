@@ -114,6 +114,39 @@ class Tenant(TenantMixin):
         help_text='Días antes del vencimiento para enviar recordatorio'
     )
 
+    # ============================================================
+    # e-CF / DGII CONFIGURATION (Facturación Electrónica)
+    # ============================================================
+    ecf_provider = models.CharField(
+        max_length=20,
+        choices=[
+            ('none', 'Sin facturación electrónica'),
+            ('direct', 'DGII Directo (certificado propio)'),
+            ('dgmax', 'DGMax.do (PSFE)'),
+            ('ef2', 'EF2.do (PSFE)'),
+        ],
+        default='none',
+        help_text='Proveedor de facturación electrónica'
+    )
+    dgii_environment = models.CharField(
+        max_length=20,
+        choices=[
+            ('testecf', 'Pre-Certificación (Pruebas)'),
+            ('certecf', 'Certificación'),
+            ('ecf', 'Producción'),
+        ],
+        default='testecf',
+        help_text='Ambiente DGII para e-CF'
+    )
+    ecf_provider_api_key = models.CharField(
+        max_length=255, blank=True, null=True,
+        help_text='API Key del proveedor PSFE (DGMax/EF2)'
+    )
+    ecf_provider_api_secret = models.CharField(
+        max_length=255, blank=True, null=True,
+        help_text='API Secret del proveedor PSFE (DGMax/EF2)'
+    )
+
     # Email configuration
     notification_email_from = models.EmailField(
         blank=True,

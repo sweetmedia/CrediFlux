@@ -263,6 +263,72 @@ class ECFSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
+class ECFProviderViewSet(viewsets.ViewSet):
+    """
+    Endpoints para gestión del proveedor e-CF configurado.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='status')
+    def provider_status(self, request):
+        """Test connection to the configured e-CF provider."""
+        from .services.ecf_provider import get_ecf_provider, ECFProviderError
+
+        try:
+            provider = get_ecf_provider()
+            result = provider.test_connection()
+            return Response(result)
+        except ECFProviderError as e:
+            return Response({
+                'status': 'not_configured',
+                'error': str(e),
+            }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='submit')
+    def submit_invoice(self, request):
+        """Submit an invoice via the configured provider."""
+        from .services.ecf_provider import get_ecf_provider, ECFProviderError
+        from .models import Invoice
+
+        invoice_id = request.data.get('invoice_id')
+        if not invoice_id:
+            return Response({'error': 'invoice_id requerido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            invoice = Invoice.objects.get(id=invoice_id)
+        except Invoice.DoesNotExist:
+            return Response({'error': 'Factura no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            provider = get_ecf_provider()
+            result = provider.submit_invoice(invoice)
+            return Response(result)
+        except ECFProviderError as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=False, methods=['post'], url_path='query')
+    def query_invoice(self, request):
+        """Query status of a submitted invoice."""
+        from .services.ecf_provider import get_ecf_provider, ECFProviderError
+        from .models import Invoice
+
+        invoice_id = request.data.get('invoice_id')
+        if not invoice_id:
+            return Response({'error': 'invoice_id requerido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            invoice = Invoice.objects.get(id=invoice_id)
+        except Invoice.DoesNotExist:
+            return Response({'error': 'Factura no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            provider = get_ecf_provider()
+            result = provider.query_status(invoice)
+            return Response(result)
+        except ECFProviderError as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
 class DGIIReportViewSet(viewsets.ViewSet):
     """
     Endpoints para generar reportes DGII 606 y 607.
