@@ -24,6 +24,12 @@ router.register(r'collection-contacts', CollectionContactViewSet, basename='coll
 router.register(r'contract-templates', ContractTemplateViewSet, basename='contract-template')
 router.register(r'contracts', ContractViewSet, basename='contract')
 router.register(r'guarantors', GuarantorViewSet, basename='guarantor')
+
+# Geolocation
+from .views_geolocation import CollectorVisitViewSet, CollectorLocationViewSet
+router.register(r'collector-visits', CollectorVisitViewSet, basename='collector-visit')
+router.register(r'collector-locations', CollectorLocationViewSet, basename='collector-location')
+
 router.register(r'', LoanViewSet, basename='loan')  # Root viewset must be last
 
 urlpatterns = [

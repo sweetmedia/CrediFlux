@@ -750,3 +750,4 @@ from .models_contracts import ContractTemplate, Contract
 
 # Import guarantor model
 from .models_guarantors import Guarantor
+from .models_geolocation import CollectorVisit, CollectorLocation
