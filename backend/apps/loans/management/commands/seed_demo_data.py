@@ -246,10 +246,9 @@ class Command(BaseCommand):
             relationship='business_partner',
             employer_name='Ferretería Medina',
             monthly_income=Money(Decimal('90000'), 'DOP'),
-            address_line1='Calle Restauración #34',
+            address='Calle Restauración #34, Santiago',
             city='Santiago',
-            state='Santiago',
-            country='Dominican Republic',
+            province='Santiago',
         )
         self.stdout.write(f'  ✓ Guarantor: Carlos Medina Fernández')
 
