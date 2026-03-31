@@ -1,0 +1,28 @@
+# CrediFlux Frontend Docker Compose
+# Deploy: docker compose -f docker-compose.frontend.yml up -d --build
+#
+# The frontend connects to the backend at NEXT_PUBLIC_API_URL
+# Backend should already be running on port 8600
+
+services:
+  crediflux-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://10.0.0.93:8600
+    container_name: crediflux-frontend
+    restart: unless-stopped
+    ports:
+      - "3600:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://10.0.0.93:8600
+    networks:
+      - proxy_network
+    labels:
+      - "com.docker.compose.project=crediflux"
+
+networks:
+  proxy_network:
+    external: true
