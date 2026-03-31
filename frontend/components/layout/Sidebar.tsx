@@ -28,6 +28,7 @@ import {
   Receipt,
   Shield,
   Hash,
+  Calculator,
 } from 'lucide-react';
 
 interface NavItem {
@@ -77,6 +78,7 @@ export function Sidebar() {
   const navItems: NavItem[] = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/loans', icon: FileText, label: 'Préstamos' },
+    { href: '/calculator', icon: Calculator, label: 'Calculadora' },
     {
       href: 'contracts',
       icon: FileSignature,
