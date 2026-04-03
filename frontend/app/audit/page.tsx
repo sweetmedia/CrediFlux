@@ -173,7 +173,7 @@ export default function AuditPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
@@ -311,7 +311,7 @@ export default function AuditPage() {
           <CardContent>
             {isLoading ? (
               <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
               </div>
             ) : logs.length === 0 ? (
               <div className="text-center py-8 text-slate-600">

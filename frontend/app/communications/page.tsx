@@ -320,7 +320,7 @@ export default function CommunicationsPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
@@ -415,7 +415,7 @@ export default function CommunicationsPage() {
                   <Card className="border-slate-200">
                     <CardContent className="p-4 space-y-1">
                       <Button
-                        className="w-full mb-4 bg-blue-600 hover:bg-blue-700"
+                        className="w-full mb-4 bg-[#163300] hover:bg-[#0f2400]"
                         onClick={() => setEmailView('compose')}
                       >
                         <Plus className="mr-2 h-4 w-4" />

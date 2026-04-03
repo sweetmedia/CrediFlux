@@ -142,7 +142,7 @@ export default function ContractsPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
@@ -284,7 +284,7 @@ export default function ContractsPage() {
                   />
                 </div>
                 <Link href="/contracts/generate">
-                  <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Button className="bg-[#163300] hover:bg-[#0f2400]">
                     <Plus className="mr-2 h-4 w-4" />
                     Generar Contrato
                   </Button>
@@ -296,7 +296,7 @@ export default function ContractsPage() {
           <CardContent className="p-0">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
+                <Loader2 className="h-12 w-12 animate-spin text-[#163300] mb-4" />
                 <p className="text-slate-600">Cargando contratos...</p>
               </div>
             ) : contracts.length === 0 ? (
@@ -313,7 +313,7 @@ export default function ContractsPage() {
                     : 'Genera tu primer contrato de préstamo'}
                 </p>
                 <Link href="/contracts/generate">
-                  <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Button className="bg-[#163300] hover:bg-[#0f2400]">
                     <Plus className="mr-2 h-4 w-4" />
                     Generar Primer Contrato
                   </Button>

@@ -25,6 +25,11 @@ router.register(r'contract-templates', ContractTemplateViewSet, basename='contra
 router.register(r'contracts', ContractViewSet, basename='contract')
 router.register(r'guarantors', GuarantorViewSet, basename='guarantor')
 
+# Multi-contact
+from .views import CustomerPhoneViewSet, CustomerEmailViewSet
+router.register(r'customer-phones', CustomerPhoneViewSet, basename='customer-phone')
+router.register(r'customer-emails', CustomerEmailViewSet, basename='customer-email')
+
 # Geolocation
 from .views_geolocation import CollectorVisitViewSet, CollectorLocationViewSet
 router.register(r'collector-visits', CollectorVisitViewSet, basename='collector-visit')

@@ -907,3 +907,32 @@ class GuarantorListSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         return obj.get_full_name()
+
+
+# === Multi-Contact Serializers ===
+
+from .models_contacts import CustomerPhone, CustomerEmail
+
+
+class CustomerPhoneSerializer(serializers.ModelSerializer):
+    phone_type_display = serializers.CharField(source='get_phone_type_display', read_only=True)
+
+    class Meta:
+        model = CustomerPhone
+        fields = [
+            'id', 'customer', 'phone', 'phone_type', 'phone_type_display',
+            'label', 'is_primary', 'is_whatsapp', 'notes', 'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class CustomerEmailSerializer(serializers.ModelSerializer):
+    email_type_display = serializers.CharField(source='get_email_type_display', read_only=True)
+
+    class Meta:
+        model = CustomerEmail
+        fields = [
+            'id', 'customer', 'email', 'email_type', 'email_type_display',
+            'label', 'is_primary', 'notes', 'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']

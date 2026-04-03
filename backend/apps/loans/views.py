@@ -2228,3 +2228,25 @@ class GuarantorViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
+
+
+# === Multi-Contact ViewSets ===
+
+from .models_contacts import CustomerPhone, CustomerEmail
+from .serializers import CustomerPhoneSerializer, CustomerEmailSerializer
+
+
+class CustomerPhoneViewSet(viewsets.ModelViewSet):
+    """CRUD for customer phone numbers."""
+    queryset = CustomerPhone.objects.all()
+    serializer_class = CustomerPhoneSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['customer', 'phone_type', 'is_primary']
+
+
+class CustomerEmailViewSet(viewsets.ModelViewSet):
+    """CRUD for customer email addresses."""
+    queryset = CustomerEmail.objects.all()
+    serializer_class = CustomerEmailSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['customer', 'email_type', 'is_primary']

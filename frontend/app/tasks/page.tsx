@@ -540,7 +540,7 @@ export default function TasksPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
@@ -565,7 +565,7 @@ export default function TasksPage() {
             </p>
           </div>
           <Button
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-[#163300] hover:bg-[#0f2400]"
             onClick={() => handleOpenDialog()}
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -609,7 +609,7 @@ export default function TasksPage() {
         {/* Kanban Board */}
         {isLoadingByStatus ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
             <span className="ml-2 text-slate-600">Cargando tareas...</span>
           </div>
         ) : (
