@@ -64,6 +64,7 @@ const customerSchema = z.object({
   employment_status: z.string().optional(),
   employer_name: z.string().optional(),
   occupation: z.string().optional(),
+  employment_start_date: z.string().optional(),
   monthly_income: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -804,6 +805,11 @@ export default function NewCustomerPage() {
                   <div className="space-y-2">
                     <Label htmlFor="occupation">Ocupación</Label>
                     <Input id="occupation" placeholder="Ingeniero, Contador, etc." {...register('occupation')} disabled={isLoading} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="employment_start_date">Fecha Inicio Empleo</Label>
+                    <Input id="employment_start_date" type="date" {...register('employment_start_date')} disabled={isLoading} />
+                    <p className="text-xs text-gray-500">Para evaluar estabilidad laboral</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="monthly_income">Ingreso Mensual (RD$)</Label>

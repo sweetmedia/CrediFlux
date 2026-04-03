@@ -69,6 +69,10 @@ class Customer(UUIDModel, AuditModel):
     )
     employer_name = models.CharField(max_length=200, blank=True, null=True)
     occupation = models.CharField(max_length=100, blank=True, null=True)
+    employment_start_date = models.DateField(
+        blank=True, null=True,
+        help_text='Fecha de inicio en el empleo actual'
+    )
     monthly_income = MoneyField(
         max_digits=14,
         decimal_places=2,

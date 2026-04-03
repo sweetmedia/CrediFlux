@@ -101,7 +101,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             'date_of_birth', 'gender', 'email', 'phone', 'alternate_phone',
             'address_line1', 'address_line2', 'city', 'state', 'country', 'postal_code',
             'id_type', 'id_number', 'id_expiry_date', 'id_document',
-            'employment_status', 'employer_name', 'occupation', 'monthly_income',
+            'employment_status', 'employer_name', 'occupation', 'employment_start_date', 'monthly_income',
             'credit_score', 'status', 'notes', 'photo',
             'total_loans', 'active_loans', 'documents', 'created_at', 'updated_at'
         ]
