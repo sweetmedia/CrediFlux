@@ -34,6 +34,7 @@ import {
   TrendingUp,
   Clock,
   ArrowLeft,
+  MessageCircle,
 } from 'lucide-react';
 import { LoanSchedule } from '@/types';
 
@@ -280,6 +281,25 @@ export default function OverdueSchedulesPage() {
                               <CreditCard className="h-4 w-4 mr-1" />
                               Pagar
                             </Button>
+                            {schedule.customer_phone && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-green-700 border-green-300 hover:bg-green-50"
+                                asChild
+                              >
+                                <a
+                                  href={`https://wa.me/${schedule.customer_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                                    `Saludos ${schedule.customer_name}. Le contactamos de parte de la empresa para darle seguimiento a su cuota #${schedule.installment_number} del préstamo ${schedule.loan_number}, con vencimiento el ${formatDate(schedule.due_date)}. Por favor comuníquese con nosotros para coordinar el pago. ¡Gracias!`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <MessageCircle className="h-4 w-4 mr-1" />
+                                  WhatsApp
+                                </a>
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"

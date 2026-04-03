@@ -789,7 +789,7 @@ class LoanCalculatorInputSerializer(serializers.Serializer):
 
     principal_amount = serializers.DecimalField(max_digits=14, decimal_places=2)
     interest_rate = serializers.DecimalField(
-        max_digits=5, decimal_places=4,
+        max_digits=7, decimal_places=4,
         help_text="Monthly interest rate as a percentage (e.g. 3.5 means 3.5% per month)"
     )
     term = serializers.IntegerField(min_value=1, help_text="Number of payments")

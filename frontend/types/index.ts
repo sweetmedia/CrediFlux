@@ -223,6 +223,7 @@ export interface LoanSchedule {
   loan: string;
   loan_number: string;
   customer_name: string;
+  customer_phone?: string;
   installment_number: number;
   due_date: string;
   total_amount: number;
