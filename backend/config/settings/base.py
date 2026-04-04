@@ -336,201 +336,201 @@ CACHES = {
 CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
 
 CONSTANCE_CONFIG = {
-    # Company Settings
+    # Información de la Empresa
     'COMPANY_NAME': (
         config('COMPANY_NAME', default='CrediFlux'),
-        'Company name displayed throughout the application',
+        'Nombre de la empresa',
         str
     ),
     'COMPANY_EMAIL': (
         'info@crediflux.com',
-        'Primary company email address for notifications and contact',
+        'Email principal de la empresa',
         str
     ),
     'COMPANY_PHONE': (
-        '+1-555-0100',
-        'Primary company phone number',
+        '+1-809-000-0000',
+        'Teléfono principal',
         str
     ),
     'COMPANY_ADDRESS': (
-        '123 Main St, City, Country',
-        'Company physical address',
+        'Santo Domingo, República Dominicana',
+        'Dirección física',
         str
     ),
 
-    # Currency & Financial Settings
+    # Moneda
     'DEFAULT_CURRENCY': (
-        config('DEFAULT_CURRENCY', default='USD'),
-        'Default currency code (ISO 4217 format)',
+        config('DEFAULT_CURRENCY', default='DOP'),
+        'Código de moneda (ISO 4217)',
         str
     ),
     'CURRENCY_SYMBOL': (
-        '$',
-        'Currency symbol to display',
+        'RD$',
+        'Símbolo de moneda',
         str
     ),
     'DECIMAL_PLACES': (
         2,
-        'Number of decimal places for currency amounts',
+        'Decimales para montos',
         int
     ),
 
-    # Loan Settings
+    # Préstamos
     'LOAN_INTEREST_RATE': (
         10.0,
-        'Default annual interest rate for new loans (%)',
+        'Tasa de interés mensual por defecto (%)',
         float
     ),
     'MIN_LOAN_AMOUNT': (
-        100.0,
-        'Minimum loan amount allowed',
+        1000.0,
+        'Monto mínimo de préstamo (DOP)',
         float
     ),
     'MAX_LOAN_AMOUNT': (
-        100000.0,
-        'Maximum loan amount allowed',
+        5000000.0,
+        'Monto máximo de préstamo (DOP)',
         float
     ),
     'MIN_LOAN_TERM': (
         1,
-        'Minimum loan term in months',
+        'Plazo mínimo en meses',
         int
     ),
     'MAX_LOAN_TERM': (
         60,
-        'Maximum loan term in months',
+        'Plazo máximo en meses',
         int
     ),
 
-    # Payment & Fees Settings
+    # Pagos y Cargos
     'LATE_PAYMENT_FEE': (
-        25.0,
-        'Late payment fee amount charged after grace period',
+        500.0,
+        'Cargo por mora (DOP)',
         float
     ),
     'LATE_PAYMENT_GRACE_DAYS': (
         5,
-        'Number of days grace period before charging late fee',
+        'Días de gracia antes de mora',
         int
     ),
     'PAYMENT_REMINDER_DAYS': (
         3,
-        'Days before due date to send payment reminder',
+        'Días antes del vencimiento para recordatorio',
         int
     ),
     'EARLY_PAYMENT_DISCOUNT': (
         0.0,
-        'Discount percentage for early payments (%)',
+        'Descuento por pago anticipado (%)',
         float
     ),
 
-    # Notification Settings
+    # Notificaciones
     'ENABLE_EMAIL_NOTIFICATIONS': (
         True,
-        'Enable email notifications for important events',
+        'Activar notificaciones por email',
         bool
     ),
     'ENABLE_SMS_NOTIFICATIONS': (
         False,
-        'Enable SMS notifications (requires SMS service configuration)',
+        'Activar notificaciones SMS',
         bool
     ),
     'ADMIN_EMAIL': (
         'admin@crediflux.com',
-        'Email address to receive admin notifications',
+        'Email para notificaciones del sistema',
         str
     ),
 
-    # System Settings
+    # Sistema
     'MAINTENANCE_MODE': (
         False,
-        'Enable maintenance mode (only admins can access)',
+        'Modo mantenimiento (solo admins)',
         bool
     ),
     'MAX_UPLOAD_SIZE_MB': (
         5,
-        'Maximum file upload size in megabytes',
+        'Tamaño máximo de archivo (MB)',
         int
     ),
     'SESSION_TIMEOUT_MINUTES': (
         30,
-        'User session timeout in minutes',
+        'Timeout de sesión (minutos)',
         int
     ),
 
-    # UI Theme Settings
+    # Tema UI
     'UI_THEME': (
         'v1',
-        'UI Theme version: v1 (Blue/Purple) or v2 (Green - Inter Tight)',
+        'Tema: v1 (Azul/Púrpura) o v2 (Verde)',
         str
     ),
 
-    # DGII/RNC Database Settings
+    # DGII/RNC
     'DGII_RNC_DATABASE_URL': (
         'https://dgii.gov.do/app/WebApps/Consultas/RNC/RNC_CONTRIBUYENTES.zip',
-        'URL to download DGII RNC database ZIP file',
+        'URL de la base de datos RNC de DGII',
         str
     ),
     'DGII_RNC_CACHE_TIMEOUT_DAYS': (
         7,
-        'Number of days to cache RNC database before refresh',
+        'Días para refrescar el caché RNC',
         int
     ),
     'DGII_RNC_AUTO_UPDATE': (
         True,
-        'Automatically update RNC database on schedule',
+        'Actualizar RNC automáticamente',
         bool
     ),
     'DGII_RNC_UPDATE_HOUR': (
         2,
-        'Hour of day (0-23) to auto-update RNC database',
+        'Hora de actualización (0-23)',
         int
     ),
     'DGII_RNC_ENABLED': (
         True,
-        'Enable DGII RNC validation features',
+        'Activar validación RNC/DGII',
         bool
     ),
 }
 
 # Constance Fieldsets - Organize settings into groups
 CONSTANCE_CONFIG_FIELDSETS = {
-    'Company Information': (
+    '🏢 Empresa': (
         'COMPANY_NAME',
         'COMPANY_EMAIL',
         'COMPANY_PHONE',
         'COMPANY_ADDRESS',
     ),
-    'Currency & Financial': (
+    '💰 Moneda': (
         'DEFAULT_CURRENCY',
         'CURRENCY_SYMBOL',
         'DECIMAL_PLACES',
     ),
-    'Loan Configuration': (
+    '📋 Préstamos': (
         'LOAN_INTEREST_RATE',
         'MIN_LOAN_AMOUNT',
         'MAX_LOAN_AMOUNT',
         'MIN_LOAN_TERM',
         'MAX_LOAN_TERM',
     ),
-    'Payments & Fees': (
+    '💳 Pagos y Cargos': (
         'LATE_PAYMENT_FEE',
         'LATE_PAYMENT_GRACE_DAYS',
         'PAYMENT_REMINDER_DAYS',
         'EARLY_PAYMENT_DISCOUNT',
     ),
-    'Notifications': (
+    '🔔 Notificaciones': (
         'ENABLE_EMAIL_NOTIFICATIONS',
         'ENABLE_SMS_NOTIFICATIONS',
         'ADMIN_EMAIL',
     ),
-    'System Settings': (
+    '⚙️ Sistema': (
         'MAINTENANCE_MODE',
         'MAX_UPLOAD_SIZE_MB',
         'SESSION_TIMEOUT_MINUTES',
         'UI_THEME',
     ),
-    'DGII/RNC Database': (
+    '🏛️ DGII / RNC': (
         'DGII_RNC_ENABLED',
         'DGII_RNC_DATABASE_URL',
         'DGII_RNC_CACHE_TIMEOUT_DAYS',
@@ -670,6 +670,11 @@ UNFOLD = {
                 },
             ],
         },
+    ],
+
+    # Custom CSS for admin
+    "STYLES": [
+        lambda request: static("admin/css/custom.css"),
     ],
 }
 
