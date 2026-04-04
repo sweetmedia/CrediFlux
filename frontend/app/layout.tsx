@@ -5,6 +5,7 @@ import { Providers } from './providers';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { NavigationProgress } from '@/components/NavigationProgress';
 import { Suspense } from 'react';
+import { Toaster } from '@/components/ui/sonner';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -60,6 +61,7 @@ export default function RootLayout({
             <NavigationProgress />
           </Suspense>
           <AppLayout>{children}</AppLayout>
+          <Toaster position="top-right" richColors closeButton duration={4000} />
         </Providers>
       </body>
     </html>

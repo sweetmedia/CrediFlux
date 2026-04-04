@@ -31,6 +31,7 @@ import {
   ArrowLeft, Loader2, Save, UserPlus, Search,
   CheckCircle, AlertCircle, Info, Plus, X, Phone, Mail, Star,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 /* --- Types for dynamic contact fields --- */
 interface PhoneEntry {
@@ -101,7 +102,6 @@ export default function NewCustomerPage() {
   /* --- RNC validation states --- */
   const [rncData, setRncData] = useState<RNCData | null>(null);
   const [isValidatingRnc, setIsValidatingRnc] = useState(false);
-  const [rncValidationMessage, setRncValidationMessage] = useState<string>('');
   const [rncValidationStatus, setRncValidationStatus] = useState<'success' | 'warning' | 'error' | null>(null);
 
   const [idFormatValidation, setIdFormatValidation] = useState<{
@@ -157,14 +157,13 @@ export default function NewCustomerPage() {
 
       // For cédulas: try JCE Padrón first (better personal data)
       if (idType === 'cedula') {
-        setRncValidationMessage('Buscando en Padrón JCE...');
+        toast.loading('Buscando en Padrón JCE...', { id: 'cedula-lookup' });
         try {
           const jceResult = await cedulaAPI.validate(rnc);
           if (jceResult.found) {
             // Auto-populate from JCE
             if (jceResult.first_name) setValue('first_name', jceResult.first_name);
             if (jceResult.middle_name) {
-              // If middle name exists, combine with first name or set separately
               const currentFirst = jceResult.first_name || '';
               if (jceResult.middle_name) {
                 setValue('first_name', `${currentFirst} ${jceResult.middle_name}`.trim());
@@ -180,7 +179,11 @@ export default function NewCustomerPage() {
               setValue('date_of_birth', jceResult.fecha_nacimiento);
             }
 
-            setRncValidationMessage(`[OK] Encontrado: ${jceResult.nombre_completo}`);
+            toast.success(`Encontrado: ${jceResult.nombre_completo}`, {
+              id: 'cedula-lookup',
+              description: 'Datos auto-completados desde el Padrón JCE',
+              duration: 5000,
+            });
             setRncValidationStatus('success');
             return;
           }
@@ -191,7 +194,7 @@ export default function NewCustomerPage() {
 
       // Fallback: DGII lookup (for RNC or if JCE didn't find it)
       if (idType === 'cedula' || idType === 'rnc') {
-        setRncValidationMessage('Buscando en DGII...');
+        toast.loading('Buscando en DGII...', { id: 'cedula-lookup' });
         const result = await rncAPI.validateRNC(rnc);
 
         if (result.exists && result.data) {
@@ -206,22 +209,36 @@ export default function NewCustomerPage() {
           }
 
           if (result.is_active) {
-            setRncValidationMessage(`[OK] Encontrado en DGII: ${result.data.razon_social}`);
+            toast.success(`Encontrado en DGII: ${result.data.razon_social}`, {
+              id: 'cedula-lookup',
+              description: `Actividad: ${result.data.actividad_economica} | Estado: ${result.data.estado}`,
+              duration: 5000,
+            });
             setRncValidationStatus('success');
           } else {
-            setRncValidationMessage(`[!] Encontrado pero SUSPENDIDO: ${result.data.razon_social}`);
+            toast.warning(`Encontrado pero SUSPENDIDO: ${result.data.razon_social}`, {
+              id: 'cedula-lookup',
+              description: `Estado: ${result.data.estado} | Régimen: ${result.data.regimen_pago}`,
+              duration: 6000,
+            });
             setRncValidationStatus('warning');
           }
         } else {
           setRncData(null);
-          setRncValidationMessage('No encontrado. Puede continuar manualmente.');
+          toast.info('No encontrado en registros. Puede continuar manualmente.', {
+            id: 'cedula-lookup',
+            duration: 4000,
+          });
           setRncValidationStatus('warning');
         }
       }
     } catch (err: any) {
       console.error('Error validating:', err);
       setRncData(null);
-      setRncValidationMessage('No se pudo validar. Puede continuar sin validación.');
+      toast.error('No se pudo validar. Puede continuar sin validación.', {
+        id: 'cedula-lookup',
+        duration: 4000,
+      });
       setRncValidationStatus('warning');
     } finally {
       setIsValidatingRnc(false);
@@ -259,6 +276,15 @@ export default function NewCustomerPage() {
     }
     const r = validateDominicanID(idNumber, idType as any);
     setIdFormatValidation({ valid: r.valid, warning: r.warning, message: r.message });
+
+    // Show format validation as toast
+    if (r.valid && !r.warning) {
+      toast.success(r.message, { id: 'id-format', duration: 2000 });
+    } else if (r.warning) {
+      toast.warning(r.message, { id: 'id-format', duration: 3000 });
+    } else if (!r.valid && idNumber.length >= 9) {
+      toast.error(r.message, { id: 'id-format', duration: 3000 });
+    }
   }, [idNumber, idType]);
 
   /* --- Phone helpers --- */
@@ -325,12 +351,12 @@ export default function NewCustomerPage() {
       const validEmails = emails.filter(e => e.email && e.email.includes('@'));
 
       if (validPhones.length === 0) {
-        setError('Debe agregar al menos un número de teléfono válido.');
+        toast.error('Debe agregar al menos un número de teléfono válido.');
         setIsLoading(false);
         return;
       }
       if (validEmails.length === 0) {
-        setError('Debe agregar al menos un email válido.');
+        toast.error('Debe agregar al menos un email válido.');
         setIsLoading(false);
         return;
       }
@@ -369,6 +395,7 @@ export default function NewCustomerPage() {
         ),
       ]);
 
+      toast.success('Cliente creado exitosamente');
       router.push('/customers');
     } catch (err: any) {
       if (err.response?.data) {
@@ -384,11 +411,13 @@ export default function NewCustomerPage() {
             fieldErrors.push(`${labels[key] || key}: ${(value as string[])[0]}`);
           }
         }
-        if (fieldErrors.length > 0) setError(fieldErrors.join(' | '));
-        else if (errorData.detail) setError(errorData.detail);
-        else if (errorData.non_field_errors) setError(errorData.non_field_errors[0]);
-        else setError('Error al crear el cliente. Verifique los datos.');
+        const errorMsg = fieldErrors.length > 0
+          ? fieldErrors.join(' | ')
+          : errorData.detail || errorData.non_field_errors?.[0] || 'Error al crear el cliente. Verifique los datos.';
+        toast.error(errorMsg);
+        setError(errorMsg);
       } else {
+        toast.error('Error al conectar con el servidor');
         setError('Error al conectar con el servidor');
       }
     } finally {
@@ -487,49 +516,7 @@ export default function NewCustomerPage() {
                       <p className="text-sm text-red-500">{errors.id_number.message}</p>
                     )}
 
-                    {idFormatValidation && (
-                      <div className={`flex items-start gap-2 p-2 rounded-md text-xs ${
-                        !idFormatValidation.valid
-                          ? 'bg-red-50 text-red-700 border border-red-200'
-                          : idFormatValidation.warning
-                          ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-                          : 'bg-green-50 text-green-700 border border-green-200'
-                      }`}>
-                        {!idFormatValidation.valid ? (
-                          <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                        ) : idFormatValidation.warning ? (
-                          <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <CheckCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                        )}
-                        <p>{idFormatValidation.message}</p>
-                      </div>
-                    )}
 
-                    {rncValidationMessage && (
-                      <div className={`flex items-start gap-2 p-3 rounded-md text-sm ${
-                        rncValidationStatus === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
-                        rncValidationStatus === 'warning' ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' :
-                        'bg-red-50 text-red-800 border border-red-200'
-                      }`}>
-                        {rncValidationStatus === 'success' && <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />}
-                        {rncValidationStatus === 'warning' && <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />}
-                        {rncValidationStatus === 'error' && <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />}
-                        <div className="flex-1">
-                          <p className="font-medium">{rncValidationMessage}</p>
-                          {rncData && (
-                            <div className="mt-2 space-y-1 text-xs">
-                              <p><strong>Actividad:</strong> {rncData.actividad_economica}</p>
-                              {rncData.fecha_inicio && (
-                                <p><strong>Fecha Inicio:</strong> {rncData.fecha_inicio}</p>
-                              )}
-                              <p><strong>Estado:</strong> {rncData.estado}</p>
-                              <p><strong>Régimen:</strong> {rncData.regimen_pago}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               </CardContent>
