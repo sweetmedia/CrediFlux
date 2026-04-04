@@ -672,6 +672,9 @@ AI_SDK = {
     'DEFAULT_PROVIDER': config('AI_DEFAULT_PROVIDER', default='groq'),
     'DEFAULT_MODEL': config('AI_DEFAULT_MODEL', default='groq/llama-3.3-70b-versatile'),
     'PROVIDERS': {
+        'gemini': {
+            'api_key': config('GEMINI_API_KEY', default=''),
+        },
         'groq': {
             'api_key': config('GROQ_API_KEY', default=''),
         },
