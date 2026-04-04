@@ -807,7 +807,7 @@ export default function NewCustomerPage() {
                     <Input id="occupation" placeholder="Ingeniero, Contador, etc." {...register('occupation')} disabled={isLoading} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="employment_start_date">Fecha Inicio Empleo</Label>
+                    <Label htmlFor="employment_start_date">Fecha de Ingreso al Empleo</Label>
                     <Input id="employment_start_date" type="date" {...register('employment_start_date')} disabled={isLoading} />
                     <p className="text-xs text-gray-500">Para evaluar estabilidad laboral</p>
                   </div>

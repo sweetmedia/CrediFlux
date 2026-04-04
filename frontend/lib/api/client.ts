@@ -12,14 +12,19 @@ export function getApiUrl(): string {
     return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   }
 
-  // Client-side: detect subdomain from browser
+  // Client-side: detect from browser
   const hostname = window.location.hostname;
-  const port = ':8000'; // Backend always on port 8000
+  const backendPort = '8600'; // Backend mapped port
 
   // If accessing via subdomain (e.g., democompany.localhost, caproinsa.localhost)
   // use the same subdomain for API calls
   if (hostname.includes('.localhost')) {
-    return `http://${hostname}${port}`;
+    return `http://${hostname}:8000`;
+  }
+
+  // If accessing via IP or external hostname, use same host with backend port
+  if (hostname !== 'localhost') {
+    return `http://${hostname}:${backendPort}`;
   }
 
   // Default to localhost:8000 for regular localhost access
