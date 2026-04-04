@@ -213,9 +213,10 @@ export default function CashboxPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-background">
+      <div className="p-6 lg:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Gestión de Caja</h1>
           <p className="text-sm text-gray-500">Control de efectivo, apertura y cierre de caja</p>
@@ -632,6 +633,7 @@ export default function CashboxPage() {
           </Card>
         </div>
       )}
+      </div>
     </div>
   );
 }
