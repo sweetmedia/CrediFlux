@@ -134,13 +134,12 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
+    <div className="min-h-screen bg-background">
+      <div className="p-6 lg:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Facturación Electrónica</h1>
-            <p className="text-sm text-slate-600 mt-1">
+            <h1 className="text-2xl font-bold text-gray-900">Facturación Electrónica</h1>
+            <p className="text-sm text-gray-500 mt-1">
               Genera, firma y envía comprobantes fiscales electrónicos (e-CF) a la DGII
             </p>
           </div>
@@ -157,14 +156,13 @@ export default function BillingPage() {
               </Button>
             </Link>
             <Link href="/billing/new">
-              <Button className="bg-[#163300] hover:bg-[#0f2400]">
+              <Button className="bg-[#163300] hover:bg-[#0f2400] text-white">
                 <Plus className="mr-2 h-4 w-4" />
                 Nueva Factura
               </Button>
             </Link>
           </div>
         </div>
-      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-5 gap-4 mb-8">

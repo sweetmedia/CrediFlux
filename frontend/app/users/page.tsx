@@ -128,31 +128,29 @@ export default function UsersListPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
+    <div className="min-h-screen bg-background">
+      <div className="p-6 lg:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Gestión de Usuarios</h1>
-            <p className="text-sm text-slate-600 mt-1">
+            <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
+            <p className="text-sm text-gray-500 mt-1">
               Administra los usuarios y empleados del sistema
             </p>
           </div>
           <Link href="/users/new">
-            <Button className="bg-[#163300] hover:bg-[#0f2400]">
+            <Button className="bg-[#163300] hover:bg-[#0f2400] text-white">
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Usuario
             </Button>
           </Link>
         </div>
-      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-4 gap-6 mb-8">

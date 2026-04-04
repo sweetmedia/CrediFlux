@@ -361,7 +361,7 @@ export default function NewCustomerPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
@@ -371,16 +371,14 @@ export default function NewCustomerPage() {
      RENDER
      ═══════════════════════════════════════════════════════════ */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
-      <div className="container mx-auto max-w-4xl">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+    <div className="min-h-screen bg-background">
+      <div className="p-6 lg:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <UserPlus className="h-8 w-8 text-[#163300]" />
-              Nuevo Cliente
-            </h1>
-            <p className="text-gray-600 mt-1">Registra un nuevo cliente en el sistema</p>
+            <h1 className="text-2xl font-bold text-gray-900">Nuevo Cliente</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Registra un nuevo cliente en el sistema
+            </p>
           </div>
           <Link href="/customers">
             <Button variant="outline">
@@ -389,6 +387,8 @@ export default function NewCustomerPage() {
             </Button>
           </Link>
         </div>
+        
+        <div className="max-w-4xl mx-auto">
 
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-6">
@@ -843,7 +843,7 @@ export default function NewCustomerPage() {
                   Cancelar
                 </Button>
               </Link>
-              <Button type="submit" disabled={isLoading} className="bg-[#163300] hover:bg-[#163300]/90">
+              <Button type="submit" disabled={isLoading} className="bg-[#163300] hover:bg-[#0f2400] text-white">
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <Save className="mr-2 h-4 w-4" />
                 Guardar Cliente
@@ -851,6 +851,8 @@ export default function NewCustomerPage() {
             </div>
           </div>
         </form>
+      </div>
+        </div>
       </div>
     </div>
   );
