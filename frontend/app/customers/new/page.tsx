@@ -32,7 +32,7 @@ import {
   CheckCircle, AlertCircle, Info, Plus, X, Phone, Mail, Star,
 } from 'lucide-react';
 
-/* ─── Types for dynamic contact fields ─── */
+/* --- Types for dynamic contact fields --- */
 interface PhoneEntry {
   phone: string;
   phone_type: 'mobile' | 'home' | 'work' | 'landline' | 'whatsapp' | 'other';
@@ -46,7 +46,7 @@ interface EmailEntry {
   is_primary: boolean;
 }
 
-/* ─── Zod schema (core customer fields) ─── */
+/* --- Zod schema (core customer fields) --- */
 const customerSchema = z.object({
   first_name: z.string().min(2, 'Nombre requerido'),
   last_name: z.string().min(2, 'Apellido requerido'),
@@ -72,7 +72,7 @@ const customerSchema = z.object({
 
 type CustomerFormData = z.infer<typeof customerSchema>;
 
-/* ─── Constants ─── */
+/* --- Constants --- */
 const PHONE_TYPES = [
   { value: 'mobile', label: 'Celular' },
   { value: 'home', label: 'Casa' },
@@ -98,7 +98,7 @@ export default function NewCustomerPage() {
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
-  /* ─── RNC validation states ─── */
+  /* --- RNC validation states --- */
   const [rncData, setRncData] = useState<RNCData | null>(null);
   const [isValidatingRnc, setIsValidatingRnc] = useState(false);
   const [rncValidationMessage, setRncValidationMessage] = useState<string>('');
@@ -112,7 +112,7 @@ export default function NewCustomerPage() {
 
   const [formattedIdNumber, setFormattedIdNumber] = useState<string>('');
 
-  /* ─── Dynamic contact arrays ─── */
+  /* --- Dynamic contact arrays --- */
   const [phones, setPhones] = useState<PhoneEntry[]>([
     { phone: '+1', phone_type: 'mobile', is_primary: true, is_whatsapp: false },
   ]);
@@ -142,7 +142,7 @@ export default function NewCustomerPage() {
   const idNumber = watch('id_number');
   const idType = watch('id_type');
 
-  /* ─── RNC/Cédula validation ─── */
+  /* --- RNC/Cédula validation --- */
   const validateRncNumber = async (rnc: string) => {
     if (!rnc || rnc.length < 9) {
       setRncData(null);
@@ -180,7 +180,7 @@ export default function NewCustomerPage() {
               setValue('date_of_birth', jceResult.fecha_nacimiento);
             }
 
-            setRncValidationMessage(`✓ Encontrado: ${jceResult.nombre_completo}`);
+            setRncValidationMessage(`[OK] Encontrado: ${jceResult.nombre_completo}`);
             setRncValidationStatus('success');
             return;
           }
@@ -206,10 +206,10 @@ export default function NewCustomerPage() {
           }
 
           if (result.is_active) {
-            setRncValidationMessage(`✓ Encontrado en DGII: ${result.data.razon_social}`);
+            setRncValidationMessage(`[OK] Encontrado en DGII: ${result.data.razon_social}`);
             setRncValidationStatus('success');
           } else {
-            setRncValidationMessage(`⚠️ Encontrado pero SUSPENDIDO: ${result.data.razon_social}`);
+            setRncValidationMessage(`[!] Encontrado pero SUSPENDIDO: ${result.data.razon_social}`);
             setRncValidationStatus('warning');
           }
         } else {
@@ -261,7 +261,7 @@ export default function NewCustomerPage() {
     setIdFormatValidation({ valid: r.valid, warning: r.warning, message: r.message });
   }, [idNumber, idType]);
 
-  /* ─── Phone helpers ─── */
+  /* --- Phone helpers --- */
   const addPhone = () => {
     if (phones.length >= MAX_PHONES) return;
     setPhones(prev => [...prev, { phone: '+1', phone_type: 'mobile', is_primary: false, is_whatsapp: false }]);
@@ -288,7 +288,7 @@ export default function NewCustomerPage() {
     });
   };
 
-  /* ─── Email helpers ─── */
+  /* --- Email helpers --- */
   const addEmail = () => {
     if (emails.length >= MAX_EMAILS) return;
     setEmails(prev => [...prev, { email: '', email_type: 'personal', is_primary: false }]);
@@ -315,7 +315,7 @@ export default function NewCustomerPage() {
     });
   };
 
-  /* ─── Form submit ─── */
+  /* --- Form submit --- */
   const onSubmit = async (data: CustomerFormData) => {
     try {
       setIsLoading(true);
@@ -404,9 +404,9 @@ export default function NewCustomerPage() {
     );
   }
 
-  /* ═══════════════════════════════════════════════════════════
+  /* ===========================================================
      RENDER
-     ═══════════════════════════════════════════════════════════ */
+     =========================================================== */
   return (
     <div className="min-h-screen bg-background">
       <div className="p-6 lg:p-8">
@@ -435,7 +435,7 @@ export default function NewCustomerPage() {
               </Alert>
             )}
 
-            {/* ═══ 1. IDENTIFICACIÓN (cédula-first) ═══ */}
+            {/* === 1. IDENTIFICACIÓN (cédula-first) === */}
             <Card className="border-[#163300]/20">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
@@ -535,7 +535,7 @@ export default function NewCustomerPage() {
               </CardContent>
             </Card>
 
-            {/* ═══ 2. DATOS PERSONALES ═══ */}
+            {/* === 2. DATOS PERSONALES === */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle>Datos Personales</CardTitle>
@@ -595,7 +595,7 @@ export default function NewCustomerPage() {
               </CardContent>
             </Card>
 
-            {/* ═══ 3. CONTACTO — Multi-phone & multi-email ═══ */}
+            {/* === 3. CONTACTO — Multi-phone & multi-email === */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
@@ -608,7 +608,7 @@ export default function NewCustomerPage() {
               </CardHeader>
               <CardContent className="space-y-6">
 
-                {/* ── Phone Numbers ── */}
+                {/* -- Phone Numbers -- */}
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                     <Phone className="h-3.5 w-3.5" />
@@ -687,10 +687,10 @@ export default function NewCustomerPage() {
                   )}
                 </div>
 
-                {/* ── Divider ── */}
+                {/* -- Divider -- */}
                 <div className="border-t border-gray-100" />
 
-                {/* ── Email Addresses ── */}
+                {/* -- Email Addresses -- */}
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                     <Mail className="h-3.5 w-3.5" />
@@ -762,7 +762,7 @@ export default function NewCustomerPage() {
               </CardContent>
             </Card>
 
-            {/* ═══ 4. DIRECCIÓN ═══ */}
+            {/* === 4. DIRECCIÓN === */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle>Dirección</CardTitle>
@@ -817,7 +817,7 @@ export default function NewCustomerPage() {
               </CardContent>
             </Card>
 
-            {/* ═══ 5. INFORMACIÓN LABORAL ═══ */}
+            {/* === 5. INFORMACIÓN LABORAL === */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle>Información Laboral</CardTitle>
@@ -856,7 +856,7 @@ export default function NewCustomerPage() {
               </CardContent>
             </Card>
 
-            {/* ═══ 6. NOTAS ═══ */}
+            {/* === 6. NOTAS === */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle>Notas Adicionales</CardTitle>
@@ -873,7 +873,7 @@ export default function NewCustomerPage() {
               </CardContent>
             </Card>
 
-            {/* ═══ Actions ═══ */}
+            {/* === Actions === */}
             <div className="flex justify-end gap-3">
               <Link href="/customers">
                 <Button type="button" variant="outline" disabled={isLoading}>
