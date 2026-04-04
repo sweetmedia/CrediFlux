@@ -14,7 +14,8 @@ export function getApiUrl(): string {
 
   // Client-side: detect from browser
   const hostname = window.location.hostname;
-  const backendPort = '8600'; // Backend mapped port
+  const protocol = window.location.protocol; // http: or https:
+  const backendPort = '8600'; // Backend mapped port (direct access)
 
   // If accessing via subdomain (e.g., democompany.localhost, caproinsa.localhost)
   // use the same subdomain for API calls
@@ -22,7 +23,13 @@ export function getApiUrl(): string {
     return `http://${hostname}:8000`;
   }
 
-  // If accessing via IP or external hostname, use same host with backend port
+  // If accessing via a proper domain (e.g., app.crediflux.com.do, demo.crediflux.com.do)
+  // nginx handles /api/ routing — use same origin, no port needed
+  if (hostname.includes('.') && !hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+    return `${protocol}//${hostname}`;
+  }
+
+  // If accessing via IP (e.g., 23.95.73.125), use same host with backend port
   if (hostname !== 'localhost') {
     return `http://${hostname}:${backendPort}`;
   }
