@@ -540,7 +540,7 @@ export default function NewCustomerPage() {
               <CardHeader className="pb-3">
                 <CardTitle>Datos Personales</CardTitle>
                 <CardDescription>
-                  {rncData || rncValidationStatus === 'success' ? 'Datos auto-completados — puede editarlos' : 'Información personal del cliente'}
+                  {rncData ? 'Datos auto-completados — puede editarlos' : 'Información personal del cliente'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
