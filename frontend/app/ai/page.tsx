@@ -36,7 +36,7 @@ export default function AIAssistantPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
-  const [selectedAgent, setSelectedAgent] = useState<'assistant' | 'analyst'>('assistant');
+  const [selectedAgent, setSelectedAgent] = useState<'lite' | 'assistant' | 'analyst'>('lite');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -126,19 +126,30 @@ export default function AIAssistantPage() {
             {/* Agent selector */}
             <div className="flex bg-gray-100 rounded-lg p-0.5">
               <button
+                onClick={() => setSelectedAgent('lite')}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                  selectedAgent === 'lite'
+                    ? 'bg-white text-[#163300] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Zap className="h-3 w-3" />
+                Rápido
+              </button>
+              <button
                 onClick={() => setSelectedAgent('assistant')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
                   selectedAgent === 'assistant'
                     ? 'bg-white text-[#163300] shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
                 <MessageSquare className="h-3 w-3" />
-                General
+                Completo
               </button>
               <button
                 onClick={() => setSelectedAgent('analyst')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
                   selectedAgent === 'analyst'
                     ? 'bg-white text-[#163300] shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
@@ -244,7 +255,7 @@ export default function AIAssistantPage() {
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={selectedAgent === 'analyst' ? 'Consultar al analista de crédito...' : 'Escribe tu consulta...'}
+            placeholder={selectedAgent === 'analyst' ? 'Consultar al analista...' : selectedAgent === 'assistant' ? 'Consultar con acceso a datos...' : 'Pregunta rápida...'}
             disabled={isLoading}
             className="flex-1"
             autoFocus
@@ -259,7 +270,7 @@ export default function AIAssistantPage() {
         </form>
         <div className="flex items-center justify-between mt-2">
           <p className="text-[10px] text-gray-400">
-            {selectedAgent === 'analyst' ? '🧠 Analista de Crédito' : '🤖 Asistente General'} · AI puede cometer errores
+            {selectedAgent === 'analyst' ? '🧠 Analista' : selectedAgent === 'assistant' ? '🤖 Completo (con datos)' : '⚡ Rápido'} · AI puede cometer errores
           </p>
           {conversationId && (
             <Badge variant="outline" className="text-[10px]">

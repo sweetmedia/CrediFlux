@@ -6,19 +6,20 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from .agents import CrediFluxAssistant, CreditAnalystAgent
+from .agents import CrediFluxAssistant, CrediFluxLiteAgent, CreditAnalystAgent
 
 
 class ChatView(APIView):
     """
     Endpoint principal del chat AI.
     POST /api/ai/chat/
-    Body: {"prompt": "...", "conversation_id": "...", "agent": "assistant|analyst"}
+    Body: {"prompt": "...", "conversation_id": "...", "agent": "assistant|analyst|lite"}
     """
     permission_classes = [IsAuthenticated]
 
     AGENTS = {
         'assistant': CrediFluxAssistant,
+        'lite': CrediFluxLiteAgent,
         'analyst': CreditAnalystAgent,
     }
 
@@ -70,9 +71,16 @@ class AgentsListView(APIView):
         return Response({
             'agents': [
                 {
+                    'id': 'lite',
+                    'name': 'Asistente Rápido',
+                    'description': 'Respuestas rápidas, cálculos y preguntas generales (sin acceso a datos).',
+                    'model': CrediFluxLiteAgent.model,
+                    'tools': [],
+                },
+                {
                     'id': 'assistant',
-                    'name': 'Asistente CrediFlux',
-                    'description': 'Consultas generales, búsqueda de clientes, dashboard, cálculos.',
+                    'name': 'Asistente Completo',
+                    'description': 'Consultas con acceso al sistema: clientes, dashboard, mora, proyecciones.',
                     'model': CrediFluxAssistant.model,
                     'tools': [t.__name__ for t in CrediFluxAssistant.tools],
                 },

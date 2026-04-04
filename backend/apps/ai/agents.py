@@ -50,6 +50,23 @@ Si no tienes suficiente información, dilo claramente."""
     ]
 
 
+class CrediFluxLiteAgent(Agent):
+    """
+    Agente ligero sin tools — para preguntas generales y cálculos simples.
+    Usa menos tokens, ideal para free tier con rate limits.
+    """
+    temperature = 0.3
+    max_tokens = 2048
+
+    system_prompt = """Eres el asistente de CrediFlux, un sistema de préstamos para financieras en RD.
+Responde en español. Usa RD$ para montos. Sé conciso.
+Puedes ayudar con: cálculos de cuotas, explicaciones de métodos de amortización,
+conceptos crediticios, y preguntas generales sobre el sistema.
+NO tienes acceso a datos del sistema en este modo."""
+
+    tools = []  # No tools = fewer tokens
+
+
 class CreditAnalystAgent(Agent):
     """
     Agente especializado en análisis crediticio profundo.
