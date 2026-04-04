@@ -186,7 +186,7 @@ export default function PaymentsListPage() {
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-xl bg-[#163300]/10 flex items-center justify-center">
                 <Receipt className="h-6 w-6 text-blue-600" />
               </div>
               <div className="flex items-center gap-1 text-xs font-medium text-green-600">
@@ -214,8 +214,8 @@ export default function PaymentsListPage() {
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-purple-600" />
+              <div className="h-12 w-12 rounded-xl bg-[#738566]/10 flex items-center justify-center">
+                <DollarSign className="h-6 w-6 text-[#738566]" />
               </div>
             </div>
             <p className="text-sm text-slate-600 mb-1">Monto Total</p>

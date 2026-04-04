@@ -53,11 +53,11 @@ import {
 
 const ACTION_COLORS: Record<string, string> = {
   create: 'bg-green-100 text-green-800',
-  update: 'bg-blue-100 text-blue-800',
+  update: 'bg-[#163300]/10 text-[#163300]',
   delete: 'bg-red-100 text-red-800',
   approve: 'bg-emerald-100 text-emerald-800',
   reject: 'bg-orange-100 text-orange-800',
-  login: 'bg-purple-100 text-purple-800',
+  login: 'bg-[#738566]/10 text-[#738566]',
   logout: 'bg-gray-100 text-gray-800',
   payment: 'bg-teal-100 text-teal-800',
   '2fa_enable': 'bg-[#e8eddf] text-[#163300]',
@@ -194,7 +194,7 @@ export default function AuditPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <ClipboardList className="h-6 w-6 text-blue-600" />
+            <ClipboardList className="h-6 w-6 text-[#163300]" />
             Registro de Auditoria
           </h1>
           <p className="text-sm text-slate-600 mt-1">

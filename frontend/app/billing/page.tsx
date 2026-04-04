@@ -169,7 +169,7 @@ export default function BillingPage() {
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-start justify-between mb-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-xl bg-[#163300]/10 flex items-center justify-center">
                 <FileText className="h-5 w-5 text-blue-600" />
               </div>
             </div>
@@ -217,8 +217,8 @@ export default function BillingPage() {
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-start justify-between mb-3">
-              <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-purple-600" />
+              <div className="h-10 w-10 rounded-xl bg-[#738566]/10 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-[#738566]" />
               </div>
             </div>
             <p className="text-xs text-slate-500 mb-1">Total Facturado</p>
@@ -360,7 +360,7 @@ export default function BillingPage() {
                       </p>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                      <span className="inline-flex items-center rounded-md bg-[#163300]/10 px-2 py-1 text-xs font-medium text-[#163300]">
                         {invoice.ecf_type}
                       </span>
                     </td>

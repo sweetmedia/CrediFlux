@@ -113,8 +113,8 @@ export default function UsersListPage() {
 
   const getRoleBadgeClass = (role: string) => {
     const classes: Record<string, string> = {
-      admin: 'bg-purple-100 text-purple-700',
-      manager: 'bg-blue-100 text-blue-700',
+      admin: 'bg-[#163300]/10 text-[#163300]',
+      manager: 'bg-[#738566]/10 text-[#738566]',
       loan_officer: 'bg-green-100 text-green-700',
       accountant: 'bg-yellow-100 text-yellow-700',
       cashier: 'bg-orange-100 text-orange-700',
@@ -157,7 +157,7 @@ export default function UsersListPage() {
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-xl bg-[#163300]/10 flex items-center justify-center">
                 <UsersIcon className="h-6 w-6 text-blue-600" />
               </div>
               <div className="flex items-center gap-1 text-xs font-medium text-green-600">

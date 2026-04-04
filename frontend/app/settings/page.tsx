@@ -56,7 +56,7 @@ export default function SettingsPage() {
     {
       title: 'Información del Negocio',
       description: 'Configura la información de tu empresa, logo y personalización',
-      icon: <Building2 className="h-6 w-6 text-blue-600" />,
+      icon: <Building2 className="h-6 w-6 text-[#163300]" />,
       href: '/settings/general',
     },
     {
@@ -69,7 +69,7 @@ export default function SettingsPage() {
     {
       title: 'Perfil de Usuario',
       description: 'Actualiza tu información personal y foto de perfil',
-      icon: <User className="h-6 w-6 text-purple-600" />,
+      icon: <User className="h-6 w-6 text-[#738566]" />,
       href: '/settings/general#profile',
     },
     {
@@ -114,7 +114,7 @@ export default function SettingsPage() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-blue-50 transition-colors">
+                    <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-[#163300]/5 transition-colors">
                       {section.icon}
                     </div>
                     <div>
@@ -128,7 +128,7 @@ export default function SettingsPage() {
                       </CardTitle>
                     </div>
                   </div>
-                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-[#163300] transition-colors" />
                 </div>
                 <CardDescription className="mt-2 text-slate-600">{section.description}</CardDescription>
               </CardHeader>
@@ -148,7 +148,7 @@ export default function SettingsPage() {
         <CardContent className="text-sm text-slate-600">
           <p>
             Si tienes problemas con la configuración o necesitas asistencia,{' '}
-            <Link href="/support" className="text-blue-600 hover:underline">
+            <Link href="/support" className="text-[#163300] hover:underline">
               contacta a nuestro equipo de soporte
             </Link>
             .

@@ -72,7 +72,7 @@ import {
 
 const columns: { id: TaskStatus; title: string; color: string }[] = [
   { id: 'todo', title: 'Por Hacer', color: 'bg-gray-500' },
-  { id: 'in_progress', title: 'En Progreso', color: 'bg-blue-500' },
+  { id: 'in_progress', title: 'En Progreso', color: 'bg-[#163300]' },
   { id: 'review', title: 'En Revisión', color: 'bg-yellow-500' },
   { id: 'done', title: 'Completado', color: 'bg-green-500' },
 ];
@@ -178,13 +178,13 @@ function SortableTaskCard({
             </div>
           )}
           {task.customer_info && (
-            <div className="bg-blue-50 rounded p-2 space-y-1">
-              <div className="flex items-center gap-2 text-xs text-blue-700 font-medium">
+            <div className="bg-[#163300]/5 rounded p-2 space-y-1">
+              <div className="flex items-center gap-2 text-xs text-[#163300] font-medium">
                 <UserCircle className="h-3 w-3" />
                 <span>{task.customer_info.full_name}</span>
               </div>
               {task.customer_info.phone && (
-                <div className="flex items-center gap-2 text-xs text-blue-600">
+                <div className="flex items-center gap-2 text-xs text-[#163300]">
                   <Phone className="h-3 w-3" />
                   <a href={`tel:${task.customer_info.phone}`} className="hover:underline">
                     {task.customer_info.phone}
@@ -192,7 +192,7 @@ function SortableTaskCard({
                 </div>
               )}
               {task.customer_info.email && (
-                <div className="flex items-center gap-2 text-xs text-blue-600">
+                <div className="flex items-center gap-2 text-xs text-[#163300]">
                   <Mail className="h-3 w-3" />
                   <a href={`mailto:${task.customer_info.email}`} className="hover:underline truncate">
                     {task.customer_info.email}
@@ -278,7 +278,7 @@ function Column({
       <div
         ref={setNodeRef}
         className={`bg-gray-50 border border-t-0 border-gray-200 rounded-b-lg p-3 min-h-[500px] space-y-3 overflow-y-auto transition-colors ${
-          isOver ? 'bg-blue-50 border-blue-300' : ''
+          isOver ? 'bg-[#163300]/5 border-[#163300]/30' : ''
         }`}
         style={{ maxHeight: 'calc(100vh - 280px)' }}
       >
@@ -552,7 +552,7 @@ export default function TasksPage() {
         <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <CheckSquare className="h-6 w-6 text-blue-600" />
+              <CheckSquare className="h-6 w-6 text-[#163300]" />
               Tareas
             </h1>
             <p className="text-sm text-slate-600 mt-1">
@@ -762,18 +762,18 @@ export default function TasksPage() {
                   </SelectContent>
                 </Select>
                 {formData.customer && (
-                  <div className="bg-blue-50 rounded-md p-3 mt-2 text-sm">
+                  <div className="bg-[#163300]/5 rounded-md p-3 mt-2 text-sm">
                     {(() => {
                       const selectedCustomer = customers.find(c => c.id === formData.customer);
                       if (!selectedCustomer) return null;
                       return (
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2 font-medium text-blue-700">
+                          <div className="flex items-center gap-2 font-medium text-[#163300]">
                             <UserCircle className="h-4 w-4" />
                             {selectedCustomer.full_name}
                           </div>
                           {selectedCustomer.phone && (
-                            <div className="flex items-center gap-2 text-blue-600">
+                            <div className="flex items-center gap-2 text-[#163300]">
                               <Phone className="h-3 w-3" />
                               <a href={`tel:${selectedCustomer.phone}`} className="hover:underline">
                                 {selectedCustomer.phone}
@@ -781,7 +781,7 @@ export default function TasksPage() {
                             </div>
                           )}
                           {selectedCustomer.email && (
-                            <div className="flex items-center gap-2 text-blue-600">
+                            <div className="flex items-center gap-2 text-[#163300]">
                               <Mail className="h-3 w-3" />
                               <a href={`mailto:${selectedCustomer.email}`} className="hover:underline">
                                 {selectedCustomer.email}

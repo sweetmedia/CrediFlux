@@ -59,9 +59,9 @@ const STATUS_ICONS: Record<string, any> = {
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-800',
   pending_signature: 'bg-yellow-100 text-yellow-800',
-  signed: 'bg-blue-100 text-blue-800',
+  signed: 'bg-[#163300]/10 text-[#163300]',
   active: 'bg-green-100 text-green-800',
-  completed: 'bg-purple-100 text-purple-800',
+  completed: 'bg-[#738566]/10 text-[#738566]',
   cancelled: 'bg-red-100 text-red-800',
 };
 
@@ -169,8 +169,8 @@ export default function ContractsPage() {
                   </p>
                   <p className="text-3xl font-bold text-slate-900 mt-2">{totalCount}</p>
                 </div>
-                <div className="rounded-xl bg-blue-100 p-3">
-                  <FileText className="h-6 w-6 text-blue-600" />
+                <div className="rounded-xl bg-[#163300]/10 p-3">
+                  <FileText className="h-6 w-6 text-[#163300]" />
                 </div>
               </div>
             </CardContent>
@@ -219,8 +219,8 @@ export default function ContractsPage() {
                   </p>
                   <p className="text-3xl font-bold text-slate-900 mt-2">{stats.signed}</p>
                 </div>
-                <div className="rounded-xl bg-blue-100 p-3">
-                  <FileCheck className="h-6 w-6 text-blue-600" />
+                <div className="rounded-xl bg-[#163300]/10 p-3">
+                  <FileCheck className="h-6 w-6 text-[#163300]" />
                 </div>
               </div>
             </CardContent>
@@ -267,7 +267,7 @@ export default function ContractsPage() {
                     type="checkbox"
                     checked={showArchived}
                     onChange={(e) => setShowArchived(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded border-slate-300 text-[#163300] focus:ring-[#163300]"
                   />
                   <Archive className="h-4 w-4 text-slate-600" />
                   <span className="text-sm font-medium text-slate-700">
@@ -405,7 +405,7 @@ export default function ContractsPage() {
                               </span>
                             )}
                             {contract.officer_signed_at && (
-                              <span className="text-blue-600">
+                              <span className="text-[#163300]">
                                 Oficial firmó:{' '}
                                 {new Date(
                                   contract.officer_signed_at
@@ -432,7 +432,7 @@ export default function ContractsPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                                className="border-[#163300]/30 text-[#163300] hover:bg-[#163300]/5"
                               >
                                 <PenTool className="h-4 w-4 mr-1" />
                                 Firmar

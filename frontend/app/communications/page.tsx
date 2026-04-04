@@ -114,7 +114,7 @@ export default function CommunicationsPage() {
 
   // Email folders
   const folders: EmailFolder[] = [
-    { id: 'inbox', name: 'Inbox', icon: Inbox, count: 128, color: 'text-blue-600' },
+    { id: 'inbox', name: 'Inbox', icon: Inbox, count: 128, color: 'text-[#163300]' },
     { id: 'drafts', name: 'Drafts', icon: FileText, count: 9, color: 'text-gray-600' },
     { id: 'sent', name: 'Sent', icon: SendIcon, count: 0, color: 'text-gray-600' },
     { id: 'junk', name: 'Junk', icon: Trash2, count: 23, color: 'text-gray-600' },
@@ -131,8 +131,8 @@ export default function CommunicationsPage() {
   const labels: EmailLabel[] = [
     { id: 'work', name: 'work', color: 'bg-green-600' },
     { id: 'important', name: 'important', color: 'bg-red-600' },
-    { id: 'meeting', name: 'meeting', color: 'bg-blue-600' },
-    { id: 'personal', name: 'personal', color: 'bg-purple-600' },
+    { id: 'meeting', name: 'meeting', color: 'bg-[#163300]' },
+    { id: 'personal', name: 'personal', color: 'bg-[#738566]' },
     { id: 'budget', name: 'budget', color: 'bg-yellow-600' },
   ];
 
@@ -305,7 +305,7 @@ export default function CommunicationsPage() {
       case 'delivered':
         return <CheckCheck className="h-3 w-3 text-gray-400" />;
       case 'read':
-        return <CheckCheck className="h-3 w-3 text-blue-500" />;
+        return <CheckCheck className="h-3 w-3 text-[#163300]" />;
       case 'failed':
         return <AlertCircle className="h-3 w-3 text-red-500" />;
       default:
@@ -331,7 +331,7 @@ export default function CommunicationsPage() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <MessageSquare className="h-6 w-6 text-blue-600" />
+            <MessageSquare className="h-6 w-6 text-[#163300]" />
             Comunicaciones
           </h1>
           <p className="text-sm text-slate-600 mt-1">
@@ -344,7 +344,7 @@ export default function CommunicationsPage() {
           <TabsList className="grid w-full max-w-md grid-cols-2 mb-6 bg-slate-100">
             <TabsTrigger
               value="email"
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white flex items-center gap-2"
+              className="data-[state=active]:bg-[#163300] data-[state=active]:text-white flex items-center gap-2"
             >
               <Mail className="h-4 w-4" />
               Email
@@ -510,7 +510,7 @@ export default function CommunicationsPage() {
                               key={email.id}
                               onClick={() => setSelectedEmail(email)}
                               className={`p-4 cursor-pointer transition-colors hover:bg-slate-50 ${
-                                !email.read ? 'bg-blue-50/50' : ''
+                                !email.read ? 'bg-[#163300]/5' : ''
                               } ${selectedEmail?.id === email.id ? 'bg-slate-100 border-l-4 border-blue-600' : ''}`}
                             >
                               <div className="flex gap-3">
@@ -526,7 +526,7 @@ export default function CommunicationsPage() {
                                   <div className="flex items-start justify-between gap-2 mb-1">
                                     <div className="flex items-center gap-2">
                                       {email.important && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
-                                      {!email.read && <div className="w-2 h-2 bg-blue-600 rounded-full"></div>}
+                                      {!email.read && <div className="w-2 h-2 bg-[#163300] rounded-full"></div>}
                                       <span className={`text-sm truncate ${!email.read ? 'font-semibold' : 'font-medium'}`}>
                                         {email.fromName}
                                       </span>

@@ -200,8 +200,8 @@ export default function CollectionsDashboardPage() {
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                <Bell className="h-6 w-6 text-blue-600" />
+              <div className="h-12 w-12 rounded-xl bg-[#163300]/10 flex items-center justify-center">
+                <Bell className="h-6 w-6 text-[#163300]" />
               </div>
             </div>
             <p className="text-sm text-slate-600 mb-1">Recordatorios</p>
@@ -359,9 +359,10 @@ export default function CollectionsDashboardPage() {
               <p className="text-sm text-slate-600">No hay contactos registrados aún</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-200">
+                <tr className="border-b border-slate-200 bg-gray-50">
                   <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Cliente</th>
                   <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Tipo</th>
                   <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Resultado</th>
@@ -376,8 +377,8 @@ export default function CollectionsDashboardPage() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        {contact.contact_type === 'phone_call' && <Phone className="h-4 w-4 text-blue-600" />}
-                        {contact.contact_type === 'email' && <Mail className="h-4 w-4 text-purple-600" />}
+                        {contact.contact_type === 'phone_call' && <Phone className="h-4 w-4 text-[#163300]" />}
+                        {contact.contact_type === 'email' && <Mail className="h-4 w-4 text-[#738566]" />}
                         {contact.contact_type === 'whatsapp' && <MessageSquare className="h-4 w-4 text-green-600" />}
                         <span className="text-sm text-slate-900">{contact.contact_type_display}</span>
                       </div>
@@ -392,6 +393,7 @@ export default function CollectionsDashboardPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </CardContent>
       </Card>
