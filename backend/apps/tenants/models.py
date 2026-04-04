@@ -155,6 +155,39 @@ class Tenant(TenantMixin):
     )
 
     # ============================================================
+    # AI ASSISTANT CONFIGURATION (Asistente de Inteligencia Artificial)
+    # ============================================================
+    enable_ai_assistant = models.BooleanField(
+        default=True,
+        help_text='Habilitar el asistente AI para este tenant'
+    )
+    ai_provider = models.CharField(
+        max_length=30,
+        choices=[
+            ('global', 'Usar configuración global de la plataforma'),
+            ('groq', 'Groq (LLaMA)'),
+            ('gemini', 'Google Gemini'),
+            ('openai', 'OpenAI (GPT)'),
+            ('anthropic', 'Anthropic (Claude)'),
+            ('custom', 'Proveedor personalizado'),
+        ],
+        default='global',
+        help_text='Proveedor de AI. "Global" usa la API key de la plataforma.'
+    )
+    ai_model = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Modelo AI específico (ej: groq/llama-3.3-70b-versatile). Vacío = usa el default del proveedor.'
+    )
+    ai_api_key = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text='API Key propia del tenant para AI. Si vacío, usa la key global.'
+    )
+
+    # ============================================================
     # WHATSAPP API CONFIGURATION (Configuración de WhatsApp Cloud API)
     # ============================================================
     whatsapp_phone_id = models.CharField(

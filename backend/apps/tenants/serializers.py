@@ -322,6 +322,9 @@ class TenantSerializer(serializers.ModelSerializer):
             'enable_email_reminders', 'enable_sms_reminders', 'enable_whatsapp_reminders',
             'reminder_days_before', 'notification_email_from',
 
+            # AI Assistant Configuration
+            'enable_ai_assistant', 'ai_provider', 'ai_model', 'ai_api_key',
+
             # WhatsApp API Configuration
             'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_business_account_id',
             'whatsapp_verify_token',
@@ -384,6 +387,9 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
             # Notification Configuration
             'enable_email_reminders', 'enable_sms_reminders', 'enable_whatsapp_reminders',
             'reminder_days_before', 'notification_email_from',
+
+            # AI Assistant Configuration
+            'enable_ai_assistant', 'ai_provider', 'ai_model', 'ai_api_key',
 
             # WhatsApp API Configuration
             'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_business_account_id',

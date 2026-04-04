@@ -668,6 +668,9 @@ FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 # ============================================================
 # djangosdk — AI SDK Configuration
 # ============================================================
+# Global AI kill switch — set AI_ENABLED=False in .env to disable for ALL tenants
+AI_ENABLED = config('AI_ENABLED', default=True, cast=bool)
+
 AI_SDK = {
     'DEFAULT_PROVIDER': config('AI_DEFAULT_PROVIDER', default='groq'),
     'DEFAULT_MODEL': config('AI_DEFAULT_MODEL', default='groq/llama-3.3-70b-versatile'),
