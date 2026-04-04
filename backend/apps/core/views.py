@@ -42,6 +42,79 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def validate_cedula_view(request):
+    """
+    Busca una cédula en el Padrón JCE (~7.9M registros).
+    GET /api/core/validate-cedula/?cedula=00112345678
+    """
+    cedula = request.query_params.get('cedula', '').strip().replace('-', '')
+
+    if not cedula or len(cedula) < 9:
+        return Response(
+            {'error': 'Cédula inválida. Debe tener al menos 9 dígitos.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        from .models import PadronJCE
+        # Search in public schema directly
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SET search_path = 'public'"
+            )
+            cursor.execute(
+                "SELECT cedula, nombres, apellido1, apellido2, fecha_nacimiento "
+                "FROM padron_jce WHERE cedula = %s LIMIT 1",
+                [cedula]
+            )
+            row = cursor.fetchone()
+
+        if row:
+            cedula_raw = row[0]
+            # Format cedula: XXX-XXXXXXX-X
+            cedula_fmt = cedula_raw
+            if len(cedula_raw) == 11:
+                cedula_fmt = f'{cedula_raw[:3]}-{cedula_raw[3:10]}-{cedula_raw[10]}'
+
+            nombres = row[1] or ''
+            apellido1 = row[2] or ''
+            apellido2 = row[3] or ''
+            fecha_nac = row[4]
+
+            # Build full name
+            nombre_parts = nombres.split()
+            first_name = nombre_parts[0].title() if nombre_parts else ''
+            middle_name = ' '.join(nombre_parts[1:]).title() if len(nombre_parts) > 1 else ''
+
+            return Response({
+                'found': True,
+                'cedula': cedula_fmt,
+                'cedula_raw': cedula_raw,
+                'nombres': nombres.title(),
+                'first_name': first_name,
+                'middle_name': middle_name,
+                'apellido1': apellido1.title(),
+                'apellido2': apellido2.title() if apellido2 else '',
+                'last_name': f"{apellido1.title()}{' ' + apellido2.title() if apellido2 else ''}",
+                'nombre_completo': f"{nombres.title()} {apellido1.title()}{' ' + apellido2.title() if apellido2 else ''}",
+                'fecha_nacimiento': str(fecha_nac) if fecha_nac else None,
+                'source': 'padron_jce',
+            })
+        else:
+            return Response({
+                'found': False,
+                'cedula': cedula,
+                'message': 'Cédula no encontrada en el Padrón JCE.',
+            })
+    except Exception as e:
+        return Response(
+            {'error': f'Error consultando el Padrón: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def validate_rnc_view(request):
