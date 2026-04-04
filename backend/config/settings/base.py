@@ -59,6 +59,10 @@ SHARED_APPS = [
     'apps.communications',
     'apps.billing',
     'apps.cashbox',
+
+    # AI SDK
+    'djangosdk',
+    'apps.ai',
 ]
 
 TENANT_APPS = [
@@ -67,6 +71,8 @@ TENANT_APPS = [
     'apps.communications',
     'apps.billing',
     'apps.cashbox',
+    'djangosdk',
+    'apps.ai',
 ]
 
 INSTALLED_APPS = list(SHARED_APPS) + [
@@ -658,3 +664,37 @@ DEFAULT_CURRENCY = config('DEFAULT_CURRENCY', default='USD')
 
 # Frontend URL (for email verification and password reset links)
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+
+# ============================================================
+# djangosdk — AI SDK Configuration
+# ============================================================
+AI_SDK = {
+    'DEFAULT_PROVIDER': config('AI_DEFAULT_PROVIDER', default='groq'),
+    'DEFAULT_MODEL': config('AI_DEFAULT_MODEL', default='groq/llama-3.3-70b-versatile'),
+    'PROVIDERS': {
+        'groq': {
+            'api_key': config('GROQ_API_KEY', default=''),
+        },
+        'anthropic': {
+            'api_key': config('ANTHROPIC_API_KEY', default=''),
+        },
+        'openai': {
+            'api_key': config('OPENAI_API_KEY', default=''),
+        },
+    },
+    'CONVERSATION': {
+        'PERSIST': True,
+        'MAX_HISTORY': 50,
+        'AUTO_SUMMARIZE': False,
+    },
+    'CACHE': {
+        'ENABLED': True,
+        'PROVIDERS': ['anthropic'],
+    },
+    'RATE_LIMITING': {
+        'ENABLED': True,
+        'BACKEND': 'django_cache',
+        'PER_USER_TOKENS_PER_MINUTE': 30000,
+        'PER_USER_TOKENS_PER_DAY': 300000,
+    },
+}

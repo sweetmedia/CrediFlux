@@ -32,6 +32,7 @@ import {
   MapPin,
   FileSpreadsheet,
   Banknote,
+  Sparkles,
 } from 'lucide-react';
 
 interface NavItem {
@@ -112,6 +113,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         { href: '/billing/dgii-reports', icon: FileSpreadsheet, label: 'Reportes DGII' },
       ],
     },
+    { href: '/ai', icon: Sparkles, label: 'Asistente AI' },
     { href: '/communications', icon: MessageSquare, label: 'Comunicaciones' },
     { href: '/tasks', icon: CheckSquare, label: 'Tareas' },
   ];

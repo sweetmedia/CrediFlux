@@ -64,3 +64,7 @@ qrcode[pil]==8.0
 
 # WhatsApp Integration
 pywa==3.4.0
+
+# AI SDK
+djangosdk>=0.1.10
+litellm>=1.40.0
