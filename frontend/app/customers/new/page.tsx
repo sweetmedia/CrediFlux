@@ -888,7 +888,6 @@ export default function NewCustomerPage() {
             </div>
           </div>
         </form>
-      </div>
         </div>
       </div>
     </div>
