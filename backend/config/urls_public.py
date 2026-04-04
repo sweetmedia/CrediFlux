@@ -49,6 +49,8 @@ urlpatterns = [
     path('api/communications/', include('apps.communications.urls')),
     path('api/audit/', include('apps.audit.urls')),
     path('api/billing/', include('apps.billing.urls')),
+    path('api/cashbox/', include('apps.cashbox.urls')),
+    path('api/ai/', include('apps.ai.urls')),
 
     # Webhooks (public, no authentication)
     path('api/webhooks/whatsapp/', WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
