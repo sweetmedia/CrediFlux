@@ -18,6 +18,8 @@ from constance.admin import ConstanceAdmin, Config
 import io
 import sys
 
+from .models import PadronJCE
+
 # Import custom allauth admin configurations
 # These are auto-registered via @admin.register decorators
 # Unregistering happens inside admin_account.py to avoid order issues
@@ -188,3 +190,26 @@ class CustomConstanceAdmin(ConstanceAdmin):
         extra_context['show_rnc_update_button'] = True
         extra_context['rnc_enabled'] = constance_config.DGII_RNC_ENABLED
         return super().changelist_view(request, extra_context=extra_context)
+
+
+# ============================================================================
+# PADRON JCE
+# ============================================================================
+
+@admin.register(PadronJCE)
+class PadronJCEAdmin(ModelAdmin):
+    """Read-only admin for JCE Padrón (~7.9M citizens)"""
+    list_display = ['cedula', 'nombres', 'apellido1', 'apellido2', 'fecha_nacimiento']
+    search_fields = ['cedula', 'nombres', 'apellido1', 'apellido2']
+    list_filter = ['fecha_nacimiento']
+    readonly_fields = ['cedula', 'nombres', 'apellido1', 'apellido2', 'fecha_nacimiento']
+    list_per_page = 50
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

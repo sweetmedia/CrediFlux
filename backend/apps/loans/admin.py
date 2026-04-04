@@ -7,6 +7,8 @@ from django.db import connection
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
+from .models_contacts import CustomerPhone, CustomerEmail
+from .models_guarantors import Guarantor
 from .models_collections import CollectionReminder, CollectionContact
 from .models_contracts import ContractTemplate, Contract, ContractSignatureToken
 
@@ -39,6 +41,18 @@ class LoanInline(TabularInline):
     show_change_link = True
 
 
+class CustomerPhoneInline(TabularInline):
+    model = CustomerPhone
+    extra = 0
+    fields = ['phone', 'phone_type', 'is_primary', 'is_whatsapp', 'label']
+
+
+class CustomerEmailInline(TabularInline):
+    model = CustomerEmail
+    extra = 0
+    fields = ['email', 'email_type', 'is_primary', 'label']
+
+
 @admin.register(Customer)
 class CustomerAdmin(ModelAdmin):
     """Admin interface for Customer model with Unfold best practices"""
@@ -63,7 +77,7 @@ class CustomerAdmin(ModelAdmin):
 
     # Form configuration
     readonly_fields = ['customer_id', 'created_at', 'updated_at']
-    inlines = [CustomerDocumentInline, LoanInline]
+    inlines = [CustomerPhoneInline, CustomerEmailInline, CustomerDocumentInline, LoanInline]
     save_on_top = True
 
     def has_module_permission(self, request):
@@ -1193,3 +1207,58 @@ class ContractSignatureTokenAdmin(ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.select_related('contract', 'contract__loan')
+
+
+# ============================================================
+# Customer Contacts
+# ============================================================
+
+@admin.register(CustomerPhone)
+class CustomerPhoneAdmin(ModelAdmin):
+    list_display = ['phone', 'customer', 'phone_type', 'is_primary', 'is_whatsapp']
+    list_filter = ['phone_type', 'is_primary', 'is_whatsapp']
+    search_fields = ['phone', 'customer__first_name', 'customer__last_name']
+    raw_id_fields = ['customer']
+
+
+@admin.register(CustomerEmail)
+class CustomerEmailAdmin(ModelAdmin):
+    list_display = ['email', 'customer', 'email_type', 'is_primary']
+    list_filter = ['email_type', 'is_primary']
+    search_fields = ['email', 'customer__first_name', 'customer__last_name']
+    raw_id_fields = ['customer']
+
+
+# ============================================================
+# Guarantors
+# ============================================================
+
+@admin.register(Guarantor)
+class GuarantorAdmin(ModelAdmin):
+    list_display = ['get_full_name', 'id_number', 'loan', 'relationship', 'status', 'phone']
+    list_filter = ['status', 'relationship', 'id_type']
+    search_fields = ['first_name', 'last_name', 'id_number', 'phone', 'email']
+    raw_id_fields = ['loan']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        ('Información Personal', {
+            'fields': ('first_name', 'last_name', 'id_type', 'id_number',
+                       'date_of_birth', 'gender')
+        }),
+        ('Contacto', {
+            'fields': ('phone', 'alternate_phone', 'email', 'address', 'city', 'province')
+        }),
+        ('Empleo', {
+            'fields': ('employer_name', 'occupation', 'monthly_income')
+        }),
+        ('Relación con Préstamo', {
+            'fields': ('loan', 'relationship', 'status', 'notes')
+        }),
+        ('Documentos', {
+            'fields': ('id_document', 'proof_of_income')
+        }),
+        ('Auditoría', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
