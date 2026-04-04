@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { customersAPI } from '@/lib/api/customers';
 import { contactsAPI } from '@/lib/api/contacts';
 import { rncAPI, RNCData } from '@/lib/api/rnc';
+import { cedulaAPI } from '@/lib/api/cedula';
 import { validateDominicanID } from '@/lib/utils/rd-validation';
 import { formatIDNumber, cleanIDNumber, getIDPlaceholder } from '@/lib/utils/id-formatter';
 import { Button } from '@/components/ui/button';
@@ -149,40 +150,76 @@ export default function NewCustomerPage() {
       setRncValidationStatus(null);
       return;
     }
-    if (idType !== 'cedula' && idType !== 'rnc') return;
 
     try {
       setIsValidatingRnc(true);
-      setRncValidationMessage('Buscando en DGII...');
       setRncValidationStatus(null);
 
-      const result = await rncAPI.validateRNC(rnc);
+      // For cédulas: try JCE Padrón first (better personal data)
+      if (idType === 'cedula') {
+        setRncValidationMessage('Buscando en Padrón JCE...');
+        try {
+          const jceResult = await cedulaAPI.validate(rnc);
+          if (jceResult.found) {
+            // Auto-populate from JCE
+            if (jceResult.first_name) setValue('first_name', jceResult.first_name);
+            if (jceResult.middle_name) {
+              // If middle name exists, combine with first name or set separately
+              const currentFirst = jceResult.first_name || '';
+              if (jceResult.middle_name) {
+                setValue('first_name', `${currentFirst} ${jceResult.middle_name}`.trim());
+              }
+            }
+            if (jceResult.apellido1) {
+              const fullLast = jceResult.apellido2
+                ? `${jceResult.apellido1} ${jceResult.apellido2}`
+                : jceResult.apellido1;
+              setValue('last_name', fullLast);
+            }
+            if (jceResult.fecha_nacimiento) {
+              setValue('date_of_birth', jceResult.fecha_nacimiento);
+            }
 
-      if (result.exists && result.data) {
-        setRncData(result.data);
-        const fullName = result.data.razon_social.trim();
-        const nameParts = fullName.split(' ');
-        if (nameParts.length >= 2) {
-          setValue('first_name', nameParts[0]);
-          setValue('last_name', nameParts.slice(1).join(' '));
-        } else {
-          setValue('first_name', fullName);
+            setRncValidationMessage(`✓ Encontrado: ${jceResult.nombre_completo}`);
+            setRncValidationStatus('success');
+            return;
+          }
+        } catch (jceErr) {
+          console.log('JCE lookup failed, falling back to DGII:', jceErr);
         }
+      }
 
-        if (result.is_active) {
-          setRncValidationMessage(`✓ Encontrado: ${result.data.razon_social}`);
-          setRncValidationStatus('success');
+      // Fallback: DGII lookup (for RNC or if JCE didn't find it)
+      if (idType === 'cedula' || idType === 'rnc') {
+        setRncValidationMessage('Buscando en DGII...');
+        const result = await rncAPI.validateRNC(rnc);
+
+        if (result.exists && result.data) {
+          setRncData(result.data);
+          const fullName = result.data.razon_social.trim();
+          const nameParts = fullName.split(' ');
+          if (nameParts.length >= 2) {
+            setValue('first_name', nameParts[0]);
+            setValue('last_name', nameParts.slice(1).join(' '));
+          } else {
+            setValue('first_name', fullName);
+          }
+
+          if (result.is_active) {
+            setRncValidationMessage(`✓ Encontrado en DGII: ${result.data.razon_social}`);
+            setRncValidationStatus('success');
+          } else {
+            setRncValidationMessage(`⚠️ Encontrado pero SUSPENDIDO: ${result.data.razon_social}`);
+            setRncValidationStatus('warning');
+          }
         } else {
-          setRncValidationMessage(`⚠️ Encontrado pero SUSPENDIDO: ${result.data.razon_social}`);
+          setRncData(null);
+          setRncValidationMessage('No encontrado. Puede continuar manualmente.');
           setRncValidationStatus('warning');
         }
-      } else {
-        setRncData(null);
-        setRncValidationMessage('No encontrado en DGII. Puede continuar manualmente.');
-        setRncValidationStatus('warning');
       }
     } catch (err: any) {
-      console.error('Error validating RNC:', err);
+      console.error('Error validating:', err);
       setRncData(null);
       setRncValidationMessage('No se pudo validar. Puede continuar sin validación.');
       setRncValidationStatus('warning');
@@ -406,7 +443,7 @@ export default function NewCustomerPage() {
                   Identificación
                 </CardTitle>
                 <CardDescription>
-                  Ingrese la cédula o RNC primero — los datos se buscan automáticamente en la DGII
+                  Ingrese la cédula o RNC — se buscará automáticamente en el Padrón JCE y DGII
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -503,7 +540,7 @@ export default function NewCustomerPage() {
               <CardHeader className="pb-3">
                 <CardTitle>Datos Personales</CardTitle>
                 <CardDescription>
-                  {rncData ? 'Datos auto-completados desde DGII — puede editarlos' : 'Información personal del cliente'}
+                  {rncData || rncValidationStatus === 'success' ? 'Datos auto-completados — puede editarlos' : 'Información personal del cliente'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
