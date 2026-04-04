@@ -603,6 +603,9 @@ def get_tenant_dropdown(request):
     Generate dropdown menu for tenant navigation.
     Shows all active tenants ONLY to superusers and public schema staff.
     Regular tenant users see no dropdown (they can only access their tenant).
+
+    Dynamically builds URLs based on the incoming request so it works in
+    both local dev (*.localhost:8000) and production (*.crediflux.com.do).
     """
     from django.db import connection
     from django.utils.translation import gettext_lazy as _
@@ -614,41 +617,76 @@ def get_tenant_dropdown(request):
         return dropdown
 
     try:
-        from apps.tenants.models import Tenant
+        from apps.tenants.models import Tenant, Domain
 
         # Get current schema
         current_schema = getattr(connection, 'schema_name', 'public')
 
         # Check if user should see the dropdown
-        # Only superusers and public schema staff can see all tenants
         is_superuser = request.user.is_superuser
-        is_public_staff = request.user.has_perm('tenants.view_tenant')  # Permission that only public schema has
+        is_public_staff = request.user.has_perm('tenants.view_tenant')
 
         # Regular tenant users should not see the dropdown
         if not (is_superuser or is_public_staff):
             return dropdown
 
-        # Add public/system dashboard option (only for authorized users)
+        # Detect scheme + base domain from request
+        host = request.get_host()          # e.g. "app.crediflux.com.do" or "demo.localhost:8000"
+        scheme = 'https' if request.is_secure() else 'http'
+
+        # Figure out the "base" domain so we can build sibling URLs.
+        # Production: app.crediflux.com.do → crediflux.com.do
+        # Local:      demo.localhost:8000  → localhost:8000
+        parts = host.split('.')
+        if 'localhost' in host:
+            # Local dev: keep localhost:PORT
+            base_domain = 'localhost' + (':' + host.split(':')[1] if ':' in host else '')
+        elif len(parts) >= 3:
+            # subdomain.domain.tld → domain.tld
+            base_domain = '.'.join(parts[-2:])
+        else:
+            base_domain = host
+
+        # System Dashboard — public schema tenant
+        # Find the primary domain for the public tenant
+        try:
+            public_tenant = Tenant.objects.get(schema_name='public')
+            public_domain = Domain.objects.filter(tenant=public_tenant, is_primary=True).first()
+            if public_domain:
+                system_host = public_domain.domain
+            else:
+                system_host = f"app.{base_domain}" if 'localhost' not in host else f"localhost:{host.split(':')[1]}" if ':' in host else 'localhost'
+        except Tenant.DoesNotExist:
+            system_host = host
+
         dropdown.append({
             "icon": "settings_suggest",
             "title": _("System Dashboard"),
-            "link": "http://localhost:8000/admin/",
+            "link": f"{scheme}://{system_host}/admin/",
         })
 
-        # Get all active tenants
+        # Get all active tenants (excluding public)
         tenants = Tenant.objects.filter(is_active=True).exclude(schema_name='public').order_by('name')
 
         for tenant in tenants:
-            # Use .localhost domain (browser adds port automatically)
-            domain_url = f"http://{tenant.schema_name}.localhost:8000/admin/"
+            # Prefer the tenant's primary domain if it exists
+            primary_domain = Domain.objects.filter(tenant=tenant, is_primary=True).first()
+            if primary_domain:
+                tenant_host = primary_domain.domain
+            else:
+                # Fallback: build subdomain URL
+                if 'localhost' in host:
+                    port = ':' + host.split(':')[1] if ':' in host else ''
+                    tenant_host = f"{tenant.schema_name}.localhost{port}"
+                else:
+                    tenant_host = f"{tenant.schema_name}.{base_domain}"
 
             dropdown.append({
                 "icon": "business",
                 "title": tenant.business_name or tenant.name,
-                "link": domain_url,
+                "link": f"{scheme}://{tenant_host}/admin/",
             })
     except Exception as e:
-        # If there's an error, return empty dropdown
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error generating tenant dropdown: {e}")
