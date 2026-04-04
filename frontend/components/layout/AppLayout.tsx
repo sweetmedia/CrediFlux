@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
 import { Loader2, Menu, X } from 'lucide-react';
 import { SimplePageTransition } from '@/components/PageTransition';
+import { AIChatBubble } from '@/components/AIChatBubble';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -100,6 +101,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             {children}
           </SimplePageTransition>
         </div>
+
+        {/* AI Chat Bubble */}
+        <AIChatBubble />
       </div>
     );
   }
