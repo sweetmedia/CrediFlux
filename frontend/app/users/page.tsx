@@ -456,6 +456,7 @@ export default function UsersListPage() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }
