@@ -290,6 +290,14 @@ CSRF_TRUSTED_ORIGINS = [
     'http://amsfin.localhost:8000',
     'http://democompany.localhost:8000',
     'http://testcompany.localhost:8000',
+    # Production — crediflux.com.do
+    'https://crediflux.com.do',
+    'https://*.crediflux.com.do',
+    'http://crediflux.com.do',
+    'http://*.crediflux.com.do',
+    # VPN3 direct access
+    'http://23.95.73.125:8600',
+    'http://23.95.73.125:3600',
 ]
 
 # Celery Configuration
