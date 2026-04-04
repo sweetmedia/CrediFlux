@@ -266,11 +266,13 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Session Configuration for Multi-Tenant
 # Share session cookies across all localhost subdomains
-SESSION_COOKIE_DOMAIN = '.localhost'  # Works for localhost, caproinsa.localhost, amsfin.localhost, etc.
+# Cookie domain: use env var for production, fallback to .localhost for dev
+_COOKIE_DOMAIN = config('COOKIE_DOMAIN', default='.localhost')
+SESSION_COOKIE_DOMAIN = _COOKIE_DOMAIN
 SESSION_COOKIE_NAME = 'crediflux_sessionid'
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_SECURE = config('COOKIE_SECURE', default=False, cast=bool)
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = None  # Allow cookies to be sent between subdomains (for development)
+SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_AGE = 86400  # 24 hours
 
 # Use Redis for sessions (more robust for multi-tenant)
@@ -278,9 +280,14 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
 
 # CSRF Configuration for Multi-Tenant
-CSRF_COOKIE_DOMAIN = '.localhost'
-CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
-CSRF_COOKIE_SAMESITE = None  # Allow CSRF cookies between subdomains (for development)
+CSRF_COOKIE_DOMAIN = _COOKIE_DOMAIN
+CSRF_COOKIE_SECURE = config('COOKIE_SECURE', default=False, cast=bool)
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Trust X-Forwarded-Proto from nginx/Cloudflare so Django knows it's HTTPS
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://localhost:3000',
