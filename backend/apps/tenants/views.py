@@ -205,6 +205,7 @@ class TenantLoginView(APIView):
     """
 
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     @swagger_auto_schema(
         operation_id='tenant_login',
