@@ -5,29 +5,23 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   Loader2,
   Building2,
-  CreditCard,
-  User,
-  Lock,
   Bell,
   Palette,
-  DollarSign,
-  FileText,
-  Settings as SettingsIcon,
   ChevronRight,
+  Sparkles,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserCircle2,
+  Workflow,
+  ArrowUpRight,
 } from 'lucide-react';
 
 interface SettingsCard {
   title: string;
   description: string;
+  eyebrow: string;
   icon: React.ReactNode;
   href: string;
   badge?: string;
@@ -35,9 +29,8 @@ interface SettingsCard {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, tenant, isAuthenticated, isLoading: authLoading } = useAuth();
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
@@ -46,127 +39,163 @@ export default function SettingsPage() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAF7]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
 
   const settingsSections: SettingsCard[] = [
     {
-      title: 'Información del Negocio',
-      description: 'Configura la información de tu empresa, logo y personalización',
-      icon: <Building2 className="h-6 w-6 text-[#163300]" />,
+      title: 'Organización y perfil',
+      description: 'Negocio, branding, perfil, seguridad, notificaciones y correo en un mismo lugar.',
+      eyebrow: 'Core setup',
+      icon: <Building2 className="h-5 w-5 text-[#163300]" />,
       href: '/settings/general',
     },
     {
-      title: 'Configuración de Préstamos',
-      description: 'Tasas de interés, montos, plazos, métodos de pago y requisitos',
-      icon: <DollarSign className="h-6 w-6 text-green-600" />,
+      title: 'Políticas de préstamos',
+      description: 'Tasas, montos, plazos, mora, documentos, pagos y reglas operativas.',
+      eyebrow: 'Lending engine',
+      icon: <Workflow className="h-5 w-5 text-[#163300]" />,
       href: '/settings/loans',
-      badge: 'Nuevo',
+      badge: 'Prioridad',
     },
     {
-      title: 'Perfil de Usuario',
-      description: 'Actualiza tu información personal y foto de perfil',
-      icon: <User className="h-6 w-6 text-[#738566]" />,
+      title: 'Perfil del usuario',
+      description: 'Actualiza tu foto, cargo, bio y datos de tu cuenta.',
+      eyebrow: 'Cuenta',
+      icon: <UserCircle2 className="h-5 w-5 text-[#163300]" />,
       href: '/settings/general#profile',
     },
     {
-      title: 'Seguridad y Contraseña',
-      description: 'Cambia tu contraseña y gestiona la seguridad de tu cuenta',
-      icon: <Lock className="h-6 w-6 text-red-600" />,
+      title: 'Seguridad',
+      description: 'Contraseña, 2FA, códigos de respaldo y acceso seguro.',
+      eyebrow: 'Protección',
+      icon: <ShieldCheck className="h-5 w-5 text-[#163300]" />,
       href: '/settings/general#security',
     },
     {
-      title: 'Notificaciones',
-      description: 'Configura tus preferencias de notificaciones y alertas',
-      icon: <Bell className="h-6 w-6 text-yellow-600" />,
+      title: 'Canales y alertas',
+      description: 'WhatsApp, email y preferencias de recordatorios para el equipo.',
+      eyebrow: 'Comunicaciones',
+      icon: <Bell className="h-5 w-5 text-[#163300]" />,
       href: '/settings/general#notifications',
     },
     {
       title: 'Apariencia',
-      description: 'Personaliza los colores y el tema de la aplicación',
-      icon: <Palette className="h-6 w-6 text-pink-600" />,
+      description: 'Logo, color principal y consistencia visual del tenant.',
+      eyebrow: 'Branding',
+      icon: <Palette className="h-5 w-5 text-[#163300]" />,
       href: '/settings/general#appearance',
     },
   ];
 
-  return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Configuración</h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Administra la configuración de tu cuenta y organización
-            </p>
-          </div>
-        </div>
-      </div>
+  const quickNotes = [
+    'Primero termina auth, branding y lending defaults.',
+    'Después afina notificaciones y automatizaciones.',
+    'Todo debe verse limpio, compacto y listo para demo.',
+  ];
 
-      {/* Settings Cards Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {settingsSections.map((section, index) => (
-          <Link key={index} href={section.href} className="group">
-            <Card className="h-full transition-all hover:shadow-lg border-slate-200 cursor-pointer">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-[#163300]/5 transition-colors">
-                      {section.icon}
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg flex items-center gap-2 text-slate-900">
-                        {section.title}
-                        {section.badge && (
-                          <span className="text-xs font-normal bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                            {section.badge}
-                          </span>
-                        )}
-                      </CardTitle>
+  return (
+    <div className="min-h-screen bg-[#F8FAF7] p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-3xl border border-[#163300]/10 bg-white">
+          <div className="grid gap-0 lg:grid-cols-[1.4fr,0.9fr]">
+            <div className="border-b border-slate-200/70 p-6 lg:border-b-0 lg:border-r lg:p-8">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#163300]/10 bg-[#163300]/5 px-3 py-1 text-xs font-medium text-[#163300]">
+                <Sparkles className="h-3.5 w-3.5" />
+                Centro de configuración
+              </div>
+
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-950 lg:text-4xl">
+                Configura CrediFlux para operar y vender sin fricción.
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 lg:text-base">
+                Desde aquí ajustas la identidad del negocio, seguridad, comunicaciones y las reglas
+                que definen cómo se originan y gestionan los préstamos.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href="/settings/general"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#163300] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0f2400]"
+                >
+                  Abrir configuración general
+                  <ArrowUpRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/settings/loans"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-[#163300]/25 hover:text-[#163300]"
+                >
+                  Revisar políticas de préstamos
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-6 lg:p-8">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Tenant</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{tenant?.business_name || tenant?.name || 'CrediFlux'}</p>
+                <p className="mt-1 text-sm text-slate-600">Moneda base: {(tenant as any)?.currency_symbol || 'RD$'} · Color: {(tenant as any)?.primary_color || '#163300'}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Sesión activa</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{user?.email || 'Usuario autenticado'}</p>
+                <p className="mt-1 text-sm text-slate-600">Rol: {user?.role || 'owner'} · ajustes sensibles protegidos</p>
+              </div>
+              <div className="rounded-2xl border border-[#FFE026]/60 bg-[#FFF9D6] p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <SlidersHorizontal className="h-4 w-4 text-[#B58100]" />
+                  Checklist rápido
+                </div>
+                <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                  {quickNotes.map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#163300]" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {settingsSections.map((section) => (
+            <Link
+              key={section.title}
+              href={section.href}
+              className="group rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#163300]/20 hover:shadow-[0_12px_30px_rgba(15,23,42,0.06)]"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-2xl border border-[#163300]/10 bg-[#163300]/5 p-2.5">
+                    {section.icon}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
+                      {section.eyebrow}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <h2 className="text-base font-semibold text-slate-950">{section.title}</h2>
+                      {section.badge && (
+                        <span className="rounded-full bg-[#FFE026] px-2 py-0.5 text-[11px] font-semibold text-slate-900">
+                          {section.badge}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-[#163300] transition-colors" />
                 </div>
-                <CardDescription className="mt-2 text-slate-600">{section.description}</CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      {/* Quick Info */}
-      <Card className="border-slate-200 border-dashed mt-6">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-900">
-            <FileText className="h-4 w-4" />
-            ¿Necesitas ayuda?
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-slate-600">
-          <p>
-            Si tienes problemas con la configuración o necesitas asistencia,{' '}
-            <Link href="/support" className="text-[#163300] hover:underline">
-              contacta a nuestro equipo de soporte
+                <ChevronRight className="h-5 w-5 text-slate-400 transition group-hover:text-[#163300]" />
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-600">{section.description}</p>
             </Link>
-            .
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* User Info Footer */}
-      {user && (
-        <div className="text-xs text-slate-500 text-center pt-4 border-t border-slate-200 mt-6">
-          Sesión iniciada como <span className="font-medium text-slate-900">{user.email}</span>
-          {user.role && (
-            <span className="ml-2">
-              • Rol: <span className="font-medium capitalize text-slate-900">{user.role}</span>
-            </span>
-          )}
-        </div>
-      )}
+          ))}
+        </section>
+      </div>
     </div>
   );
 }

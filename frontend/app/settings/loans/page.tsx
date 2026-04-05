@@ -243,36 +243,61 @@ export default function LoanSettingsPage() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAF7]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="min-h-screen bg-[#F8FAF7] p-6 lg:p-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        {/* Header */}
+        <div className="space-y-6">
           <Link
             href="/settings"
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-2"
+            className="inline-flex items-center text-sm text-slate-600 transition hover:text-slate-900"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Volver a Configuración
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight">Configuración de Préstamos</h1>
-          <p className="text-muted-foreground">
-            Configura las reglas y límites para los préstamos de tu organización
-          </p>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="grid gap-0 lg:grid-cols-[1.35fr,0.85fr]">
+              <div className="border-b border-slate-200/70 p-6 lg:border-b-0 lg:border-r lg:p-8">
+                <div className="inline-flex items-center rounded-full border border-[#163300]/10 bg-[#163300]/5 px-3 py-1 text-xs font-medium text-[#163300]">
+                  Lending engine
+                </div>
+                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 lg:text-4xl">
+                  Configuración de préstamos
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                  Define las reglas que afectan aprobación, riesgo, mora, documentos,
+                  cobros y límites operativos. Todo lo crítico para poder shippear y cobrar.
+                </p>
+              </div>
+
+              <div className="grid gap-3 p-6 lg:p-8">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Tasa por defecto</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">{watch('default_interest_rate') || tenant?.default_interest_rate || 0}% mensual</p>
+                  <p className="mt-1 text-sm text-slate-600">Configurada para la forma en que operan las financieras en RD.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Rango de montos</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">RD$ {Number(watch('min_loan_amount') || 0).toLocaleString()} - RD$ {Number(watch('max_loan_amount') || 0).toLocaleString()}</p>
+                  <p className="mt-1 text-sm text-slate-600">Límites visibles para originación y aprobación.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
       {/* Success/Error Messages */}
       {successMessage && (
-        <Alert className="bg-green-50 border-green-200">
-          <CheckCircle2 className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-800">{successMessage}</AlertDescription>
+        <Alert className="bg-[#ECFDF3] border-[#B7E4C7]">
+          <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+          <AlertDescription className="text-[#166534]">{successMessage}</AlertDescription>
         </Alert>
       )}
 
@@ -286,21 +311,21 @@ export default function LoanSettingsPage() {
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="basic">Básico</TabsTrigger>
-            <TabsTrigger value="advanced">Avanzado</TabsTrigger>
-            <TabsTrigger value="payments">Pagos</TabsTrigger>
-            <TabsTrigger value="documents">Documentos</TabsTrigger>
-            <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-3 xl:grid-cols-5">
+            <TabsTrigger value="basic" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Básico</TabsTrigger>
+            <TabsTrigger value="advanced" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Avanzado</TabsTrigger>
+            <TabsTrigger value="payments" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Pagos</TabsTrigger>
+            <TabsTrigger value="documents" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Documentos</TabsTrigger>
+            <TabsTrigger value="notifications" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Notificaciones</TabsTrigger>
           </TabsList>
 
           {/* BASIC TAB */}
           <TabsContent value="basic" className="space-y-6">
             {/* Interest Rates */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Percent className="h-5 w-5 text-primary" />
+                  <Percent className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Tasas de Interés</CardTitle>
                 </div>
                 <CardDescription>
@@ -310,7 +335,7 @@ export default function LoanSettingsPage() {
               <CardContent className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="default_interest_rate">
-                    Tasa Predeterminada (% anual)
+                    Tasa predeterminada (% mensual)
                   </Label>
                   <Input
                     id="default_interest_rate"
@@ -324,7 +349,7 @@ export default function LoanSettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="min_interest_rate">Tasa Mínima (% anual)</Label>
+                  <Label htmlFor="min_interest_rate">Tasa mínima (% mensual)</Label>
                   <Input
                     id="min_interest_rate"
                     type="number"
@@ -334,7 +359,7 @@ export default function LoanSettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="max_interest_rate">Tasa Máxima (% anual)</Label>
+                  <Label htmlFor="max_interest_rate">Tasa máxima (% mensual)</Label>
                   <Input
                     id="max_interest_rate"
                     type="number"
@@ -346,10 +371,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Loan Amounts */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
+                  <DollarSign className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Montos de Préstamo</CardTitle>
                 </div>
                 <CardDescription>
@@ -380,10 +405,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Loan Terms */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
+                  <Calendar className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Plazos de Préstamo</CardTitle>
                 </div>
                 <CardDescription>
@@ -421,10 +446,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Default Settings */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-primary" />
+                  <Settings className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Configuración Predeterminada</CardTitle>
                 </div>
                 <CardDescription>
@@ -481,10 +506,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Currency Settings */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
+                  <DollarSign className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Configuración de Moneda</CardTitle>
                 </div>
                 <CardDescription>
@@ -529,10 +554,10 @@ export default function LoanSettingsPage() {
           {/* ADVANCED TAB */}
           <TabsContent value="advanced" className="space-y-6">
             {/* Auto-Approval */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                  <CheckCircle2 className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Auto-Aprobación</CardTitle>
                 </div>
                 <CardDescription>
@@ -581,10 +606,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Credit Score */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-primary" />
+                  <Shield className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Requisitos de Score Crediticio</CardTitle>
                 </div>
                 <CardDescription>
@@ -623,10 +648,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Collateral */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-primary" />
+                  <Shield className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Requisitos de Colateral</CardTitle>
                 </div>
                 <CardDescription>
@@ -660,10 +685,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Guarantor */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-primary" />
+                  <Shield className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Requisitos de Garante</CardTitle>
                 </div>
                 <CardDescription>
@@ -697,10 +722,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Disbursement */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
+                  <DollarSign className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Configuración de Desembolso</CardTitle>
                 </div>
                 <CardDescription>
@@ -735,10 +760,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Early Repayment */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
+                  <DollarSign className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Pago Anticipado</CardTitle>
                 </div>
                 <CardDescription>
@@ -772,10 +797,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Additional Settings */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-primary" />
+                  <Settings className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Configuraciones Adicionales</CardTitle>
                 </div>
                 <CardDescription>
@@ -798,10 +823,10 @@ export default function LoanSettingsPage() {
           {/* PAYMENTS TAB */}
           <TabsContent value="payments" className="space-y-6">
             {/* Payment Methods */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />
+                  <CreditCard className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Métodos de Pago Aceptados</CardTitle>
                 </div>
                 <CardDescription>
@@ -869,10 +894,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Late Fees */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Percent className="h-5 w-5 text-primary" />
+                  <Percent className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Configuración de Mora</CardTitle>
                 </div>
                 <CardDescription>
@@ -961,10 +986,10 @@ export default function LoanSettingsPage() {
           {/* DOCUMENTS TAB */}
           <TabsContent value="documents" className="space-y-6">
             {/* Document Requirements */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
+                  <FileText className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Requisitos de Documentación</CardTitle>
                 </div>
                 <CardDescription>
@@ -1030,10 +1055,10 @@ export default function LoanSettingsPage() {
             </Card>
 
             {/* Enhanced Verification */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-primary" />
+                  <Shield className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Verificación Adicional</CardTitle>
                 </div>
                 <CardDescription>
@@ -1052,7 +1077,7 @@ export default function LoanSettingsPage() {
                     {...register('enhanced_verification_amount', { valueAsNumber: true })}
                   />
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-slate-600">
                   Para préstamos superiores a este monto, se pueden solicitar documentos
                   adicionales como estados de cuenta, declaraciones de impuestos, etc.
                 </p>
@@ -1063,10 +1088,10 @@ export default function LoanSettingsPage() {
           {/* NOTIFICATIONS TAB */}
           <TabsContent value="notifications" className="space-y-6">
             {/* Notification Settings */}
-            <Card>
+            <Card className="rounded-3xl border-slate-200/80 shadow-none">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-primary" />
+                  <Settings className="h-5 w-5 text-[#163300]" />
                   <CardTitle>Configuración de Notificaciones</CardTitle>
                 </div>
                 <CardDescription>
@@ -1144,7 +1169,7 @@ export default function LoanSettingsPage() {
           <Button
             type="submit"
             disabled={isSaving}
-            className="min-w-[150px]"
+            className="min-w-[150px] bg-[#163300] hover:bg-[#0f2400]"
           >
             {isSaving ? (
               <>
@@ -1161,5 +1186,6 @@ export default function LoanSettingsPage() {
         </div>
       </form>
     </div>
+  </div>
   );
 }

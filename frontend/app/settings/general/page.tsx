@@ -211,7 +211,7 @@ export default function TenantSettingsPage() {
       setValue('country', data.country || '');
       setValue('postal_code', data.postal_code || '');
       setValue('primary_color', data.primary_color || '#6366f1');
-      setValue('default_currency', data.default_currency || 'USD');
+      setValue('default_currency', (data.default_currency as 'USD' | 'DOP' | 'EUR' | 'GBP' | undefined) || 'USD');
       setValue('currency_symbol', data.currency_symbol || '$');
       setValue('enable_whatsapp_reminders', data.enable_whatsapp_reminders || false);
       setValue('whatsapp_phone_id', data.whatsapp_phone_id || '');
@@ -696,8 +696,8 @@ export default function TenantSettingsPage() {
   // Show loading state while checking authentication
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAF7]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
@@ -726,35 +726,55 @@ export default function TenantSettingsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="container mx-auto max-w-4xl">
+    <div className="min-h-screen bg-[#F8FAF7] p-6 lg:p-8">
+      <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8 space-y-6">
           <Link
             href="/settings"
-            className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-2"
+            className="inline-flex items-center text-sm text-slate-600 transition hover:text-slate-900"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Volver a Configuración
           </Link>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <Building2 className="h-6 w-6 text-blue-600" />
-                Información del Negocio
-              </h1>
-              <p className="text-sm text-slate-600 mt-1">
-                Administra la información y configuración de tu organización
-              </p>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="grid gap-0 lg:grid-cols-[1.35fr,0.85fr]">
+              <div className="border-b border-slate-200/70 p-6 lg:border-b-0 lg:border-r lg:p-8">
+                <div className="inline-flex items-center rounded-full border border-[#163300]/10 bg-[#163300]/5 px-3 py-1 text-xs font-medium text-[#163300]">
+                  Workspace del tenant
+                </div>
+                <h1 className="mt-4 flex items-center gap-3 text-3xl font-semibold tracking-tight text-slate-950">
+                  <Building2 className="h-7 w-7 text-[#163300]" />
+                  Configuración general
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                  Organiza la identidad de la empresa, la cuenta del usuario, seguridad,
+                  comunicaciones y branding desde una sola vista clara y compacta.
+                </p>
+              </div>
+
+              <div className="grid gap-3 p-6 lg:p-8">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Organización</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">{tenant?.business_name || authTenant?.business_name || 'CrediFlux'}</p>
+                  <p className="mt-1 text-sm text-slate-600">Email principal: {tenant?.email || user?.email || 'No definido'}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Usuario activo</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">{user?.first_name || user?.email || 'Cuenta actual'}</p>
+                  <p className="mt-1 text-sm text-slate-600">Rol: {user?.role || 'owner'} {user?.is_2fa_enabled ? '· 2FA activo' : '· 2FA pendiente'}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Success Message */}
         {successMessage && (
-          <Alert className="mb-6 bg-green-50 border-green-200 shadow-sm">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
+          <Alert className="mb-6 bg-[#ECFDF3] border-[#B7E4C7] shadow-sm">
+            <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+            <AlertDescription className="text-[#166534]">
               {successMessage}
             </AlertDescription>
           </Alert>
@@ -769,27 +789,27 @@ export default function TenantSettingsPage() {
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
-            <p className="text-gray-600">Cargando configuración...</p>
+            <Loader2 className="h-12 w-12 animate-spin text-[#163300] mb-4" />
+            <p className="text-slate-600">Cargando configuración...</p>
           </div>
         ) : (
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid w-full grid-cols-6 mb-6 bg-slate-100">
-              <TabsTrigger value="profile" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Perfil</TabsTrigger>
-              <TabsTrigger value="security" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Seguridad</TabsTrigger>
-              <TabsTrigger value="business" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Negocio</TabsTrigger>
-              <TabsTrigger value="email" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Email</TabsTrigger>
-              <TabsTrigger value="notifications" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Notificaciones</TabsTrigger>
-              <TabsTrigger value="appearance" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Apariencia</TabsTrigger>
+            <TabsList className="mb-6 grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-3 xl:grid-cols-6">
+              <TabsTrigger value="profile" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Perfil</TabsTrigger>
+              <TabsTrigger value="security" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Seguridad</TabsTrigger>
+              <TabsTrigger value="business" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Negocio</TabsTrigger>
+              <TabsTrigger value="email" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Email</TabsTrigger>
+              <TabsTrigger value="notifications" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Notificaciones</TabsTrigger>
+              <TabsTrigger value="appearance" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Apariencia</TabsTrigger>
             </TabsList>
 
             {/* PROFILE TAB */}
             <TabsContent value="profile">
               <form onSubmit={handleSubmitProfile(onProfileSubmit)}>
-                <Card className="border-slate-200 shadow-sm">
+                <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-900">
-                    <UserIcon className="h-5 w-5 text-blue-600" />
+                    <UserIcon className="h-5 w-5 text-[#163300]" />
                     Perfil Personal
                   </CardTitle>
                   <CardDescription className="text-slate-600">
@@ -799,9 +819,9 @@ export default function TenantSettingsPage() {
                 <CardContent className="space-y-6">
                   {/* Profile Success/Error Messages */}
                   {profileSuccess && (
-                    <Alert className="bg-green-50 border-green-200">
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      <AlertDescription className="text-green-800">
+                    <Alert className="bg-[#ECFDF3] border-[#B7E4C7]">
+                      <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+                      <AlertDescription className="text-[#166534]">
                         {profileSuccess}
                       </AlertDescription>
                     </Alert>
@@ -820,7 +840,7 @@ export default function TenantSettingsPage() {
                           <img
                             src={avatarPreview}
                             alt="Avatar"
-                            className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
+                            className="w-24 h-24 rounded-full object-cover border-2 border-slate-200"
                           />
                           {!isUploadingAvatar && (
                             <Button
@@ -835,8 +855,8 @@ export default function TenantSettingsPage() {
                           )}
                         </div>
                       ) : (
-                        <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center border-2 border-gray-200">
-                          <UserIcon className="h-12 w-12 text-gray-400" />
+                        <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-100">
+                          <UserIcon className="h-12 w-12 text-slate-400" />
                         </div>
                       )}
                     </div>
@@ -873,7 +893,7 @@ export default function TenantSettingsPage() {
                           disabled={isUploadingAvatar}
                         />
                       </div>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-slate-500">
                         PNG, JPG o GIF. Máximo 5MB.
                       </p>
                     </div>
@@ -914,16 +934,16 @@ export default function TenantSettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="profile_email">Email</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input
                         id="profile_email"
                         type="email"
                         value={user?.email || ''}
-                        className="pl-10 bg-gray-50"
+                        className="pl-10 bg-slate-50"
                         disabled
                       />
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-slate-500">
                       El email no puede ser modificado
                     </p>
                   </div>
@@ -933,7 +953,7 @@ export default function TenantSettingsPage() {
                     <div className="space-y-2">
                       <Label htmlFor="profile_phone">Teléfono</Label>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
                           id="profile_phone"
                           type="tel"
@@ -948,7 +968,7 @@ export default function TenantSettingsPage() {
                     <div className="space-y-2">
                       <Label htmlFor="job_title">Cargo / Puesto</Label>
                       <div className="relative">
-                        <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
                           id="job_title"
                           placeholder="Ej: Gerente General"
@@ -987,19 +1007,19 @@ export default function TenantSettingsPage() {
                     <input
                       type="checkbox"
                       id="receive_notifications"
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-[#163300] border-slate-300 rounded focus:ring-[#163300]"
                       {...registerProfile('receive_notifications')}
                       disabled={isSavingProfile}
                     />
                     <Label htmlFor="receive_notifications" className="flex items-center gap-2 cursor-pointer">
-                      <Bell className="h-4 w-4 text-gray-600" />
+                      <Bell className="h-4 w-4 text-slate-600" />
                       Recibir notificaciones por email
                     </Label>
                   </div>
 
                   {/* Profile Actions */}
                   <div className="flex justify-end">
-                    <Button type="submit" disabled={isSavingProfile} className="bg-blue-600 hover:bg-blue-700">
+                    <Button type="submit" disabled={isSavingProfile} className="bg-[#163300] hover:bg-[#0f2400]">
                       {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       <Save className="mr-2 h-4 w-4" />
                       Guardar Perfil
@@ -1013,10 +1033,10 @@ export default function TenantSettingsPage() {
             {/* SECURITY TAB */}
             <TabsContent value="security">
             <form onSubmit={handleSubmitPassword(onPasswordSubmit)}>
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-900">
-                    <Lock className="h-5 w-5 text-blue-600" />
+                    <Lock className="h-5 w-5 text-[#163300]" />
                     Cambiar Contraseña
                   </CardTitle>
                   <CardDescription className="text-slate-600">
@@ -1026,9 +1046,9 @@ export default function TenantSettingsPage() {
                 <CardContent className="space-y-4">
                   {/* Password Success/Error Messages */}
                   {passwordSuccess && (
-                    <Alert className="bg-green-50 border-green-200">
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      <AlertDescription className="text-green-800">
+                    <Alert className="bg-[#ECFDF3] border-[#B7E4C7]">
+                      <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+                      <AlertDescription className="text-[#166534]">
                         {passwordSuccess}
                       </AlertDescription>
                     </Alert>
@@ -1063,7 +1083,7 @@ export default function TenantSettingsPage() {
                     {passwordErrors.new_password && (
                       <p className="text-sm text-red-500">{passwordErrors.new_password.message}</p>
                     )}
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-slate-500">
                       Mínimo 8 caracteres
                     </p>
                   </div>
@@ -1082,7 +1102,7 @@ export default function TenantSettingsPage() {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button type="submit" disabled={isChangingPassword} className="bg-blue-600 hover:bg-blue-700">
+                    <Button type="submit" disabled={isChangingPassword} className="bg-[#163300] hover:bg-[#0f2400]">
                       {isChangingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       <Lock className="mr-2 h-4 w-4" />
                       Cambiar Contraseña
@@ -1093,10 +1113,10 @@ export default function TenantSettingsPage() {
             </form>
 
               {/* Two-Factor Authentication Card */}
-              <Card className="border-slate-200 shadow-sm mt-6">
+              <Card className="rounded-3xl border-slate-200/80 shadow-none mt-6">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-900">
-                    <Shield className="h-5 w-5 text-blue-600" />
+                    <Shield className="h-5 w-5 text-[#163300]" />
                     Autenticacion de Dos Factores (2FA)
                   </CardTitle>
                   <CardDescription className="text-slate-600">
@@ -1106,9 +1126,9 @@ export default function TenantSettingsPage() {
                 <CardContent className="space-y-4">
                   {/* 2FA Success/Error Messages */}
                   {twoFASuccess && (
-                    <Alert className="bg-green-50 border-green-200">
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      <AlertDescription className="text-green-800">
+                    <Alert className="bg-[#ECFDF3] border-[#B7E4C7]">
+                      <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+                      <AlertDescription className="text-[#166534]">
                         {twoFASuccess}
                       </AlertDescription>
                     </Alert>
@@ -1124,7 +1144,7 @@ export default function TenantSettingsPage() {
                       {/* 2FA Enabled Status */}
                       <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
                         <div className="p-2 bg-green-100 rounded-full">
-                          <Shield className="h-5 w-5 text-green-600" />
+                          <Shield className="h-5 w-5 text-[#166534]" />
                         </div>
                         <div className="flex-1">
                           <p className="font-medium text-green-900">2FA Habilitado</p>
@@ -1308,7 +1328,7 @@ export default function TenantSettingsPage() {
                       </div>
 
                       <Button
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-[#163300] hover:bg-[#0f2400]"
                         onClick={() => setIs2FASetupOpen(true)}
                       >
                         <Shield className="mr-2 h-4 w-4" />
@@ -1331,10 +1351,10 @@ export default function TenantSettingsPage() {
             <TabsContent value="business">
             <form onSubmit={handleSubmit(onSubmit)}>
               {/* Business Information */}
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-900">
-                    <Building2 className="h-5 w-5 text-blue-600" />
+                    <Building2 className="h-5 w-5 text-[#163300]" />
                     Información del Negocio
                   </CardTitle>
                   <CardDescription className="text-slate-600">
@@ -1376,7 +1396,7 @@ export default function TenantSettingsPage() {
                       Email <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input
                         id="email"
                         type="email"
@@ -1393,7 +1413,7 @@ export default function TenantSettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="phone">Teléfono</Label>
                     <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input
                         id="phone"
                         type="tel"
@@ -1411,7 +1431,7 @@ export default function TenantSettingsPage() {
                   {/* Currency Settings */}
                   <div className="pt-4 border-t">
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-green-600" />
+                      <DollarSign className="h-4 w-4 text-[#166534]" />
                       Configuración de Moneda
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1445,7 +1465,7 @@ export default function TenantSettingsPage() {
                         {errors.currency_symbol && (
                           <p className="text-sm text-red-500">{errors.currency_symbol.message}</p>
                         )}
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-slate-500">
                           Ej: $, RD$, €, £
                         </p>
                       </div>
@@ -1455,10 +1475,10 @@ export default function TenantSettingsPage() {
               </Card>
 
               {/* Address Information */}
-              <Card className="border-slate-200 shadow-sm mt-6">
+              <Card className="rounded-3xl border-slate-200/80 shadow-none mt-6">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-900">
-                    <MapPin className="h-5 w-5 text-blue-600" />
+                    <MapPin className="h-5 w-5 text-[#163300]" />
                     Dirección
                   </CardTitle>
                   <CardDescription className="text-slate-600">
@@ -1539,7 +1559,7 @@ export default function TenantSettingsPage() {
 
               {/* Subscription Info (Read-only) */}
               {tenant && (
-                <Card className="border-slate-200 shadow-sm mt-6">
+                <Card className="rounded-3xl border-slate-200/80 shadow-none mt-6">
                   <CardHeader>
                     <CardTitle className="text-slate-900">Información de Suscripción</CardTitle>
                     <CardDescription className="text-slate-600">
@@ -1549,18 +1569,18 @@ export default function TenantSettingsPage() {
                   <CardContent className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <Label className="text-sm text-gray-600">Plan</Label>
+                        <Label className="text-sm text-slate-600">Plan</Label>
                         <p className="text-lg font-semibold capitalize">{tenant.subscription_plan}</p>
                       </div>
                       <div>
-                        <Label className="text-sm text-gray-600">Usuarios Máximos</Label>
+                        <Label className="text-sm text-slate-600">Usuarios Máximos</Label>
                         <p className="text-lg font-semibold">{tenant.max_users}</p>
                       </div>
                       <div>
-                        <Label className="text-sm text-gray-600">Estado</Label>
+                        <Label className="text-sm text-slate-600">Estado</Label>
                         <p className="text-lg font-semibold">
                           {tenant.is_active ? (
-                            <span className="text-green-600">Activo</span>
+                            <span className="text-[#166534]">Activo</span>
                           ) : (
                             <span className="text-red-600">Inactivo</span>
                           )}
@@ -1578,7 +1598,7 @@ export default function TenantSettingsPage() {
                     Cancelar
                   </Button>
                 </Link>
-                <Button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={isSaving} className="bg-[#163300] hover:bg-[#0f2400]">
                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Guardar Información del Negocio
@@ -1590,10 +1610,10 @@ export default function TenantSettingsPage() {
             {/* EMAIL CONFIGURATION TAB */}
             <TabsContent value="email">
             <form onSubmit={handleSubmit(onSubmit)}>
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-900">
-                    <Mail className="h-5 w-5 text-blue-600" />
+                    <Mail className="h-5 w-5 text-[#163300]" />
                     Configuración de Email (SMTP/IMAP)
                   </CardTitle>
                   <CardDescription>
@@ -1706,7 +1726,7 @@ export default function TenantSettingsPage() {
                           type="checkbox"
                           id="smtp_use_tls"
                           {...register('smtp_use_tls')}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          className="h-4 w-4 text-[#163300] focus:ring-[#163300] border-slate-300 rounded"
                         />
                         <Label htmlFor="smtp_use_tls" className="font-normal">
                           Usar TLS (Recomendado)
@@ -1718,7 +1738,7 @@ export default function TenantSettingsPage() {
                           type="checkbox"
                           id="smtp_use_ssl"
                           {...register('smtp_use_ssl')}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          className="h-4 w-4 text-[#163300] focus:ring-[#163300] border-slate-300 rounded"
                         />
                         <Label htmlFor="smtp_use_ssl" className="font-normal">
                           Usar SSL
@@ -1774,7 +1794,7 @@ export default function TenantSettingsPage() {
                           type="checkbox"
                           id="imap_use_ssl"
                           {...register('imap_use_ssl')}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          className="h-4 w-4 text-[#163300] focus:ring-[#163300] border-slate-300 rounded"
                         />
                         <Label htmlFor="imap_use_ssl" className="font-normal">
                           Usar SSL (Recomendado)
@@ -1798,7 +1818,7 @@ export default function TenantSettingsPage() {
                 <Button
                   type="submit"
                   disabled={isSaving}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-[#163300] hover:bg-[#0f2400] text-white"
                 >
                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
@@ -1812,10 +1832,10 @@ export default function TenantSettingsPage() {
             <TabsContent value="notifications">
             <form onSubmit={handleSubmit(onSubmit)}>
               {/* WhatsApp Configuration */}
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-900">
-                    <MessageSquare className="h-5 w-5 text-green-600" />
+                    <MessageSquare className="h-5 w-5 text-[#166534]" />
                     Configuración de WhatsApp
                   </CardTitle>
                   <CardDescription className="text-slate-600">
@@ -1828,7 +1848,7 @@ export default function TenantSettingsPage() {
                     <input
                       type="checkbox"
                       id="enable_whatsapp_reminders"
-                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 mt-1"
+                      className="w-4 h-4 text-[#166534] border-slate-300 rounded focus:ring-green-500 mt-1"
                       {...register('enable_whatsapp_reminders')}
                       disabled={isSaving}
                     />
@@ -1836,7 +1856,7 @@ export default function TenantSettingsPage() {
                       <Label htmlFor="enable_whatsapp_reminders" className="font-semibold cursor-pointer">
                         Habilitar Recordatorios por WhatsApp
                       </Label>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-slate-600 mt-1">
                         Activa el envío automático de recordatorios de pago, enlaces de firma de contratos y recibos por WhatsApp
                       </p>
                     </div>
@@ -1865,7 +1885,7 @@ export default function TenantSettingsPage() {
                       {...register('whatsapp_phone_id')}
                       disabled={isSaving}
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-slate-500">
                       ID del número de teléfono de WhatsApp Business desde Meta Business
                     </p>
                   </div>
@@ -1882,7 +1902,7 @@ export default function TenantSettingsPage() {
                       {...register('whatsapp_token')}
                       disabled={isSaving}
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-slate-500">
                       Token de acceso de Meta Business (se guardará encriptado)
                     </p>
                   </div>
@@ -1898,7 +1918,7 @@ export default function TenantSettingsPage() {
                       {...register('whatsapp_business_account_id')}
                       disabled={isSaving}
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-slate-500">
                       ID de la cuenta business de WhatsApp
                     </p>
                   </div>
@@ -1915,7 +1935,7 @@ export default function TenantSettingsPage() {
                       {...register('whatsapp_verify_token')}
                       disabled={isSaving}
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-slate-500">
                       Token para validar webhooks de WhatsApp
                     </p>
                   </div>
@@ -1926,7 +1946,7 @@ export default function TenantSettingsPage() {
                       <CheckCircle2 className="h-4 w-4" />
                       Funcionalidades de WhatsApp:
                     </h4>
-                    <ul className="text-sm text-green-800 space-y-1 list-disc list-inside">
+                    <ul className="text-sm text-[#166534] space-y-1 list-disc list-inside">
                       <li>Recordatorios automáticos de pago (7, 3 y 1 día antes)</li>
                       <li>Notificaciones de pagos vencidos (1, 3 y 7 días después)</li>
                       <li>Envío de enlaces de firma de contratos</li>
@@ -1957,10 +1977,10 @@ export default function TenantSettingsPage() {
             <TabsContent value="appearance">
             <form onSubmit={handleSubmit(onSubmit)}>
               {/* Branding */}
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-900">
-                    <Palette className="h-5 w-5 text-blue-600" />
+                    <Palette className="h-5 w-5 text-[#163300]" />
                     Personalización
                   </CardTitle>
                   <CardDescription className="text-slate-600">
@@ -1976,7 +1996,7 @@ export default function TenantSettingsPage() {
                     </Label>
 
                     {/* Logo Preview */}
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center gap-4">
+                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center gap-4">
                       {logoPreview ? (
                         <div className="relative">
                           <img
@@ -1997,7 +2017,7 @@ export default function TenantSettingsPage() {
                           )}
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center gap-2 text-gray-400">
+                        <div className="flex flex-col items-center gap-2 text-slate-400">
                           <ImageIcon className="h-12 w-12" />
                           <p className="text-sm">No hay logo</p>
                         </div>
@@ -2035,7 +2055,7 @@ export default function TenantSettingsPage() {
                         />
                       </div>
 
-                      <p className="text-xs text-gray-500 text-center">
+                      <p className="text-xs text-slate-500 text-center">
                         PNG, JPG o GIF. Máximo 5MB.
                       </p>
                     </div>
@@ -2063,7 +2083,7 @@ export default function TenantSettingsPage() {
                     {errors.primary_color && (
                       <p className="text-sm text-red-500">{errors.primary_color.message}</p>
                     )}
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-slate-500">
                       Formato hexadecimal (ej: #6366f1)
                     </p>
                   </div>
@@ -2077,7 +2097,7 @@ export default function TenantSettingsPage() {
                     Cancelar
                   </Button>
                 </Link>
-                <Button type="submit" disabled={isSaving || isUploadingLogo} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={isSaving || isUploadingLogo} className="bg-[#163300] hover:bg-[#0f2400]">
                   {(isSaving || isUploadingLogo) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Guardar Apariencia
