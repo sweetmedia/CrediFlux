@@ -8,6 +8,17 @@ from .models_contracts import ContractTemplate, Contract
 from .models_guarantors import Guarantor
 
 
+class MoneyAmountField(serializers.DecimalField):
+    """Decimal field that can safely serialize djmoney Money objects."""
+
+    def to_representation(self, value):
+        if value is None:
+            return None
+        if hasattr(value, 'amount'):
+            value = value.amount
+        return super().to_representation(value)
+
+
 class CustomerDocumentSerializer(serializers.ModelSerializer):
     """Serializer for CustomerDocument model"""
     verified_by_name = serializers.CharField(source='verified_by.get_full_name', read_only=True, allow_null=True)
@@ -165,9 +176,8 @@ class CustomerListSerializer(serializers.ModelSerializer):
 
 class CollateralSerializer(serializers.ModelSerializer):
     """Serializer for Collateral model"""
-    # For reading, convert Money fields to decimal
-    estimated_value = serializers.DecimalField(max_digits=14, decimal_places=2)
-    appraisal_value = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True, required=False)
+    estimated_value = MoneyAmountField(max_digits=14, decimal_places=2)
+    appraisal_value = MoneyAmountField(max_digits=14, decimal_places=2, allow_null=True, required=False)
     description = serializers.CharField(required=False, allow_blank=True, default='')
 
     class Meta:
@@ -193,16 +203,22 @@ class CollateralSerializer(serializers.ModelSerializer):
         """Handle Money field creation"""
         from djmoney.money import Money
 
+        currency = 'DOP'
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request else None
+        if tenant and getattr(tenant, 'default_currency', None):
+            currency = tenant.default_currency
+
         # Convert decimal to Money for estimated_value
         if 'estimated_value' in validated_data:
             validated_data['estimated_value'] = Money(
-                validated_data['estimated_value'], 'USD'
+                validated_data['estimated_value'], currency
             )
 
         # Convert decimal to Money for appraisal_value if present
         if validated_data.get('appraisal_value'):
             validated_data['appraisal_value'] = Money(
-                validated_data['appraisal_value'], 'USD'
+                validated_data['appraisal_value'], currency
             )
 
         return super().create(validated_data)
