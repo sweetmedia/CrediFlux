@@ -617,11 +617,12 @@ class LoanCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Loan
         fields = [
-            'customer', 'loan_type', 'principal_amount', 'interest_rate', 'interest_type',
+            'id', 'customer', 'loan_type', 'principal_amount', 'interest_rate', 'interest_type',
             'term_months', 'payment_frequency', 'payment_amount',
             'application_date', 'first_payment_date', 'loan_officer',
             'purpose', 'notes'
         ]
+        read_only_fields = ['id']
 
     def _get_default_contract_template(self, loan_type):
         queryset = ContractTemplate.objects.filter(is_active=True)
