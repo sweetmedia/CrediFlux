@@ -160,28 +160,29 @@ export default function DGIIReportsPage() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] items-center justify-center p-6 lg:p-8">
         <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/billing">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Reportes DGII</h1>
-            <p className="text-sm text-gray-500">Formatos 606 y 607 para la Dirección General de Impuestos Internos</p>
+    <div className="p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/billing">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">Reportes DGII</h1>
+              <p className="text-sm text-gray-500">Formatos 606 y 607 para la Dirección General de Impuestos Internos</p>
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Period Selector + Tab */}
       <Card>
@@ -466,6 +467,7 @@ export default function DGIIReportsPage() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }
