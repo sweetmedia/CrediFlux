@@ -338,6 +338,7 @@ export default function NewLoanPage() {
       last_name: '',
       id_type: 'cedula',
       id_number: '',
+      date_of_birth: '',
       phone: '',
       email: '',
       address: '',
@@ -372,9 +373,19 @@ export default function NewLoanPage() {
   };
 
   const updateGuarantor = (index: number, field: string, value: any) => {
-    const updated = [...guarantors];
-    updated[index] = { ...updated[index], [field]: value };
-    setGuarantors(updated);
+    setGuarantors((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const patchGuarantor = (index: number, patch: Record<string, any>) => {
+    setGuarantors((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], ...patch };
+      return updated;
+    });
   };
 
   const lookupGuarantorByDocument = async (index: number) => {
@@ -409,10 +420,13 @@ export default function NewLoanPage() {
           if (jceResult.found) {
             const firstName = [jceResult.first_name, jceResult.middle_name].filter(Boolean).join(' ').trim();
             const lastName = [jceResult.apellido1, jceResult.apellido2].filter(Boolean).join(' ').trim();
-            if (firstName) updateGuarantor(index, 'first_name', firstName);
-            if (lastName) updateGuarantor(index, 'last_name', lastName);
-            updateGuarantor(index, 'id_number', jceResult.cedula_raw || jceResult.cedula || guarantor.id_number);
-            updateGuarantor(index, 'lookupSource', 'JCE');
+            patchGuarantor(index, {
+              ...(firstName ? { first_name: firstName } : {}),
+              ...(lastName ? { last_name: lastName } : {}),
+              id_number: jceResult.cedula_raw || jceResult.cedula || guarantor.id_number,
+              ...(jceResult.fecha_nacimiento ? { date_of_birth: jceResult.fecha_nacimiento } : {}),
+              lookupSource: 'JCE',
+            });
 
             toast.success(`Garante encontrado: ${jceResult.nombre_completo || `${firstName} ${lastName}`.trim()}`, {
               id: `guarantor-lookup-${index}`,
@@ -431,9 +445,11 @@ export default function NewLoanPage() {
         if (result.exists && result.data) {
           const fullName = result.data.razon_social.trim();
           const parts = fullName.split(' ');
-          updateGuarantor(index, 'first_name', parts[0] || fullName);
-          updateGuarantor(index, 'last_name', parts.length > 1 ? parts.slice(1).join(' ') : '');
-          updateGuarantor(index, 'lookupSource', 'DGII');
+          patchGuarantor(index, {
+            first_name: parts[0] || fullName,
+            last_name: parts.length > 1 ? parts.slice(1).join(' ') : '',
+            lookupSource: 'DGII',
+          });
           toast.success(`Encontrado: ${result.data.razon_social}`, {
             id: `guarantor-lookup-${index}`,
             description: 'Datos auto-completados desde DGII',
@@ -493,6 +509,7 @@ export default function NewLoanPage() {
       if (!g.last_name?.trim()) return `Garante ${i + 1}: el apellido es obligatorio`;
       if (!g.phone?.trim()) return `Garante ${i + 1}: el teléfono del garante es obligatorio`;
       if (!g.address?.trim()) return `Garante ${i + 1}: la dirección del garante es obligatoria`;
+      if (!g.date_of_birth?.trim()) return `Garante ${i + 1}: la fecha de nacimiento del garante es obligatoria`;
       if (!g.relationship?.trim()) return `Garante ${i + 1}: la relación con el cliente es obligatoria`;
     }
     return null;
@@ -708,6 +725,7 @@ export default function NewLoanPage() {
           };
           if (guarantor.email) guarantorData.email = guarantor.email;
           if (guarantor.address) guarantorData.address = guarantor.address;
+          if (guarantor.date_of_birth) guarantorData.date_of_birth = guarantor.date_of_birth;
           if (guarantor.employer_name) guarantorData.employer_name = guarantor.employer_name;
           if (guarantor.occupation) guarantorData.occupation = guarantor.occupation;
           if (guarantor.monthly_income) guarantorData.monthly_income = parseFloat(guarantor.monthly_income) || 0;
@@ -1665,7 +1683,17 @@ export default function NewLoanPage() {
                           </div>
 
                           {/* Contact row */}
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium text-slate-700">
+                                Fecha de nacimiento <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                type="date"
+                                value={guarantor.date_of_birth || ''}
+                                onChange={(e) => updateGuarantor(index, 'date_of_birth', e.target.value)}
+                              />
+                            </div>
                             <div className="space-y-2">
                               <Label className="text-sm font-medium text-slate-700">
                                 Teléfono del garante <span className="text-red-500">*</span>
