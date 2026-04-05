@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.db.models import Q, Sum, Count
 from django.http import HttpResponse
 from decimal import Decimal
+from django.db import transaction
 
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
@@ -250,12 +251,49 @@ class LoanViewSet(viewsets.ModelViewSet):
             return LoanCreateSerializer
         return LoanSerializer
 
-    def perform_create(self, serializer):
-        loan = serializer.save(created_by=self.request.user)
+    def _get_default_contract_template(self, loan):
+        from .models_contracts import ContractTemplate
 
-        # Set outstanding balance to principal amount
-        loan.outstanding_balance = loan.principal_amount
-        loan.save()
+        queryset = ContractTemplate.objects.filter(is_active=True)
+
+        for template in queryset.filter(is_default=True):
+            if not template.loan_types or loan.loan_type in template.loan_types:
+                return template
+
+        for template in queryset:
+            if not template.loan_types or loan.loan_type in template.loan_types:
+                return template
+
+        return None
+
+    def _generate_initial_contract(self, loan):
+        from .models_contracts import Contract
+        from .utils_contracts import replace_contract_variables
+
+        template = self._get_default_contract_template(loan)
+        if not template:
+            raise ValueError('No hay una plantilla de contrato activa para este tipo de préstamo.')
+
+        tenant = getattr(self.request, 'tenant', None)
+        rendered_content = replace_contract_variables(template.content, loan, tenant)
+
+        return Contract.objects.create(
+            loan=loan,
+            template=template,
+            content=rendered_content,
+            status='pending_signature',
+            generated_by=self.request.user,
+        )
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            loan = serializer.save(created_by=self.request.user)
+
+            # Set outstanding balance to principal amount
+            loan.outstanding_balance = loan.principal_amount
+            loan.save()
+
+            self._generate_initial_contract(loan)
 
     @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
     def approve(self, request, pk=None):
@@ -298,15 +336,36 @@ class LoanViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        contract = loan.contracts.filter(is_archived=False).order_by('-generated_at').first()
+        if not contract:
+            return Response(
+                {'error': 'No se puede desembolsar este préstamo porque no tiene contrato generado.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not contract.customer_signed_at:
+            return Response(
+                {
+                    'error': 'No se puede desembolsar hasta que el contrato esté firmado por el cliente.',
+                    'contract_id': str(contract.id),
+                    'contract_status': contract.status,
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         loan.status = 'active'
         loan.disbursement_date = timezone.now().date()
         loan.outstanding_balance = loan.principal_amount
         loan.save()
 
+        if contract.status != 'active':
+            contract.status = 'active'
+            contract.save(update_fields=['status', 'updated_at'])
+
         # Generate payment schedule
         self._generate_payment_schedule(loan)
 
-        return Response({'status': 'loan disbursed'})
+        return Response({'status': 'loan disbursed', 'contract_id': str(contract.id)})
 
     @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
     def reject(self, request, pk=None):

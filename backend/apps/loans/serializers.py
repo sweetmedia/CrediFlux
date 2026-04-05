@@ -458,6 +458,9 @@ class LoanSerializer(serializers.ModelSerializer):
     collaterals = CollateralSerializer(many=True, read_only=True)
     payment_schedules = LoanScheduleSerializer(many=True, read_only=True)
     recent_payments = serializers.SerializerMethodField()
+    contract_id = serializers.SerializerMethodField()
+    contract_status = serializers.SerializerMethodField()
+    contract_is_signed = serializers.SerializerMethodField()
 
     class Meta:
         model = Loan
@@ -472,6 +475,7 @@ class LoanSerializer(serializers.ModelSerializer):
             'rejected_by', 'rejected_by_name', 'approval_notes',
             'purpose', 'notes', 'terms_accepted',
             'contract_document', 'total_amount', 'is_overdue', 'days_overdue',
+            'contract_id', 'contract_status', 'contract_is_signed',
             'collaterals', 'payment_schedules', 'recent_payments',
             'created_at', 'updated_at'
         ]
@@ -496,9 +500,24 @@ class LoanSerializer(serializers.ModelSerializer):
             return (timezone.now().date() - most_overdue.due_date).days
         return 0
 
+    def _get_primary_contract(self, obj):
+        return obj.contracts.filter(is_archived=False).order_by('-generated_at').first()
+
     def get_recent_payments(self, obj):
         payments = obj.payments.filter(status='completed').order_by('-payment_date')[:5]
         return LoanPaymentSerializer(payments, many=True).data
+
+    def get_contract_id(self, obj):
+        contract = self._get_primary_contract(obj)
+        return str(contract.id) if contract else None
+
+    def get_contract_status(self, obj):
+        contract = self._get_primary_contract(obj)
+        return contract.status if contract else None
+
+    def get_contract_is_signed(self, obj):
+        contract = self._get_primary_contract(obj)
+        return bool(contract and contract.customer_signed_at)
 
 
 class LoanListSerializer(serializers.ModelSerializer):
@@ -510,6 +529,9 @@ class LoanListSerializer(serializers.ModelSerializer):
     total_installments = serializers.SerializerMethodField()
     paid_installments = serializers.SerializerMethodField()
     late_fees = serializers.SerializerMethodField()
+    contract_id = serializers.SerializerMethodField()
+    contract_status = serializers.SerializerMethodField()
+    contract_is_signed = serializers.SerializerMethodField()
 
     # Use SerializerMethodField to convert Money to decimal
     principal_amount = serializers.SerializerMethodField()
@@ -525,6 +547,7 @@ class LoanListSerializer(serializers.ModelSerializer):
             'payment_frequency', 'payment_amount', 'outstanding_balance', 'total_paid',
             'status', 'disbursement_date', 'first_payment_date', 'maturity_date',
             'next_payment_date', 'is_overdue', 'days_overdue', 'late_fees',
+            'contract_id', 'contract_status', 'contract_is_signed',
             'total_installments', 'paid_installments', 'created_at'
         ]
 
@@ -559,6 +582,9 @@ class LoanListSerializer(serializers.ModelSerializer):
 
         return next_schedule.due_date if next_schedule else None
 
+    def _get_primary_contract(self, obj):
+        return obj.contracts.filter(is_archived=False).order_by('-generated_at').first()
+
     def get_days_overdue(self, obj):
         """Calculate days overdue from all pending/overdue/partial schedules"""
         from django.utils import timezone
@@ -571,6 +597,18 @@ class LoanListSerializer(serializers.ModelSerializer):
         if most_overdue:
             return (timezone.now().date() - most_overdue.due_date).days
         return 0
+
+    def get_contract_id(self, obj):
+        contract = self._get_primary_contract(obj)
+        return str(contract.id) if contract else None
+
+    def get_contract_status(self, obj):
+        contract = self._get_primary_contract(obj)
+        return contract.status if contract else None
+
+    def get_contract_is_signed(self, obj):
+        contract = self._get_primary_contract(obj)
+        return bool(contract and contract.customer_signed_at)
 
 
 class LoanCreateSerializer(serializers.ModelSerializer):
@@ -585,11 +623,23 @@ class LoanCreateSerializer(serializers.ModelSerializer):
             'purpose', 'notes'
         ]
 
-    def validate(self, attrs):
-        from decimal import Decimal
-        from moneyed import Money
+    def _get_default_contract_template(self, loan_type):
+        queryset = ContractTemplate.objects.filter(is_active=True)
 
-        # Add custom validation here
+        # First try a default template compatible with the loan type
+        matching_default = queryset.filter(is_default=True)
+        for template in matching_default:
+            if not template.loan_types or loan_type in template.loan_types:
+                return template
+
+        # Fallback to any active compatible template
+        for template in queryset:
+            if not template.loan_types or loan_type in template.loan_types:
+                return template
+
+        return None
+
+    def validate(self, attrs):
         # For Money fields, compare with Money objects or use .amount attribute
         if attrs['principal_amount'].amount <= 0:
             raise serializers.ValidationError("Principal amount must be greater than 0")
@@ -599,6 +649,12 @@ class LoanCreateSerializer(serializers.ModelSerializer):
 
         if attrs['term_months'] < 1:
             raise serializers.ValidationError("Term must be at least 1 month")
+
+        template = self._get_default_contract_template(attrs['loan_type'])
+        if not template:
+            raise serializers.ValidationError({
+                'loan_type': 'No hay una plantilla de contrato activa para este tipo de préstamo.'
+            })
 
         return attrs
 

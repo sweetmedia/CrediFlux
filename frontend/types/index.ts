@@ -208,6 +208,9 @@ export interface Loan {
   notes?: string;
   terms_accepted: boolean;
   contract_document?: string;
+  contract_id?: string | null;
+  contract_status?: 'draft' | 'pending_signature' | 'signed' | 'active' | 'completed' | 'cancelled' | null;
+  contract_is_signed?: boolean;
   total_amount: number;
   is_overdue: boolean;
   collaterals: Collateral[];

@@ -282,6 +282,13 @@ export default function LoanDetailPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            {loan.contract_id && (
+              <Link href={`/contracts/${loan.contract_id}`}>
+                <Button variant="outline">
+                  Ver Contrato
+                </Button>
+              </Link>
+            )}
             {loan.status === 'pending' && canManageLoans && (
               <>
                 <Button
@@ -306,11 +313,12 @@ export default function LoanDetailPage() {
             {loan.status === 'approved' && canManageLoans && (
               <Button
                 onClick={handleDisburseLoan}
-                disabled={isProcessing}
-                className="bg-blue-600 hover:bg-blue-700"
+                disabled={isProcessing || (loan.contract_id ? !loan.contract_is_signed : true)}
+                className="bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                title={loan.contract_is_signed ? 'Desembolsar préstamo' : 'El contrato debe estar firmado antes de desembolsar'}
               >
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
-                Desembolsar
+                {loan.contract_is_signed ? 'Desembolsar' : 'Esperando Firma'}
               </Button>
             )}
             {!['paid', 'rejected', 'written_off', 'pending'].includes(loan.status) && (
@@ -339,6 +347,14 @@ export default function LoanDetailPage() {
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {loan.contract_id && loan.status === 'approved' && !loan.contract_is_signed && (
+          <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-900">
+            <AlertDescription>
+              Este préstamo ya tiene contrato generado, pero no se puede desembolsar hasta que el cliente lo firme.
+            </AlertDescription>
           </Alert>
         )}
 
