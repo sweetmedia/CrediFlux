@@ -957,6 +957,35 @@ class GuarantorSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+    def validate_relationship(self, value):
+        aliases = {
+            'conyuge': 'spouse',
+            'padre_madre': 'parent',
+            'hermano_a': 'sibling',
+            'amigo_a': 'friend',
+            'socio': 'business_partner',
+            'compañero_trabajo': 'coworker',
+            'companero_trabajo': 'coworker',
+            'otro': 'other',
+        }
+        return aliases.get(value, value)
+
+    def validate_id_type(self, value):
+        aliases = {
+            'pasaporte': 'passport',
+        }
+        return aliases.get(value, value)
+
+    def validate(self, attrs):
+        errors = {}
+        if not attrs.get('phone'):
+            errors['phone'] = 'El teléfono del garante es obligatorio.'
+        if not attrs.get('address'):
+            errors['address'] = 'La dirección del garante es obligatoria.'
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
     def get_full_name(self, obj):
         return obj.get_full_name()
 

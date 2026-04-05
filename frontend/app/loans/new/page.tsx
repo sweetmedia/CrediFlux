@@ -10,6 +10,8 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI, collateralsAPI, collectionsAPI } from '@/lib/api/loans';
 import { customersAPI } from '@/lib/api/customers';
+import { cedulaAPI } from '@/lib/api/cedula';
+import { rncAPI } from '@/lib/api/rnc';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -52,6 +54,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { CollateralCreate, VehicleMetadata, PropertyMetadata, EquipmentMetadata } from '@/types';
+import { toast } from 'sonner';
 
 const loanSchema = z.object({
   customer: z.string().min(1, 'Cliente requerido'),
@@ -101,6 +104,7 @@ export default function NewLoanPage() {
 
   // Guarantor states
   const [guarantors, setGuarantors] = useState<any[]>([]);
+  const [guarantorLookupLoading, setGuarantorLookupLoading] = useState<Record<number, boolean>>({});
 
   const {
     register,
@@ -340,15 +344,115 @@ export default function NewLoanPage() {
       employer_name: '',
       occupation: '',
       monthly_income: '',
-      relationship: 'otro',
+      relationship: 'other',
       notes: '',
+      lookupSource: null,
     }]);
+  };
+
+  const normalizeGuarantorRelationship = (value: string) => {
+    const map: Record<string, string> = {
+      conyuge: 'spouse',
+      spouse: 'spouse',
+      padre_madre: 'parent',
+      parent: 'parent',
+      hermano_a: 'sibling',
+      sibling: 'sibling',
+      amigo_a: 'friend',
+      friend: 'friend',
+      socio: 'business_partner',
+      business_partner: 'business_partner',
+      compañero_trabajo: 'coworker',
+      companero_trabajo: 'coworker',
+      coworker: 'coworker',
+      otro: 'other',
+      other: 'other',
+    };
+    return map[value] || value;
   };
 
   const updateGuarantor = (index: number, field: string, value: any) => {
     const updated = [...guarantors];
     updated[index] = { ...updated[index], [field]: value };
     setGuarantors(updated);
+  };
+
+  const lookupGuarantorByDocument = async (index: number) => {
+    const guarantor = guarantors[index];
+    if (!guarantor) return;
+
+    const idType = guarantor.id_type;
+    const idNumber = (guarantor.id_number || '').replace(/[-\s]/g, '');
+
+    if (!idNumber) {
+      toast.error('Primero ingresa la cédula, pasaporte o RNC del garante.');
+      return;
+    }
+
+    if (idType === 'cedula' && idNumber.length < 11) {
+      toast.error('La cédula del garante debe tener 11 dígitos.');
+      return;
+    }
+
+    if (idType === 'rnc' && idNumber.length < 9) {
+      toast.error('El RNC del garante debe tener al menos 9 dígitos.');
+      return;
+    }
+
+    setGuarantorLookupLoading((prev) => ({ ...prev, [index]: true }));
+
+    try {
+      if (idType === 'cedula') {
+        toast.loading('Buscando garante en Padrón JCE...', { id: `guarantor-lookup-${index}` });
+        try {
+          const jceResult = await cedulaAPI.validate(idNumber);
+          if (jceResult.found) {
+            const firstName = [jceResult.first_name, jceResult.middle_name].filter(Boolean).join(' ').trim();
+            const lastName = [jceResult.apellido1, jceResult.apellido2].filter(Boolean).join(' ').trim();
+            if (firstName) updateGuarantor(index, 'first_name', firstName);
+            if (lastName) updateGuarantor(index, 'last_name', lastName);
+            updateGuarantor(index, 'id_number', jceResult.cedula_raw || jceResult.cedula || guarantor.id_number);
+            updateGuarantor(index, 'lookupSource', 'JCE');
+
+            toast.success(`Garante encontrado: ${jceResult.nombre_completo || `${firstName} ${lastName}`.trim()}`, {
+              id: `guarantor-lookup-${index}`,
+              description: 'Datos auto-completados desde el Padrón JCE',
+            });
+            return;
+          }
+        } catch (err) {
+          console.log('Guarantor JCE lookup failed, trying DGII fallback', err);
+        }
+      }
+
+      if (idType === 'cedula' || idType === 'rnc') {
+        toast.loading('Buscando garante en DGII...', { id: `guarantor-lookup-${index}` });
+        const result = await rncAPI.validateRNC(idNumber);
+        if (result.exists && result.data) {
+          const fullName = result.data.razon_social.trim();
+          const parts = fullName.split(' ');
+          updateGuarantor(index, 'first_name', parts[0] || fullName);
+          updateGuarantor(index, 'last_name', parts.length > 1 ? parts.slice(1).join(' ') : '');
+          updateGuarantor(index, 'lookupSource', 'DGII');
+          toast.success(`Encontrado: ${result.data.razon_social}`, {
+            id: `guarantor-lookup-${index}`,
+            description: 'Datos auto-completados desde DGII',
+          });
+          return;
+        }
+      }
+
+      toast.info('No se encontraron datos automáticos. Puedes completar el garante manualmente.', {
+        id: `guarantor-lookup-${index}`,
+      });
+    } catch (err) {
+      console.error('Guarantor lookup error:', err);
+      toast.error('No se pudo validar el documento del garante. Puedes continuar manualmente.', {
+        id: `guarantor-lookup-${index}`,
+      });
+    } finally {
+      setGuarantorLookupLoading((prev) => ({ ...prev, [index]: false }));
+    }
   };
 
   const removeGuarantor = (index: number) => {
@@ -377,6 +481,19 @@ export default function NewLoanPage() {
           return `Garantía ${i + 1}: La dirección es requerida para propiedades`;
         }
       }
+    }
+    return null;
+  };
+
+  const validateGuarantors = (): string | null => {
+    for (let i = 0; i < guarantors.length; i++) {
+      const g = guarantors[i];
+      if (!g.id_number?.trim()) return `Garante ${i + 1}: la cédula/documento es obligatoria`;
+      if (!g.first_name?.trim()) return `Garante ${i + 1}: el nombre es obligatorio`;
+      if (!g.last_name?.trim()) return `Garante ${i + 1}: el apellido es obligatorio`;
+      if (!g.phone?.trim()) return `Garante ${i + 1}: el teléfono del garante es obligatorio`;
+      if (!g.address?.trim()) return `Garante ${i + 1}: la dirección del garante es obligatoria`;
+      if (!g.relationship?.trim()) return `Garante ${i + 1}: la relación con el cliente es obligatoria`;
     }
     return null;
   };
@@ -469,7 +586,13 @@ export default function NewLoanPage() {
         }
         break;
       case 5:
-        // Guarantors are optional — no required validation
+        if (guarantors.length > 0) {
+          const guarantorError = validateGuarantors();
+          if (guarantorError) {
+            setError(guarantorError);
+            return;
+          }
+        }
         break;
     }
 
@@ -493,6 +616,14 @@ export default function NewLoanPage() {
       const collateralError = validateCollaterals();
       if (collateralError) {
         setError(collateralError);
+        return;
+      }
+    }
+
+    if (guarantors.length > 0) {
+      const guarantorError = validateGuarantors();
+      if (guarantorError) {
+        setError(guarantorError);
         return;
       }
     }
@@ -573,7 +704,7 @@ export default function NewLoanPage() {
             id_type: guarantor.id_type,
             id_number: guarantor.id_number,
             phone: guarantor.phone,
-            relationship: guarantor.relationship,
+            relationship: normalizeGuarantorRelationship(guarantor.relationship),
           };
           if (guarantor.email) guarantorData.email = guarantor.email;
           if (guarantor.address) guarantorData.address = guarantor.address;
@@ -1454,6 +1585,61 @@ export default function NewLoanPage() {
                           </div>
                         </CardHeader>
                         <CardContent className="pt-4 space-y-4">
+                          {/* Documento primero */}
+                          <div className="rounded-2xl border border-[#163300]/10 bg-[#163300]/5 p-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_1fr_auto]">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">
+                                  Tipo de Documento <span className="text-red-500">*</span>
+                                </Label>
+                                <NativeSelect
+                                  value={guarantor.id_type}
+                                  onChange={(e) => updateGuarantor(index, 'id_type', e.target.value)}
+                                >
+                                  <option value="cedula">Cédula</option>
+                                  <option value="passport">Pasaporte</option>
+                                  <option value="rnc">RNC</option>
+                                </NativeSelect>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-slate-700">
+                                  Cédula / Documento del garante <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                  placeholder={guarantor.id_type === 'cedula' ? 'Ej: 001-1234567-8' : 'Número de documento'}
+                                  value={guarantor.id_number}
+                                  onChange={(e) => updateGuarantor(index, 'id_number', e.target.value)}
+                                />
+                                <p className="text-xs text-slate-500">
+                                  Coloca la cédula primero para buscar y auto-completar desde JCE / DGII.
+                                </p>
+                              </div>
+                              <div className="space-y-2 md:pt-7">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="w-full border-[#163300] text-[#163300] hover:bg-[#163300] hover:text-white"
+                                  onClick={() => lookupGuarantorByDocument(index)}
+                                  disabled={!!guarantorLookupLoading[index]}
+                                >
+                                  {guarantorLookupLoading[index] ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Search className="mr-2 h-4 w-4" />
+                                      Buscar
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                            {guarantor.lookupSource && (
+                              <div className="mt-3 inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-[#163300]">
+                                Datos auto-completados desde {guarantor.lookupSource}
+                              </div>
+                            )}
+                          </div>
+
                           {/* Name row */}
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -1478,37 +1664,12 @@ export default function NewLoanPage() {
                             </div>
                           </div>
 
-                          {/* ID row */}
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-sm font-medium text-slate-700">
-                                Tipo de Documento <span className="text-red-500">*</span>
-                              </Label>
-                              <NativeSelect
-                                value={guarantor.id_type}
-                                onChange={(e) => updateGuarantor(index, 'id_type', e.target.value)}
-                              >
-                                <option value="cedula">Cédula</option>
-                                <option value="pasaporte">Pasaporte</option>
-                                <option value="rnc">RNC</option>
-                              </NativeSelect>
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-sm font-medium text-slate-700">
-                                Número de Documento <span className="text-red-500">*</span>
-                              </Label>
-                              <Input
-                                placeholder="Ej: 001-1234567-8"
-                                value={guarantor.id_number}
-                                onChange={(e) => updateGuarantor(index, 'id_number', e.target.value)}
-                              />
-                            </div>
-                          </div>
-
                           {/* Contact row */}
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <Label className="text-sm font-medium text-slate-700">Teléfono</Label>
+                              <Label className="text-sm font-medium text-slate-700">
+                                Teléfono del garante <span className="text-red-500">*</span>
+                              </Label>
                               <Input
                                 placeholder="Ej: 809-555-0000"
                                 value={guarantor.phone}
@@ -1528,7 +1689,9 @@ export default function NewLoanPage() {
 
                           {/* Address */}
                           <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700">Dirección</Label>
+                            <Label className="text-sm font-medium text-slate-700">
+                              Dirección del garante <span className="text-red-500">*</span>
+                            </Label>
                             <Textarea
                               placeholder="Dirección completa del garante..."
                               rows={2}
@@ -1579,13 +1742,13 @@ export default function NewLoanPage() {
                                 value={guarantor.relationship}
                                 onChange={(e) => updateGuarantor(index, 'relationship', e.target.value)}
                               >
-                                <option value="conyuge">Cónyuge</option>
-                                <option value="padre_madre">Padre/Madre</option>
-                                <option value="hermano_a">Hermano/a</option>
-                                <option value="amigo_a">Amigo/a</option>
-                                <option value="socio">Socio</option>
-                                <option value="compañero_trabajo">Compañero de trabajo</option>
-                                <option value="otro">Otro</option>
+                                <option value="spouse">Cónyuge</option>
+                                <option value="parent">Padre/Madre</option>
+                                <option value="sibling">Hermano/a</option>
+                                <option value="friend">Amigo/a</option>
+                                <option value="business_partner">Socio</option>
+                                <option value="coworker">Compañero de trabajo</option>
+                                <option value="other">Otro</option>
                               </NativeSelect>
                             </div>
                           </div>
@@ -1736,13 +1899,13 @@ export default function NewLoanPage() {
                       <div className="space-y-3">
                         {guarantors.map((g, idx) => {
                           const relationshipLabels: Record<string, string> = {
-                            conyuge: 'Cónyuge',
-                            padre_madre: 'Padre/Madre',
-                            hermano_a: 'Hermano/a',
-                            amigo_a: 'Amigo/a',
-                            socio: 'Socio',
-                            compañero_trabajo: 'Compañero de trabajo',
-                            otro: 'Otro',
+                            spouse: 'Cónyuge',
+                            parent: 'Padre/Madre',
+                            sibling: 'Hermano/a',
+                            friend: 'Amigo/a',
+                            business_partner: 'Socio',
+                            coworker: 'Compañero de trabajo',
+                            other: 'Otro',
                           };
                           return (
                             <div key={idx} className="bg-white rounded-lg p-3 border border-slate-200">
