@@ -489,17 +489,19 @@ export default function PaymentsListPage() {
                           {getStatusBadge(payment.status)}
                         </td>
                         <td className="px-4 py-4 text-right align-top">
-                          <button
+                          <Button
                             type="button"
-                            className="inline-flex items-center gap-1 text-sm font-medium text-[#163300] hover:underline"
+                            variant="outline"
+                            size="sm"
+                            className="bg-white"
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(`/payments/${payment.id}`);
                             }}
                           >
                             Ver
-                            <ArrowRight className="h-4 w-4" />
-                          </button>
+                            <ArrowRight className="ml-1 h-4 w-4" />
+                          </Button>
                         </td>
                       </tr>
                     ))}
