@@ -296,6 +296,7 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
     """Serializer for LoanPayment model (read-only)"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
+    loan_status = serializers.CharField(source='loan.status', read_only=True)
 
     # Convert UUID fields to strings for frontend compatibility
     loan = serializers.SerializerMethodField()
@@ -306,6 +307,9 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
     principal_paid = serializers.DecimalField(source='principal_paid.amount', max_digits=14, decimal_places=2, read_only=True)
     interest_paid = serializers.DecimalField(source='interest_paid.amount', max_digits=14, decimal_places=2, read_only=True)
     late_fee_paid = serializers.DecimalField(source='late_fee_paid.amount', max_digits=14, decimal_places=2, read_only=True)
+    loan_principal_amount = serializers.DecimalField(source='loan.principal_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    loan_outstanding_balance = serializers.DecimalField(source='loan.outstanding_balance.amount', max_digits=14, decimal_places=2, read_only=True)
+    loan_total_paid = serializers.DecimalField(source='loan.total_paid.amount', max_digits=14, decimal_places=2, read_only=True)
 
     class Meta:
         model = LoanPayment
@@ -314,6 +318,7 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
             'schedule', 'payment_date', 'amount', 'principal_paid',
             'interest_paid', 'late_fee_paid', 'payment_method',
             'reference_number', 'status', 'notes', 'receipt',
+            'loan_status', 'loan_principal_amount', 'loan_outstanding_balance', 'loan_total_paid',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'payment_number', 'created_at', 'updated_at']
