@@ -445,7 +445,7 @@ class PaymentReceiptReport:
         pdf.restoreState()
 
     def generate(self):
-        """Generate a formal financial-style payment receipt PDF and return bytes."""
+        """Generate a Stripe-inspired financial receipt PDF and return bytes."""
         pdf = canvas.Canvas(self.buffer, pagesize=letter)
         width, height = letter
 
@@ -455,203 +455,201 @@ class PaymentReceiptReport:
         schedule = payment.schedule
         tenant = connection.tenant
 
-        # Brand colors
         primary = colors.HexColor('#163300')
-        secondary = colors.HexColor('#738566')
         accent = colors.HexColor('#FFE026')
-        border = colors.HexColor('#D9E3DD')
-        muted_bg = colors.HexColor('#F7FAF8')
-        text_dark = colors.HexColor('#111827')
-        text_muted = colors.HexColor('#6B7280')
+        border = colors.HexColor('#E5E7EB')
+        soft_bg = colors.HexColor('#F8FAFC')
+        panel_bg = colors.HexColor('#F8FAF8')
+        text_dark = colors.HexColor('#0F172A')
+        text_muted = colors.HexColor('#64748B')
+        success = colors.HexColor('#166534')
 
-        left = 42
-        right = width - 42
+        left = 40
+        right = width - 40
         usable_width = right - left
-        y = height - 42
+        top = height - 44
 
-        def draw_label_value(x, y_pos, label, value, label_color=text_muted, value_color=text_dark):
-            pdf.setFillColor(label_color)
-            pdf.setFont('Helvetica', 8)
-            pdf.drawString(x, y_pos, label.upper())
-            pdf.setFillColor(value_color)
-            pdf.setFont('Helvetica-Bold', 10)
-            pdf.drawString(x, y_pos - 12, str(value or '—'))
+        tenant_name = getattr(tenant, 'business_name', None) or 'CrediFlux'
+        tenant_address = getattr(tenant, 'address', None) or ''
+        tenant_tax_id = getattr(tenant, 'tax_id', None) or ''
+        tenant_phone = getattr(tenant, 'phone', None) or ''
+        tenant_email = getattr(tenant, 'email', None) or ''
 
-        def draw_money_row(x, y_pos, label, value, highlight=False):
+        def draw_kv(x, y_pos, label, value, width_limit=None):
+            pdf.setFillColor(text_muted)
+            pdf.setFont('Helvetica', 7.5)
+            pdf.drawString(x, y_pos, str(label).upper())
             pdf.setFillColor(text_dark)
+            pdf.setFont('Helvetica-Bold', 10)
+            text = str(value or '—')
+            if width_limit and pdf.stringWidth(text, 'Helvetica-Bold', 10) > width_limit:
+                while text and pdf.stringWidth(text + '…', 'Helvetica-Bold', 10) > width_limit:
+                    text = text[:-1]
+                text = text + '…'
+            pdf.drawString(x, y_pos - 12, text)
+
+        def draw_money_line(x, y_pos, label, value, strong=False, color=text_dark):
+            pdf.setFillColor(text_muted if not strong else text_dark)
             pdf.setFont('Helvetica', 9)
             pdf.drawString(x, y_pos, label)
-            pdf.setFont('Helvetica-Bold', 10 if not highlight else 12)
-            pdf.drawRightString(x + 200, y_pos, self._fmt_money(value))
+            pdf.setFillColor(color)
+            pdf.setFont('Helvetica-Bold', 10 if not strong else 12)
+            pdf.drawRightString(x + 210, y_pos, self._fmt_money(value))
 
-        # Outer card
+        # Background card
         pdf.setFillColor(colors.white)
         pdf.setStrokeColor(border)
-        pdf.roundRect(left, 54, usable_width, height - 96, 16, stroke=1, fill=1)
+        pdf.roundRect(left, 54, usable_width, height - 100, 18, stroke=1, fill=1)
 
-        # Header band
-        pdf.setFillColor(primary)
-        pdf.roundRect(left, height - 154, usable_width, 100, 16, stroke=0, fill=1)
-        pdf.rect(left, height - 154, usable_width, 84, stroke=0, fill=1)
+        # Header
+        header_y = top
+        brand_x = left + 18
+        logo_drawn = False
 
-        # Logo
-        logo_height = 0
         if tenant and hasattr(tenant, 'logo') and tenant.logo:
             try:
                 logo_path = os.path.join(settings.MEDIA_ROOT, str(tenant.logo))
                 if os.path.exists(logo_path):
-                    pdf.drawImage(logo_path, left + 18, height - 132, width=60, height=42,
+                    pdf.drawImage(logo_path, brand_x, header_y - 42, width=70, height=42,
                                   preserveAspectRatio=True, mask='auto')
-                    logo_height = 42
+                    logo_drawn = True
             except Exception:
-                logo_height = 0
+                logo_drawn = False
 
-        header_x = left + (92 if logo_height else 20)
-        business_name = getattr(tenant, 'business_name', '') if tenant else ''
-        address = getattr(tenant, 'address', '') if tenant else ''
-        tax_id = getattr(tenant, 'tax_id', '') if tenant else ''
+        if not logo_drawn:
+            pdf.setFillColor(primary)
+            pdf.roundRect(brand_x, header_y - 38, 42, 28, 8, stroke=0, fill=1)
+            pdf.setFillColor(colors.white)
+            pdf.setFont('Helvetica-Bold', 12)
+            initials = ''.join([word[0] for word in tenant_name.split()[:2]]).upper() or 'CF'
+            pdf.drawCentredString(brand_x + 21, header_y - 28, initials)
 
-        pdf.setFillColor(colors.white)
-        pdf.setFont('Helvetica-Bold', 16)
-        pdf.drawString(header_x, height - 92, (business_name or 'CREDIFLUX').upper())
-        pdf.setFont('Helvetica', 9)
-        if address:
-            pdf.drawString(header_x, height - 108, address)
-        if tax_id:
-            pdf.drawString(header_x, height - 121, f'RNC: {tax_id}')
-
-        pdf.setFont('Helvetica-Bold', 17)
-        pdf.drawRightString(right - 18, height - 90, 'RECIBO DE PAGO')
-        pdf.setFont('Helvetica', 9)
-        pdf.drawRightString(right - 18, height - 106, f'Recibo No. {payment.payment_number}')
-        pdf.drawRightString(right - 18, height - 120, f'Fecha: {payment.payment_date.strftime("%d/%m/%Y") if payment.payment_date else "N/A"}')
-
-        # Accent strip
-        pdf.setFillColor(accent)
-        pdf.rect(left + 18, height - 168, usable_width - 36, 4, stroke=0, fill=1)
-
-        current_y = height - 194
-
-        # Summary cards
-        card_gap = 12
-        card_width = (usable_width - 36 - card_gap * 2) / 3
-        card_x = left + 18
-        summary = [
-            ('Monto recibido', self._fmt_money(payment.amount)),
-            ('Aplicado a capital', self._fmt_money(payment.principal_paid)),
-            ('Balance pendiente', self._fmt_money(loan.outstanding_balance)),
-        ]
-        for idx, (label, value) in enumerate(summary):
-            x = card_x + idx * (card_width + card_gap)
-            pdf.setFillColor(muted_bg)
-            pdf.setStrokeColor(border)
-            pdf.roundRect(x, current_y - 52, card_width, 52, 10, stroke=1, fill=1)
-            pdf.setFillColor(text_muted)
-            pdf.setFont('Helvetica', 8)
-            pdf.drawString(x + 12, current_y - 18, label.upper())
-            pdf.setFillColor(primary if idx == 0 else text_dark)
-            pdf.setFont('Helvetica-Bold', 13)
-            pdf.drawString(x + 12, current_y - 35, value)
-
-        current_y -= 78
-
-        # Left and right sections
-        left_col_x = left + 18
-        right_col_x = left + usable_width / 2 + 6
-        section_width = usable_width / 2 - 24
-
-        # Client / loan section
+        text_x = brand_x + (86 if logo_drawn else 56)
         pdf.setFillColor(text_dark)
-        pdf.setFont('Helvetica-Bold', 11)
-        pdf.drawString(left_col_x, current_y, 'DATOS DEL CLIENTE Y DEL PRÉSTAMO')
-        pdf.setStrokeColor(border)
-        pdf.line(left_col_x, current_y - 6, left_col_x + section_width, current_y - 6)
-        current_y -= 24
-
-        draw_label_value(left_col_x, current_y, 'Cliente', customer.get_full_name().upper())
-        draw_label_value(left_col_x + 210, current_y, 'Cédula', self._format_cedula(customer.id_number or ''))
-        current_y -= 34
-        draw_label_value(left_col_x, current_y, 'Teléfono', customer.phone or 'N/A')
-        draw_label_value(left_col_x + 210, current_y, 'Préstamo No.', loan.loan_number)
-        current_y -= 34
-        draw_label_value(left_col_x, current_y, 'Estado del préstamo', loan.get_status_display())
-        draw_label_value(left_col_x + 210, current_y, 'Método de pago', self.PAYMENT_METHOD_LABELS.get(payment.payment_method, payment.payment_method or ''))
-        current_y -= 34
-        if schedule:
-            total_schedules = loan.payment_schedules.count()
-            draw_label_value(left_col_x, current_y, 'Cuota aplicada', f'{schedule.installment_number} de {total_schedules}')
-            current_y -= 34
-        if payment.reference_number:
-            draw_label_value(left_col_x, current_y, 'Referencia', payment.reference_number)
-            current_y -= 34
-
-        # Reset right column Y relative to start of section
-        right_y = height - 272
-
-        pdf.setFillColor(text_dark)
-        pdf.setFont('Helvetica-Bold', 11)
-        pdf.drawString(right_col_x, right_y, 'DESGLOSE FINANCIERO DEL PAGO')
-        pdf.setStrokeColor(border)
-        pdf.line(right_col_x, right_y - 6, right_col_x + section_width, right_y - 6)
-        right_y -= 28
-
-        pdf.setFillColor(colors.white)
-        pdf.setStrokeColor(border)
-        pdf.roundRect(right_col_x, right_y - 98, section_width, 98, 10, stroke=1, fill=1)
-        draw_money_row(right_col_x + 14, right_y - 20, 'Capital pagado', payment.principal_paid)
-        draw_money_row(right_col_x + 14, right_y - 42, 'Interés pagado', payment.interest_paid)
-        draw_money_row(right_col_x + 14, right_y - 64, 'Mora pagada', payment.late_fee_paid)
-        pdf.setStrokeColor(border)
-        pdf.line(right_col_x + 14, right_y - 78, right_col_x + section_width - 14, right_y - 78)
-        draw_money_row(right_col_x + 14, right_y - 92, 'Total recibido', payment.amount, highlight=True)
-
-        right_y -= 124
-
-        pdf.setFillColor(muted_bg)
-        pdf.setStrokeColor(border)
-        pdf.roundRect(right_col_x, right_y - 76, section_width, 76, 10, stroke=1, fill=1)
-        pdf.setFillColor(text_dark)
-        pdf.setFont('Helvetica-Bold', 10)
-        pdf.drawString(right_col_x + 14, right_y - 18, 'RESULTADO DEL PAGO')
-        pdf.setFont('Helvetica', 9)
-        explanation = (
-            'Este pago se distribuye primero a mora, luego a interés y finalmente al capital. '
-            'Solo la porción aplicada al capital reduce el balance del préstamo.'
-        )
-        pdf.setFillColor(text_muted)
-        text_obj = pdf.beginText(right_col_x + 14, right_y - 34)
-        text_obj.setFont('Helvetica', 8.5)
-        for line in [
-            'Este pago se distribuye primero a mora, luego a interés y finalmente',
-            'al capital. Solo la porción aplicada al capital reduce el balance',
-            'pendiente del préstamo.'
-        ]:
-            text_obj.textLine(line)
-        pdf.drawText(text_obj)
-
-        # Bottom balance panel
-        balance_y = 150
-        pdf.setFillColor(primary)
-        pdf.roundRect(left + 18, balance_y, usable_width - 36, 58, 12, stroke=0, fill=1)
-        pdf.setFillColor(colors.white)
-        pdf.setFont('Helvetica', 9)
-        pdf.drawString(left + 34, balance_y + 36, 'BALANCE DEL PRÉSTAMO DESPUÉS DE ESTE PAGO')
         pdf.setFont('Helvetica-Bold', 18)
-        pdf.drawString(left + 34, balance_y + 15, self._fmt_money(loan.outstanding_balance))
+        pdf.drawString(text_x, header_y - 18, tenant_name)
+        pdf.setFillColor(text_muted)
         pdf.setFont('Helvetica', 9)
-        pdf.drawRightString(right - 34, balance_y + 36, f'Total abonado al préstamo: {self._fmt_money(loan.total_paid)}')
-        pdf.drawRightString(right - 34, balance_y + 18, f'Interés acumulado pagado: {self._fmt_money(loan.total_interest_paid)}')
+        meta_line = ' • '.join([item for item in [tenant_tax_id and f'RNC {tenant_tax_id}', tenant_phone, tenant_email] if item])
+        if meta_line:
+            pdf.drawString(text_x, header_y - 33, meta_line)
+        if tenant_address:
+            pdf.drawString(text_x, header_y - 46, tenant_address[:82])
 
-        # Signature lines
-        sig_y = 105
-        line_len = 140
-        pdf.setStrokeColor(colors.HexColor('#9CA3AF'))
-        pdf.line(left + 30, sig_y, left + 30 + line_len, sig_y)
-        pdf.line(right - 30 - line_len, sig_y, right - 30, sig_y)
+        pdf.setFillColor(text_dark)
+        pdf.setFont('Helvetica-Bold', 22)
+        pdf.drawRightString(right - 18, header_y - 18, 'Recibo de pago')
+        pdf.setFillColor(text_muted)
+        pdf.setFont('Helvetica', 9)
+        pdf.drawRightString(right - 18, header_y - 33, f'Recibo {payment.payment_number}')
+        pdf.drawRightString(right - 18, header_y - 46, f'Emitido {payment.payment_date.strftime("%d/%m/%Y") if payment.payment_date else "N/A"}')
+
+        pdf.setFillColor(accent)
+        pdf.rect(left + 18, header_y - 62, usable_width - 36, 3, stroke=0, fill=1)
+
+        # Amount hero
+        hero_y = header_y - 104
+        pdf.setFillColor(soft_bg)
+        pdf.setStrokeColor(border)
+        pdf.roundRect(left + 18, hero_y - 82, usable_width - 36, 82, 14, stroke=1, fill=1)
+        pdf.setFillColor(text_muted)
+        pdf.setFont('Helvetica', 9)
+        pdf.drawString(left + 34, hero_y - 22, 'MONTO RECIBIDO')
+        pdf.setFillColor(primary)
+        pdf.setFont('Helvetica-Bold', 28)
+        pdf.drawString(left + 34, hero_y - 50, self._fmt_money(payment.amount))
+        pdf.setFillColor(text_muted)
+        pdf.setFont('Helvetica', 9)
+        pdf.drawRightString(right - 34, hero_y - 22, f'Préstamo {loan.loan_number}')
+        pdf.drawRightString(right - 34, hero_y - 36, f'Estado {loan.get_status_display()}')
+        pdf.drawRightString(right - 34, hero_y - 50, f'Cliente {customer.get_full_name()}')
+
+        # Info panels
+        section_top = hero_y - 112
+        gutter = 14
+        col_w = (usable_width - 36 - gutter) / 2
+        left_x = left + 18
+        right_x = left_x + col_w + gutter
+
+        # Left panel - who/what
+        pdf.setFillColor(colors.white)
+        pdf.setStrokeColor(border)
+        pdf.roundRect(left_x, section_top - 160, col_w, 160, 14, stroke=1, fill=1)
+        pdf.setFillColor(text_dark)
+        pdf.setFont('Helvetica-Bold', 11)
+        pdf.drawString(left_x + 16, section_top - 20, 'Datos de la operación')
+        pdf.setStrokeColor(border)
+        pdf.line(left_x + 16, section_top - 28, left_x + col_w - 16, section_top - 28)
+
+        row_y = section_top - 46
+        draw_kv(left_x + 16, row_y, 'Cliente', customer.get_full_name().upper(), width_limit=160)
+        draw_kv(left_x + 210, row_y, 'Cédula', self._format_cedula(customer.id_number or ''), width_limit=120)
+        row_y -= 34
+        draw_kv(left_x + 16, row_y, 'Método de pago', self.PAYMENT_METHOD_LABELS.get(payment.payment_method, payment.payment_method or ''), width_limit=140)
+        draw_kv(left_x + 210, row_y, 'Fecha', payment.payment_date.strftime('%d/%m/%Y') if payment.payment_date else 'N/A', width_limit=120)
+        row_y -= 34
+        draw_kv(left_x + 16, row_y, 'Referencia', payment.reference_number or 'N/A', width_limit=160)
+        cuota_val = f'{schedule.installment_number} de {loan.payment_schedules.count()}' if schedule else 'Aplicación general'
+        draw_kv(left_x + 210, row_y, 'Cuota', cuota_val, width_limit=120)
+        row_y -= 34
+        draw_kv(left_x + 16, row_y, 'Notas', payment.notes or 'Sin notas registradas', width_limit=col_w - 32)
+
+        # Right panel - payment breakdown
+        pdf.setFillColor(colors.white)
+        pdf.setStrokeColor(border)
+        pdf.roundRect(right_x, section_top - 160, col_w, 160, 14, stroke=1, fill=1)
+        pdf.setFillColor(text_dark)
+        pdf.setFont('Helvetica-Bold', 11)
+        pdf.drawString(right_x + 16, section_top - 20, 'Desglose del pago')
+        pdf.setStrokeColor(border)
+        pdf.line(right_x + 16, section_top - 28, right_x + col_w - 16, section_top - 28)
+
+        pay_y = section_top - 54
+        draw_money_line(right_x + 16, pay_y, 'Capital pagado', payment.principal_paid)
+        pay_y -= 22
+        draw_money_line(right_x + 16, pay_y, 'Interés pagado', payment.interest_paid)
+        pay_y -= 22
+        draw_money_line(right_x + 16, pay_y, 'Mora pagada', payment.late_fee_paid)
+        pay_y -= 14
+        pdf.setStrokeColor(border)
+        pdf.line(right_x + 16, pay_y, right_x + col_w - 16, pay_y)
+        pay_y -= 18
+        draw_money_line(right_x + 16, pay_y, 'Total recibido', payment.amount, strong=True, color=primary)
+
+        # Balance/result panel
+        result_y = section_top - 188
+        pdf.setFillColor(panel_bg)
+        pdf.setStrokeColor(border)
+        pdf.roundRect(left + 18, result_y - 92, usable_width - 36, 92, 14, stroke=1, fill=1)
+        pdf.setFillColor(text_dark)
+        pdf.setFont('Helvetica-Bold', 11)
+        pdf.drawString(left + 34, result_y - 20, 'Resultado del pago')
+        pdf.setFillColor(text_muted)
+        pdf.setFont('Helvetica', 9)
+        pdf.drawString(left + 34, result_y - 38, 'Solo la porción aplicada a capital reduce el balance del préstamo. Interés y mora se registran aparte.')
+
         pdf.setFillColor(text_muted)
         pdf.setFont('Helvetica', 8)
-        pdf.drawCentredString(left + 30 + line_len / 2, sig_y - 12, 'Firma del cliente')
-        pdf.drawCentredString(right - 30 - line_len / 2, sig_y - 12, 'Caja / oficial')
+        pdf.drawString(left + 34, result_y - 62, 'BALANCE PENDIENTE DESPUÉS DE ESTE PAGO')
+        pdf.setFillColor(success if float(getattr(loan.outstanding_balance, 'amount', loan.outstanding_balance)) <= 0 else text_dark)
+        pdf.setFont('Helvetica-Bold', 18)
+        pdf.drawString(left + 34, result_y - 80, self._fmt_money(loan.outstanding_balance))
+
+        pdf.setFillColor(text_muted)
+        pdf.setFont('Helvetica', 8)
+        pdf.drawRightString(right - 34, result_y - 62, f'Total abonado acumulado: {self._fmt_money(loan.total_paid)}')
+        pdf.drawRightString(right - 34, result_y - 76, f'Interés acumulado pagado: {self._fmt_money(loan.total_interest_paid)}')
+
+        # Footer signatures
+        sig_y = 108
+        line_len = 145
+        pdf.setStrokeColor(colors.HexColor('#CBD5E1'))
+        pdf.line(left + 26, sig_y, left + 26 + line_len, sig_y)
+        pdf.line(right - 26 - line_len, sig_y, right - 26, sig_y)
+        pdf.setFillColor(text_muted)
+        pdf.setFont('Helvetica', 8)
+        pdf.drawCentredString(left + 26 + line_len / 2, sig_y - 12, 'Firma del cliente')
+        pdf.drawCentredString(right - 26 - line_len / 2, sig_y - 12, 'Caja / oficial')
 
         self._draw_footer(pdf, width)
         pdf.save()
