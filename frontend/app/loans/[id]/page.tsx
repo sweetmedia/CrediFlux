@@ -36,6 +36,9 @@ import {
   BadgeDollarSign,
   CircleDollarSign,
   FileSignature,
+  Phone,
+  MessageCircle,
+  Mail,
 } from 'lucide-react';
 
 export default function LoanDetailPage() {
@@ -479,10 +482,10 @@ export default function LoanDetailPage() {
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex items-center gap-4">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-center">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-transparent text-center">
                               <div>
                                 <p className="text-[10px] uppercase text-slate-500">Cuota</p>
-                                <p className="text-sm font-semibold text-slate-900">#{schedule.installment_number}</p>
+                                <p className="font-mono text-sm font-semibold text-slate-900">#{schedule.installment_number}</p>
                               </div>
                             </div>
                             <div>
@@ -621,6 +624,23 @@ export default function LoanDetailPage() {
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs text-slate-500">Nombre</p>
                     <p className="mt-1 font-medium text-slate-900">{loan.customer_name}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button variant="outline" className="bg-white" size="sm" asChild>
+                      <a href={`tel:${String((loan as any).customer_phone || '')}`}>
+                        <Phone className="h-4 w-4" />
+                      </a>
+                    </Button>
+                    <Button variant="outline" className="bg-white" size="sm" asChild>
+                      <a href={`https://wa.me/${String((loan as any).customer_phone || '').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
+                        <MessageCircle className="h-4 w-4" />
+                      </a>
+                    </Button>
+                    <Button variant="outline" className="bg-white" size="sm" asChild>
+                      <a href={`mailto:${String((loan as any).customer_email || '')}`}>
+                        <Mail className="h-4 w-4" />
+                      </a>
+                    </Button>
                   </div>
                   <Link href={`/customers/${loan.customer}`}>
                     <Button variant="outline" className="w-full bg-white" size="sm">
