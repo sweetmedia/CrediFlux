@@ -226,7 +226,7 @@ export default function CalculatorPage() {
         <div className="lg:col-span-1 space-y-4">
           <Card className="cf-surface-card">
             <CardHeader className="pb-4">
-            <CardTitle className="cf-section-title">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                 Parámetros del Préstamo
               </CardTitle>
             </CardHeader>
@@ -532,7 +532,7 @@ export default function CalculatorPage() {
               <Card className="cf-surface-card overflow-hidden">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="cf-section-title">
+                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                       Tabla de Amortización
                     </CardTitle>
                     <span className="text-xs text-muted-foreground">
