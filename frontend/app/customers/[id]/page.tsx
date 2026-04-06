@@ -21,6 +21,8 @@ import {
   ArrowLeft,
   User,
   Mail,
+  Phone,
+  MessageCircle,
   MapPin,
   Briefcase,
   IdCard,
@@ -369,12 +371,34 @@ export default function CustomerDetailPage() {
                     <a href={`mailto:${customer.email}`} className="mt-2 block text-sm font-medium text-[#163300] hover:underline break-all">
                       {customer.email}
                     </a>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <a href={`mailto:${customer.email}`}>
+                        <Button size="sm" variant="outline" className="h-8 bg-white text-xs">
+                          <Mail className="mr-1.5 h-3.5 w-3.5" />
+                          Email
+                        </Button>
+                      </a>
+                    </div>
                   </div>
                   <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Teléfono</p>
                     <a href={`tel:${customer.phone}`} className="mt-2 block text-sm font-medium text-[#163300] hover:underline">
                       {customer.phone}
                     </a>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <a href={`tel:${customer.phone}`}>
+                        <Button size="sm" variant="outline" className="h-8 bg-white text-xs">
+                          <Phone className="mr-1.5 h-3.5 w-3.5" />
+                          Llamar
+                        </Button>
+                      </a>
+                      <a href={`https://wa.me/${customer.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="outline" className="h-8 bg-white text-xs">
+                          <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+                          WhatsApp
+                        </Button>
+                      </a>
+                    </div>
                   </div>
                   <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Pagado acumulado</p>
@@ -570,19 +594,21 @@ export default function CustomerDetailPage() {
                             className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-[#163300]/15 hover:bg-slate-50"
                             onClick={() => router.push(`/loans/${loan.id}`)}
                           >
-                            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                              <div className="min-w-0 flex-1">
-                                <div className="mb-2 flex flex-wrap items-center gap-2">
-                                  <h4 className="text-base font-semibold text-slate-900">{loan.loan_number}</h4>
-                                  {getStatusBadge(loan.status)}
+                            <div className="space-y-4">
+                              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                                    <h4 className="text-base font-semibold text-slate-900">{loan.loan_number}</h4>
+                                    {getStatusBadge(loan.status)}
+                                  </div>
+                                  <p className="text-sm text-slate-600">
+                                    {getLoanTypeBadge(loan.loan_type)} • {loan.payment_frequency} • {loan.term_months} meses • {loan.interest_rate}% mensual
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">Desembolsado: {formatDate(loan.disbursement_date)}</p>
                                 </div>
-                                <p className="text-sm text-slate-600">
-                                  {getLoanTypeBadge(loan.loan_type)} • {loan.payment_frequency} • {loan.term_months} meses • {loan.interest_rate}%
-                                </p>
-                                <p className="mt-1 text-xs text-slate-500">Desembolsado: {formatDate(loan.disbursement_date)}</p>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[460px]">
+                              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                                   <p className="text-xs text-slate-500">Monto</p>
                                   <p className="mt-1 font-semibold text-slate-900">{formatCurrency(loan.principal_amount)}</p>
@@ -621,9 +647,28 @@ export default function CustomerDetailPage() {
                   </CardHeader>
                   <CardContent>
                     {contracts.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-                        <FileCheck className="mx-auto mb-3 h-12 w-12 text-slate-400" />
-                        <p className="text-sm text-slate-600">Este cliente no tiene contratos firmados todavía.</p>
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8">
+                        <div className="flex flex-col items-center text-center">
+                          <FileCheck className="mb-3 h-10 w-10 text-slate-400" />
+                          <p className="text-sm font-medium text-slate-900">No hay contratos firmados todavía</p>
+                          <p className="mt-1 max-w-sm text-sm text-slate-600">
+                            Cuando este cliente tenga préstamos con contratos generados y firmados, aparecerán aquí.
+                          </p>
+                          <div className="mt-4 flex flex-wrap justify-center gap-2">
+                            <Link href={`/loans/new?customer=${customerId}`}>
+                              <Button size="sm" className="bg-[#163300] hover:bg-[#0f2400]">
+                                <Plus className="mr-2 h-4 w-4" />
+                                Crear préstamo
+                              </Button>
+                            </Link>
+                            <Link href="/contracts">
+                              <Button size="sm" variant="outline" className="bg-white">
+                                <Eye className="mr-2 h-4 w-4" />
+                                Ver contratos
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-3">
