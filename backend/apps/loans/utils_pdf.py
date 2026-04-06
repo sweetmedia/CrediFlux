@@ -1,245 +1,323 @@
 """
-Utility functions for generating contract PDFs
+Utility functions for generating contract PDFs.
 """
 from io import BytesIO
 import os
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
-from reportlab.lib import colors
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+from decimal import Decimal
+
 from django.conf import settings
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    HRFlowable,
+    Image,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+
+
+BRAND_GREEN = colors.HexColor("#163300")
+BRAND_SAGE = colors.HexColor("#738566")
+BRAND_GOLD = colors.HexColor("#FFE026")
+TEXT_DARK = colors.HexColor("#111827")
+TEXT_MUTED = colors.HexColor("#6B7280")
+BORDER = colors.HexColor("#D1D5DB")
+PAPER = colors.HexColor("#FCFBF8")
+
+
+def _money_str(value, symbol="RD$"):
+    if value is None:
+        return "N/A"
+    if hasattr(value, "amount"):
+        value = value.amount
+    return f"{symbol} {Decimal(str(value)):,.2f}"
+
+
+def _format_long_date(dt):
+    if not dt:
+        return "N/A"
+    return dt.strftime("%d/%m/%Y")
 
 
 def generate_contract_pdf(contract, tenant=None):
-    """
-    Generate a PDF file for a contract with company letterhead.
-
-    Args:
-        contract: Contract model instance
-        tenant: Tenant model instance (optional, for letterhead)
-
-    Returns:
-        BytesIO: PDF file buffer
-    """
+    """Generate a contract PDF with a more formal legal-document layout."""
     buffer = BytesIO()
 
-    # Create the PDF object using the BytesIO object as its "file"
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        rightMargin=72,
-        leftMargin=72,
-        topMargin=40,  # Reduced for letterhead at top
-        bottomMargin=18,
+        rightMargin=56,
+        leftMargin=56,
+        topMargin=42,
+        bottomMargin=36,
+        title=contract.contract_number,
+        author=(tenant.business_name if tenant and tenant.business_name else "CrediFlux"),
+        subject="Contrato legal",
     )
 
-    # Container for the 'Flowable' objects
     elements = []
-
-    # Define styles
     styles = getSampleStyleSheet()
 
-    # Custom style for letterhead company name
-    letterhead_company_style = ParagraphStyle(
-        'LetterheadCompany',
-        parent=styles['Heading1'],
-        fontSize=18,
-        textColor='#1e40af',
+    company_style = ParagraphStyle(
+        "CompanyStyle",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=17,
+        leading=20,
+        textColor=BRAND_GREEN,
+        alignment=TA_CENTER,
         spaceAfter=4,
-        alignment=TA_CENTER,
-        fontName='Helvetica-Bold',
     )
 
-    # Custom style for letterhead info
-    letterhead_info_style = ParagraphStyle(
-        'LetterheadInfo',
-        parent=styles['Normal'],
-        fontSize=9,
-        textColor='#475569',
+    legal_kicker_style = ParagraphStyle(
+        "LegalKicker",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8.5,
+        leading=11,
+        textColor=TEXT_MUTED,
+        alignment=TA_CENTER,
+        spaceAfter=3,
+    )
+
+    header_info_style = ParagraphStyle(
+        "HeaderInfo",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.7,
+        leading=11,
+        textColor=TEXT_MUTED,
+        alignment=TA_CENTER,
         spaceAfter=2,
+    )
+
+    contract_title_style = ParagraphStyle(
+        "ContractTitle",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=14,
+        leading=18,
+        textColor=TEXT_DARK,
         alignment=TA_CENTER,
+        spaceAfter=5,
     )
 
-    # Custom style for contract title
-    title_style = ParagraphStyle(
-        'ContractTitle',
-        parent=styles['Heading1'],
-        fontSize=16,
-        textColor='#1e40af',
-        spaceAfter=30,
+    contract_subtitle_style = ParagraphStyle(
+        "ContractSubtitle",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=9,
+        leading=11,
+        textColor=TEXT_MUTED,
         alignment=TA_CENTER,
+        spaceAfter=10,
     )
 
-    # Custom style for contract body
-    body_style = ParagraphStyle(
-        'ContractBody',
-        parent=styles['BodyText'],
-        fontSize=11,
-        leading=16,
-        alignment=TA_JUSTIFY,
-        spaceAfter=12,
+    metadata_label_style = ParagraphStyle(
+        "MetadataLabel",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8,
+        leading=10,
+        textColor=TEXT_MUTED,
+        alignment=TA_LEFT,
+        spaceAfter=2,
     )
 
-    # Custom style for metadata
-    metadata_style = ParagraphStyle(
-        'Metadata',
-        parent=styles['Normal'],
+    metadata_value_style = ParagraphStyle(
+        "MetadataValue",
+        parent=styles["Normal"],
+        fontName="Helvetica",
         fontSize=10,
-        textColor='#64748b',
-        spaceAfter=6,
+        leading=12,
+        textColor=TEXT_DARK,
+        alignment=TA_LEFT,
     )
 
-    # Add company letterhead
+    body_style = ParagraphStyle(
+        "ContractBody",
+        parent=styles["BodyText"],
+        fontName="Times-Roman",
+        fontSize=11,
+        leading=18,
+        alignment=TA_JUSTIFY,
+        textColor=TEXT_DARK,
+        firstLineIndent=16,
+        spaceAfter=11,
+    )
+
+    signature_title_style = ParagraphStyle(
+        "SignatureTitle",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=11,
+        leading=14,
+        textColor=TEXT_DARK,
+        alignment=TA_LEFT,
+        spaceAfter=10,
+    )
+
+    signature_meta_style = ParagraphStyle(
+        "SignatureMeta",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=9,
+        leading=12,
+        textColor=TEXT_MUTED,
+        alignment=TA_LEFT,
+    )
+
+    company_name = tenant.business_name if tenant and tenant.business_name else (tenant.name if tenant else "CrediFlux")
+    currency_symbol = getattr(tenant, "currency_symbol", "RD$") if tenant else "RD$"
+
+    # Header / letterhead
+    if tenant and getattr(tenant, "logo", None):
+        try:
+            logo_path = os.path.join(settings.MEDIA_ROOT, str(tenant.logo))
+            if os.path.exists(logo_path):
+                logo = Image(logo_path, width=1.0 * inch, height=1.0 * inch, kind="proportional")
+                logo.hAlign = "CENTER"
+                elements.append(logo)
+                elements.append(Spacer(1, 6))
+        except Exception as e:
+            print(f"Error loading logo: {e}")
+
+    elements.append(Paragraph(company_name, company_style))
+    elements.append(Paragraph("DOCUMENTO LEGAL CONTRACTUAL", legal_kicker_style))
+
     if tenant:
-        # Try to add logo if exists
-        if tenant.logo:
-            try:
-                # Get the logo path
-                logo_path = os.path.join(settings.MEDIA_ROOT, str(tenant.logo))
-                if os.path.exists(logo_path):
-                    # Add logo centered with smaller size
-                    logo = Image(logo_path, width=1.2*inch, height=1.2*inch, kind='proportional')
-                    logo.hAlign = 'CENTER'
-                    elements.append(logo)
-                    elements.append(Spacer(1, 6))
-            except Exception as e:
-                # If logo fails to load, continue without it
-                print(f"Error loading logo: {e}")
+        if getattr(tenant, "tax_id", None):
+            elements.append(Paragraph(f"RNC: {tenant.tax_id}", header_info_style))
 
-        # Company name
-        if tenant.business_name:
-            elements.append(Paragraph(
-                f"<b>{tenant.business_name}</b>",
-                letterhead_company_style
-            ))
-
-        # Tax ID
-        if tenant.tax_id:
-            elements.append(Paragraph(
-                f"RNC: {tenant.tax_id}",
-                letterhead_info_style
-            ))
-
-        # Address
-        address_parts = []
-        if tenant.address:
-            address_parts.append(tenant.address)
-        if tenant.city:
-            address_parts.append(tenant.city)
-        if tenant.state:
-            address_parts.append(tenant.state)
-        if tenant.country:
-            address_parts.append(tenant.country)
-
+        address_parts = [
+            part for part in [
+                getattr(tenant, "address", None),
+                getattr(tenant, "city", None),
+                getattr(tenant, "state", None),
+                getattr(tenant, "country", None),
+            ] if part
+        ]
         if address_parts:
-            elements.append(Paragraph(
-                ", ".join(address_parts),
-                letterhead_info_style
-            ))
+            elements.append(Paragraph(", ".join(address_parts), header_info_style))
 
-        # Contact info
         contact_parts = []
-        if tenant.phone:
+        if getattr(tenant, "phone", None):
             contact_parts.append(f"Tel: {tenant.phone}")
-        if tenant.email:
+        if getattr(tenant, "email", None):
             contact_parts.append(f"Email: {tenant.email}")
-
         if contact_parts:
-            elements.append(Paragraph(
-                " | ".join(contact_parts),
-                letterhead_info_style
-            ))
+            elements.append(Paragraph(" | ".join(contact_parts), header_info_style))
 
-        elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 10))
+    elements.append(HRFlowable(width="100%", thickness=1.3, color=BRAND_GREEN, lineCap="round", spaceAfter=14))
 
-        # Separator line
-        from reportlab.platypus import HRFlowable
-        elements.append(HRFlowable(width="100%", thickness=2, color='#1e40af', spaceAfter=15))
+    # Title block
+    elements.append(Paragraph(contract.contract_number, contract_title_style))
+    elements.append(Paragraph("Contrato vinculado al expediente de préstamo", contract_subtitle_style))
 
-    # Add contract header
-    title = Paragraph(
-        f"<b>{contract.contract_number}</b>",
-        title_style
-    )
-    elements.append(title)
-    elements.append(Spacer(1, 12))
-
-    # Add metadata in 2 columns using a table
     if contract.loan:
-        # Prepare metadata data for table
-        metadata_data = [
+        metadata_rows = [
             [
-                Paragraph(f"<b>Préstamo:</b> {contract.loan.loan_number}", metadata_style),
-                Paragraph(f"<b>Monto:</b> ${contract.loan.principal_amount.amount:,.2f}", metadata_style),
+                Paragraph("EXPEDIENTE", metadata_label_style),
+                Paragraph(contract.loan.loan_number, metadata_value_style),
+                Paragraph("MONTO", metadata_label_style),
+                Paragraph(_money_str(contract.loan.principal_amount, currency_symbol), metadata_value_style),
             ],
             [
-                Paragraph(f"<b>Cliente:</b> {contract.loan.customer.get_full_name()}", metadata_style),
-                Paragraph(f"<b>Fecha:</b> {contract.generated_at.strftime('%d de %B de %Y')}", metadata_style),
+                Paragraph("CLIENTE", metadata_label_style),
+                Paragraph(contract.loan.customer.get_full_name(), metadata_value_style),
+                Paragraph("FECHA", metadata_label_style),
+                Paragraph(_format_long_date(contract.generated_at), metadata_value_style),
             ],
         ]
 
-        # Create table with 2 columns
-        metadata_table = Table(metadata_data, colWidths=[3.25*inch, 3.25*inch])
+        metadata_table = Table(metadata_rows, colWidths=[1.1 * inch, 2.2 * inch, 1.0 * inch, 2.0 * inch])
         metadata_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ("BACKGROUND", (0, 0), (-1, -1), PAPER),
+            ("BOX", (0, 0), (-1, -1), 0.75, BORDER),
+            ("INNERGRID", (0, 0), (-1, -1), 0.5, BORDER),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
         ]))
-
         elements.append(metadata_table)
-        elements.append(Spacer(1, 15))
+        elements.append(Spacer(1, 18))
 
-    # Add horizontal line
-    from reportlab.platypus import HRFlowable
-    elements.append(HRFlowable(width="100%", thickness=1, color='#cbd5e1', spaceAfter=20))
+    elements.append(HRFlowable(width="100%", thickness=0.8, color=BORDER, spaceAfter=18))
 
-    # Add contract content
+    # Body
     if contract.content:
-        # Split content by paragraphs (double newlines)
-        paragraphs = contract.content.split('\n\n')
-
+        paragraphs = contract.content.split("\n\n")
         for para in paragraphs:
             if para.strip():
-                # Replace single newlines with <br/> for proper formatting
-                formatted_para = para.strip().replace('\n', '<br/>')
-                p = Paragraph(formatted_para, body_style)
-                elements.append(p)
+                formatted_para = para.strip().replace("\n", "<br/>")
+                elements.append(Paragraph(formatted_para, body_style))
     else:
-        elements.append(Paragraph(
-            "<i>Este contrato no tiene contenido generado.</i>",
-            body_style
-        ))
+        elements.append(Paragraph("<i>Este contrato no tiene contenido generado.</i>", body_style))
 
-    # Add footer spacer
-    elements.append(Spacer(1, 40))
+    elements.append(Spacer(1, 22))
+    elements.append(HRFlowable(width="100%", thickness=0.8, color=BORDER, spaceAfter=14))
 
-    # Add signatures section if signed
-    if contract.customer_signed_at or contract.officer_signed_at:
-        elements.append(HRFlowable(width="100%", thickness=1, color='#cbd5e1', spaceAfter=20))
-        elements.append(Paragraph("<b>Firmas</b>", title_style))
-        elements.append(Spacer(1, 12))
+    # Signatures block
+    elements.append(Paragraph("FIRMAS Y VALIDACIÓN", signature_title_style))
 
-        if contract.customer_signed_at:
-            elements.append(Paragraph(
-                f"<b>Cliente:</b> Firmado el {contract.customer_signed_at.strftime('%d de %B de %Y a las %H:%M')}",
-                metadata_style
-            ))
+    signature_rows = [
+        [
+            Paragraph("Cliente / Deudor", metadata_label_style),
+            Paragraph("Oficial de crédito", metadata_label_style),
+        ],
+        [
+            Paragraph("<br/><br/>_______________________________", metadata_value_style),
+            Paragraph("<br/><br/>_______________________________", metadata_value_style),
+        ],
+        [
+            Paragraph(contract.loan.customer.get_full_name() if contract.loan else "Pendiente", signature_meta_style),
+            Paragraph(contract.loan.loan_officer.get_full_name() if contract.loan and contract.loan.loan_officer else "Pendiente", signature_meta_style),
+        ],
+        [
+            Paragraph(
+                f"Firmado: {_format_long_date(contract.customer_signed_at)}" if contract.customer_signed_at else "Firma pendiente",
+                signature_meta_style,
+            ),
+            Paragraph(
+                f"Firmado: {_format_long_date(contract.officer_signed_at)}" if contract.officer_signed_at else "Firma pendiente",
+                signature_meta_style,
+            ),
+        ],
+    ]
 
-        if contract.officer_signed_at:
-            elements.append(Paragraph(
-                f"<b>Oficial de crédito:</b> Firmado el {contract.officer_signed_at.strftime('%d de %B de %Y a las %H:%M')}",
-                metadata_style
-            ))
+    signature_table = Table(signature_rows, colWidths=[3.15 * inch, 3.15 * inch])
+    signature_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(signature_table)
 
-    # Build PDF
+    elements.append(Spacer(1, 14))
+    elements.append(Paragraph(
+        "Este documento forma parte del expediente legal del préstamo y debe conservarse conforme a las políticas internas y regulatorias aplicables.",
+        ParagraphStyle(
+            "FooterNote",
+            parent=styles["Normal"],
+            fontName="Helvetica-Oblique",
+            fontSize=8.5,
+            leading=11,
+            textColor=TEXT_MUTED,
+            alignment=TA_CENTER,
+        ),
+    ))
+
     doc.build(elements)
-
-    # Get the value of the BytesIO buffer and return it
     buffer.seek(0)
     return buffer
