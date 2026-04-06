@@ -928,7 +928,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         Updates loan schedule and outstanding balance.
         Optionally sends WhatsApp receipt.
         """
-        from moneyed import Money
+        from .signals import reconcile_loan_from_payments
         from .utils_whatsapp import get_whatsapp_service
 
         payment = self.get_object()
@@ -943,39 +943,12 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         send_whatsapp = request.data.get('send_whatsapp', False)
         phone = request.data.get('phone')
 
-        # Update payment status
+        # Update payment status and reconcile loan + schedules from the same source of truth
         payment.status = 'completed'
-        payment.save()
+        payment.save(update_fields=['status', 'updated_at'])
 
-        # Update loan outstanding balance
         loan = payment.loan
-        loan.outstanding_balance -= payment.principal_paid
-        loan.total_paid += payment.amount
-        loan.total_interest_paid += payment.interest_paid
-        loan.save()
-
-        # Update schedule if linked
-        if payment.schedule:
-            schedule = payment.schedule
-
-            # Update paid amount
-            schedule.paid_amount = (schedule.paid_amount or Money(0, schedule.total_amount.currency)) + payment.amount
-
-            # Update late fee paid
-            schedule.late_fee_paid = (schedule.late_fee_paid or Money(0, schedule.late_fee_amount.currency)) + payment.late_fee_paid
-
-            # Set actual payment date if not set
-            if not schedule.actual_payment_date:
-                schedule.actual_payment_date = payment.payment_date
-
-            # Update status
-            if schedule.paid_amount >= schedule.total_amount + schedule.late_fee_amount:
-                schedule.status = 'paid'
-                schedule.paid_date = payment.payment_date
-            elif schedule.paid_amount > Money(0, schedule.total_amount.currency):
-                schedule.status = 'partial'
-
-            schedule.save()
+        reconcile_loan_from_payments(loan)
 
         # Send WhatsApp receipt — either explicitly requested or auto-enabled
         whatsapp_sent = False
@@ -1036,7 +1009,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         Reverse a completed payment.
         This will reverse the updates made to loan and schedule.
         """
-        from moneyed import Money
+        from .signals import reconcile_loan_from_payments
 
         payment = self.get_object()
 
@@ -1052,31 +1025,13 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Reverse loan balances
         loan = payment.loan
-        loan.outstanding_balance += payment.principal_paid
-        loan.total_paid -= payment.amount
-        loan.total_interest_paid -= payment.interest_paid
-        loan.save()
 
-        # Reverse schedule updates if linked
-        if payment.schedule:
-            schedule = payment.schedule
-            schedule.paid_amount -= payment.amount
-            schedule.late_fee_paid -= payment.late_fee_paid
-
-            # Recalculate status
-            if schedule.paid_amount <= Money(0, schedule.total_amount.currency):
-                schedule.status = 'pending'
-                schedule.paid_date = None
-            else:
-                schedule.status = 'partial'
-
-            schedule.save()
-
-        # Mark payment as reversed
+        # Mark payment as reversed, then rebuild the loan state from remaining completed payments
         payment.status = 'reversed'
-        payment.save()
+        payment.save(update_fields=['status', 'updated_at'])
+
+        reconcile_loan_from_payments(loan)
 
         return Response({'message': 'Pago reversado exitosamente'})
 
