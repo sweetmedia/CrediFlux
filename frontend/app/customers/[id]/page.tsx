@@ -21,17 +21,13 @@ import {
   ArrowLeft,
   User,
   Mail,
-  Phone,
   MapPin,
   Briefcase,
-  DollarSign,
-  Calendar,
   IdCard,
   FileText,
   CreditCard,
   Plus,
   Edit,
-  TrendingUp,
   AlertCircle,
   FileCheck,
   Eye,
@@ -273,576 +269,443 @@ export default function CustomerDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
-      <div className="container mx-auto max-w-7xl">
-        {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-screen bg-[#f6f8f7] p-4 py-8 md:p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="mb-3 flex items-center gap-3">
               <Link href="/customers">
-                <Button variant="outline" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
+                <Button variant="outline" size="sm" className="bg-white">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
                   Volver
                 </Button>
               </Link>
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#d7e2db] bg-white px-3 py-1 text-xs font-medium text-[#486152]">
+                <User className="h-3.5 w-3.5" />
+                Perfil del cliente
+              </div>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <User className="h-8 w-8 text-blue-600" />
-              Detalles del Cliente
+            <h1 className="text-3xl font-semibold tracking-tight text-[#163300]">
+              Cliente y relación crediticia
             </h1>
-            <p className="text-gray-600 mt-1">
-              Información completa y préstamos del cliente
+            <p className="mt-2 max-w-2xl text-sm text-slate-600">
+              Vista central del cliente, sus préstamos, contratos y documentos.
             </p>
           </div>
           {customer && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Link href={`/customers/${customerId}/edit`}>
-                <Button variant="outline">
+                <Button variant="outline" className="bg-white">
                   <Edit className="mr-2 h-4 w-4" />
-                  Editar Cliente
+                  Editar cliente
                 </Button>
               </Link>
               <Link href={`/loans/new?customer=${customerId}`}>
-                <Button>
+                <Button className="bg-[#163300] hover:bg-[#0f2400]">
                   <Plus className="mr-2 h-4 w-4" />
-                  Nuevo Préstamo
+                  Nuevo préstamo
                 </Button>
               </Link>
             </div>
           )}
         </div>
 
-        {/* Error */}
         {error && (
-          <Alert variant="destructive" className="mb-6">
+          <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
-            <p className="text-gray-600">Cargando información del cliente...</p>
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="mb-4 h-10 w-10 animate-spin text-[#163300]" />
+            <p className="text-sm text-slate-600">Cargando información del cliente...</p>
           </div>
         ) : customer ? (
           <div className="space-y-6">
-            {/* Customer Header Card */}
-            <Card className="border-2 border-blue-100">
-              <CardContent className="pt-6">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  <div className="flex-1">
+            <Card className="overflow-hidden border-[#d7e2db] shadow-none">
+              <CardContent className="p-0">
+                <div className="border-b border-[#d7e2db] bg-gradient-to-r from-[#163300] via-[#244508] to-[#325c10] px-6 py-6 text-white">
+                  <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex items-start gap-4">
-                      <div className="rounded-full bg-blue-100 p-4">
-                        <User className="h-8 w-8 text-blue-600" />
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-white/10">
+                        <User className="h-8 w-8" />
                       </div>
-                      <div className="flex-1">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                          {customer.full_name}
-                        </h2>
-                        <p className="text-gray-600 text-sm mb-3">
-                          ID: {customer.customer_id}
-                        </p>
-                        {getStatusBadge(customer.status)}
+                      <div>
+                        <p className="text-sm text-white/70">Cliente</p>
+                        <h2 className="mt-1 text-3xl font-semibold">{customer.full_name}</h2>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-white/80">
+                          <span>ID interno: {customer.customer_id}</span>
+                          <span>•</span>
+                          <span>{customer.id_number}</span>
+                        </div>
+                        <div className="mt-4">{getStatusBadge(customer.status)}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px] lg:grid-cols-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+                        <p className="text-xs uppercase tracking-wide text-white/65">Préstamos</p>
+                        <p className="mt-2 text-3xl font-semibold">{customer.total_loans}</p>
+                        <p className="mt-1 text-xs text-white/70">Historial total</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+                        <p className="text-xs uppercase tracking-wide text-white/65">Activos</p>
+                        <p className="mt-2 text-3xl font-semibold">{customer.active_loans}</p>
+                        <p className="mt-1 text-xs text-white/70">Préstamos en curso</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm sm:col-span-2 lg:col-span-1">
+                        <p className="text-xs uppercase tracking-wide text-white/65">Balance</p>
+                        <p className="mt-2 text-xl font-semibold">{formatCurrency(calculateTotalBalance())}</p>
+                        <p className="mt-1 text-xs text-white/70">Exposición actual</p>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* Quick Stats */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div className="text-center p-3 bg-blue-50 rounded-lg">
-                      <p className="text-sm text-gray-600">Total Préstamos</p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        {customer.total_loans}
-                      </p>
-                    </div>
-                    <div className="text-center p-3 bg-green-50 rounded-lg">
-                      <p className="text-sm text-gray-600">Activos</p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {customer.active_loans}
-                      </p>
-                    </div>
-                    <div className="text-center p-3 bg-orange-50 rounded-lg col-span-2 md:col-span-1">
-                      <p className="text-sm text-gray-600">Balance Total</p>
-                      <p className="text-xl font-bold text-orange-600">
-                        {formatCurrency(calculateTotalBalance())}
-                      </p>
-                    </div>
+                <div className="grid gap-4 bg-white px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Email</p>
+                    <a href={`mailto:${customer.email}`} className="mt-2 block text-sm font-medium text-[#163300] hover:underline break-all">
+                      {customer.email}
+                    </a>
+                  </div>
+                  <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Teléfono</p>
+                    <a href={`tel:${customer.phone}`} className="mt-2 block text-sm font-medium text-[#163300] hover:underline">
+                      {customer.phone}
+                    </a>
+                  </div>
+                  <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Pagado acumulado</p>
+                    <p className="mt-2 text-lg font-semibold text-emerald-700">{formatCurrency(calculateTotalPaid())}</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Score crediticio</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-900">{customer.credit_score || '—'}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Information Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Personal Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-blue-600" />
-                    Información Personal
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-gray-600">Nombre Completo</p>
-                      <p className="font-semibold">{customer.full_name}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600">Fecha de Nacimiento</p>
-                      <p className="font-semibold">{formatDate(customer.date_of_birth)}</p>
-                    </div>
-                    {customer.gender && (
-                      <div>
-                        <p className="text-gray-600">Género</p>
-                        <p className="font-semibold">
-                          {customer.gender === 'M'
-                            ? 'Masculino'
-                            : customer.gender === 'F'
-                            ? 'Femenino'
-                            : 'Otro'}
-                        </p>
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-gray-600">Estado</p>
-                      <p className="font-semibold capitalize">{customer.status}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Contact Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Mail className="h-5 w-5 text-blue-600" />
-                    Información de Contacto
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-600">Email</p>
-                      <a
-                        href={`mailto:${customer.email}`}
-                        className="text-sm font-semibold text-blue-600 hover:underline"
-                      >
-                        {customer.email}
-                      </a>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-600">Teléfono</p>
-                      <a
-                        href={`tel:${customer.phone}`}
-                        className="text-sm font-semibold text-blue-600 hover:underline"
-                      >
-                        {customer.phone}
-                      </a>
-                    </div>
-                  </div>
-                  {customer.alternate_phone && (
-                    <div className="flex items-center gap-3">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                      <div>
-                        <p className="text-xs text-gray-600">Teléfono Alternativo</p>
-                        <a
-                          href={`tel:${customer.alternate_phone}`}
-                          className="text-sm font-semibold text-blue-600 hover:underline"
-                        >
-                          {customer.alternate_phone}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Address */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-blue-600" />
-                    Dirección
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-sm">{customer.address_line1}</p>
-                  {customer.address_line2 && (
-                    <p className="text-sm">{customer.address_line2}</p>
-                  )}
-                  <p className="text-sm">
-                    {customer.city}, {customer.state} {customer.postal_code}
-                  </p>
-                  <p className="text-sm font-semibold">{customer.country}</p>
-                </CardContent>
-              </Card>
-
-              {/* Identification */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <IdCard className="h-5 w-5 text-blue-600" />
-                    Identificación
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-xs text-gray-600">Tipo de Documento</p>
-                    <p className="text-sm font-semibold capitalize">
-                      {customer.id_type === 'cedula'
-                        ? 'Cédula'
-                        : customer.id_type === 'passport'
-                        ? 'Pasaporte'
-                        : 'Licencia de Conducir'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Número</p>
-                    <p className="text-sm font-semibold">{customer.id_number}</p>
-                  </div>
-                  {customer.id_expiry_date && (
-                    <div>
-                      <p className="text-xs text-gray-600">Fecha de Vencimiento</p>
-                      <p className="text-sm font-semibold">
-                        {formatDate(customer.id_expiry_date)}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Employment Information */}
-              {(customer.employment_status ||
-                customer.employer_name ||
-                customer.occupation ||
-                customer.monthly_income) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Briefcase className="h-5 w-5 text-blue-600" />
-                      Información Laboral
-                    </CardTitle>
+            <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-6">
+                <Card className="border-[#d7e2db] shadow-none">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-base text-[#163300]">Resumen del cliente</CardTitle>
+                    <CardDescription>
+                      Datos personales, contacto e identificación en una sola vista.
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {customer.employment_status && (
-                      <div>
-                        <p className="text-xs text-gray-600">Estado Laboral</p>
-                        <p className="text-sm font-semibold capitalize">
-                          {customer.employment_status.replace('_', ' ')}
-                        </p>
+                  <CardContent className="space-y-6">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="mb-3 flex items-center gap-2 text-[#163300]">
+                          <User className="h-4 w-4" />
+                          <p className="text-sm font-medium">Información personal</p>
+                        </div>
+                        <div className="grid gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-slate-500">Nombre completo</p>
+                            <p className="font-medium text-slate-900">{customer.full_name}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Fecha de nacimiento</p>
+                            <p className="font-medium text-slate-900">{formatDate(customer.date_of_birth)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Género</p>
+                            <p className="font-medium text-slate-900">
+                              {customer.gender
+                                ? customer.gender === 'M'
+                                  ? 'Masculino'
+                                  : customer.gender === 'F'
+                                  ? 'Femenino'
+                                  : 'Otro'
+                                : 'No especificado'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    {customer.employer_name && (
-                      <div>
-                        <p className="text-xs text-gray-600">Empleador</p>
-                        <p className="text-sm font-semibold">{customer.employer_name}</p>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="mb-3 flex items-center gap-2 text-[#163300]">
+                          <IdCard className="h-4 w-4" />
+                          <p className="text-sm font-medium">Identificación</p>
+                        </div>
+                        <div className="grid gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-slate-500">Tipo de documento</p>
+                            <p className="font-medium text-slate-900">
+                              {customer.id_type === 'cedula'
+                                ? 'Cédula'
+                                : customer.id_type === 'passport'
+                                ? 'Pasaporte'
+                                : 'Licencia de conducir'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Número</p>
+                            <p className="font-medium text-slate-900">{customer.id_number}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Vencimiento</p>
+                            <p className="font-medium text-slate-900">
+                              {customer.id_expiry_date ? formatDate(customer.id_expiry_date) : 'No registrado'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    {customer.occupation && (
-                      <div>
-                        <p className="text-xs text-gray-600">Ocupación</p>
-                        <p className="text-sm font-semibold">{customer.occupation}</p>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="mb-3 flex items-center gap-2 text-[#163300]">
+                          <Mail className="h-4 w-4" />
+                          <p className="text-sm font-medium">Contacto</p>
+                        </div>
+                        <div className="grid gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-slate-500">Email</p>
+                            <p className="font-medium text-slate-900 break-all">{customer.email}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Teléfono principal</p>
+                            <p className="font-medium text-slate-900">{customer.phone}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Teléfono alternativo</p>
+                            <p className="font-medium text-slate-900">{customer.alternate_phone || 'No registrado'}</p>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    {customer.monthly_income && (
-                      <div>
-                        <p className="text-xs text-gray-600">Ingreso Mensual</p>
-                        <p className="text-sm font-semibold">
-                          {formatCurrency(customer.monthly_income)}
-                        </p>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="mb-3 flex items-center gap-2 text-[#163300]">
+                          <MapPin className="h-4 w-4" />
+                          <p className="text-sm font-medium">Dirección</p>
+                        </div>
+                        <div className="grid gap-3 text-sm">
+                          <div>
+                            <p className="font-medium text-slate-900">{customer.address_line1}</p>
+                            {customer.address_line2 && <p className="text-slate-700">{customer.address_line2}</p>}
+                          </div>
+                          <div>
+                            <p className="text-slate-700">{customer.city}, {customer.state} {customer.postal_code}</p>
+                            <p className="font-medium text-slate-900">{customer.country}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {(customer.employment_status || customer.employer_name || customer.occupation || customer.monthly_income) && (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="mb-3 flex items-center gap-2 text-[#163300]">
+                          <Briefcase className="h-4 w-4" />
+                          <p className="text-sm font-medium">Información laboral y capacidad</p>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 text-sm">
+                          <div>
+                            <p className="text-xs text-slate-500">Estado laboral</p>
+                            <p className="font-medium text-slate-900 capitalize">{customer.employment_status?.replace('_', ' ') || 'No registrado'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Empleador</p>
+                            <p className="font-medium text-slate-900">{customer.employer_name || 'No registrado'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Ocupación</p>
+                            <p className="font-medium text-slate-900">{customer.occupation || 'No registrada'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Ingreso mensual</p>
+                            <p className="font-medium text-slate-900">{customer.monthly_income ? formatCurrency(customer.monthly_income) : 'No registrado'}</p>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </CardContent>
                 </Card>
-              )}
 
-              {/* Financial Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-blue-600" />
-                    Información Financiera
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {customer.credit_score && (
-                    <div>
-                      <p className="text-xs text-gray-600">Score de Crédito</p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        {customer.credit_score}
-                      </p>
+                {customer.notes && (
+                  <Card className="border-[#d7e2db] shadow-none">
+                    <CardHeader>
+                      <CardTitle className="text-base text-[#163300]">Notas internas</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{customer.notes}</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Card className="border-[#d7e2db] shadow-none">
+                  <CardHeader>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-[#163300]">
+                          <CreditCard className="h-5 w-5" />
+                          Préstamos ({loans.length})
+                        </CardTitle>
+                        <CardDescription>
+                          Exposición crediticia y desempeño de este cliente.
+                        </CardDescription>
+                      </div>
+                      <Link href={`/loans/new?customer=${customerId}`}>
+                        <Button size="sm" className="bg-[#163300] hover:bg-[#0f2400]">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Nuevo préstamo
+                        </Button>
+                      </Link>
                     </div>
-                  )}
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-xs text-gray-600">Total Pagado</p>
-                      <p className="text-sm font-semibold text-green-600">
-                        {formatCurrency(calculateTotalPaid())}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600">Balance Pendiente</p>
-                      <p className="text-sm font-semibold text-orange-600">
-                        {formatCurrency(calculateTotalBalance())}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                  </CardHeader>
+                  <CardContent>
+                    {loans.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                        <CreditCard className="mx-auto mb-3 h-12 w-12 text-slate-400" />
+                        <p className="text-sm text-slate-600">Este cliente todavía no tiene préstamos registrados.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {loans.map((loan) => (
+                          <div
+                            key={loan.id}
+                            className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-[#163300]/15 hover:bg-slate-50"
+                            onClick={() => router.push(`/loans/${loan.id}`)}
+                          >
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <div className="mb-2 flex flex-wrap items-center gap-2">
+                                  <h4 className="text-base font-semibold text-slate-900">{loan.loan_number}</h4>
+                                  {getStatusBadge(loan.status)}
+                                </div>
+                                <p className="text-sm text-slate-600">
+                                  {getLoanTypeBadge(loan.loan_type)} • {loan.payment_frequency} • {loan.term_months} meses • {loan.interest_rate}%
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">Desembolsado: {formatDate(loan.disbursement_date)}</p>
+                              </div>
 
-            {/* Notes */}
-            {customer.notes && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-blue-600" />
-                    Notas
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                    {customer.notes}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Loans Section */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-blue-600" />
-                    Préstamos ({loans.length})
-                  </CardTitle>
-                  <Link href={`/loans/new?customer=${customerId}`}>
-                    <Button size="sm">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Nuevo Préstamo
-                    </Button>
-                  </Link>
-                </div>
-                <CardDescription>
-                  Historial de préstamos del cliente
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loans.length === 0 ? (
-                  <div className="text-center py-8">
-                    <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600">
-                      Este cliente no tiene préstamos registrados
-                    </p>
-                    <Link href={`/loans/new?customer=${customerId}`}>
-                      <Button className="mt-4" size="sm">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Crear Primer Préstamo
-                      </Button>
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {loans.map((loan) => (
-                      <div
-                        key={loan.id}
-                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => router.push(`/loans/${loan.id}`)}
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-semibold text-gray-900">
-                                {loan.loan_number}
-                              </h4>
-                              {getStatusBadge(loan.status)}
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              {getLoanTypeBadge(loan.loan_type)} •{' '}
-                              {loan.payment_frequency} • {loan.term_months} meses
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Desembolsado: {formatDate(loan.disbursement_date)}
-                            </p>
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-4 text-center">
-                            <div>
-                              <p className="text-xs text-gray-600">Monto</p>
-                              <p className="font-semibold">
-                                {formatCurrency(loan.principal_amount)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-600">Pagado</p>
-                              <p className="font-semibold text-green-600">
-                                {formatCurrency(loan.total_paid || 0)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-600">Balance</p>
-                              <p className="font-semibold text-orange-600">
-                                {formatCurrency(loan.outstanding_balance)}
-                              </p>
-                            </div>
-                          </div>
-
-                          {loan.days_overdue && loan.days_overdue > 0 && (
-                            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                              <div className="flex items-center gap-2 text-red-700">
-                                <AlertCircle className="h-4 w-4" />
-                                <span className="text-sm font-semibold">
-                                  {loan.days_overdue} días de mora
-                                </span>
+                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[460px]">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                  <p className="text-xs text-slate-500">Monto</p>
+                                  <p className="mt-1 font-semibold text-slate-900">{formatCurrency(loan.principal_amount)}</p>
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                  <p className="text-xs text-slate-500">Pagado</p>
+                                  <p className="mt-1 font-semibold text-emerald-700">{formatCurrency(loan.total_paid || 0)}</p>
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                  <p className="text-xs text-slate-500">Balance</p>
+                                  <p className="mt-1 font-semibold text-orange-600">{formatCurrency(loan.outstanding_balance)}</p>
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                  <p className="text-xs text-slate-500">Mora</p>
+                                  <p className={`mt-1 font-semibold ${loan.days_overdue && loan.days_overdue > 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                                    {loan.days_overdue && loan.days_overdue > 0 ? `${loan.days_overdue} días` : 'Al día'}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
 
-            {/* Contracts Section */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <FileCheck className="h-5 w-5 text-blue-600" />
-                    Contratos ({contracts.length})
-                  </CardTitle>
-                </div>
-                <CardDescription>
-                  Contratos firmados del cliente
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {contracts.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileCheck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600">
-                      Este cliente no tiene contratos firmados
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {contracts.map((contract) => (
-                      <div
-                        key={contract.id}
-                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-semibold text-gray-900">
-                                {contract.contract_number}
-                              </h4>
-                              {getContractStatusBadge(contract.status)}
-                              {contract.is_fully_signed && (
-                                <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-                                  <FileCheck className="h-3 w-3" />
-                                  Completamente Firmado
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              Préstamo: {contract.loan_number}
-                              {contract.template_name && ` • ${contract.template_name}`}
-                            </p>
-                            <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
-                              <span>
-                                Generado: {formatDate(contract.generated_at)}
-                              </span>
-                              {contract.customer_signed_at && (
-                                <span className="text-green-600">
-                                  Cliente firmó: {formatDate(contract.customer_signed_at)}
-                                </span>
-                              )}
-                              {contract.officer_signed_at && (
-                                <span className="text-blue-600">
-                                  Oficial firmó: {formatDate(contract.officer_signed_at)}
-                                </span>
-                              )}
+              <div className="space-y-6">
+                <Card className="border-[#d7e2db] shadow-none">
+                  <CardHeader>
+                    <CardTitle className="text-base text-[#163300]">Contratos ({contracts.length})</CardTitle>
+                    <CardDescription>
+                      Documentos contractuales asociados al cliente.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {contracts.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                        <FileCheck className="mx-auto mb-3 h-12 w-12 text-slate-400" />
+                        <p className="text-sm text-slate-600">Este cliente no tiene contratos firmados todavía.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {contracts.map((contract) => (
+                          <div key={contract.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="flex flex-col gap-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="font-semibold text-slate-900">{contract.contract_number}</h4>
+                                {getContractStatusBadge(contract.status)}
+                                {contract.is_fully_signed && (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+                                    <FileCheck className="h-3 w-3" />
+                                    Completamente firmado
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-600">
+                                Préstamo: {contract.loan_number}
+                                {contract.template_name && ` • ${contract.template_name}`}
+                              </p>
+                              <div className="grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
+                                <span>Generado: {formatDate(contract.generated_at)}</span>
+                                <span>Cliente: {contract.customer_signed_at ? formatDate(contract.customer_signed_at) : 'Pendiente'}</span>
+                                <span>Oficial: {contract.officer_signed_at ? formatDate(contract.officer_signed_at) : 'Pendiente'}</span>
+                              </div>
+                              <div>
+                                <Link href={`/contracts/${contract.id}`}>
+                                  <Button variant="outline" size="sm" className="bg-white">
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Ver contrato
+                                  </Button>
+                                </Link>
+                              </div>
                             </div>
                           </div>
-
-                          <div className="flex items-center gap-2">
-                            <Link href={`/contracts/${contract.id}`}>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-slate-200"
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                Ver Contrato
-                              </Button>
-                            </Link>
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    )}
+                  </CardContent>
+                </Card>
 
-            {/* Documents Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  Documentos
-                </CardTitle>
-                <CardDescription>
-                  Gestión de documentos del cliente
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CustomerDocuments
-                  customerId={customerId}
-                  canManage={true}
-                />
-              </CardContent>
-            </Card>
+                <Card className="border-[#d7e2db] shadow-none">
+                  <CardHeader>
+                    <CardTitle className="text-base text-[#163300]">Documentos</CardTitle>
+                    <CardDescription>
+                      Gestión documental del expediente del cliente.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <CustomerDocuments customerId={customerId} canManage={true} />
+                  </CardContent>
+                </Card>
 
-            {/* Metadata */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-blue-600" />
-                  Información del Sistema
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Fecha de Registro</p>
-                    <p className="font-semibold">{formatDate(customer.created_at)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Última Actualización</p>
-                    <p className="font-semibold">{formatDate(customer.updated_at)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                <Card className="border-[#d7e2db] shadow-none">
+                  <CardHeader>
+                    <CardTitle className="text-base text-[#163300]">Información del sistema</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 text-sm sm:grid-cols-2">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs text-slate-500">Fecha de registro</p>
+                        <p className="mt-1 font-medium text-slate-900">{formatDate(customer.created_at)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs text-slate-500">Última actualización</p>
+                        <p className="mt-1 font-medium text-slate-900">{formatDate(customer.updated_at)}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </div>
         ) : (
-          <Card>
-            <CardContent className="text-center py-12">
-              <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600">Cliente no encontrado</p>
+          <Card className="border-[#d7e2db] shadow-none">
+            <CardContent className="py-12 text-center">
+              <AlertCircle className="mx-auto mb-3 h-12 w-12 text-slate-400" />
+              <p className="text-slate-600">Cliente no encontrado</p>
               <Link href="/customers">
                 <Button className="mt-4" variant="outline">
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Volver a Clientes
+                  Volver a clientes
                 </Button>
               </Link>
             </CardContent>
