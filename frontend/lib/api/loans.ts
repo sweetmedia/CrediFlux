@@ -188,6 +188,43 @@ export const paymentsAPI = {
   async reversePayment(id: string): Promise<{ message: string }> {
     return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/reverse/`);
   },
+
+  // Download payment receipt PDF
+  async downloadReceipt(id: string): Promise<void> {
+    const { getApiUrl } = await import('./client');
+    const API_URL = getApiUrl();
+    const token = localStorage.getItem('access_token');
+
+    const response = await fetch(`${API_URL}/api/loans/payments/${id}/receipt-pdf/`, {
+      method: 'GET',
+      headers: token ? {
+        'Authorization': `Bearer ${token}`,
+      } : undefined,
+    });
+
+    if (!response.ok) {
+      throw new Error('Error al descargar el recibo');
+    }
+
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = `recibo_pago_${id}.pdf`;
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
+      if (filenameMatch?.[1]) {
+        filename = filenameMatch[1];
+      }
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
 };
 
 export const schedulesAPI = {

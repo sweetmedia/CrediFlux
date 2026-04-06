@@ -96,10 +96,17 @@ export default function PaymentDetailPage() {
     window.print();
   };
 
-  const handleDownloadReceipt = () => {
-    // Open the receipt PDF in a new tab for download
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    window.open(`${baseUrl}/api/loans/payments/${paymentId}/receipt-pdf/`, '_blank');
+  const handleDownloadReceipt = async () => {
+    try {
+      setIsProcessing(true);
+      setError('');
+      await paymentsAPI.downloadReceipt(paymentId);
+    } catch (err: any) {
+      console.error('Error downloading receipt:', err);
+      setError(err?.message || 'Error al descargar el recibo');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const formatCurrency = (amount: number | undefined) => {
