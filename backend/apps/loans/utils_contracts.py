@@ -47,6 +47,14 @@ def number_to_words_es(number):
         return str(number)
 
 
+def _money_str(value, currency_symbol='RD$'):
+    if value is None:
+        return 'N/A'
+    if hasattr(value, 'amount'):
+        value = value.amount
+    return f"{currency_symbol} {Decimal(str(value)):,.2f}"
+
+
 def replace_contract_variables(template_content, loan, tenant=None):
     """
     Replace template variables with actual loan/customer data.
@@ -93,24 +101,41 @@ def replace_contract_variables(template_content, loan, tenant=None):
     # Get current date
     now = timezone.now()
 
-    # Customer variables
+    company_name = (tenant.business_name or tenant.name) if tenant else 'N/A'
+    currency_symbol = getattr(tenant, 'currency_symbol', 'RD$') if tenant else 'RD$'
+    customer_name = customer.get_full_name()
+    customer_address = f"{customer.address_line1 or ''}{', ' + customer.address_line2 if customer.address_line2 else ''}, {customer.city or ''}, {customer.state or ''}".strip(', ')
+    customer_id_number = customer.id_number or 'N/A'
+
+    # Customer + loan variables
     replacements = {
-        '{{customer_name}}': customer.get_full_name(),
+        '{{customer_name}}': customer_name,
+        '{{customer}}': customer_name,
+        '{{customer_full_name}}': customer_name,
+        '{{cliente}}': customer_name,
+        '{{cliente_nombre}}': customer_name,
+        '{{nombre_cliente}}': customer_name,
+
         '{{customer_id}}': customer.customer_id,
-        '{{customer_id_number}}': customer.id_number or 'N/A',
-        '{{customer_address}}': f"{customer.address_line1 or ''}{', ' + customer.address_line2 if customer.address_line2 else ''}, {customer.city or ''}, {customer.state or ''}".strip(', '),
+        '{{customer_code}}': customer.customer_id,
+        '{{customer_id_number}}': customer_id_number,
+        '{{cedula_cliente}}': customer_id_number,
+        '{{customer_document}}': customer_id_number,
+        '{{customer_address}}': customer_address or 'N/A',
         '{{customer_phone}}': str(customer.phone) if customer.phone else 'N/A',
         '{{customer_email}}': customer.email or 'N/A',
 
         # Loan variables
         '{{loan_number}}': loan.loan_number,
-        '{{loan_amount}}': f"${loan.principal_amount.amount:,.2f}",
+        '{{numero_prestamo}}': loan.loan_number,
+        '{{loan_amount}}': _money_str(loan.principal_amount, currency_symbol),
         '{{loan_amount_words}}': number_to_words_es(loan.principal_amount.amount),
         '{{interest_rate}}': f"{loan.interest_rate}%",
         '{{loan_term}}': str(loan.term_months),
+        '{{plazo_prestamo}}': str(loan.term_months),
         '{{payment_frequency}}': loan.get_payment_frequency_display(),
-        '{{monthly_payment}}': f"${loan.payment_amount.amount:,.2f}" if loan.payment_amount else 'N/A',
-        '{{total_amount}}': f"${loan.outstanding_balance.amount:,.2f}" if loan.outstanding_balance else 'N/A',
+        '{{monthly_payment}}': _money_str(loan.payment_amount, currency_symbol) if loan.payment_amount else 'N/A',
+        '{{total_amount}}': _money_str(loan.outstanding_balance, currency_symbol) if loan.outstanding_balance else 'N/A',
 
         # Dates
         '{{disbursement_date}}': f"{loan.disbursement_date.day} de {get_spanish_month_name(loan.disbursement_date.month)} de {loan.disbursement_date.year}" if loan.disbursement_date else 'Pendiente',
@@ -130,7 +155,9 @@ def replace_contract_variables(template_content, loan, tenant=None):
     # Tenant/Company variables
     if tenant:
         replacements.update({
-            '{{company_name}}': tenant.business_name or tenant.name,
+            '{{company_name}}': company_name,
+            '{{empresa}}': company_name,
+            '{{nombre_empresa}}': company_name,
             '{{company_address}}': f"{tenant.address or ''}, {tenant.city or ''}, {tenant.state or ''}".strip(', '),
             '{{company_phone}}': str(tenant.phone) if tenant.phone else 'N/A',
             '{{company_email}}': tenant.email or 'N/A',
@@ -151,29 +178,57 @@ def replace_contract_variables(template_content, loan, tenant=None):
             '{{pais}}': 'N/A',
         })
 
-    # Guarantor variables (if available)
-    # TODO: Add guarantor model relationship
-    replacements.update({
-        '{{guarantor_name}}': 'N/A',
-        '{{guarantor_id}}': 'N/A',
-    })
+    # Guarantor variables
+    guarantor = loan.guarantors.order_by('created_at').first()
+    if guarantor:
+        replacements.update({
+            '{{guarantor_name}}': guarantor.get_full_name(),
+            '{{guarantor}}': guarantor.get_full_name(),
+            '{{guarantor_id}}': guarantor.id_number or 'N/A',
+            '{{cedula_garante}}': guarantor.id_number or 'N/A',
+            '{{guarantor_phone}}': str(guarantor.phone) if guarantor.phone else 'N/A',
+            '{{guarantor_address}}': guarantor.address or 'N/A',
+            '{{guarantor_relationship}}': guarantor.get_relationship_display(),
+        })
+    else:
+        replacements.update({
+            '{{guarantor_name}}': 'N/A',
+            '{{guarantor}}': 'N/A',
+            '{{guarantor_id}}': 'N/A',
+            '{{cedula_garante}}': 'N/A',
+            '{{guarantor_phone}}': 'N/A',
+            '{{guarantor_address}}': 'N/A',
+            '{{guarantor_relationship}}': 'N/A',
+        })
 
     # Collateral variables
     collaterals = loan.collaterals.all()
     if collaterals.exists():
         collateral_desc = ', '.join([
-            f"{c.get_collateral_type_display()}: {c.description} (${c.estimated_value.amount:,.2f})"
+            f"{c.get_collateral_type_display()}: {c.description} ({_money_str(c.estimated_value, currency_symbol)})"
             for c in collaterals
         ])
         replacements['{{collateral_description}}'] = collateral_desc
     else:
         replacements['{{collateral_description}}'] = 'Sin garantías'
 
-    # Replace all variables in content
+    # Replace all variables in content (supports {{ variable }} spacing variants)
     for variable, value in replacements.items():
-        content = content.replace(variable, str(value))
+        key = variable.strip('{} ').strip()
+        content = re.sub(r'\{\{\s*' + re.escape(key) + r'\s*\}\}', str(value), content)
 
     return content
+
+
+def regenerate_latest_loan_contract(loan, tenant=None):
+    """Regenerate the latest active/pending contract for a loan after related data changes."""
+    contract = loan.contracts.filter(is_archived=False).order_by('-generated_at').first()
+    if not contract or not contract.template:
+        return None
+
+    contract.content = replace_contract_variables(contract.template.content, loan, tenant)
+    contract.save(update_fields=['content', 'updated_at'])
+    return contract
 
 
 def get_available_variables():

@@ -221,25 +221,45 @@ class CollateralSerializer(serializers.ModelSerializer):
                 validated_data['appraisal_value'], currency
             )
 
-        return super().create(validated_data)
+        collateral = super().create(validated_data)
+
+        try:
+            from .utils_contracts import regenerate_latest_loan_contract
+            regenerate_latest_loan_contract(collateral.loan, tenant)
+        except Exception:
+            pass
+
+        return collateral
 
     def update(self, instance, validated_data):
         """Handle Money field updates"""
         from djmoney.money import Money
 
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request else None
+        currency = getattr(tenant, 'default_currency', 'DOP') if tenant else 'DOP'
+
         # Convert decimal to Money for estimated_value
         if 'estimated_value' in validated_data:
             validated_data['estimated_value'] = Money(
-                validated_data['estimated_value'], 'USD'
+                validated_data['estimated_value'], currency
             )
 
         # Convert decimal to Money for appraisal_value if present
         if validated_data.get('appraisal_value'):
             validated_data['appraisal_value'] = Money(
-                validated_data['appraisal_value'], 'USD'
+                validated_data['appraisal_value'], currency
             )
 
-        return super().update(instance, validated_data)
+        collateral = super().update(instance, validated_data)
+
+        try:
+            from .utils_contracts import regenerate_latest_loan_contract
+            regenerate_latest_loan_contract(collateral.loan, tenant)
+        except Exception:
+            pass
+
+        return collateral
 
 
 class LoanScheduleSerializer(serializers.ModelSerializer):
@@ -985,6 +1005,28 @@ class GuarantorSerializer(serializers.ModelSerializer):
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
+
+    def create(self, validated_data):
+        guarantor = super().create(validated_data)
+        try:
+            from .utils_contracts import regenerate_latest_loan_contract
+            request = self.context.get('request')
+            tenant = getattr(request, 'tenant', None) if request else None
+            regenerate_latest_loan_contract(guarantor.loan, tenant)
+        except Exception:
+            pass
+        return guarantor
+
+    def update(self, instance, validated_data):
+        guarantor = super().update(instance, validated_data)
+        try:
+            from .utils_contracts import regenerate_latest_loan_contract
+            request = self.context.get('request')
+            tenant = getattr(request, 'tenant', None) if request else None
+            regenerate_latest_loan_contract(guarantor.loan, tenant)
+        except Exception:
+            pass
+        return guarantor
 
     def get_full_name(self, obj):
         return obj.get_full_name()

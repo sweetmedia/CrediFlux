@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { contractsAPI, Contract } from '@/lib/api/contracts';
+import { getApiUrl } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -41,6 +42,9 @@ import {
   Mail,
   Send,
   Archive,
+  Building2,
+  ShieldCheck,
+  Stamp,
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -65,7 +69,7 @@ export default function ViewContractPage() {
   const router = useRouter();
   const params = useParams();
   const contractId = params.id as string;
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, tenant } = useAuth();
 
   const [contract, setContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -238,47 +242,62 @@ export default function ViewContractPage() {
 
   if (!contract) return null;
 
+  const apiUrl = getApiUrl();
+  const tenantLogo = (tenant as any)?.logo as string | undefined;
+  const tenantLogoUrl = tenantLogo
+    ? (tenantLogo.startsWith('http') ? tenantLogo : `${apiUrl}${tenantLogo}`)
+    : null;
+
+  const rawContractContent = (contract.content || '').trim();
+  const formattedContractHtml = rawContractContent
+    ? rawContractContent
+        .split(/\n\s*\n/)
+        .map((paragraph) => `<p>${paragraph.trim().replace(/\n/g, '<br />')}</p>`)
+        .join('')
+    : '<p class="empty">Este contrato aún no tiene contenido generado.</p>';
+
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-      <div className="container mx-auto max-w-7xl">
+    <div className="min-h-screen bg-[#F8FAF7] p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
+        <div className="mb-8 space-y-6">
+          <div className="flex items-center gap-3">
             <Link href="/contracts">
-              <Button variant="outline" size="sm" className="border-slate-200">
-                <ArrowLeft className="h-4 w-4 mr-2" />
+              <Button variant="outline" size="sm" className="border-slate-200 bg-white">
+                <ArrowLeft className="mr-2 h-4 w-4" />
                 Volver
               </Button>
             </Link>
           </div>
 
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <h1 className="text-2xl font-bold text-slate-900">
-                  {contract.contract_number}
-                </h1>
-                <span
-                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                    STATUS_COLORS[contract.status]
-                  }`}
-                >
-                  {STATUS_LABELS[contract.status]}
-                </span>
-                {contract.is_fully_signed && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Firmado Completamente
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="grid gap-0 lg:grid-cols-[1.35fr,0.95fr]">
+              <div className="border-b border-slate-200/70 p-6 lg:border-b-0 lg:border-r lg:p-8">
+                <div className="inline-flex items-center rounded-full border border-[#163300]/10 bg-[#163300]/5 px-3 py-1 text-xs font-medium text-[#163300]">
+                  Expediente contractual
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-semibold tracking-tight text-slate-950 lg:text-3xl">
+                    {contract.contract_number}
+                  </h1>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                      STATUS_COLORS[contract.status]
+                    }`}
+                  >
+                    {STATUS_LABELS[contract.status]}
                   </span>
-                )}
-              </div>
-              <div className="flex items-center gap-4 text-sm text-slate-600">
-                <span>Préstamo: {contract.loan_number}</span>
-                <span>Cliente: {contract.customer_name}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 ml-4">
+                  {contract.is_fully_signed && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Firmado completamente
+                    </span>
+                  )}
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  Documento legal vinculado al préstamo <span className="font-medium text-slate-900">{contract.loan_number}</span> del cliente <span className="font-medium text-slate-900">{contract.customer_name}</span>.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
               {(contract.status === 'draft' ||
                 contract.status === 'pending_signature' ||
                 contract.status === 'signed') && (
@@ -362,13 +381,7 @@ export default function ViewContractPage() {
                     size="sm"
                     onClick={async () => {
                       try {
-                        const baseUrl = typeof window !== 'undefined'
-                          ? (window.location.hostname.includes('.localhost')
-                              ? `http://${window.location.hostname}:8000`
-                              : 'http://localhost:8000')
-                          : 'http://localhost:8000';
-
-                        const url = baseUrl + contractsAPI.getPdfViewUrl(contract.id);
+                        const url = `${getApiUrl()}${contractsAPI.getPdfViewUrl(contract.id)}`;
                         const token = localStorage.getItem('access_token');
 
                         const response = await fetch(url, {
@@ -402,13 +415,7 @@ export default function ViewContractPage() {
                     size="sm"
                     onClick={async () => {
                       try {
-                        const baseUrl = typeof window !== 'undefined'
-                          ? (window.location.hostname.includes('.localhost')
-                              ? `http://${window.location.hostname}:8000`
-                              : 'http://localhost:8000')
-                          : 'http://localhost:8000';
-
-                        const url = baseUrl + contractsAPI.getPdfDownloadUrl(contract.id);
+                        const url = `${getApiUrl()}${contractsAPI.getPdfDownloadUrl(contract.id)}`;
                         const token = localStorage.getItem('access_token');
 
                         const response = await fetch(url, {
@@ -444,6 +451,42 @@ export default function ViewContractPage() {
                   </Button>
                 </>
               )}
+                </div>
+              </div>
+
+              <div className="grid gap-3 p-6 lg:p-8">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    <Building2 className="h-4 w-4 text-[#163300]" />
+                    Emisor
+                  </div>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">{tenant?.business_name || tenant?.name || 'CrediFlux'}</p>
+                  <p className="mt-1 text-sm text-slate-600">Cliente: {contract.customer_name}</p>
+                  <p className="text-sm text-slate-600">Plantilla: {contract.template_name || 'Contrato generado'}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    <ShieldCheck className="h-4 w-4 text-[#163300]" />
+                    Estado legal
+                  </div>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">{STATUS_LABELS[contract.status]}</p>
+                  <p className="mt-1 text-sm text-slate-600">Generado el {new Date(contract.generated_at).toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                  {contract.generated_by_name && (
+                    <p className="text-sm text-slate-600">Por: {contract.generated_by_name}</p>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-[#FFE026]/50 bg-[#FFF9D6] p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <Stamp className="h-4 w-4 text-[#B58100]" />
+                    Validaciones rápidas
+                  </div>
+                  <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                    <li>Logo del tenant visible en vista previa legal.</li>
+                    <li>Variables del contrato regeneradas con datos vivos del préstamo.</li>
+                    <li>PDF servido desde el dominio/API correcto del tenant.</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -460,23 +503,63 @@ export default function ViewContractPage() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Contract Content */}
-            <Card className="border-slate-200 shadow-sm">
+            <Card className="overflow-hidden rounded-3xl border-slate-200 shadow-none">
               <CardHeader className="border-b border-slate-200 bg-white">
                 <CardTitle className="text-lg font-semibold text-slate-900">
-                  Contenido del Contrato
+                  Vista previa del documento
                 </CardTitle>
                 <CardDescription className="text-sm text-slate-600">
-                  Documento generado desde plantilla
+                  Presentación tipo documento legal, lista para revisión y firma.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-6">
-                <div className="bg-white border border-slate-200 rounded-lg p-8">
-                  <div
-                    className="prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{
-                      __html: contract.content.replace(/\n/g, '<br />'),
-                    }}
-                  />
+              <CardContent className="bg-[#F3F0EA] p-4 md:p-6">
+                <div className="mx-auto max-w-[850px] rounded-[28px] border border-[#D9D2C3] bg-[#FCFBF8] p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] md:p-10">
+                  <div className="border-b border-[#D9D2C3] pb-6">
+                    <div className="flex flex-col items-center gap-4 text-center">
+                      {tenantLogoUrl ? (
+                        <img
+                          src={tenantLogoUrl}
+                          alt={tenant?.business_name || tenant?.name || 'Logo del tenant'}
+                          className="max-h-20 w-auto object-contain"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#163300]/15 bg-[#163300]/5 text-[#163300]">
+                          <Building2 className="h-7 w-7" />
+                        </div>
+                      )}
+                      <div>
+                        <h2 className="text-xl font-semibold tracking-[0.08em] text-slate-950">
+                          {tenant?.business_name || tenant?.name || 'CrediFlux'}
+                        </h2>
+                        <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
+                          Documento legal contractual
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-6 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Contrato</p>
+                        <p className="mt-1 font-medium text-slate-900">{contract.contract_number}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Préstamo</p>
+                        <p className="mt-1 font-medium text-slate-900">{contract.loan_number}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Cliente</p>
+                        <p className="mt-1 font-medium text-slate-900">{contract.customer_name}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-8">
+                    <div
+                      className="contract-legal-preview font-serif text-[15px] leading-8 text-slate-900 [&_.empty]:italic [&_p]:mb-5 [&_p]:text-justify"
+                      dangerouslySetInnerHTML={{
+                        __html: formattedContractHtml,
+                      }}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
