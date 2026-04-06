@@ -31,9 +31,11 @@ import {
   CreditCard,
   Receipt,
   Shield,
-  Edit,
-  Trash2,
   Download,
+  Landmark,
+  BadgeDollarSign,
+  CircleDollarSign,
+  FileSignature,
 } from 'lucide-react';
 
 export default function LoanDetailPage() {
@@ -260,51 +262,62 @@ export default function LoanDetailPage() {
     );
   }
 
+  const paidInstallments = loan.payment_schedules?.filter((s) => s.status === 'paid').length || 0;
+  const totalInstallments = loan.payment_schedules?.length || 0;
+  const progressPct = totalInstallments > 0 ? Math.round((paidInstallments / totalInstallments) * 100) : 0;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
-      <div className="container mx-auto max-w-7xl">
-        {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-screen bg-[#f6f8f7] p-4 py-8 md:p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="mb-3 flex items-center gap-3">
               <Link href="/loans">
-                <Button variant="outline" size="sm">
-                  <ArrowLeft className="h-4 w-4" />
+                <Button variant="outline" size="sm" className="bg-white">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Volver
                 </Button>
               </Link>
-              <h1 className="text-3xl font-bold text-gray-900">
-                {loan.loan_number}
-              </h1>
-              {getStatusBadge(loan.status)}
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#d7e2db] bg-white px-3 py-1 text-xs font-medium text-[#486152]">
+                <Landmark className="h-3.5 w-3.5" />
+                Expediente del préstamo
+              </div>
             </div>
-            <p className="text-gray-600 ml-12">
-              {getLoanTypeLabel(loan.loan_type)} - {loan.customer_name}
+            <h1 className="text-3xl font-semibold tracking-tight text-[#163300]">{loan.loan_number}</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              {getLoanTypeLabel(loan.loan_type)} • {loan.customer_name}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {loan.contract_id && (
               <Link href={`/contracts/${loan.contract_id}`}>
-                <Button variant="outline">
-                  Ver Contrato
+                <Button variant="outline" className="bg-white">
+                  <FileSignature className="mr-2 h-4 w-4" />
+                  Ver contrato
                 </Button>
               </Link>
             )}
+            {!['paid', 'rejected', 'written_off', 'pending'].includes(loan.status) && (
+              <Link href={`/payments/new?loan=${loan.id}`}>
+                <Button className="bg-[#163300] hover:bg-[#0f2400]">
+                  <Receipt className="mr-2 h-4 w-4" />
+                  Registrar pago
+                </Button>
+              </Link>
+            )}
+            {['active', 'paid'].includes(loan.status) && (
+              <Button variant="outline" onClick={handleDownloadBalanceReport} disabled={isProcessing} className="bg-white">
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Balance de cuotas
+              </Button>
+            )}
             {loan.status === 'pending' && canManageLoans && (
               <>
-                <Button
-                  variant="outline"
-                  onClick={handleRejectLoan}
-                  disabled={isProcessing}
-                  className="border-red-300 text-red-700 hover:bg-red-50"
-                >
+                <Button variant="outline" onClick={handleRejectLoan} disabled={isProcessing} className="border-red-300 bg-white text-red-700 hover:bg-red-50">
                   {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
                   Rechazar
                 </Button>
-                <Button
-                  onClick={handleApproveLoan}
-                  disabled={isProcessing}
-                  className="bg-green-600 hover:bg-green-700"
-                >
+                <Button onClick={handleApproveLoan} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700">
                   {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
                   Aprobar
                 </Button>
@@ -318,214 +331,173 @@ export default function LoanDetailPage() {
                 title={loan.contract_is_signed ? 'Desembolsar préstamo' : 'El contrato debe estar firmado antes de desembolsar'}
               >
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
-                {loan.contract_is_signed ? 'Desembolsar' : 'Esperando Firma'}
-              </Button>
-            )}
-            {!['paid', 'rejected', 'written_off', 'pending'].includes(loan.status) && (
-              <Link href={`/payments/new?loan=${loan.id}`}>
-                <Button>
-                  <Receipt className="mr-2 h-4 w-4" />
-                  Registrar Pago
-                </Button>
-              </Link>
-            )}
-            {['active', 'paid'].includes(loan.status) && (
-              <Button
-                variant="outline"
-                onClick={handleDownloadBalanceReport}
-                disabled={isProcessing}
-                className="border-purple-300 text-purple-700 hover:bg-purple-50"
-              >
-                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                Balance de Cuotas
+                {loan.contract_is_signed ? 'Desembolsar' : 'Esperando firma'}
               </Button>
             )}
           </div>
         </div>
 
-        {/* Error */}
         {error && (
-          <Alert variant="destructive" className="mb-6">
+          <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         {loan.contract_id && loan.status === 'approved' && !loan.contract_is_signed && (
-          <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-900">
+          <Alert className="border-amber-200 bg-amber-50 text-amber-900">
             <AlertDescription>
-              Este préstamo ya tiene contrato generado, pero no se puede desembolsar hasta que el cliente lo firme.
+              Este préstamo tiene contrato generado, pero no se puede desembolsar hasta que el cliente lo firme.
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
+        <Card className="overflow-hidden border-[#d7e2db] shadow-none">
+          <CardContent className="p-0">
+            <div className="border-b border-[#d7e2db] bg-gradient-to-r from-[#163300] via-[#244508] to-[#325c10] px-6 py-6 text-white">
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Monto Principal</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(loan.principal_amount)}
-                  </p>
+                  <div className="mb-3">{getStatusBadge(loan.status)}</div>
+                  <p className="text-sm text-white/70">Relación crediticia</p>
+                  <h2 className="mt-1 text-3xl font-semibold">{formatCurrency(loan.principal_amount)}</h2>
+                  <div className="mt-3 flex flex-wrap gap-4 text-sm text-white/80">
+                    <span>{loan.interest_rate}% mensual</span>
+                    <span>•</span>
+                    <span>{loan.term_months} meses</span>
+                    <span>•</span>
+                    <span>{getPaymentFrequencyLabel(loan.payment_frequency)}</span>
+                  </div>
                 </div>
-                <DollarSign className="h-8 w-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Balance Pendiente</p>
-                  <p className="text-2xl font-bold text-orange-600">
-                    {formatCurrency(loan.outstanding_balance)}
-                  </p>
+                <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px] xl:grid-cols-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Principal</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatCurrency(loan.principal_amount)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Balance</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatCurrency(loan.outstanding_balance)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Pagado</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatCurrency(loan.total_paid)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Cuota</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatCurrency(loan.payment_amount)}</p>
+                  </div>
                 </div>
-                <TrendingUp className="h-8 w-8 text-orange-600" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total Pagado</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(loan.total_paid)}
-                  </p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-green-600" />
+            <div className="grid gap-4 bg-white px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Cliente</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{loan.customer_name}</p>
+                <Link href={`/customers/${loan.customer}`} className="mt-3 inline-flex text-xs font-medium text-[#163300] hover:underline">
+                  Ver perfil del cliente
+                </Link>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Pago Mensual</p>
-                  <p className="text-2xl font-bold">
-                    {formatCurrency(loan.payment_amount)}
-                  </p>
-                </div>
-                <Calendar className="h-8 w-8 text-gray-600" />
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Progreso</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{paidInstallments} de {totalInstallments || 0} cuotas pagadas</p>
+                <p className="mt-1 text-xs text-slate-500">{progressPct}% completado</p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Desembolso</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{formatDate(loan.disbursement_date)}</p>
+              </div>
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Vencimiento</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{formatDate(loan.maturity_date)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Main Info */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Loan Details */}
-            <Card>
+        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="space-y-6">
+            <Card className="border-[#d7e2db] shadow-none">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  Detalles del Préstamo
-                </CardTitle>
+                <CardTitle className="text-base text-[#163300]">Términos del préstamo</CardTitle>
+                <CardDescription>Resumen contractual y operativo del crédito.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-600">Tipo de Préstamo</p>
-                    <p className="font-medium">{getLoanTypeLabel(loan.loan_type)}</p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Tipo de préstamo</p>
+                    <p className="mt-1 font-medium text-slate-900">{getLoanTypeLabel(loan.loan_type)}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Tasa de Interés</p>
-                    <p className="font-medium">{loan.interest_rate}% mensual</p>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Tasa de interés</p>
+                    <p className="mt-1 font-medium text-slate-900">{loan.interest_rate}% mensual</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Plazo</p>
-                    <p className="font-medium">{loan.term_months} meses</p>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Fecha de solicitud</p>
+                    <p className="mt-1 font-medium text-slate-900">{formatDate(loan.application_date)}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Frecuencia de Pago</p>
-                    <p className="font-medium">{getPaymentFrequencyLabel(loan.payment_frequency)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Fecha de Solicitud</p>
-                    <p className="font-medium">{formatDate(loan.application_date)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Fecha de Desembolso</p>
-                    <p className="font-medium">{formatDate(loan.disbursement_date)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Primer Pago</p>
-                    <p className="font-medium">{formatDate(loan.first_payment_date)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Fecha de Vencimiento</p>
-                    <p className="font-medium">{formatDate(loan.maturity_date)}</p>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Primer pago</p>
+                    <p className="mt-1 font-medium text-slate-900">{formatDate(loan.first_payment_date)}</p>
                   </div>
                 </div>
-
                 {loan.purpose && (
-                  <div className="mt-4 pt-4 border-t">
-                    <p className="text-sm text-gray-600 mb-1">Propósito</p>
-                    <p className="font-medium">{loan.purpose}</p>
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Propósito</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">{loan.purpose}</p>
                   </div>
                 )}
-
                 {loan.notes && (
-                  <div className="mt-4 pt-4 border-t">
-                    <p className="text-sm text-gray-600 mb-1">Notas</p>
-                    <p className="text-sm">{loan.notes}</p>
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Notas</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-700">{loan.notes}</p>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Payment Schedule */}
             {loan.payment_schedules && loan.payment_schedules.length > 0 && (
-              <Card>
+              <Card className="border-[#d7e2db] shadow-none">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-blue-600" />
-                    Cronograma de Pagos
+                  <CardTitle className="flex items-center gap-2 text-[#163300]">
+                    <Calendar className="h-5 w-5" />
+                    Cronograma de pagos
                   </CardTitle>
-                  <CardDescription>
-                    {loan.payment_schedules.length} cuotas programadas
-                  </CardDescription>
+                  <CardDescription>{loan.payment_schedules.length} cuotas programadas</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                  <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
                     {loan.payment_schedules.map((schedule) => (
                       <div
                         key={schedule.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border ${
+                        className={`rounded-2xl border p-4 ${
                           schedule.status === 'paid'
-                            ? 'bg-green-50 border-green-200'
+                            ? 'border-green-200 bg-green-50'
                             : schedule.status === 'overdue'
-                            ? 'bg-red-50 border-red-200'
-                            : 'bg-white border-gray-200'
+                            ? 'border-red-200 bg-red-50'
+                            : 'border-slate-200 bg-white'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="text-center">
-                            <p className="text-xs text-gray-600">Cuota</p>
-                            <p className="font-bold text-lg">#{schedule.installment_number}</p>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-center">
+                              <div>
+                                <p className="text-[10px] uppercase text-slate-500">Cuota</p>
+                                <p className="text-sm font-semibold text-slate-900">#{schedule.installment_number}</p>
+                              </div>
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">{formatDate(schedule.due_date)}</p>
+                              <p className="text-sm text-slate-600">
+                                {schedule.status === 'paid' ? 'Pagada' : schedule.status === 'overdue' ? 'Vencida' : schedule.status === 'partial' ? 'Parcial' : 'Pendiente'}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{formatDate(schedule.due_date)}</p>
-                            <p className="text-sm text-gray-600">
-                              {schedule.status === 'paid' ? 'Pagada' :
-                               schedule.status === 'overdue' ? 'Vencida' :
-                               schedule.status === 'partial' ? 'Parcial' : 'Pendiente'}
-                            </p>
+                          <div className="text-left sm:text-right">
+                            <p className="font-semibold text-slate-900">{formatCurrency(schedule.total_amount)}</p>
+                            {schedule.status !== 'paid' && schedule.balance > 0 && (
+                              <p className="text-sm text-orange-600">Saldo: {formatCurrency(schedule.balance)}</p>
+                            )}
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold">{formatCurrency(schedule.total_amount)}</p>
-                          {schedule.status !== 'paid' && schedule.balance > 0 && (
-                            <p className="text-sm text-orange-600">
-                              Saldo: {formatCurrency(schedule.balance)}
-                            </p>
-                          )}
                         </div>
                       </div>
                     ))}
@@ -534,71 +506,48 @@ export default function LoanDetailPage() {
               </Card>
             )}
 
-            {/* Recent Payments */}
             {loan.recent_payments && loan.recent_payments.length > 0 && (
-              <Card>
+              <Card className="border-[#d7e2db] shadow-none">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Receipt className="h-5 w-5 text-blue-600" />
-                    Pagos Recientes
+                  <CardTitle className="flex items-center gap-2 text-[#163300]">
+                    <Receipt className="h-5 w-5" />
+                    Pagos recientes
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     {loan.recent_payments.map((payment) => (
-                      <div
-                        key={payment.id}
-                        className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
-                        onClick={() => router.push(`/payments/${payment.id}`)}
-                      >
-                        <div className="flex items-center justify-between mb-2">
+                      <div key={payment.id} className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 transition hover:bg-slate-50" onClick={() => router.push(`/payments/${payment.id}`)}>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <p className="font-medium text-blue-600 hover:underline">{payment.payment_number}</p>
-                            <p className="text-sm text-gray-600">
-                              {formatDate(payment.payment_date)} - {payment.payment_method}
-                            </p>
+                            <p className="font-medium text-[#163300] hover:underline">{payment.payment_number}</p>
+                            <p className="text-sm text-slate-600">{formatDate(payment.payment_date)} • {payment.payment_method}</p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-green-600">
-                              {formatCurrency(payment.amount)}
-                            </p>
-                            <p className="text-xs text-gray-600 capitalize">
-                              {payment.status}
-                            </p>
+                          <div className="text-left sm:text-right">
+                            <p className="font-semibold text-emerald-700">{formatCurrency(payment.amount)}</p>
+                            <p className="text-xs text-slate-500 capitalize">{payment.status}</p>
                           </div>
                         </div>
-
-                        {/* Payment Breakdown */}
-                        <div className="flex gap-3 text-xs pt-2 border-t border-gray-200">
-                          <div className="flex items-center gap-1">
-                            <span className="text-gray-600">Principal:</span>
-                            <span className="font-semibold text-gray-900">
-                              {formatCurrency(payment.principal_paid || 0)}
-                            </span>
+                        <div className="mt-3 grid gap-2 border-t border-slate-200 pt-3 text-xs sm:grid-cols-3">
+                          <div>
+                            <span className="text-slate-500">Principal</span>
+                            <p className="font-medium text-slate-900">{formatCurrency(payment.principal_paid || 0)}</p>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-gray-600">Interés:</span>
-                            <span className="font-semibold text-gray-900">
-                              {formatCurrency(payment.interest_paid || 0)}
-                            </span>
+                          <div>
+                            <span className="text-slate-500">Interés</span>
+                            <p className="font-medium text-slate-900">{formatCurrency(payment.interest_paid || 0)}</p>
                           </div>
-                          {payment.late_fee_paid > 0 && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-gray-600">Mora:</span>
-                              <span className="font-semibold text-orange-600">
-                                {formatCurrency(payment.late_fee_paid)}
-                              </span>
-                            </div>
-                          )}
+                          <div>
+                            <span className="text-slate-500">Mora</span>
+                            <p className={`font-medium ${payment.late_fee_paid > 0 ? 'text-orange-600' : 'text-slate-900'}`}>{formatCurrency(payment.late_fee_paid || 0)}</p>
+                          </div>
                         </div>
                       </div>
                     ))}
-
-                    {/* View All Payments Button */}
                     <Link href={`/payments?loan=${loan.id}`}>
-                      <Button variant="outline" className="w-full mt-2" size="sm">
+                      <Button variant="outline" className="mt-2 w-full bg-white" size="sm">
                         <Receipt className="mr-2 h-4 w-4" />
-                        Ver Todos los Pagos
+                        Ver todos los pagos
                       </Button>
                     </Link>
                   </div>
@@ -607,114 +556,96 @@ export default function LoanDetailPage() {
             )}
           </div>
 
-          {/* Right Column - Customer & Additional Info */}
           <div className="space-y-6">
-            {/* Customer Info */}
-            <Card>
+            <Card className="border-[#d7e2db] shadow-none">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-600" />
+                <CardTitle className="flex items-center gap-2 text-[#163300]">
+                  <BadgeDollarSign className="h-5 w-5" />
+                  Resumen financiero
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <span className="text-sm text-slate-600">Monto total</span>
+                    <span className="font-medium text-slate-900">{formatCurrency(loan.total_amount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <span className="text-sm text-slate-600">Interés total</span>
+                    <span className="font-medium text-slate-900">{formatCurrency(loan.total_interest_paid)}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <span className="text-sm text-slate-600">Cargos por mora</span>
+                    <span className="font-medium text-red-600">{formatCurrency(loan.late_fees)}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <span className="text-sm text-slate-600">Balance pendiente</span>
+                    <span className="font-semibold text-orange-600">{formatCurrency(loan.outstanding_balance)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {totalInstallments > 0 && (
+              <Card className="border-[#d7e2db] shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-[#163300]">
+                    <CircleDollarSign className="h-5 w-5" />
+                    Progreso del préstamo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Cuotas pagadas</span>
+                      <span className="font-medium text-slate-900">{paidInstallments} / {totalInstallments}</span>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-slate-200">
+                      <div className="h-3 rounded-full bg-gradient-to-r from-[#163300] to-[#3d6a16] transition-all" style={{ width: `${progressPct}%` }} />
+                    </div>
+                    <p className="text-right text-sm font-medium text-slate-700">{progressPct}% completado</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="border-[#d7e2db] shadow-none">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-[#163300]">
+                  <User className="h-5 w-5" />
                   Cliente
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600">Nombre</p>
-                    <p className="font-medium">{loan.customer_name}</p>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Nombre</p>
+                    <p className="mt-1 font-medium text-slate-900">{loan.customer_name}</p>
                   </div>
                   <Link href={`/customers/${loan.customer}`}>
-                    <Button variant="outline" className="w-full" size="sm">
-                      Ver Perfil del Cliente
+                    <Button variant="outline" className="w-full bg-white" size="sm">
+                      Ver perfil del cliente
                     </Button>
                   </Link>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Financial Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-blue-600" />
-                  Resumen Financiero
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Monto Total</span>
-                    <span className="font-medium">{formatCurrency(loan.total_amount)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Interés Total</span>
-                    <span className="font-medium">{formatCurrency(loan.total_interest_paid)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Cargos por Mora</span>
-                    <span className="font-medium text-red-600">{formatCurrency(loan.late_fees)}</span>
-                  </div>
-                  <div className="pt-3 border-t flex justify-between">
-                    <span className="font-medium">Balance Pendiente</span>
-                    <span className="font-bold text-orange-600">
-                      {formatCurrency(loan.outstanding_balance)}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Progress Bar */}
-            {loan.payment_schedules && loan.payment_schedules.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-blue-600" />
-                    Progreso de Pagos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Cuotas Pagadas</span>
-                      <span className="font-semibold text-gray-900">
-                        {loan.payment_schedules.filter(s => s.status === 'paid').length} / {loan.payment_schedules.length}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-300 shadow-sm"
-                        style={{
-                          width: `${Math.min((loan.payment_schedules.filter(s => s.status === 'paid').length / loan.payment_schedules.length) * 100, 100)}%`
-                        }}
-                      />
-                    </div>
-                    <div className="text-sm text-gray-500 text-right font-medium">
-                      {Math.round((loan.payment_schedules.filter(s => s.status === 'paid').length / loan.payment_schedules.length) * 100)}% completado
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Collaterals */}
             {loan.collaterals && loan.collaterals.length > 0 && (
-              <Card>
+              <Card className="border-[#d7e2db] shadow-none">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-blue-600" />
+                  <CardTitle className="flex items-center gap-2 text-[#163300]">
+                    <Shield className="h-5 w-5" />
                     Garantías
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     {loan.collaterals.map((collateral) => (
-                      <div key={collateral.id} className="p-3 bg-gray-50 rounded-lg">
-                        <p className="font-medium capitalize">{collateral.collateral_type}</p>
-                        <p className="text-sm text-gray-600">{collateral.description}</p>
-                        <p className="text-sm font-medium mt-1">
-                          Valor: {formatCurrency(collateral.estimated_value)}
-                        </p>
+                      <div key={collateral.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="font-medium capitalize text-slate-900">{collateral.collateral_type}</p>
+                        <p className="mt-1 text-sm text-slate-600">{collateral.description}</p>
+                        <p className="mt-2 text-sm font-medium text-slate-900">Valor: {formatCurrency(collateral.estimated_value)}</p>
                       </div>
                     ))}
                   </div>
@@ -722,27 +653,22 @@ export default function LoanDetailPage() {
               </Card>
             )}
 
-            {/* Officer Info */}
             {loan.loan_officer_name && (
-              <Card>
+              <Card className="border-[#d7e2db] shadow-none">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-blue-600" />
-                    Oficial de Crédito
-                  </CardTitle>
+                  <CardTitle className="text-base text-[#163300]">Oficial de crédito</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="font-medium">{loan.loan_officer_name}</p>
+                  <p className="font-medium text-slate-900">{loan.loan_officer_name}</p>
                 </CardContent>
               </Card>
             )}
 
-            {/* Overdue Warning */}
             {loan.is_overdue && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Este préstamo tiene pagos vencidos. Por favor, contacte al cliente.
+                  Este préstamo tiene pagos vencidos. Conviene contactar al cliente cuanto antes.
                 </AlertDescription>
               </Alert>
             )}
