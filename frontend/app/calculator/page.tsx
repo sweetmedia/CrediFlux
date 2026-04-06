@@ -451,7 +451,7 @@ export default function CalculatorPage() {
                       <Banknote className="h-4 w-4 text-[#738566]" />
                       <span className="text-xs font-medium text-muted-foreground">Cuota</span>
                     </div>
-                    <p className="cf-mono-number text-lg font-bold text-foreground">
+                    <p className="text-lg font-bold text-foreground">
                       {formatDOP(result.payment_amount)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -466,7 +466,7 @@ export default function CalculatorPage() {
                       <PiggyBank className="h-4 w-4 text-[#738566]" />
                       <span className="text-xs font-medium text-muted-foreground">Total Préstamo</span>
                     </div>
-                    <p className="cf-mono-number text-lg font-bold text-foreground">
+                    <p className="text-lg font-bold text-foreground">
                       {formatDOP(result.total_loan)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -481,7 +481,7 @@ export default function CalculatorPage() {
                       <TrendingUp className="h-4 w-4 text-[#FF7503]" />
                       <span className="text-xs font-medium text-muted-foreground">Total Interés</span>
                     </div>
-                    <p className="cf-mono-number text-lg font-bold text-[#FF7503]">
+                    <p className="text-lg font-bold text-[#FF7503]">
                       {formatDOP(result.total_interest)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -500,7 +500,7 @@ export default function CalculatorPage() {
                       <Receipt className="h-4 w-4 text-[#738566]" />
                       <span className="text-xs font-medium text-muted-foreground">Desembolso</span>
                     </div>
-                    <p className="cf-mono-number text-lg font-bold text-foreground">
+                    <p className="text-lg font-bold text-foreground">
                       {formatDOP(result.total_disbursed)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -565,16 +565,16 @@ export default function CalculatorPage() {
                             <TableCell className="text-xs">
                               {formatDate(item.due_date)}
                             </TableCell>
-                            <TableCell className="cf-mono-number text-xs text-right font-medium">
+                            <TableCell className="text-xs text-right font-medium">
                               {formatDOP(item.payment)}
                             </TableCell>
-                            <TableCell className="cf-mono-number text-xs text-right text-[#163300]">
+                            <TableCell className="text-xs text-right text-[#163300]">
                               {formatDOP(item.principal)}
                             </TableCell>
-                            <TableCell className="cf-mono-number text-xs text-right text-[#FF7503]">
+                            <TableCell className="text-xs text-right text-[#FF7503]">
                               {formatDOP(item.interest)}
                             </TableCell>
-                            <TableCell className="cf-mono-number text-xs text-right font-medium">
+                            <TableCell className="text-xs text-right font-medium">
                               {formatDOP(item.balance)}
                             </TableCell>
                           </TableRow>
