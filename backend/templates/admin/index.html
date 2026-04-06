@@ -7,284 +7,613 @@
 
 {% block content %}
 <style>
-    .dashboard-container { padding: 24px; }
-    .dashboard-header { margin-bottom: 32px; }
-    .dashboard-title { font-size: 28px; font-weight: bold; margin: 0 0 8px 0; }
-    .dashboard-subtitle { color: #666; margin: 0; }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 32px; }
-    .stat-card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px; }
-    .stat-card-content { display: flex; align-items: center; }
-    .stat-icon { font-size: 32px; margin-right: 16px; }
-    .stat-info h3 { font-size: 14px; color: #666; margin: 0 0 4px 0; font-weight: normal; }
-    .stat-info .value { font-size: 32px; font-weight: 600; margin: 0; }
-    .stat-info .subtext { font-size: 12px; color: #999; margin: 4px 0 0 0; }
-    .section-card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px; }
-    .section-header { padding: 16px 24px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
-    .section-header h2 { font-size: 20px; font-weight: 600; margin: 0; }
-    .section-header .material-symbols-outlined { margin-right: 8px; }
-    .section-body { padding: 24px; }
-    .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-    .action-link { display: flex; align-items: center; padding: 16px; border-radius: 8px; text-decoration: none; transition: all 0.2s; }
-    .action-link:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
-    .action-icon { font-size: 32px; margin-right: 12px; }
-    .action-text { font-weight: 500; }
-    .tenant-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-    .tenant-card { display: flex; align-items: center; padding: 16px; background: #f9fafb; border-radius: 8px; text-decoration: none; transition: all 0.2s; }
-    .tenant-card:hover { background: #f3f4f6; }
-    .tenant-icon { font-size: 40px; margin-right: 16px; color: #6366f1; }
-    .tenant-info h3 { font-size: 16px; font-weight: 600; margin: 0 0 4px 0; color: #111; }
-    .tenant-info p { font-size: 13px; color: #666; margin: 0; }
-    .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
-    .status-box { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
-    .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .status-title { font-weight: 600; display: flex; align-items: center; }
-    .status-badge { padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-    .badge-active { background: #dcfce7; color: #166534; }
-    .badge-inactive { background: #fee2e2; color: #991b1b; }
-    .badge-running { background: #dbeafe; color: #1e40af; }
-    .status-detail { font-size: 13px; color: #666; line-height: 1.6; }
-    .status-detail strong { color: #111; }
-    .status-link { color: #2563eb; text-decoration: none; font-size: 13px; }
-    .status-link:hover { text-decoration: underline; }
+    :root {
+        --cf-primary: #163300;
+        --cf-secondary: #738566;
+        --cf-accent: #FFE026;
+        --cf-warning: #FF7503;
+        --cf-surface: #ffffff;
+        --cf-border: #e5e7eb;
+        --cf-muted: #6b7280;
+        --cf-bg: #f8faf8;
+    }
+
+    .cf-dashboard {
+        padding: 24px;
+        background: var(--cf-bg);
+    }
+
+    .cf-hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: flex-start;
+        padding: 24px;
+        border: 1px solid rgba(22, 51, 0, 0.10);
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(22, 51, 0, 0.04), rgba(115, 133, 102, 0.08));
+        margin-bottom: 24px;
+    }
+
+    .cf-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--cf-secondary);
+        margin-bottom: 10px;
+    }
+
+    .cf-title {
+        font-size: 30px;
+        line-height: 1.1;
+        font-weight: 700;
+        color: #111827;
+        margin: 0 0 8px 0;
+    }
+
+    .cf-subtitle {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--cf-muted);
+        margin: 0;
+        max-width: 760px;
+    }
+
+    .cf-hero-meta {
+        min-width: 220px;
+        display: grid;
+        gap: 10px;
+    }
+
+    .cf-meta-card {
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid var(--cf-border);
+        background: rgba(255,255,255,.82);
+    }
+
+    .cf-meta-label {
+        font-size: 12px;
+        color: var(--cf-muted);
+        margin-bottom: 4px;
+    }
+
+    .cf-meta-value {
+        font-size: 16px;
+        font-weight: 700;
+        color: #111827;
+    }
+
+    .cf-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .cf-card {
+        background: var(--cf-surface);
+        border: 1px solid var(--cf-border);
+        border-radius: 18px;
+        padding: 20px;
+    }
+
+    .cf-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+    }
+
+    .cf-card-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--cf-muted);
+    }
+
+    .cf-card-value {
+        font-size: 30px;
+        font-weight: 700;
+        line-height: 1.1;
+        color: #111827;
+        margin: 0 0 6px 0;
+    }
+
+    .cf-card-note {
+        font-size: 12px;
+        color: var(--cf-muted);
+        margin: 0;
+    }
+
+    .cf-card-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(22, 51, 0, 0.08);
+        color: var(--cf-primary);
+    }
+
+    .cf-section {
+        margin-bottom: 24px;
+    }
+
+    .cf-section-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #111827;
+        margin: 0 0 6px 0;
+    }
+
+    .cf-section-subtitle {
+        font-size: 13px;
+        color: var(--cf-muted);
+        margin: 0 0 16px 0;
+    }
+
+    .cf-two-col {
+        display: grid;
+        grid-template-columns: 1.15fr .85fr;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .cf-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .cf-list-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 16px;
+        border: 1px solid var(--cf-border);
+        border-radius: 14px;
+        background: #fff;
+        gap: 12px;
+    }
+
+    .cf-list-main {
+        min-width: 0;
+    }
+
+    .cf-list-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #111827;
+        margin: 0 0 4px 0;
+    }
+
+    .cf-list-meta {
+        font-size: 12px;
+        color: var(--cf-muted);
+        margin: 0;
+    }
+
+    .cf-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .02em;
+        white-space: nowrap;
+    }
+
+    .cf-badge.success { background: #dcfce7; color: #166534; }
+    .cf-badge.warning { background: #fff7ed; color: #c2410c; }
+    .cf-badge.info { background: #eff6ff; color: #1d4ed8; }
+    .cf-badge.neutral { background: #f3f4f6; color: #374151; }
+
+    .cf-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 12px;
+    }
+
+    .cf-action {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        text-decoration: none;
+        padding: 16px;
+        border-radius: 16px;
+        border: 1px solid var(--cf-border);
+        background: #fff;
+        transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+
+    .cf-action:hover {
+        transform: translateY(-1px);
+        border-color: rgba(22, 51, 0, 0.18);
+        box-shadow: 0 10px 30px rgba(17, 24, 39, 0.06);
+    }
+
+    .cf-action-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(115, 133, 102, 0.12);
+        color: var(--cf-primary);
+    }
+
+    .cf-action-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #111827;
+        margin: 0 0 3px 0;
+    }
+
+    .cf-action-desc {
+        font-size: 12px;
+        color: var(--cf-muted);
+        margin: 0;
+    }
+
+    .cf-table-wrap {
+        overflow-x: auto;
+    }
+
+    .cf-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .cf-table th,
+    .cf-table td {
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--cf-border);
+        text-align: left;
+        vertical-align: middle;
+        font-size: 13px;
+    }
+
+    .cf-table th {
+        color: var(--cf-muted);
+        font-weight: 700;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .cf-table td strong {
+        color: #111827;
+    }
+
+    .cf-link {
+        color: var(--cf-primary);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .cf-link:hover { text-decoration: underline; }
+
+    @media (max-width: 980px) {
+        .cf-two-col { grid-template-columns: 1fr; }
+        .cf-hero { flex-direction: column; }
+        .cf-hero-meta { width: 100%; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    }
 </style>
 
-<div class="dashboard-container">
-    <!-- Dashboard Header -->
-    <div class="dashboard-header">
-        {% if is_tenant %}
-            <h1 class="dashboard-title">{{ tenant_name|default:"Tenant" }} Dashboard</h1>
-            <p class="dashboard-subtitle">Manage loans, customers, and payments for {{ tenant_name|default:"this tenant" }}</p>
-        {% else %}
-            <h1 class="dashboard-title">CrediFlux System Dashboard</h1>
-            <p class="dashboard-subtitle">Manage tenants, users, and system configuration</p>
-        {% endif %}
-    </div>
+<div class="cf-dashboard">
+    <section class="cf-hero">
+        <div>
+            {% if is_tenant %}
+                <div class="cf-eyebrow">
+                    <span class="material-symbols-outlined" style="font-size:16px;">apartment</span>
+                    Operación del tenant
+                </div>
+                <h1 class="cf-title">{{ tenant_name|default:"Tenant" }}</h1>
+                <p class="cf-subtitle">
+                    Panel operativo para gestionar cartera, clientes, cobros y contratos.
+                    Aquí vive el día a día de la financiera.
+                </p>
+            {% else %}
+                <div class="cf-eyebrow">
+                    <span class="material-symbols-outlined" style="font-size:16px;">monitoring</span>
+                    Vista SaaS de CrediFlux
+                </div>
+                <h1 class="cf-title">Dashboard ejecutivo de plataforma</h1>
+                <p class="cf-subtitle">
+                    Usa esta vista para ver el negocio SaaS: tenants, adopción, cartera agregada y salud operativa.
+                    Para ver detalle de una financiera, entra a su tenant desde el switcher o desde la tabla de abajo.
+                </p>
+            {% endif %}
+        </div>
 
-        <!-- Statistics Cards -->
-    <div class="stats-grid">
-        {% if is_tenant %}
-            <!-- Tenant Statistics -->
-            <div class="stat-card">
-                <div class="stat-card-content">
-                    <span class="material-symbols-outlined stat-icon" style="color: #3b82f6;">account_circle</span>
-                    <div class="stat-info">
-                        <h3>Total Customers</h3>
-                        <p class="value">{{ total_customers|default:0 }}</p>
+        <div class="cf-hero-meta">
+            <div class="cf-meta-card">
+                <div class="cf-meta-label">Schema actual</div>
+                <div class="cf-meta-value">{{ schema_name|default:"public" }}</div>
+            </div>
+            <div class="cf-meta-card">
+                <div class="cf-meta-label">Usuarios en sistema</div>
+                <div class="cf-meta-value">{{ total_users|default:0 }}</div>
+            </div>
+            {% if not is_tenant %}
+            <div class="cf-meta-card">
+                <div class="cf-meta-label">Tenants activos</div>
+                <div class="cf-meta-value">{{ active_tenants|default:0 }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    {% if is_tenant %}
+        <section class="cf-grid">
+            <div class="cf-card">
+                <div class="cf-card-head">
+                    <span class="cf-card-label">Clientes</span>
+                    <span class="cf-card-icon material-symbols-outlined">group</span>
+                </div>
+                <p class="cf-card-value">{{ total_customers|default:0 }}</p>
+                <p class="cf-card-note">Clientes registrados en este tenant</p>
+            </div>
+            <div class="cf-card">
+                <div class="cf-card-head">
+                    <span class="cf-card-label">Préstamos activos</span>
+                    <span class="cf-card-icon material-symbols-outlined">account_balance</span>
+                </div>
+                <p class="cf-card-value">{{ active_loans|default:0 }}</p>
+                <p class="cf-card-note">{{ total_loans|default:0 }} préstamos totales</p>
+            </div>
+            <div class="cf-card">
+                <div class="cf-card-head">
+                    <span class="cf-card-label">Cartera pendiente</span>
+                    <span class="cf-card-icon material-symbols-outlined">payments</span>
+                </div>
+                <p class="cf-card-value">RD$ {{ total_outstanding|default:0|floatformat:2 }}</p>
+                <p class="cf-card-note">Principal desembolsado: RD$ {{ total_principal|default:0|floatformat:2 }}</p>
+            </div>
+            <div class="cf-card">
+                <div class="cf-card-head">
+                    <span class="cf-card-label">Riesgo operativo</span>
+                    <span class="cf-card-icon material-symbols-outlined">warning</span>
+                </div>
+                <p class="cf-card-value">{{ overdue_loans|default:0 }}</p>
+                <p class="cf-card-note">{{ pending_contract_signatures|default:0 }} contratos pendientes de firma</p>
+            </div>
+        </section>
+
+        <section class="cf-section">
+            <h2 class="cf-section-title">Acciones rápidas</h2>
+            <p class="cf-section-subtitle">Lo que más se hace en la operación diaria.</p>
+            <div class="cf-actions">
+                <a href="{% url 'admin:loans_customer_add' %}" class="cf-action">
+                    <span class="cf-action-icon material-symbols-outlined">person_add</span>
+                    <div>
+                        <p class="cf-action-title">Nuevo cliente</p>
+                        <p class="cf-action-desc">Crear perfil y datos base</p>
                     </div>
+                </a>
+                <a href="{% url 'admin:loans_loan_add' %}" class="cf-action">
+                    <span class="cf-action-icon material-symbols-outlined">add_circle</span>
+                    <div>
+                        <p class="cf-action-title">Nuevo préstamo</p>
+                        <p class="cf-action-desc">Crear préstamo y contrato</p>
+                    </div>
+                </a>
+                <a href="{% url 'admin:loans_loanpayment_add' %}" class="cf-action">
+                    <span class="cf-action-icon material-symbols-outlined">payments</span>
+                    <div>
+                        <p class="cf-action-title">Registrar pago</p>
+                        <p class="cf-action-desc">Abonar a la cartera</p>
+                    </div>
+                </a>
+                <a href="{% url 'admin:loans_contract_changelist' %}" class="cf-action">
+                    <span class="cf-action-icon material-symbols-outlined">description</span>
+                    <div>
+                        <p class="cf-action-title">Contratos</p>
+                        <p class="cf-action-desc">Revisar firmas y estados</p>
+                    </div>
+                </a>
+            </div>
+        </section>
+    {% else %}
+        <section class="cf-grid">
+            <div class="cf-card">
+                <div class="cf-card-head">
+                    <span class="cf-card-label">Tenants activos</span>
+                    <span class="cf-card-icon material-symbols-outlined">business</span>
+                </div>
+                <p class="cf-card-value">{{ active_tenants|default:0 }}</p>
+                <p class="cf-card-note">{{ total_tenants|default:0 }} tenants totales</p>
+            </div>
+            <div class="cf-card">
+                <div class="cf-card-head">
+                    <span class="cf-card-label">Clientes finales</span>
+                    <span class="cf-card-icon material-symbols-outlined">groups</span>
+                </div>
+                <p class="cf-card-value">{{ total_customers_all|default:0 }}</p>
+                <p class="cf-card-note">Base total atendida por la plataforma</p>
+            </div>
+            <div class="cf-card">
+                <div class="cf-card-head">
+                    <span class="cf-card-label">Cartera agregada</span>
+                    <span class="cf-card-icon material-symbols-outlined">payments</span>
+                </div>
+                <p class="cf-card-value">RD$ {{ total_outstanding_all|default:0|floatformat:2 }}</p>
+                <p class="cf-card-note">Principal desembolsado: RD$ {{ total_principal_all|default:0|floatformat:2 }}</p>
+            </div>
+            <div class="cf-card">
+                <div class="cf-card-head">
+                    <span class="cf-card-label">Riesgo agregado</span>
+                    <span class="cf-card-icon material-symbols-outlined">trending_down</span>
+                </div>
+                <p class="cf-card-value">{{ total_overdue_loans_all|default:0 }}</p>
+                <p class="cf-card-note">{{ total_active_loans|default:0 }} préstamos activos en total</p>
+            </div>
+        </section>
+
+        <section class="cf-two-col">
+            <div class="cf-card">
+                <div class="cf-card-head">
+                    <div>
+                        <h2 class="cf-section-title" style="margin-bottom:4px;">Resumen por tenant</h2>
+                        <p class="cf-section-subtitle" style="margin:0;">Vista SaaS recomendada: KPIs de negocio por cliente, sin mezclar detalle operativo de prestatarios aquí.</p>
+                    </div>
+                </div>
+                <div class="cf-table-wrap">
+                    <table class="cf-table">
+                        <thead>
+                            <tr>
+                                <th>Tenant</th>
+                                <th>Plan</th>
+                                <th>Clientes</th>
+                                <th>Préstamos</th>
+                                <th>Cartera</th>
+                                <th>Vencidos</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tenant in tenants_summary %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ tenant.business_name|default:tenant.name }}</strong><br>
+                                        <span style="color:var(--cf-muted); font-size:12px;">{{ tenant.schema_name }}</span>
+                                    </td>
+                                    <td>{{ tenant.subscription_plan }}</td>
+                                    <td>{{ tenant.customers }}</td>
+                                    <td>{{ tenant.loans }}</td>
+                                    <td>RD$ {{ tenant.outstanding_balance|floatformat:2 }}</td>
+                                    <td>{{ tenant.overdue_loans }}</td>
+                                    <td>
+                                        {% if tenant.admin_url %}
+                                            <a href="{{ tenant.admin_url }}" class="cf-link">Entrar</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="7">No hay tenants con datos todavía.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <div class="stat-card">
-                <div class="stat-card-content">
-                    <span class="material-symbols-outlined stat-icon" style="color: #10b981;">account_balance</span>
-                    <div class="stat-info">
-                        <h3>Total Loans</h3>
-                        <p class="value">{{ total_loans|default:0 }}</p>
+            <div class="cf-list">
+                <div class="cf-card">
+                    <h2 class="cf-section-title">Adopción de plataforma</h2>
+                    <p class="cf-section-subtitle">Qué tan profundo está usando cada tenant el producto.</p>
+                    <div class="cf-list">
+                        <div class="cf-list-item">
+                            <div class="cf-list-main">
+                                <p class="cf-list-title">Planes activos</p>
+                                <p class="cf-list-meta">Distribución comercial actual</p>
+                            </div>
+                            <div>
+                                <span class="cf-badge neutral">Basic {{ plan_counts.basic|default:0 }}</span>
+                                <span class="cf-badge info">Pro {{ plan_counts.professional|default:0 }}</span>
+                                <span class="cf-badge warning">Enterprise {{ plan_counts.enterprise|default:0 }}</span>
+                            </div>
+                        </div>
+                        <div class="cf-list-item">
+                            <div class="cf-list-main">
+                                <p class="cf-list-title">Email</p>
+                                <p class="cf-list-meta">Tenants con recordatorios por email</p>
+                            </div>
+                            <span class="cf-badge success">{{ feature_adoption.email|default:0 }}</span>
+                        </div>
+                        <div class="cf-list-item">
+                            <div class="cf-list-main">
+                                <p class="cf-list-title">WhatsApp</p>
+                                <p class="cf-list-meta">Tenants con recordatorios por WhatsApp</p>
+                            </div>
+                            <span class="cf-badge success">{{ feature_adoption.whatsapp|default:0 }}</span>
+                        </div>
+                        <div class="cf-list-item">
+                            <div class="cf-list-main">
+                                <p class="cf-list-title">e-CF / DGII</p>
+                                <p class="cf-list-meta">Tenants con proveedor e-CF configurado</p>
+                            </div>
+                            <span class="cf-badge info">{{ feature_adoption.ecf|default:0 }}</span>
+                        </div>
+                        <div class="cf-list-item">
+                            <div class="cf-list-main">
+                                <p class="cf-list-title">AI Assistant</p>
+                                <p class="cf-list-meta">Tenants con AI habilitada</p>
+                            </div>
+                            <span class="cf-badge warning">{{ feature_adoption.ai|default:0 }}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="stat-card">
-                <div class="stat-card-content">
-                    <span class="material-symbols-outlined stat-icon" style="color: #f59e0b;">schedule</span>
-                    <div class="stat-info">
-                        <h3>Active Loans</h3>
-                        <p class="value">{{ active_loans|default:0 }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-card-content">
-                    <span class="material-symbols-outlined stat-icon" style="color: #8b5cf6;">payment</span>
-                    <div class="stat-info">
-                        <h3>Total Payments</h3>
-                        <p class="value">{{ total_payments|default:0 }}</p>
-                    </div>
-                </div>
-            </div>
-        {% else %}
-            <!-- System Statistics - CrediFlux Global -->
-            <div class="stat-card">
-                <div class="stat-card-content">
-                    <span class="material-symbols-outlined stat-icon" style="color: #3b82f6;">business</span>
-                    <div class="stat-info">
-                        <h3>Total Tenants</h3>
-                        <p class="value">{{ total_tenants|default:0 }}</p>
-                        <p class="subtext">{{ active_tenants|default:0 }} active</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-card-content">
-                    <span class="material-symbols-outlined stat-icon" style="color: #10b981;">account_balance</span>
-                    <div class="stat-info">
-                        <h3>Total Loans (All Tenants)</h3>
-                        <p class="value">{{ total_loans_all|default:0 }}</p>
-                        <p class="subtext">{{ total_active_loans|default:0 }} active</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-card-content">
-                    <span class="material-symbols-outlined stat-icon" style="color: #8b5cf6;">person</span>
-                    <div class="stat-info">
-                        <h3>Total Customers</h3>
-                        <p class="value">{{ total_customers_all|default:0 }}</p>
-                        <p class="subtext">All tenants</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-card-content">
-                    <span class="material-symbols-outlined stat-icon" style="color: #f59e0b;">payment</span>
-                    <div class="stat-info">
-                        <h3>Total Payments</h3>
-                        <p class="value">{{ total_payments_all|default:0 }}</p>
-                        <p class="subtext">All tenants</p>
-                    </div>
-                </div>
-            </div>
-        {% endif %}
-    </div>
-
-    <!-- System Status Section (Only in Public Schema) -->
-    {% if not is_tenant %}
-        <div class="section-card">
-            <div class="section-header">
-                <span class="material-symbols-outlined" style="font-size: 24px;">settings_suggest</span>
-                <h2>System Status</h2>
-            </div>
-            <div class="section-body">
-                <div class="status-grid">
-                    <!-- RNC Database Status -->
-                    <div class="status-box">
-                        <div class="status-header">
-                            <h3 class="status-title">
-                                <span class="material-symbols-outlined" style="font-size: 20px; margin-right: 8px;">database</span>
-                                DGII RNC Database
-                            </h3>
+                <div class="cf-card">
+                    <h2 class="cf-section-title">Estado del sistema</h2>
+                    <p class="cf-section-subtitle">Señales rápidas de salud operativa.</p>
+                    <div class="cf-list">
+                        <div class="cf-list-item">
+                            <div class="cf-list-main">
+                                <p class="cf-list-title">Base RNC DGII</p>
+                                <p class="cf-list-meta">Última actualización: {{ rnc_status.last_updated }}</p>
+                            </div>
                             {% if rnc_status.enabled %}
-                                <span class="status-badge badge-active">Active</span>
+                                <span class="cf-badge success">Activa</span>
                             {% else %}
-                                <span class="status-badge badge-inactive">Inactive</span>
+                                <span class="cf-badge warning">Inactiva</span>
                             {% endif %}
                         </div>
-                        <div class="status-detail">
-                            <p><strong>Records:</strong> {{ rnc_status.total_records|default:"0"|floatformat:0 }}</p>
-                            <p><strong>Last Update:</strong> {{ rnc_status.last_updated }}</p>
-                            <a href="{% url 'admin:constance_config_changelist' %}" class="status-link">Manage Settings →</a>
-                        </div>
-                    </div>
-
-                    <!-- System Info -->
-                    <div class="status-box">
-                        <div class="status-header">
-                            <h3 class="status-title">
-                                <span class="material-symbols-outlined" style="font-size: 20px; margin-right: 8px;">info</span>
-                                System Information
-                            </h3>
-                            <span class="status-badge badge-running">Running</span>
-                        </div>
-                        <div class="status-detail">
-                            <p><strong>Total Users:</strong> {{ total_users|default:0 }}</p>
-                            <p><strong>Schema:</strong> {{ schema_name|default:"public" }}</p>
-                            <a href="{% url 'admin:users_user_changelist' %}" class="status-link">Manage Users →</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    {% endif %}
-
-    <!-- Tenant Switcher Section (Only in Public Schema) -->
-    {% if not is_tenant and tenants_list %}
-        <div class="section-card">
-            <div class="section-header">
-                <span class="material-symbols-outlined" style="font-size: 24px;">business_center</span>
-                <h2>Active Tenants</h2>
-            </div>
-            <div class="section-body">
-                <div class="tenant-grid">
-                    {% for tenant in tenants_list %}
-                        <a href="http://{{ tenant.domain }}:8000/admin/" class="tenant-card">
-                            <span class="material-symbols-outlined tenant-icon">account_balance</span>
-                            <div class="tenant-info">
-                                <h3>{{ tenant.business_name|default:tenant.name }}</h3>
-                                <p>{{ tenant.domain }}</p>
-                                <p style="font-size: 11px; margin-top: 2px;">Schema: {{ tenant.schema_name }}</p>
+                        <div class="cf-list-item">
+                            <div class="cf-list-main">
+                                <p class="cf-list-title">Registros RNC</p>
+                                <p class="cf-list-meta">Cobertura actual de validación</p>
                             </div>
-                        </a>
-                    {% endfor %}
+                                <span class="cf-badge info">{{ rnc_status.total_records|default:0 }}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    {% endif %}
+        </section>
 
-    <!-- Quick Actions -->
-    <div class="section-card">
-        <div class="section-header">
-            <span class="material-symbols-outlined" style="font-size: 24px;">bolt</span>
-            <h2>Quick Actions</h2>
-        </div>
-        <div class="section-body">
-            <div class="actions-grid">
-                {% if is_tenant %}
-                    <a href="{% url 'admin:loans_customer_add' %}" class="action-link" style="background-color: #eff6ff;">
-                        <span class="material-symbols-outlined action-icon" style="color: #2563eb;">person_add</span>
-                        <span class="action-text" style="color: #1e40af;">Add Customer</span>
-                    </a>
-
-                    <a href="{% url 'admin:loans_loan_add' %}" class="action-link" style="background-color: #f0fdf4;">
-                        <span class="material-symbols-outlined action-icon" style="color: #16a34a;">add_circle</span>
-                        <span class="action-text" style="color: #166534;">Create Loan</span>
-                    </a>
-
-                    <a href="{% url 'admin:loans_loanpayment_add' %}" class="action-link" style="background-color: #faf5ff;">
-                        <span class="material-symbols-outlined action-icon" style="color: #9333ea;">payments</span>
-                        <span class="action-text" style="color: #6b21a8;">Record Payment</span>
-                    </a>
-
-                    <a href="{% url 'admin:loans_loan_changelist' %}" class="action-link" style="background-color: #fffbeb;">
-                        <span class="material-symbols-outlined action-icon" style="color: #d97706;">list</span>
-                        <span class="action-text" style="color: #92400e;">View All Loans</span>
-                    </a>
-                {% else %}
-                    <a href="{% url 'admin:constance_config_changelist' %}" class="action-link" style="background-color: #eff6ff;">
-                        <span class="material-symbols-outlined action-icon" style="color: #2563eb;">settings</span>
-                        <span class="action-text" style="color: #1e40af;">Configuration</span>
-                    </a>
-
-                    <a href="{% url 'admin:constance_update_rnc_database' %}" class="action-link" style="background-color: #f0fdf4;">
-                        <span class="material-symbols-outlined action-icon" style="color: #16a34a;">sync</span>
-                        <span class="action-text" style="color: #166534;">Update RNC Database</span>
-                    </a>
-
-                    <a href="{% url 'admin:tenants_tenant_add' %}" class="action-link" style="background-color: #faf5ff;">
-                        <span class="material-symbols-outlined action-icon" style="color: #9333ea;">business_center</span>
-                        <span class="action-text" style="color: #6b21a8;">Add Tenant</span>
-                    </a>
-
-                    <a href="{% url 'admin:tenants_tenant_changelist' %}" class="action-link" style="background-color: #fffbeb;">
-                        <span class="material-symbols-outlined action-icon" style="color: #d97706;">list</span>
-                        <span class="action-text" style="color: #92400e;">Manage Tenants</span>
-                    </a>
-
-                    <a href="{% url 'admin:users_user_changelist' %}" class="action-link" style="background-color: #eef2ff;">
-                        <span class="material-symbols-outlined action-icon" style="color: #4f46e5;">group</span>
-                        <span class="action-text" style="color: #3730a3;">Manage Users</span>
-                    </a>
-
-                    <a href="{% url 'admin:django_celery_beat_periodictask_changelist' %}" class="action-link" style="background-color: #fdf4ff;">
-                        <span class="material-symbols-outlined action-icon" style="color: #c026d3;">schedule</span>
-                        <span class="action-text" style="color: #86198f;">Scheduled Tasks</span>
-                    </a>
-                {% endif %}
+        <section class="cf-section">
+            <h2 class="cf-section-title">Acciones rápidas de plataforma</h2>
+            <p class="cf-section-subtitle">Atajos para administrar el SaaS, no la operación interna de una financiera.</p>
+            <div class="cf-actions">
+                <a href="{% url 'admin:tenants_tenant_add' %}" class="cf-action">
+                    <span class="cf-action-icon material-symbols-outlined">add_business</span>
+                    <div>
+                        <p class="cf-action-title">Crear tenant</p>
+                        <p class="cf-action-desc">Onboarding de nueva financiera</p>
+                    </div>
+                </a>
+                <a href="{% url 'admin:constance_config_changelist' %}" class="cf-action">
+                    <span class="cf-action-icon material-symbols-outlined">settings</span>
+                    <div>
+                        <p class="cf-action-title">Settings globales</p>
+                        <p class="cf-action-desc">Constance y configuración operativa</p>
+                    </div>
+                </a>
+                <a href="{% url 'admin:users_user_changelist' %}" class="cf-action">
+                    <span class="cf-action-icon material-symbols-outlined">group</span>
+                    <div>
+                        <p class="cf-action-title">Usuarios</p>
+                        <p class="cf-action-desc">Accesos del equipo y owners</p>
+                    </div>
+                </a>
+                <a href="{% url 'admin:django_celery_beat_periodictask_changelist' %}" class="cf-action">
+                    <span class="cf-action-icon material-symbols-outlined">schedule</span>
+                    <div>
+                        <p class="cf-action-title">Tareas programadas</p>
+                        <p class="cf-action-desc">Jobs, reportes y automatizaciones</p>
+                    </div>
+                </a>
             </div>
-        </div>
-    </div>
+        </section>
+    {% endif %}
 </div>
 {% endblock %}

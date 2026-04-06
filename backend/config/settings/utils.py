@@ -181,6 +181,7 @@ def dashboard_callback(request, context):
     Adds additional context variables for the dashboard template.
     Following Unfold best practices: https://unfoldadmin.com/docs/configuration/dashboard
     """
+    from decimal import Decimal
     from django.db import connection
     from django.contrib.auth import get_user_model
     from django.templatetags.static import static
@@ -216,16 +217,44 @@ def dashboard_callback(request, context):
         'total_users': User.objects.count(),
     })
 
+    def money_amount(value):
+        """Safely normalize Money/Decimal/None values to Decimal."""
+        if value is None:
+            return Decimal('0')
+        amount = getattr(value, 'amount', value)
+        try:
+            return Decimal(str(amount))
+        except Exception:
+            return Decimal('0')
+
     # Tenant-specific stats
     if is_tenant:
         try:
-            from apps.loans.models import Customer, Loan, LoanPayment
+            from apps.loans.models import Customer, Loan, LoanPayment, Contract
+
+            loans = Loan.objects.all()
+            total_outstanding = Decimal('0')
+            total_principal = Decimal('0')
+            overdue_loans = 0
+
+            for loan in loans:
+                total_outstanding += money_amount(loan.outstanding_balance)
+                total_principal += money_amount(loan.principal_amount)
+                try:
+                    if loan.is_overdue:
+                        overdue_loans += 1
+                except Exception:
+                    pass
 
             context.update({
                 'total_customers': Customer.objects.count(),
-                'total_loans': Loan.objects.count(),
-                'active_loans': Loan.objects.filter(status='active').count(),
+                'total_loans': loans.count(),
+                'active_loans': loans.filter(status='active').count(),
                 'total_payments': LoanPayment.objects.count(),
+                'overdue_loans': overdue_loans,
+                'total_outstanding': total_outstanding,
+                'total_principal': total_principal,
+                'pending_contract_signatures': Contract.objects.filter(status='sent').count(),
             })
         except Exception:
             pass
@@ -256,14 +285,80 @@ def dashboard_callback(request, context):
             total_loans_all = 0
             total_active_loans = 0
             total_payments_all = 0
+            total_outstanding_all = Decimal('0')
+            total_principal_all = Decimal('0')
+            total_overdue_loans_all = 0
+
+            tenants_summary = []
+            plan_counts = {
+                'basic': 0,
+                'professional': 0,
+                'enterprise': 0,
+            }
+            feature_adoption = {
+                'email': 0,
+                'whatsapp': 0,
+                'ecf': 0,
+                'ai': 0,
+            }
 
             for tenant in tenants:
                 try:
+                    plan_counts[tenant.subscription_plan] = plan_counts.get(tenant.subscription_plan, 0) + 1
+                    if tenant.enable_email_reminders:
+                        feature_adoption['email'] += 1
+                    if tenant.enable_whatsapp_reminders:
+                        feature_adoption['whatsapp'] += 1
+                    if tenant.ecf_provider and tenant.ecf_provider != 'none':
+                        feature_adoption['ecf'] += 1
+                    if tenant.enable_ai_assistant:
+                        feature_adoption['ai'] += 1
+
                     connection.set_tenant(tenant)
-                    total_customers_all += Customer.objects.count()
-                    total_loans_all += Loan.objects.count()
-                    total_active_loans += Loan.objects.filter(status='active').count()
+                    tenant_customers = Customer.objects.count()
+                    tenant_loans = Loan.objects.count()
+                    tenant_active_loans = Loan.objects.filter(status='active').count()
+                    tenant_payments = LoanPayment.objects.count()
+
+                    tenant_outstanding = Decimal('0')
+                    tenant_principal = Decimal('0')
+                    tenant_overdue_loans = 0
+                    for loan in Loan.objects.all():
+                        tenant_outstanding += money_amount(loan.outstanding_balance)
+                        tenant_principal += money_amount(loan.principal_amount)
+                        try:
+                            if loan.is_overdue:
+                                tenant_overdue_loans += 1
+                        except Exception:
+                            pass
+
+                    total_customers_all += tenant_customers
+                    total_loans_all += tenant_loans
+                    total_active_loans += tenant_active_loans
                     total_payments_all += LoanPayment.objects.count()
+                    total_outstanding_all += tenant_outstanding
+                    total_principal_all += tenant_principal
+                    total_overdue_loans_all += tenant_overdue_loans
+
+                    primary_domain = tenant.get_primary_domain()
+                    admin_url = None
+                    if primary_domain:
+                        admin_url = f"https://{primary_domain.domain}/admin/"
+
+                    tenants_summary.append({
+                        'name': tenant.name,
+                        'business_name': tenant.business_name,
+                        'schema_name': tenant.schema_name,
+                        'subscription_plan': tenant.get_subscription_plan_display(),
+                        'customers': tenant_customers,
+                        'loans': tenant_loans,
+                        'active_loans': tenant_active_loans,
+                        'payments': tenant_payments,
+                        'outstanding_balance': tenant_outstanding,
+                        'principal_disbursed': tenant_principal,
+                        'overdue_loans': tenant_overdue_loans,
+                        'admin_url': admin_url,
+                    })
                 except Exception:
                     pass
 
@@ -282,11 +377,21 @@ def dashboard_callback(request, context):
                 'total_tenants': Tenant.objects.count(),
                 'active_tenants': Tenant.objects.filter(is_active=True).count(),
                 'tenants_list': tenants_list,
+                'tenants_summary': sorted(
+                    tenants_summary,
+                    key=lambda item: (item['outstanding_balance'], item['loans']),
+                    reverse=True,
+                ),
                 # System-wide aggregated stats
                 'total_customers_all': total_customers_all,
                 'total_loans_all': total_loans_all,
                 'total_active_loans': total_active_loans,
                 'total_payments_all': total_payments_all,
+                'total_outstanding_all': total_outstanding_all,
+                'total_principal_all': total_principal_all,
+                'total_overdue_loans_all': total_overdue_loans_all,
+                'plan_counts': plan_counts,
+                'feature_adoption': feature_adoption,
                 # System status
                 'rnc_status': rnc_status,
             })
@@ -318,8 +423,14 @@ def get_sidebar_navigation_callback(request):
     This is called per-request so it can adapt to the current context.
     """
     from django.db import connection
-    from django.urls import reverse_lazy
+    from django.urls import reverse_lazy, NoReverseMatch
     from django.utils.translation import gettext_lazy as _
+
+    def safe_reverse(viewname):
+        try:
+            return reverse_lazy(viewname)
+        except NoReverseMatch:
+            return '#'
 
     schema_name = getattr(connection, 'schema_name', 'public')
     is_tenant = schema_name != 'public'
@@ -327,13 +438,13 @@ def get_sidebar_navigation_callback(request):
     # Common: Dashboard
     navigation = [
         {
-            "title": _("Dashboard"),
+            "title": _("Inicio"),
             "separator": True,
             "items": [
                 {
                     "title": _("Dashboard"),
                     "icon": "dashboard",
-                    "link": reverse_lazy("admin:index"),
+                    "link": safe_reverse("admin:index"),
                 },
             ],
         },
@@ -344,92 +455,111 @@ def get_sidebar_navigation_callback(request):
         # Show loan management first (primary use case)
         navigation.extend([
             {
-                "title": _("Loan Management"),
+                "title": _("Operación crediticia"),
                 "collapsible": False,
                 "items": [
                     {
-                        "title": _("Customers"),
+                        "title": _("Clientes"),
                         "icon": "account_circle",
-                        "link": reverse_lazy("admin:loans_customer_changelist"),
+                        "link": safe_reverse("admin:loans_customer_changelist"),
                     },
                     {
-                        "title": _("Loans"),
+                        "title": _("Préstamos"),
                         "icon": "account_balance",
-                        "link": reverse_lazy("admin:loans_loan_changelist"),
+                        "link": safe_reverse("admin:loans_loan_changelist"),
                     },
                     {
-                        "title": _("Loan Schedules"),
+                        "title": _("Calendario de pagos"),
                         "icon": "schedule",
-                        "link": reverse_lazy("admin:loans_loanschedule_changelist"),
+                        "link": safe_reverse("admin:loans_loanschedule_changelist"),
                     },
                     {
-                        "title": _("Loan Payments"),
+                        "title": _("Pagos"),
                         "icon": "payment",
-                        "link": reverse_lazy("admin:loans_loanpayment_changelist"),
+                        "link": safe_reverse("admin:loans_loanpayment_changelist"),
                     },
                     {
-                        "title": _("Collaterals"),
+                        "title": _("Garantías"),
                         "icon": "shield",
-                        "link": reverse_lazy("admin:loans_collateral_changelist"),
+                        "link": safe_reverse("admin:loans_collateral_changelist"),
+                    },
+                    {
+                        "title": _("Garantes"),
+                        "icon": "groups",
+                        "link": safe_reverse("admin:loans_guarantor_changelist"),
                     },
                 ],
             },
             {
-                "title": _("Collections"),
+                "title": _("Cobros y contratos"),
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("Reminders"),
+                        "title": _("Recordatorios"),
                         "icon": "notifications",
-                        "link": reverse_lazy("admin:loans_collectionreminder_changelist"),
+                        "link": safe_reverse("admin:loans_collectionreminder_changelist"),
                     },
                     {
-                        "title": _("Contact History"),
+                        "title": _("Historial de contacto"),
                         "icon": "phone_in_talk",
-                        "link": reverse_lazy("admin:loans_collectioncontact_changelist"),
+                        "link": safe_reverse("admin:loans_collectioncontact_changelist"),
+                    },
+                    {
+                        "title": _("Contratos"),
+                        "icon": "description",
+                        "link": safe_reverse("admin:loans_contract_changelist"),
+                    },
+                    {
+                        "title": _("Plantillas"),
+                        "icon": "article",
+                        "link": safe_reverse("admin:loans_contracttemplate_changelist"),
                     },
                 ],
             },
             {
-                "title": _("Contracts"),
+                "title": _("Facturación y comunicación"),
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("Contracts"),
-                        "icon": "description",
-                        "link": reverse_lazy("admin:loans_contract_changelist"),
+                        "title": _("Facturas"),
+                        "icon": "receipt_long",
+                        "link": safe_reverse("admin:billing_invoice_changelist"),
                     },
                     {
-                        "title": _("Templates"),
-                        "icon": "article",
-                        "link": reverse_lazy("admin:loans_contracttemplate_changelist"),
+                        "title": _("Envíos e-CF"),
+                        "icon": "send",
+                        "link": safe_reverse("admin:billing_ecfsubmission_changelist"),
+                    },
+                    {
+                        "title": _("Emails"),
+                        "icon": "mail",
+                        "link": safe_reverse("admin:communications_email_changelist"),
+                    },
+                    {
+                        "title": _("WhatsApp"),
+                        "icon": "chat",
+                        "link": safe_reverse("admin:communications_whatsappmessage_changelist"),
                     },
                 ],
             },
             {
-                "title": _("User Management"),
+                "title": _("Equipo y seguridad"),
                 "collapsible": False,
                 "items": [
                     {
-                        "title": _("Users"),
+                        "title": _("Usuarios"),
                         "icon": "person",
-                        "link": reverse_lazy("admin:users_user_changelist"),
+                        "link": safe_reverse("admin:users_user_changelist"),
                     },
                     {
-                        "title": _("Groups"),
+                        "title": _("Grupos"),
                         "icon": "group_work",
-                        "link": reverse_lazy("admin:auth_group_changelist"),
+                        "link": safe_reverse("admin:auth_group_changelist"),
                     },
-                ],
-            },
-            {
-                "title": _("Audit & Security"),
-                "collapsible": True,
-                "items": [
                     {
-                        "title": _("Audit Log"),
+                        "title": _("Auditoría"),
                         "icon": "history",
-                        "link": reverse_lazy("admin:audit_auditlog_changelist"),
+                        "link": safe_reverse("admin:audit_auditlog_changelist"),
                     },
                 ],
             },
@@ -439,64 +569,74 @@ def get_sidebar_navigation_callback(request):
         # Show tenant management first
         navigation.extend([
             {
-                "title": _("Tenant Management"),
+                "title": _("SaaS y tenants"),
                 "collapsible": False,
                 "items": [
                     {
                         "title": _("Tenants"),
                         "icon": "business_center",
-                        "link": reverse_lazy("admin:tenants_tenant_changelist"),
+                        "link": safe_reverse("admin:tenants_tenant_changelist"),
                     },
                     {
-                        "title": _("Domains"),
+                        "title": _("Dominios"),
                         "icon": "language",
-                        "link": reverse_lazy("admin:tenants_domain_changelist"),
+                        "link": safe_reverse("admin:tenants_domain_changelist"),
                     },
                 ],
             },
             {
-                "title": _("User Management"),
+                "title": _("Plataforma"),
                 "collapsible": False,
                 "items": [
                     {
-                        "title": _("Users"),
+                        "title": _("Usuarios"),
                         "icon": "person",
-                        "link": reverse_lazy("admin:users_user_changelist"),
+                        "link": safe_reverse("admin:users_user_changelist"),
                     },
                     {
-                        "title": _("Groups"),
+                        "title": _("Grupos"),
                         "icon": "group_work",
-                        "link": reverse_lazy("admin:auth_group_changelist"),
+                        "link": safe_reverse("admin:auth_group_changelist"),
+                    },
+                    {
+                        "title": _("Auditoría"),
+                        "icon": "history",
+                        "link": safe_reverse("admin:audit_auditlog_changelist"),
                     },
                 ],
             },
             {
-                "title": _("System"),
+                "title": _("Operación técnica"),
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("Scheduled Tasks"),
+                        "title": _("Tareas programadas"),
                         "icon": "timer",
-                        "link": reverse_lazy("admin:django_celery_beat_periodictask_changelist"),
+                        "link": safe_reverse("admin:django_celery_beat_periodictask_changelist"),
                     },
                     {
-                        "title": _("Audit Log"),
-                        "icon": "history",
-                        "link": reverse_lazy("admin:audit_auditlog_changelist"),
+                        "title": _("Certificados digitales"),
+                        "icon": "verified",
+                        "link": safe_reverse("admin:billing_digitalcertificate_changelist"),
+                    },
+                    {
+                        "title": _("Secuencias fiscales"),
+                        "icon": "tag",
+                        "link": safe_reverse("admin:billing_fiscalsequence_changelist"),
                     },
                 ],
             },
         ])
-
+    
     # Common: Configuration (both schemas)
     navigation.append({
-        "title": _("Configuration"),
+        "title": _("Configuración"),
         "collapsible": False,
         "items": [
             {
                 "title": _("Settings"),
                 "icon": "settings",
-                "link": reverse_lazy("admin:constance_config_changelist"),
+                "link": safe_reverse("admin:constance_config_changelist"),
             },
         ],
     })
