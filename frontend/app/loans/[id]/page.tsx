@@ -642,7 +642,7 @@ export default function LoanDetailPage() {
                       </a>
                     </Button>
                   </div>
-                  <Link href={`/customers/${loan.customer}`}>
+                  <Link href={`/customers/${loan.customer}`} className="block pt-2">
                     <Button variant="outline" className="w-full bg-white" size="sm">
                       Ver perfil del cliente
                     </Button>
