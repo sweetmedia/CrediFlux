@@ -454,8 +454,8 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
                 # No overdue schedules - apply to loan balances generically
                 late_fee_payment = Decimal('0')
 
-                # STEP 2: Pay interest based on monthly rate
-                monthly_rate = loan.interest_rate / Decimal('100') / Decimal('12')
+                # STEP 2: Pay interest based on MONTHLY rate
+                monthly_rate = loan.interest_rate / Decimal('100')
                 interest_due = loan.outstanding_balance.amount * monthly_rate
 
                 if remaining_payment >= interest_due:

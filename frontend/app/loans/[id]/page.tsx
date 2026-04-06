@@ -436,7 +436,7 @@ export default function LoanDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Tasa de Interés</p>
-                    <p className="font-medium">{loan.interest_rate}% anual</p>
+                    <p className="font-medium">{loan.interest_rate}% mensual</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Plazo</p>

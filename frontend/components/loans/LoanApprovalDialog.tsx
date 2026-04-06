@@ -94,7 +94,7 @@ export default function LoanApprovalDialog({
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Tasa:</span>
-              <span className="text-sm">{loan.interest_rate}% anual</span>
+              <span className="text-sm">{loan.interest_rate}% mensual</span>
             </div>
           </div>
 

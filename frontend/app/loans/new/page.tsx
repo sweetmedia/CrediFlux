@@ -210,28 +210,32 @@ export default function NewLoanPage() {
     const [principal, rate, term, frequency] = watchedFields;
     if (principal && rate && term && frequency) {
       const P = parseFloat(principal);
-      const annualRate = parseFloat(rate) / 100;
+      const monthlyRate = parseFloat(rate) / 100;
       const termMonths = parseInt(term);
 
-      let paymentsPerYear: number;
+      let rateDivisor: number;
+      let totalPayments: number;
       switch (frequency) {
         case 'daily':
-          paymentsPerYear = 365;
+          rateDivisor = 30;
+          totalPayments = termMonths * 30;
           break;
         case 'weekly':
-          paymentsPerYear = 52;
+          rateDivisor = 4;
+          totalPayments = termMonths * 4;
           break;
         case 'biweekly':
-          paymentsPerYear = 26;
+          rateDivisor = 2;
+          totalPayments = termMonths * 2;
           break;
         case 'monthly':
         default:
-          paymentsPerYear = 12;
+          rateDivisor = 1;
+          totalPayments = termMonths;
           break;
       }
 
-      const periodicRate = annualRate / paymentsPerYear;
-      const totalPayments = Math.ceil((termMonths / 12) * paymentsPerYear);
+      const periodicRate = monthlyRate / rateDivisor;
 
       if (P > 0 && periodicRate > 0 && totalPayments > 0) {
         const payment = P * (periodicRate * Math.pow(1 + periodicRate, totalPayments)) /
@@ -648,10 +652,23 @@ export default function NewLoanPage() {
     let paymentAmount = calculatedPayment;
     if (!paymentAmount) {
       const P = parseFloat(data.principal_amount);
-      const r = parseFloat(data.interest_rate) / 100 / 12;
+      const frequencyDivisor = {
+        daily: 30,
+        weekly: 4,
+        biweekly: 2,
+        monthly: 1,
+      }[data.payment_frequency] || 1;
+      const multiplier = {
+        daily: 30,
+        weekly: 4,
+        biweekly: 2,
+        monthly: 1,
+      }[data.payment_frequency] || 1;
+      const r = parseFloat(data.interest_rate) / 100 / frequencyDivisor;
       const n = parseInt(data.term_months);
-      if (P > 0 && r > 0 && n > 0) {
-        paymentAmount = P * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+      const totalPayments = n * multiplier;
+      if (P > 0 && r > 0 && totalPayments > 0) {
+        paymentAmount = P * (r * Math.pow(1 + r, totalPayments)) / (Math.pow(1 + r, totalPayments) - 1);
       }
     }
 
@@ -1058,7 +1075,7 @@ export default function NewLoanPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="interest_rate" className="text-sm font-medium text-slate-700">
-                        Tasa de Interés (% anual) <span className="text-red-500">*</span>
+                        Tasa de Interés (% mensual) <span className="text-red-500">*</span>
                       </Label>
                       <Input
                         id="interest_rate"
@@ -1882,7 +1899,7 @@ export default function NewLoanPage() {
                       </div>
                       <div>
                         <p className="text-slate-600">Tasa de Interés:</p>
-                        <p className="font-medium text-slate-900">{watch('interest_rate')}% anual ({getInterestTypeLabel(interestType)})</p>
+                        <p className="font-medium text-slate-900">{watch('interest_rate')}% mensual ({getInterestTypeLabel(interestType)})</p>
                       </div>
                       <div>
                         <p className="text-slate-600">Plazo:</p>

@@ -224,9 +224,9 @@ export default function CalculatorPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column — Form */}
         <div className="lg:col-span-1 space-y-4">
-          <Card className="border shadow-none">
+          <Card className="cf-surface-card">
             <CardHeader className="pb-4">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+            <CardTitle className="cf-section-title">
                 Parámetros del Préstamo
               </CardTitle>
             </CardHeader>
@@ -416,7 +416,7 @@ export default function CalculatorPage() {
         {/* Right Column — Results */}
         <div className="lg:col-span-2 space-y-4">
           {!result && !isCalculating && (
-            <Card className="border shadow-none">
+            <Card className="cf-surface-card">
               <CardContent className="py-16 text-center">
                 <div className="mx-auto h-16 w-16 rounded-full bg-[#e8eddf] flex items-center justify-center mb-4">
                   <Calculator className="h-8 w-8 text-[#738566]" />
@@ -433,7 +433,7 @@ export default function CalculatorPage() {
           )}
 
           {isCalculating && (
-            <Card className="border shadow-none">
+            <Card className="cf-surface-card">
               <CardContent className="py-16 text-center">
                 <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#738566] mb-4" />
                 <p className="text-sm text-muted-foreground">Calculando amortización...</p>
@@ -445,13 +445,13 @@ export default function CalculatorPage() {
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="border shadow-none">
+                <Card className="cf-surface-card">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Banknote className="h-4 w-4 text-[#738566]" />
                       <span className="text-xs font-medium text-muted-foreground">Cuota</span>
                     </div>
-                    <p className="text-lg font-bold text-foreground">
+                    <p className="cf-mono-number text-lg font-bold text-foreground">
                       {formatDOP(result.payment_amount)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -460,13 +460,13 @@ export default function CalculatorPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border shadow-none">
+                <Card className="cf-surface-card">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <PiggyBank className="h-4 w-4 text-[#738566]" />
                       <span className="text-xs font-medium text-muted-foreground">Total Préstamo</span>
                     </div>
-                    <p className="text-lg font-bold text-foreground">
+                    <p className="cf-mono-number text-lg font-bold text-foreground">
                       {formatDOP(result.total_loan)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -475,13 +475,13 @@ export default function CalculatorPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border shadow-none">
+                <Card className="cf-surface-card">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <TrendingUp className="h-4 w-4 text-[#FF7503]" />
                       <span className="text-xs font-medium text-muted-foreground">Total Interés</span>
                     </div>
-                    <p className="text-lg font-bold text-[#FF7503]">
+                    <p className="cf-mono-number text-lg font-bold text-[#FF7503]">
                       {formatDOP(result.total_interest)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -494,13 +494,13 @@ export default function CalculatorPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border shadow-none">
+                <Card className="cf-surface-card">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Receipt className="h-4 w-4 text-[#738566]" />
                       <span className="text-xs font-medium text-muted-foreground">Desembolso</span>
                     </div>
-                    <p className="text-lg font-bold text-foreground">
+                    <p className="cf-mono-number text-lg font-bold text-foreground">
                       {formatDOP(result.total_disbursed)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -511,7 +511,7 @@ export default function CalculatorPage() {
               </div>
 
               {/* Quick Summary */}
-              <Card className="border shadow-none bg-[#f0f3ec]">
+              <Card className="cf-muted-panel shadow-none">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <Info className="h-4 w-4 text-[#163300] mt-0.5 shrink-0" />
@@ -529,10 +529,10 @@ export default function CalculatorPage() {
               </Card>
 
               {/* Amortization Table */}
-              <Card className="border shadow-none">
+              <Card className="cf-surface-card overflow-hidden">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    <CardTitle className="cf-section-title">
                       Tabla de Amortización
                     </CardTitle>
                     <span className="text-xs text-muted-foreground">
@@ -542,7 +542,7 @@ export default function CalculatorPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
-                    <Table>
+                    <Table className="cf-data-table">
                       <TableHeader>
                         <TableRow className="bg-muted/50">
                           <TableHead className="text-xs font-medium w-12">#</TableHead>
@@ -565,16 +565,16 @@ export default function CalculatorPage() {
                             <TableCell className="text-xs">
                               {formatDate(item.due_date)}
                             </TableCell>
-                            <TableCell className="text-xs text-right font-medium">
+                            <TableCell className="cf-mono-number text-xs text-right font-medium">
                               {formatDOP(item.payment)}
                             </TableCell>
-                            <TableCell className="text-xs text-right text-[#163300]">
+                            <TableCell className="cf-mono-number text-xs text-right text-[#163300]">
                               {formatDOP(item.principal)}
                             </TableCell>
-                            <TableCell className="text-xs text-right text-[#FF7503]">
+                            <TableCell className="cf-mono-number text-xs text-right text-[#FF7503]">
                               {formatDOP(item.interest)}
                             </TableCell>
-                            <TableCell className="text-xs text-right font-medium">
+                            <TableCell className="cf-mono-number text-xs text-right font-medium">
                               {formatDOP(item.balance)}
                             </TableCell>
                           </TableRow>

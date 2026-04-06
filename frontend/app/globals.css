@@ -77,6 +77,37 @@
   }
 }
 
+@layer components {
+  .cf-surface-card {
+    @apply border border-slate-200 bg-white shadow-none rounded-2xl;
+  }
+
+  .cf-muted-panel {
+    @apply rounded-2xl border border-slate-200 bg-slate-50;
+  }
+
+  .cf-section-title {
+    @apply text-sm font-medium uppercase tracking-wider text-muted-foreground;
+  }
+
+  .cf-mono-number {
+    @apply font-mono tracking-tight tabular-nums;
+  }
+
+  .cf-data-table thead tr {
+    @apply bg-muted/50 border-b;
+  }
+
+  .cf-data-table tbody tr:nth-child(even) {
+    @apply bg-muted/30;
+  }
+
+  .cf-data-table td,
+  .cf-data-table th {
+    @apply text-xs;
+  }
+}
+
 /* Sidebar thin scrollbar */
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;

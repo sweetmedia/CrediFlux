@@ -808,11 +808,12 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         else:
             # ========================================
-            # INTERÉS FIJO (distribuido equitativamente)
+            # INTERÉS FIJO (tasa mensual)
             # ========================================
-            # El interés total se distribuye equitativamente entre todas las cuotas
+            # El interés total se calcula usando la tasa mensual definida por negocio
+            # y se distribuye equitativamente entre las cuotas.
 
-            total_interest = loan.principal_amount * (loan.interest_rate / 100) * (loan.term_months / 12)
+            total_interest = loan.principal_amount * (loan.interest_rate / 100) * loan.term_months
             total_amount = loan.principal_amount + total_interest
 
             # Calculate and round amounts to 2 decimal places

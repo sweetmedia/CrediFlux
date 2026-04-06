@@ -455,7 +455,7 @@ export default function NewPaymentPage() {
                           <div>
                             <p className="text-gray-500 mb-1">Tasa de Interés</p>
                             <p className="font-semibold text-gray-900">
-                              {selectedLoan.interest_rate || 0}% anual
+                              {selectedLoan.interest_rate || 0}% mensual
                             </p>
                           </div>
                           <div>

@@ -461,8 +461,9 @@ class Loan(UUIDModel, AuditModel):
         interest_rate_decimal = Decimal(str(self.interest_rate))
         term_months_decimal = Decimal(str(self.term_months))
 
-        # Calculate: principal * (1 + (rate/100) * (months/12))
-        interest_multiplier = Decimal('1') + (interest_rate_decimal / Decimal('100')) * (term_months_decimal / Decimal('12'))
+        # Calculate using MONTHLY rate semantics
+        # principal * (1 + (monthly_rate/100) * months)
+        interest_multiplier = Decimal('1') + (interest_rate_decimal / Decimal('100')) * term_months_decimal
 
         # For Money objects, multiply the amount and keep the currency
         from moneyed import Money
