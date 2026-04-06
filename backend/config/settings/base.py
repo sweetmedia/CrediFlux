@@ -41,7 +41,7 @@ SHARED_APPS = [
     'allauth.socialaccount',
     'dj_rest_auth',
     'dj_rest_auth.registration',
-    # 'unfold.contrib.constance',  # Module not found - commented out
+    'unfold.contrib.constance',
     'constance',
     'djmoney',
     'phonenumber_field',
