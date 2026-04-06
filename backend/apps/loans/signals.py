@@ -64,9 +64,12 @@ def recalculate_schedules_from_payments(loan):
         if remaining_schedule_amount < 0:
             remaining_schedule_amount = Decimal('0.00')
 
-        base_queryset = loan.payment_schedules.filter(status__in=['pending', 'partial', 'overdue']).order_by('installment_number')
+        unpaid_queryset = loan.payment_schedules.filter(status__in=['pending', 'partial', 'overdue']).order_by('installment_number')
+        base_queryset = unpaid_queryset
         if payment.schedule:
-            base_queryset = base_queryset.filter(installment_number__gte=payment.schedule.installment_number)
+            has_earlier_unpaid = unpaid_queryset.filter(installment_number__lt=payment.schedule.installment_number).exists()
+            if not has_earlier_unpaid:
+                base_queryset = unpaid_queryset.filter(installment_number__gte=payment.schedule.installment_number)
 
         schedules_to_apply = list(base_queryset)
         first_schedule = schedules_to_apply[0] if schedules_to_apply else payment.schedule
