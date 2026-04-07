@@ -8,7 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
-from django.db.models import Q, Sum, Count
+from django.db.models import Q, Sum, Count, Value
+from django.db.models.functions import Replace
 from django.http import HttpResponse
 from decimal import Decimal
 from django.db import transaction
@@ -35,14 +36,42 @@ class CustomerViewSet(viewsets.ModelViewSet):
     """
     queryset = Customer.objects.all()
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'employment_status', 'id_type']
-    search_fields = [
-        'customer_id', 'first_name', 'last_name', 'email',
-        'phone', 'id_number'
-    ]
     ordering_fields = ['created_at', 'first_name', 'last_name']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search = (self.request.query_params.get('search') or '').strip()
+
+        if not search:
+            return queryset
+
+        normalized_search = ''.join(ch for ch in search if ch.isalnum())
+        queryset = queryset.annotate(
+            normalized_id_number=Replace(
+                Replace(
+                    Replace('id_number', Value('-'), Value('')),
+                    Value(' '), Value('')
+                ),
+                Value('_'), Value('')
+            )
+        )
+
+        filters_q = (
+            Q(customer_id__icontains=search) |
+            Q(first_name__icontains=search) |
+            Q(last_name__icontains=search) |
+            Q(email__icontains=search) |
+            Q(phone__icontains=search) |
+            Q(id_number__icontains=search)
+        )
+
+        if normalized_search and normalized_search != search:
+            filters_q |= Q(normalized_id_number__icontains=normalized_search)
+
+        return queryset.filter(filters_q)
 
     def get_serializer_class(self):
         if self.action == 'list':
