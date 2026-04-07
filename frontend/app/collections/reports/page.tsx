@@ -166,12 +166,14 @@ export default function CollectionReportsPage() {
       title: 'Cartera y cobranza',
       description: 'Inspirado en PRE_REPCOB, PRE_CAR_COB y reportes de vencimiento del sistema legacy.',
       icon: Siren,
+      stage: 'MVP demo',
       reports: [
         'Reporte general de cobros',
         'Cartera en atraso por rango de días',
         'Clientes con mayor exposición',
         'Carta / gestión de cobro por cliente',
       ],
+      nextStep: 'Agregar filtros por fecha, exportación y cortes comparativos.',
       action: () => router.push('/collections/reports/cartera'),
       actionLabel: 'Abrir reporte',
     },
@@ -179,12 +181,14 @@ export default function CollectionReportsPage() {
       title: 'Estados de cuenta y cuotas',
       description: 'Tomado de estcue, rep_cua y variantes de cuotas/cuadre del legado.',
       icon: Receipt,
+      stage: 'MVP demo',
       reports: [
         'Estado de cuenta por cliente',
         'Balance de cuotas por préstamo',
         'Cuotas vencidas y próximas',
         'Promesas de pago por vencer',
       ],
+      nextStep: 'Descarga PDF ya lista; falta ampliar filtros y versión imprimible por rango.',
       action: () => router.push('/collections/reports/estado-cuenta'),
       actionLabel: 'Abrir reporte',
     },
@@ -192,12 +196,14 @@ export default function CollectionReportsPage() {
       title: 'Pagos, caja y banco',
       description: 'Basado en reppag2, CIERCAJA y rep_ban como referencia operativa.',
       icon: Landmark,
+      stage: 'MVP demo',
       reports: [
         'Reporte de pagos / ingresos',
         'Cierre diario de caja',
         'Movimientos por banco o método',
         'Cobros por cobrador / cajero',
       ],
+      nextStep: 'Conviene sumar filtros por estado/método y luego cierre diario formal.',
       action: () => router.push('/collections/reports/pagos'),
       actionLabel: 'Abrir reporte',
     },
@@ -205,16 +211,58 @@ export default function CollectionReportsPage() {
       title: 'Clientes y seguimiento',
       description: 'Inspirado en repcli / repclit / repclivz y la bitácora de contactos.',
       icon: Users,
+      stage: 'MVP demo',
       reports: [
         'Clientes activos / morosos / inactivos',
         'Historial de contacto de cobranza',
         'Promesas cumplidas vs incumplidas',
         'Casos escalados',
       ],
+      nextStep: 'Falta cruzar mora, score interno y efectividad histórica por cliente.',
       action: () => router.push('/collections/reports/clientes'),
       actionLabel: 'Abrir reporte',
     },
   ], [router]);
+
+  const reportRoadmap = useMemo(() => ([
+    {
+      bucket: 'MVP demo · Abril 24',
+      tone: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+      items: [
+        'Cartera y cobros',
+        'Vencimientos',
+        'Estado de cuenta',
+        'Cuotas',
+        'Pagos e ingresos',
+        'Caja y banco',
+        'Clientes y seguimiento',
+        'Promesas de pago',
+        'Productividad de cobranza',
+      ],
+    },
+    {
+      bucket: 'Post-MVP inmediato',
+      tone: 'border-amber-200 bg-amber-50 text-amber-800',
+      items: [
+        'Filtros por fecha y por cobrador en todos los reportes',
+        'Exportación CSV / PDF / impresión limpia',
+        'Cierre diario formal por cajero y por canal',
+        'Comparativas semanales / mensuales',
+        'Top clientes con reincidencia de promesas rotas',
+      ],
+    },
+    {
+      bucket: 'Backlog estratégico',
+      tone: 'border-slate-200 bg-slate-50 text-slate-700',
+      items: [
+        'Score operativo de cobranza por cliente',
+        'Scoreboard histórico por cobrador',
+        'Tendencias por sucursal / zona / producto',
+        'Modelos predictivos de mora y riesgo',
+        'Auditoría avanzada de caja, banco y conciliación',
+      ],
+    },
+  ]), []);
 
   if (authLoading || isLoading) {
     return (
@@ -345,6 +393,9 @@ export default function CollectionReportsPage() {
                           <p className="text-sm text-slate-500">{family.description}</p>
                         </div>
                       </div>
+                      <div className="mb-3 inline-flex rounded-full border border-[#d7e2db] bg-[#f6f8f7] px-2.5 py-1 text-xs font-medium text-[#486152]">
+                        {family.stage}
+                      </div>
                       <ul className="space-y-2 text-sm text-slate-700">
                         {family.reports.map((item) => (
                           <li key={item} className="flex items-start gap-2">
@@ -353,6 +404,9 @@ export default function CollectionReportsPage() {
                           </li>
                         ))}
                       </ul>
+                      <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                        <strong className="text-slate-900">Siguiente paso:</strong> {family.nextStep}
+                      </p>
                       <div className="mt-4">
                         <Button variant="outline" className="bg-white" onClick={family.action}>
                           {family.actionLabel}
@@ -424,21 +478,23 @@ export default function CollectionReportsPage() {
 
             <Card className="border-[#d7e2db] shadow-none">
               <CardHeader>
-                <CardTitle className="text-base text-[#163300]">Prioridad sugerida</CardTitle>
+                <CardTitle className="text-base text-[#163300]">Mapa maestro MVP vs post-MVP</CardTitle>
+                <CardDescription>Traducción práctica de Seane al roadmap real de CrediFlux.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-slate-700">
-                <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
-                  <Siren className="mt-0.5 h-4 w-4 text-red-600" />
-                  <p><strong>Alta:</strong> cartera en atraso, vencimientos, estado de cuenta, pagos e ingresos.</p>
-                </div>
-                <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <CalendarClock className="mt-0.5 h-4 w-4 text-amber-600" />
-                  <p><strong>Media:</strong> promesas de pago, productividad de cobradores, clientes contactados vs no localizados.</p>
-                </div>
-                <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <ShieldAlert className="mt-0.5 h-4 w-4 text-slate-600" />
-                  <p><strong>Post-MVP:</strong> cierres avanzados, comparativas históricas, scoreboards operativos más complejos.</p>
-                </div>
+                {reportRoadmap.map((group) => (
+                  <div key={group.bucket} className={`rounded-2xl border p-4 ${group.tone}`}>
+                    <p className="font-semibold">{group.bucket}</p>
+                    <ul className="mt-3 space-y-2">
+                      {group.items.map((item) => (
+                        <li key={item} className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </CardContent>
             </Card>
 

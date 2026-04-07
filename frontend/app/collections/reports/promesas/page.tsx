@@ -8,7 +8,7 @@ import { collectionsAPI } from '@/lib/api/loans';
 import { CollectionContact, PaginatedResponse } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Loader2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Loader2, Search, TriangleAlert } from 'lucide-react';
 
 export default function PromesasReportPage() {
   const router = useRouter();
@@ -18,6 +18,8 @@ export default function PromesasReportPage() {
   const [contacts, setContacts] = useState<CollectionContact[]>([]);
   const [promisesToday, setPromisesToday] = useState<CollectionContact[]>([]);
   const [brokenPromises, setBrokenPromises] = useState<CollectionContact[]>([]);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'kept' | 'broken'>('all');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login');
@@ -69,14 +71,26 @@ export default function PromesasReportPage() {
   }, [contacts]);
 
   const visibleRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
     return [...promiseStats.promiseContacts]
+      .filter((item) => {
+        if (statusFilter === 'kept') return item.promise_kept === true;
+        if (statusFilter === 'broken') return item.promise_kept === false;
+        if (statusFilter === 'pending') return item.promise_kept !== true && item.promise_kept !== false;
+        return true;
+      })
+      .filter((item) => {
+        if (!term) return true;
+        return item.customer_name.toLowerCase().includes(term) || item.loan_number.toLowerCase().includes(term);
+      })
       .sort((a, b) => {
         const aDate = a.promise_date ? new Date(a.promise_date).getTime() : 0;
         const bDate = b.promise_date ? new Date(b.promise_date).getTime() : 0;
         return bDate - aDate;
       })
       .slice(0, 20);
-  }, [promiseStats.promiseContacts]);
+  }, [promiseStats.promiseContacts, search, statusFilter]);
 
   if (authLoading || isLoading) {
     return <div className="flex min-h-screen items-center justify-center bg-[#f6f8f7]"><Loader2 className="h-8 w-8 animate-spin text-[#163300]" /></div>;
@@ -111,7 +125,36 @@ export default function PromesasReportPage() {
               <CardTitle className="text-base text-[#163300]">Promesas registradas</CardTitle>
               <CardDescription>Ordenadas por fecha prometida más reciente.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Buscar por cliente o préstamo..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-[#163300]"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'all', label: 'Todas' },
+                    { value: 'pending', label: 'Pendientes' },
+                    { value: 'kept', label: 'Cumplidas' },
+                    { value: 'broken', label: 'Incumplidas' },
+                  ].map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={statusFilter === option.value ? 'default' : 'outline'}
+                      className={statusFilter === option.value ? 'bg-[#163300] hover:bg-[#0f2400]' : 'bg-white'}
+                      onClick={() => setStatusFilter(option.value as typeof statusFilter)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               {visibleRows.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Todavía no hay promesas visibles.</div>
               ) : visibleRows.map((item) => {
@@ -129,6 +172,7 @@ export default function PromesasReportPage() {
                         <p className="text-sm text-slate-500">{item.loan_number} · {item.outcome_display}</p>
                         <p className="mt-2 text-sm text-slate-600">Fecha prometida: <strong className="text-slate-900">{item.promise_date ? new Date(item.promise_date).toLocaleDateString('es-DO') : 'Sin fecha'}</strong></p>
                         <p className="mt-1 text-sm text-slate-600">Monto prometido: <strong className="text-slate-900">{formatCurrency(item.promise_amount)}</strong></p>
+                        {item.next_contact_date ? <p className="mt-1 text-sm text-slate-600">Próximo seguimiento: <strong className="text-slate-900">{new Date(item.next_contact_date).toLocaleDateString('es-DO')}</strong></p> : null}
                       </div>
                       <div className={`rounded-full border px-3 py-1 text-xs font-medium ${tone}`}>
                         {item.promise_kept === true ? 'Cumplida' : item.promise_kept === false ? 'Incumplida' : 'Pendiente'}
@@ -179,7 +223,7 @@ export default function PromesasReportPage() {
         <div className="grid gap-4 xl:grid-cols-3">
           <Card className="border-[#d7e2db] shadow-none"><CardContent className="p-4 text-sm text-slate-700"><div className="mb-2 flex items-center gap-2 font-medium text-slate-900"><CalendarClock className="h-4 w-4 text-[#163300]" />Uso real</div>Este reporte le dice al cobrador qué compromisos debe perseguir hoy, no mañana.</CardContent></Card>
           <Card className="border-[#d7e2db] shadow-none"><CardContent className="p-4 text-sm text-slate-700"><div className="mb-2 flex items-center gap-2 font-medium text-slate-900"><CheckCircle2 className="h-4 w-4 text-[#163300]" />Métrica clave</div>La relación cumplidas vs incumplidas te da una lectura brutal de calidad de cartera y calidad de gestión.</CardContent></Card>
-          <Card className="border-[#d7e2db] shadow-none"><CardContent className="p-4 text-sm text-slate-700"><div className="mb-2 flex items-center gap-2 font-medium text-slate-900"><TriangleAlert className="h-4 w-4 text-[#163300]" />Siguiente salida</div><Button variant="outline" className="mt-2 w-full justify-between bg-white" onClick={() => router.push('/collections/reports/productividad')}>Abrir productividad <ArrowRight className="h-4 w-4" /></Button></CardContent></Card>
+          <Card className="border-[#d7e2db] shadow-none"><CardContent className="p-4 text-sm text-slate-700"><div className="mb-2 flex items-center gap-2 font-medium text-slate-900"><TriangleAlert className="h-4 w-4 text-[#163300]" />Siguiente mejora MVP</div>Ya filtra por estado y búsqueda; el siguiente salto post-demo es corte por rango de fechas y exportación formal por cobrador.</CardContent></Card>
         </div>
       </div>
     </div>

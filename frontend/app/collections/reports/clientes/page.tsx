@@ -17,6 +17,7 @@ export default function ClientesReportPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'blacklisted'>('all');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [contacts, setContacts] = useState<CollectionContact[]>([]);
   const [escalated, setEscalated] = useState<CollectionContact[]>([]);
@@ -55,13 +56,15 @@ export default function ClientesReportPage() {
 
   const filteredCustomers = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return customers;
-    return customers.filter((customer) =>
-      customer.full_name.toLowerCase().includes(term) ||
-      customer.customer_id.toLowerCase().includes(term) ||
-      customer.id_number.toLowerCase().includes(term)
-    );
-  }, [customers, search]);
+    return customers.filter((customer) => {
+      const matchesTerm = !term ||
+        customer.full_name.toLowerCase().includes(term) ||
+        customer.customer_id.toLowerCase().includes(term) ||
+        customer.id_number.toLowerCase().includes(term);
+      const matchesStatus = statusFilter === 'all' ? true : customer.status === statusFilter;
+      return matchesTerm && matchesStatus;
+    });
+  }, [customers, search, statusFilter]);
 
   const customerRows = useMemo(() => {
     return filteredCustomers
@@ -138,9 +141,27 @@ export default function ClientesReportPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar cliente o cédula..."
+                placeholder="Buscar por nombre o cédula..."
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-[#163300]"
               />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                { value: 'all', label: 'Todos' },
+                { value: 'active', label: 'Activos' },
+                { value: 'inactive', label: 'Inactivos' },
+                { value: 'blacklisted', label: 'Lista negra' },
+              ].map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={statusFilter === option.value ? 'default' : 'outline'}
+                  className={statusFilter === option.value ? 'bg-[#163300] hover:bg-[#0f2400]' : 'bg-white'}
+                  onClick={() => setStatusFilter(option.value as typeof statusFilter)}
+                >
+                  {option.label}
+                </Button>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -188,7 +209,7 @@ export default function ClientesReportPage() {
 
         <div className="grid gap-4 xl:grid-cols-3">
           <Card className="border-[#d7e2db] shadow-none"><CardContent className="p-4 text-sm text-slate-700"><div className="mb-2 flex items-center gap-2 font-medium text-slate-900"><Wallet className="h-4 w-4 text-[#163300]" />Lectura útil</div>Esta vista sirve para saber a quién mirar primero cuando combinas cartera, historial y señales de escalación.</CardContent></Card>
-          <Card className="border-[#d7e2db] shadow-none"><CardContent className="p-4 text-sm text-slate-700"><div className="mb-2 flex items-center gap-2 font-medium text-slate-900"><ShieldAlert className="h-4 w-4 text-[#163300]" />Post-MVP obvio</div>Más adelante conviene cruzar clientes con antigüedad de mora, score interno y tasa de promesas incumplidas.</CardContent></Card>
+          <Card className="border-[#d7e2db] shadow-none"><CardContent className="p-4 text-sm text-slate-700"><div className="mb-2 flex items-center gap-2 font-medium text-slate-900"><ShieldAlert className="h-4 w-4 text-[#163300]" />Refinamiento MVP</div>Ya se puede cortar por estatus visible del cliente; el siguiente salto es mezclar mora, score interno y reincidencia de promesas rotas.</CardContent></Card>
           <Card className="border-[#d7e2db] shadow-none"><CardContent className="p-4 text-sm text-slate-700"><div className="mb-2 flex items-center gap-2 font-medium text-slate-900"><ArrowRight className="h-4 w-4 text-[#163300]" />Siguiente salida</div><Button variant="outline" className="mt-2 w-full justify-between bg-white" onClick={() => router.push('/collections/reports/promesas')}>Abrir promesas <ArrowRight className="h-4 w-4" /></Button></CardContent></Card>
         </div>
       </div>

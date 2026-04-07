@@ -8,7 +8,7 @@ import { paymentsAPI } from '@/lib/api/loans';
 import { LoanPayment, PaginatedResponse } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, CreditCard, Download, Landmark, Loader2, ReceiptText, Wallet } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CreditCard, Download, Landmark, Loader2, ReceiptText, Search, Wallet } from 'lucide-react';
 
 export default function PagosReportPage() {
   const router = useRouter();
@@ -16,6 +16,8 @@ export default function PagosReportPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [latestPayments, setLatestPayments] = useState<LoanPayment[]>([]);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending' | 'reversed' | 'failed'>('all');
+  const [paymentSearch, setPaymentSearch] = useState('');
   const [completedCount, setCompletedCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [reversedCount, setReversedCount] = useState(0);
@@ -75,19 +77,29 @@ export default function PagosReportPage() {
   };
 
   const metrics = useMemo(() => {
-    const visibleCollected = latestPayments.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const visiblePrincipal = latestPayments.reduce((sum, item) => sum + Number(item.principal_paid || 0), 0);
-    const visibleInterest = latestPayments.reduce((sum, item) => sum + Number(item.interest_paid || 0), 0);
-    const visibleLateFees = latestPayments.reduce((sum, item) => sum + Number(item.late_fee_paid || 0), 0);
+    const filteredPayments = latestPayments.filter((item) => {
+      const matchesStatus = statusFilter === 'all' ? true : item.status === statusFilter;
+      const term = paymentSearch.trim().toLowerCase();
+      const matchesSearch = !term
+        ? true
+        : item.customer_name.toLowerCase().includes(term) || item.loan_number.toLowerCase().includes(term) || item.payment_number.toLowerCase().includes(term);
+      return matchesStatus && matchesSearch;
+    });
+
+    const visibleCollected = filteredPayments.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const visiblePrincipal = filteredPayments.reduce((sum, item) => sum + Number(item.principal_paid || 0), 0);
+    const visibleInterest = filteredPayments.reduce((sum, item) => sum + Number(item.interest_paid || 0), 0);
+    const visibleLateFees = filteredPayments.reduce((sum, item) => sum + Number(item.late_fee_paid || 0), 0);
 
     return {
+      filteredPayments,
       visibleCollected,
       visiblePrincipal,
       visibleInterest,
       visibleLateFees,
-      topPayments: [...latestPayments].sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0)).slice(0, 8),
+      topPayments: [...filteredPayments].sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0)).slice(0, 8),
     };
-  }, [latestPayments]);
+  }, [latestPayments, paymentSearch, statusFilter]);
 
   const methodRows = [
     { label: 'Efectivo', count: cashCount },
@@ -156,7 +168,37 @@ export default function PagosReportPage() {
               <CardTitle className="text-base text-[#163300]">Pagos recientes con mayor impacto</CardTitle>
               <CardDescription>Lectura operativa de ingresos recientes. Transparente: se basa en los últimos registros disponibles.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={paymentSearch}
+                    onChange={(e) => setPaymentSearch(e.target.value)}
+                    placeholder="Buscar por cliente, préstamo o recibo..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-[#163300]"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'all', label: 'Todos' },
+                    { value: 'completed', label: 'Completados' },
+                    { value: 'pending', label: 'Pendientes' },
+                    { value: 'reversed', label: 'Revertidos' },
+                    { value: 'failed', label: 'Fallidos' },
+                  ].map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={statusFilter === option.value ? 'default' : 'outline'}
+                      className={statusFilter === option.value ? 'bg-[#163300] hover:bg-[#0f2400]' : 'bg-white'}
+                      onClick={() => setStatusFilter(option.value as typeof statusFilter)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               {metrics.topPayments.map((payment) => (
                 <div key={payment.id} className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -196,6 +238,7 @@ export default function PagosReportPage() {
                 <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><Wallet className="mt-0.5 h-4 w-4 text-[#163300]" /><p><strong>Ingresos:</strong> mide el dinero que ya entró en pagos recientes.</p></div>
                 <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><ReceiptText className="mt-0.5 h-4 w-4 text-emerald-600" /><p><strong>Aplicación:</strong> deja claro cuánto redujo capital, cuánto fue interés y cuánto cubrió mora.</p></div>
                 <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><Landmark className="mt-0.5 h-4 w-4 text-amber-600" /><p><strong>Métodos:</strong> ayuda a separar lo que parece más caja vs más banca.</p></div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><strong className="text-slate-900">Refinamiento MVP:</strong> ya puedes filtrar visualmente por estado y buscar pagos clave sin salir del reporte.</div>
                 <Button variant="outline" className="w-full justify-between bg-white" onClick={() => router.push('/collections/reports/caja-banco')}>Abrir caja y banco <ArrowRight className="h-4 w-4" /></Button>
               </CardContent>
             </Card>

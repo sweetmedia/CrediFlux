@@ -8,7 +8,7 @@ import { collectionsAPI } from '@/lib/api/loans';
 import { CollectionContact, CollectionReminder, PaginatedResponse } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Bell, Loader2, PhoneCall, ShieldAlert, Target } from 'lucide-react';
+import { ArrowLeft, Bell, Loader2, PhoneCall, Search, ShieldAlert, Target } from 'lucide-react';
 
 export default function ProductividadReportPage() {
   const router = useRouter();
@@ -18,6 +18,7 @@ export default function ProductividadReportPage() {
   const [contacts, setContacts] = useState<CollectionContact[]>([]);
   const [collectorContacts, setCollectorContacts] = useState<CollectionContact[]>([]);
   const [reminders, setReminders] = useState<CollectionReminder[]>([]);
+  const [collectorSearch, setCollectorSearch] = useState('');
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login');
@@ -49,7 +50,7 @@ export default function ProductividadReportPage() {
   };
 
   const grouped = useMemo(() => {
-    const map = new Map<string, { name: string; total: number; promises: number; escalations: number; answered: number }>();
+    const map = new Map<string, { name: string; total: number; promises: number; escalations: number; answered: number; effectiveness: number }>();
 
     collectorContacts.forEach((contact) => {
       const key = contact.contacted_by || 'unknown';
@@ -59,6 +60,7 @@ export default function ProductividadReportPage() {
         promises: 0,
         escalations: 0,
         answered: 0,
+        effectiveness: 0,
       };
 
       current.total += 1;
@@ -68,8 +70,14 @@ export default function ProductividadReportPage() {
       map.set(key, current);
     });
 
-    return [...map.values()].sort((a, b) => b.total - a.total);
-  }, [collectorContacts]);
+    return [...map.values()]
+      .map((collector) => ({
+        ...collector,
+        effectiveness: collector.total > 0 ? Math.round(((collector.promises + collector.answered) / collector.total) * 100) : 0,
+      }))
+      .filter((collector) => collector.name.toLowerCase().includes(collectorSearch.trim().toLowerCase()))
+      .sort((a, b) => b.total - a.total);
+  }, [collectorContacts, collectorSearch]);
 
   const reminderStats = useMemo(() => {
     return {
@@ -121,7 +129,16 @@ export default function ProductividadReportPage() {
               <CardTitle className="text-base text-[#163300]">Actividad por cobrador</CardTitle>
               <CardDescription>Si el endpoint agrupa global, aquí te deja una base inmediata para comparar trabajo visible por persona.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={collectorSearch}
+                  onChange={(e) => setCollectorSearch(e.target.value)}
+                  placeholder="Buscar cobrador..."
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-[#163300]"
+                />
+              </div>
               {grouped.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Todavía no hay datos suficientes por cobrador.</div>
               ) : grouped.map((collector) => (
@@ -131,10 +148,11 @@ export default function ProductividadReportPage() {
                       <p className="font-medium text-slate-900">{collector.name}</p>
                       <p className="mt-1 text-sm text-slate-500">Contactos visibles: {collector.total}</p>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[340px]">
+                    <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[420px] lg:grid-cols-4">
                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">Promesas: <strong>{collector.promises}</strong></div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">Respondió: <strong>{collector.answered}</strong></div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">Escaló: <strong>{collector.escalations}</strong></div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">Efectividad: <strong>{collector.effectiveness}%</strong></div>
                     </div>
                   </div>
                 </div>
@@ -159,7 +177,7 @@ export default function ProductividadReportPage() {
               <CardHeader><CardTitle className="text-base text-[#163300]">Cómo usar esta vista</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm text-slate-700">
                 <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><PhoneCall className="mt-0.5 h-4 w-4 text-[#163300]" /><p>Sirve para ver quién realmente está moviendo gestión, no solo quién tiene casos asignados.</p></div>
-                <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><Target className="mt-0.5 h-4 w-4 text-[#163300]" /><p>Promesas y respuestas son mejores señales que el volumen bruto.</p></div>
+                <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><Target className="mt-0.5 h-4 w-4 text-[#163300]" /><p>Promesas y respuestas son mejores señales que el volumen bruto. Por eso agregué una lectura simple de efectividad.</p></div>
                 <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><ShieldAlert className="mt-0.5 h-4 w-4 text-[#163300]" /><p>Si alguien genera muchas escalaciones y pocas promesas, hay fricción operativa o calidad débil de cartera.</p></div>
                 <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><Bell className="mt-0.5 h-4 w-4 text-[#163300]" /><p>Recordatorios pendientes altos con poca actividad humana = cola acumulándose.</p></div>
               </CardContent>
