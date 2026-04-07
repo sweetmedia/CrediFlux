@@ -198,8 +198,8 @@ export default function CollectionReportsPage() {
         'Movimientos por banco o método',
         'Cobros por cobrador / cajero',
       ],
-      action: () => router.push('/payments'),
-      actionLabel: 'Ver pagos',
+      action: () => router.push('/collections/reports/pagos'),
+      actionLabel: 'Abrir reporte',
     },
     {
       title: 'Clientes y seguimiento',
@@ -461,6 +461,14 @@ export default function CollectionReportsPage() {
                 </Button>
                 <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/cuotas')}>
                   Abrir cuotas
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/pagos')}>
+                  Abrir pagos e ingresos
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/caja-banco')}>
+                  Abrir caja y banco
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>
