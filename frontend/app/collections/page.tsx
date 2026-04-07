@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { schedulesAPI, collectionsAPI } from '@/lib/api/loans';
@@ -14,24 +13,26 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Loader2,
   AlertCircle,
   TrendingUp,
-  DollarSign,
-  Calendar,
   Bell,
   Users,
   Phone,
   Mail,
   MessageSquare,
-  MessageCircle,
   Clock,
   Target,
   CheckCircle,
   XCircle,
+  Landmark,
+  ArrowRight,
+  ShieldAlert,
+  CalendarClock,
+  Siren,
+  Wallet,
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -95,13 +96,10 @@ export default function CollectionsDashboardPage() {
       ]);
 
       const totalOverdue = overdueResponse.reduce((sum, s) => sum + (Number(s.balance) || 0), 0);
-      const totalLateFees = overdueResponse.reduce(
-        (sum, s) => {
-          const lateFeeDue = (Number(s.late_fee_amount) || 0) - (Number(s.late_fee_paid) || 0);
-          return sum + lateFeeDue;
-        },
-        0
-      );
+      const totalLateFees = overdueResponse.reduce((sum, s) => {
+        const lateFeeDue = (Number(s.late_fee_amount) || 0) - (Number(s.late_fee_paid) || 0);
+        return sum + Math.max(lateFeeDue, 0);
+      }, 0);
 
       setStats({
         overdueSchedules: overdueResponse.length,
@@ -113,10 +111,10 @@ export default function CollectionsDashboardPage() {
         escalationRequired: escalationResponse.length,
       });
 
-      setRecentContacts(recentContactsResponse.slice(0, 5));
+      setRecentContacts((recentContactsResponse || []).slice(0, 6));
     } catch (err: any) {
       console.error('Error loading dashboard data:', err);
-      setError('Error al cargar datos del dashboard');
+      setError('Error al cargar datos del dashboard de cobranza');
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +123,7 @@ export default function CollectionsDashboardPage() {
   const formatCurrency = (amount: number) => {
     return `${config.currency_symbol}${amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     })}`;
   };
 
@@ -139,264 +137,361 @@ export default function CollectionsDashboardPage() {
     });
   };
 
+  const urgentActions = useMemo(() => {
+    return [
+      {
+        id: 'escalation',
+        title: 'Casos para escalar',
+        subtitle: `${stats.escalationRequired} caso(s) requieren supervisor`,
+        count: stats.escalationRequired,
+        icon: ShieldAlert,
+        tone: 'red',
+        action: () => router.push('/collections/contacts'),
+      },
+      {
+        id: 'broken-promises',
+        title: 'Promesas incumplidas',
+        subtitle: `${stats.brokenPromises} compromiso(s) no cumplido(s)`,
+        count: stats.brokenPromises,
+        icon: XCircle,
+        tone: 'orange',
+        action: () => router.push('/collections/contacts'),
+      },
+      {
+        id: 'today-promises',
+        title: 'Promesas para hoy',
+        subtitle: `${stats.promisesToday} compromiso(s) con vencimiento hoy`,
+        count: stats.promisesToday,
+        icon: CalendarClock,
+        tone: 'green',
+        action: () => router.push('/collections/contacts'),
+      },
+      {
+        id: 'reminders',
+        title: 'Recordatorios pendientes',
+        subtitle: `${stats.pendingReminders} pendiente(s) por enviar`,
+        count: stats.pendingReminders,
+        icon: Bell,
+        tone: 'slate',
+        action: () => router.push('/collections/reminders'),
+      },
+    ].filter((item) => item.count > 0);
+  }, [stats, router]);
+
   if (authLoading || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f8f7]">
         <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
+    <div className="min-h-screen bg-[#f6f8f7] p-4 py-8 md:p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Dashboard de Cobranza</h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Resumen de actividades y métricas de cobranza
+            <div className="mb-3 flex items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#d7e2db] bg-white px-3 py-1 text-xs font-medium text-[#486152]">
+                <Landmark className="h-3.5 w-3.5" />
+                Torre de control de cobranza
+              </div>
+            </div>
+            <h1 className="text-3xl font-semibold tracking-tight text-[#163300]">Collections</h1>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600">
+              Vista operativa para priorizar morosidad, promesas de pago, recordatorios y casos que necesitan intervención.
             </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="bg-white" onClick={() => router.push('/collections/contacts')}>
+              <Phone className="mr-2 h-4 w-4" />
+              Registrar contacto
+            </Button>
+            <Button variant="outline" className="bg-white" onClick={() => router.push('/collections/reminders')}>
+              <Bell className="mr-2 h-4 w-4" />
+              Recordatorios
+            </Button>
+            <Button className="bg-[#163300] hover:bg-[#0f2400]" onClick={() => router.push('/schedules/overdue')}>
+              <Siren className="mr-2 h-4 w-4" />
+              Ver vencidos
+            </Button>
+          </div>
+        </div>
+
+        <Card className="overflow-hidden border-[#d7e2db] shadow-none">
+          <CardContent className="p-0">
+            <div className="border-b border-[#d7e2db] bg-gradient-to-r from-[#163300] via-[#244508] to-[#325c10] px-6 py-6 text-white">
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <p className="text-sm text-white/70">Exposición total en seguimiento</p>
+                  <h2 className="mt-1 text-3xl font-semibold">{formatCurrency(stats.totalOverdue)}</h2>
+                  <p className="mt-3 max-w-2xl text-sm text-white/80">
+                    Aquí deberías ver rápido dónde está el riesgo, qué cobranzas se pueden cerrar hoy y qué casos requieren gestión más dura.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px] xl:grid-cols-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Cuotas vencidas</p>
+                    <p className="mt-2 text-2xl font-semibold">{stats.overdueSchedules}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Mora acumulada</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatCurrency(stats.totalLateFees)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Promesas hoy</p>
+                    <p className="mt-2 text-2xl font-semibold">{stats.promisesToday}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Escalación</p>
+                    <p className="mt-2 text-2xl font-semibold">{stats.escalationRequired}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 bg-white px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Pendiente de recuperar</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{formatCurrency(stats.totalOverdue)}</p>
+              </div>
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Carga de recordatorios</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{stats.pendingReminders} pendientes</p>
+              </div>
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Promesas rotas</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{stats.brokenPromises} caso(s)</p>
+              </div>
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Actividad del cobrador</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{recentContacts.length} contacto(s) recientes</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-6">
+            <Card className="border-[#d7e2db] shadow-none">
+              <CardHeader>
+                <CardTitle className="text-base text-[#163300]">Prioridades del día</CardTitle>
+                <CardDescription>
+                  Casos que conviene atacar primero antes de pasar a gestión rutinaria.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {urgentActions.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                    <CheckCircle className="mb-3 h-10 w-10 text-emerald-500" />
+                    <p className="font-medium text-slate-900">Sin alertas críticas por ahora</p>
+                    <p className="mt-1 text-sm text-slate-600">La operación está estable. Puedes enfocarte en seguimiento normal y preventivo.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {urgentActions.map((item) => {
+                      const Icon = item.icon;
+                      const toneClasses: Record<string, string> = {
+                        red: 'border-red-200 bg-red-50 text-red-700',
+                        orange: 'border-orange-200 bg-orange-50 text-orange-700',
+                        green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                        slate: 'border-slate-200 bg-slate-50 text-slate-700',
+                      };
+
+                      return (
+                        <div key={item.id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="flex min-w-0 items-start gap-3">
+                            <div className={`rounded-xl border p-2.5 ${toneClasses[item.tone]}`}>
+                              <Icon className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">{item.title}</p>
+                              <p className="mt-1 text-sm text-slate-600">{item.subtitle}</p>
+                            </div>
+                          </div>
+                          <Button variant="outline" size="sm" className="bg-white" onClick={item.action}>
+                            Ver
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-[#d7e2db] shadow-none">
+              <CardHeader>
+                <CardTitle className="text-base text-[#163300]">Acciones rápidas</CardTitle>
+                <CardDescription>Atajos útiles para el equipo de cobranza.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Button variant="outline" className="justify-start bg-white" onClick={() => router.push('/schedules/overdue')}>
+                    <AlertCircle className="mr-2 h-4 w-4" />
+                    Ver pagos vencidos
+                  </Button>
+                  <Button variant="outline" className="justify-start bg-white" onClick={() => router.push('/payments/new')}>
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Registrar pago
+                  </Button>
+                  <Button variant="outline" className="justify-start bg-white" onClick={() => router.push('/collections/contacts/new')}>
+                    <Phone className="mr-2 h-4 w-4" />
+                    Registrar contacto
+                  </Button>
+                  <Button variant="outline" className="justify-start bg-white" onClick={() => router.push('/collections/reminders')}>
+                    <Bell className="mr-2 h-4 w-4" />
+                    Gestionar recordatorios
+                  </Button>
+                  <Button variant="outline" className="justify-start bg-white sm:col-span-2" onClick={() => router.push('/collections/reports')}>
+                    <Target className="mr-2 h-4 w-4" />
+                    Ver reportes de cobranza
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="border-[#d7e2db] shadow-none">
+              <CardHeader>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle className="text-base text-[#163300]">Actividad reciente</CardTitle>
+                    <CardDescription>
+                      Últimos contactos de cobranza registrados por el equipo.
+                    </CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" className="bg-white" onClick={() => router.push('/collections/contacts')}>
+                    Ver todos
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {recentContacts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+                    <Users className="mb-3 h-10 w-10 text-slate-400" />
+                    <p className="font-medium text-slate-900">No hay actividad reciente</p>
+                    <p className="mt-1 text-sm text-slate-600">Todavía no se han registrado contactos de cobranza.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px]">
+                      <thead className="bg-slate-50/70">
+                        <tr className="border-b border-slate-200">
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Cliente</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Canal</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Resultado</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Fecha</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentContacts.map((contact) => {
+                          const isPhone = contact.contact_type === 'phone_call';
+                          const isEmail = contact.contact_type === 'email';
+                          const isWhatsapp = contact.contact_type === 'whatsapp';
+
+                          return (
+                            <tr key={contact.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50">
+                              <td className="px-4 py-4 align-top">
+                                <p className="font-medium text-slate-900">{contact.customer_name}</p>
+                              </td>
+                              <td className="px-4 py-4 align-top">
+                                <div className="flex items-center gap-2 text-sm text-slate-900">
+                                  {isPhone && <Phone className="h-4 w-4 text-[#163300]" />}
+                                  {isEmail && <Mail className="h-4 w-4 text-[#738566]" />}
+                                  {isWhatsapp && <MessageSquare className="h-4 w-4 text-green-600" />}
+                                  <span>{contact.contact_type_display}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 align-top">
+                                <p className="text-sm text-slate-600">{contact.outcome_display}</p>
+                              </td>
+                              <td className="px-4 py-4 align-top">
+                                <p className="text-sm text-slate-600">{formatDateTime(contact.contact_date)}</p>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card className="border-[#d7e2db] shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-[#163300]">
+                    <TrendingUp className="h-5 w-5" />
+                    Lectura del riesgo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <span className="text-sm text-slate-600">Mora acumulada</span>
+                      <span className="font-medium text-slate-900">{formatCurrency(stats.totalLateFees)}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <span className="text-sm text-slate-600">Compromisos hoy</span>
+                      <span className="font-medium text-slate-900">{stats.promisesToday}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <span className="text-sm text-slate-600">Promesas rotas</span>
+                      <span className="font-medium text-orange-600">{stats.brokenPromises}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <span className="text-sm text-slate-600">Escalación requerida</span>
+                      <span className="font-semibold text-red-600">{stats.escalationRequired}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-[#d7e2db] shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-[#163300]">
+                    <Clock className="h-5 w-5" />
+                    Guía operativa
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 text-sm text-slate-700">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="mt-0.5 h-4 w-4 text-red-500" />
+                      <p>Ataca primero casos con escalación o promesas incumplidas.</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Bell className="mt-0.5 h-4 w-4 text-slate-500" />
+                      <p>No dejes recordatorios pendientes si el contacto puede salir hoy.</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Phone className="mt-0.5 h-4 w-4 text-slate-500" />
+                      <p>Registra cada interacción para no perder contexto del cliente.</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Target className="mt-0.5 h-4 w-4 text-slate-500" />
+                      <p>Usa esta vista para decidir prioridades, no solo para ver números.</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-6 mb-8">
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-red-100 flex items-center justify-center">
-                <AlertCircle className="h-6 w-6 text-red-600" />
-              </div>
-            </div>
-            <p className="text-sm text-slate-600 mb-1">Pagos Vencidos</p>
-            <p className="text-2xl font-bold text-slate-900">{stats.overdueSchedules}</p>
-            <p className="text-xs text-slate-500 mt-2">{formatCurrency(stats.totalOverdue)} vencido</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-orange-100 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-orange-600" />
-              </div>
-            </div>
-            <p className="text-sm text-slate-600 mb-1">Mora Acumulada</p>
-            <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats.totalLateFees)}</p>
-            <p className="text-xs text-slate-500 mt-2">Cargos por atraso</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-[#163300]/10 flex items-center justify-center">
-                <Bell className="h-6 w-6 text-[#163300]" />
-              </div>
-            </div>
-            <p className="text-sm text-slate-600 mb-1">Recordatorios</p>
-            <p className="text-2xl font-bold text-slate-900">{stats.pendingReminders}</p>
-            <p className="text-xs text-slate-500 mt-2">Pendientes por enviar</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-green-100 flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-            <p className="text-sm text-slate-600 mb-1">Promesas Hoy</p>
-            <p className="text-2xl font-bold text-slate-900">{stats.promisesToday}</p>
-            <p className="text-xs text-slate-500 mt-2">Compromisos de pago</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Action Items & Quick Actions */}
-      <div className="grid gap-6 md:grid-cols-2 mb-8">
-        {/* Urgent Actions */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold text-slate-900">Acciones Urgentes</CardTitle>
-            <CardDescription>Requieren atención inmediata</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {stats.escalationRequired > 0 && (
-              <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="h-5 w-5 text-red-600" />
-                  <div>
-                    <p className="font-medium text-sm text-slate-900">Escalamiento Requerido</p>
-                    <p className="text-xs text-slate-600">
-                      {stats.escalationRequired} caso(s) necesitan supervisor
-                    </p>
-                  </div>
-                </div>
-                <Button size="sm" variant="outline">Ver</Button>
-              </div>
-            )}
-
-            {stats.brokenPromises > 0 && (
-              <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
-                <div className="flex items-center gap-3">
-                  <XCircle className="h-5 w-5 text-orange-600" />
-                  <div>
-                    <p className="font-medium text-sm text-slate-900">Promesas Incumplidas</p>
-                    <p className="text-xs text-slate-600">
-                      {stats.brokenPromises} promesa(s) no cumplida(s)
-                    </p>
-                  </div>
-                </div>
-                <Button size="sm" variant="outline">Ver</Button>
-              </div>
-            )}
-
-            {stats.overdueSchedules > 10 && (
-              <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-yellow-600" />
-                  <div>
-                    <p className="font-medium text-sm text-slate-900">Alto Volumen Vencido</p>
-                    <p className="text-xs text-slate-600">
-                      {stats.overdueSchedules} pagos requieren seguimiento
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => router.push('/schedules/overdue')}
-                >
-                  Ver
-                </Button>
-              </div>
-            )}
-
-            {stats.escalationRequired === 0 && stats.brokenPromises === 0 && stats.overdueSchedules <= 10 && (
-              <div className="flex items-center justify-center py-8 text-center">
-                <div>
-                  <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
-                  <p className="text-sm text-slate-600">No hay acciones urgentes</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold text-slate-900">Acciones Rápidas</CardTitle>
-            <CardDescription>Acceso directo a funciones comunes</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => router.push('/schedules/overdue')}
-            >
-              <AlertCircle className="h-4 w-4 mr-2" />
-              Ver Pagos Vencidos
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => router.push('/payments/new')}
-            >
-              <DollarSign className="h-4 w-4 mr-2" />
-              Registrar Pago
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => router.push('/collections/contacts/new')}
-            >
-              <Phone className="h-4 w-4 mr-2" />
-              Registrar Contacto
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => router.push('/collections/reminders')}
-            >
-              <Bell className="h-4 w-4 mr-2" />
-              Gestionar Recordatorios
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => router.push('/collections/reports')}
-            >
-              <Target className="h-4 w-4 mr-2" />
-              Ver Reportes
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity Table */}
-      <Card className="border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg font-bold text-slate-900">Actividad Reciente</CardTitle>
-          <CardDescription>Últimos contactos de cobranza</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          {recentContacts.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm text-slate-600">No hay contactos registrados aún</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Cliente</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Tipo</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Resultado</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentContacts.map((contact) => (
-                  <tr key={contact.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4">
-                      <p className="font-medium text-slate-900">{contact.customer_name}</p>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        {contact.contact_type === 'phone_call' && <Phone className="h-4 w-4 text-[#163300]" />}
-                        {contact.contact_type === 'email' && <Mail className="h-4 w-4 text-[#738566]" />}
-                        {contact.contact_type === 'whatsapp' && <MessageSquare className="h-4 w-4 text-green-600" />}
-                        <span className="text-sm text-slate-900">{contact.contact_type_display}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <p className="text-sm text-slate-600">{contact.outcome_display}</p>
-                    </td>
-                    <td className="py-3 px-4">
-                      <p className="text-sm text-slate-600">{formatDateTime(contact.contact_date)}</p>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
