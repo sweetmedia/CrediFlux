@@ -211,8 +211,8 @@ export default function CollectionReportsPage() {
         'Promesas cumplidas vs incumplidas',
         'Casos escalados',
       ],
-      action: () => router.push('/collections/contacts'),
-      actionLabel: 'Ver contactos',
+      action: () => router.push('/collections/reports/clientes'),
+      actionLabel: 'Abrir reporte',
     },
   ], [router]);
 
@@ -469,6 +469,18 @@ export default function CollectionReportsPage() {
                 </Button>
                 <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/caja-banco')}>
                   Abrir caja y banco
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/clientes')}>
+                  Abrir clientes y seguimiento
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/promesas')}>
+                  Abrir promesas
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/productividad')}>
+                  Abrir productividad
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>
