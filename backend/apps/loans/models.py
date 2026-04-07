@@ -548,14 +548,6 @@ class LoanSchedule(UUIDModel, TimeStampedModel):
         help_text='Mora pagada'
     )
 
-    late_fee_waived = MoneyField(
-        max_digits=14,
-        decimal_places=2,
-        default_currency='DOP',
-        default=Decimal('0.00'),
-        help_text='Mora condonada/exonerada'
-    )
-
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('paid', 'Paid'),
@@ -623,38 +615,6 @@ class LoanPayment(UUIDModel, AuditModel):
         decimal_places=2,
         default_currency='DOP',
         default=0
-    )
-    late_fee_original_amount = MoneyField(
-        max_digits=14,
-        decimal_places=2,
-        default_currency='DOP',
-        default=0,
-        help_text='Mora original detectada al momento del pago'
-    )
-    late_fee_waived_amount = MoneyField(
-        max_digits=14,
-        decimal_places=2,
-        default_currency='DOP',
-        default=0,
-        help_text='Monto de mora condonado en este pago'
-    )
-    late_fee_waived_by = models.ForeignKey(
-        'users.User',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='loan_payments_late_fee_waived',
-        help_text='Usuario que condonó la mora'
-    )
-    late_fee_waived_at = models.DateTimeField(
-        blank=True,
-        null=True,
-        help_text='Fecha/hora en que se condonó la mora'
-    )
-    late_fee_waiver_reason = models.TextField(
-        blank=True,
-        null=True,
-        help_text='Motivo de la condonación de mora'
     )
 
     # Payment Method

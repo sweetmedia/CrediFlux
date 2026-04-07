@@ -47,8 +47,6 @@ const paymentSchema = z.object({
   payment_method: z.enum(['cash', 'check', 'bank_transfer', 'card', 'mobile_payment']),
   reference_number: z.string().optional(),
   notes: z.string().optional(),
-  waive_late_fee: z.boolean().optional(),
-  late_fee_waiver_reason: z.string().optional(),
 });
 
 type PaymentFormData = z.infer<typeof paymentSchema>;
@@ -88,14 +86,11 @@ export default function NewPaymentPage() {
       payment_date: new Date().toISOString().split('T')[0],
       loan: preselectedLoanId || '',
       amount: '',
-      waive_late_fee: false,
-      late_fee_waiver_reason: '',
     },
   });
 
   const watchedAmount = Number(watch('amount') || 0);
   const watchedMethod = watch('payment_method');
-  const watchedWaiveLateFee = watch('waive_late_fee');
 
   useEffect(() => {
     const loadLoans = async () => {
@@ -210,8 +205,6 @@ export default function NewPaymentPage() {
         payment_method: data.payment_method,
         reference_number: data.reference_number,
         notes: data.notes,
-        waive_late_fee: data.waive_late_fee,
-        late_fee_waiver_reason: data.waive_late_fee ? data.late_fee_waiver_reason : '',
       });
 
       window.location.href = `/loans/${data.loan}`;
@@ -543,41 +536,6 @@ export default function NewPaymentPage() {
                       className="border-slate-200 bg-white shadow-none"
                     />
                   </div>
-
-                  {selectedLoan && Number(selectedLoan.late_fees || 0) > 0 && (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                      <div className="flex items-start gap-3">
-                        <input
-                          id="waive_late_fee"
-                          type="checkbox"
-                          {...register('waive_late_fee')}
-                          className="mt-1 h-4 w-4 rounded border-slate-300 text-[#163300] focus:ring-[#163300]"
-                        />
-                        <div className="flex-1">
-                          <Label htmlFor="waive_late_fee" className="text-sm font-medium text-slate-900">
-                            Condonar mora de este pago
-                          </Label>
-                          <p className="mt-1 text-xs text-slate-600">
-                            Mora visible en el préstamo: {formatCurrency(Number(selectedLoan.late_fees || 0))}. Si la condonas, quedará registrada en auditoría y en el recibo con tu usuario.
-                          </p>
-                        </div>
-                      </div>
-
-                      {watchedWaiveLateFee && (
-                        <div className="mt-4 space-y-2">
-                          <Label htmlFor="late_fee_waiver_reason">Motivo de la condonación</Label>
-                          <Textarea
-                            id="late_fee_waiver_reason"
-                            placeholder="Ej: cortesía comercial, autorización de gerencia, ajuste excepcional..."
-                            rows={3}
-                            {...register('late_fee_waiver_reason')}
-                            disabled={isLoading}
-                            className="border-slate-200 bg-white shadow-none"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
@@ -686,14 +644,6 @@ export default function NewPaymentPage() {
                       <span className="text-sm text-slate-600">Método</span>
                       <span className="font-medium text-slate-900">{getPaymentMethodLabel(watchedMethod)}</span>
                     </div>
-                    {selectedLoan && Number(selectedLoan.late_fees || 0) > 0 && (
-                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <span className="text-sm text-slate-600">Mora</span>
-                        <span className={`font-medium ${watchedWaiveLateFee ? 'text-amber-700' : 'text-slate-900'}`}>
-                          {watchedWaiveLateFee ? `Condonada (${formatCurrency(Number(selectedLoan.late_fees || 0))})` : formatCurrency(Number(selectedLoan.late_fees || 0))}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>
