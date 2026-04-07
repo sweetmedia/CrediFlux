@@ -10,8 +10,8 @@ from drf_yasg import openapi
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from django.conf import settings
-from django.http import Http404
 from allauth.account.views import ConfirmEmailView
+from allauth.account.models import EmailConfirmation, EmailConfirmationHMAC
 
 from .serializers import (
     UserSerializer,
@@ -904,18 +904,28 @@ class CustomConfirmEmailView(ConfirmEmailView):
     def get(self, request, *args, **kwargs):
         """
         Confirm email and redirect to frontend.
-        If the key is invalid/expired/already used, redirect with an error flag
-        instead of showing a Django 404 page.
+        Resolve the confirmation key explicitly so invalid/used keys never fall
+        through to Django's HTML 404 page.
         """
         if request.user.is_authenticated:
             success_url = settings.ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL
         else:
             success_url = settings.ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL
 
+        invalid_url = f"{success_url}{'&' if '?' in success_url else '?'}verified=invalid"
+        key = kwargs.get('key')
+        if not key:
+            return redirect(invalid_url)
+
+        confirmation = EmailConfirmationHMAC.from_key(key)
+        if not confirmation:
+            confirmation = EmailConfirmation.objects.filter(key=key.lower()).first()
+
+        if not confirmation:
+            return redirect(invalid_url)
+
         try:
-            self.object = confirmation = self.get_object()
             confirmation.confirm(self.request)
             return redirect(success_url)
-        except Http404:
-            separator = '&' if '?' in success_url else '?'
-            return redirect(f"{success_url}{separator}verified=invalid")
+        except Exception:
+            return redirect(invalid_url)
