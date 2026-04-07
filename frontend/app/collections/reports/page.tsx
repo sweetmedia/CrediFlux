@@ -30,7 +30,6 @@ import {
   Users,
   ArrowRight,
   CheckCircle2,
-  Clock3,
   Receipt,
   FolderKanban,
 } from 'lucide-react';
@@ -173,8 +172,8 @@ export default function CollectionReportsPage() {
         'Clientes con mayor exposición',
         'Carta / gestión de cobro por cliente',
       ],
-      action: () => router.push('/schedules/overdue'),
-      actionLabel: 'Ir a morosidad',
+      action: () => router.push('/collections/reports/cartera'),
+      actionLabel: 'Abrir reporte',
     },
     {
       title: 'Estados de cuenta y cuotas',
@@ -186,8 +185,8 @@ export default function CollectionReportsPage() {
         'Cuotas vencidas y próximas',
         'Promesas de pago por vencer',
       ],
-      action: () => router.push('/loans'),
-      actionLabel: 'Ver préstamos',
+      action: () => router.push('/collections/reports/estado-cuenta'),
+      actionLabel: 'Abrir reporte',
     },
     {
       title: 'Pagos, caja y banco',
@@ -448,16 +447,20 @@ export default function CollectionReportsPage() {
                 <CardTitle className="text-base text-[#163300]">Rutas rápidas</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3">
-                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/schedules/overdue')}>
-                  Ver pagos vencidos
+                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/cartera')}>
+                  Abrir cartera y cobros
                   <ArrowRight className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reminders')}>
-                  Ver recordatorios
+                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/vencimientos')}>
+                  Abrir vencimientos
                   <ArrowRight className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/contacts')}>
-                  Ver contactos
+                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/estado-cuenta')}>
+                  Abrir estados de cuenta
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="justify-between bg-white" onClick={() => router.push('/collections/reports/cuotas')}>
+                  Abrir cuotas
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>
