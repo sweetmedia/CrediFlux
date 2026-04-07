@@ -205,6 +205,23 @@ export default function NewLoanPage() {
     loadCustomers();
   }, [isAuthenticated, searchParams, setValue]);
 
+  // Pre-fill values from calculator
+  useEffect(() => {
+    const principal = searchParams.get('principal');
+    const rate = searchParams.get('rate');
+    const term = searchParams.get('term');
+    const frequency = searchParams.get('frequency');
+    const startDate = searchParams.get('start_date');
+
+    if (principal) setValue('principal_amount', principal);
+    if (rate) setValue('interest_rate', rate);
+    if (term) setValue('term_months', term);
+    if (frequency && ['daily', 'weekly', 'biweekly', 'monthly'].includes(frequency)) {
+      setValue('payment_frequency', frequency as LoanFormData['payment_frequency']);
+    }
+    if (startDate) setValue('disbursement_date', startDate);
+  }, [searchParams, setValue]);
+
   // Calculate payment
   useEffect(() => {
     const [principal, rate, term, frequency] = watchedFields;

@@ -188,6 +188,7 @@ export default function CalculatorPage() {
       frequency: paymentFrequency,
       method: amortizationMethod,
       payment: result.payment_amount,
+      start_date: startDate,
     });
     router.push(`/loans/new?${params.toString()}`);
   };
