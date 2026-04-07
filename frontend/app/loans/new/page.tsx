@@ -582,6 +582,10 @@ export default function NewLoanPage() {
     });
   };
 
+  const currentStepMeta = STEPS[currentStep - 1];
+  const completionPercent = Math.round((currentStep / STEPS.length) * 100);
+  const totalCollateralValue = getTotalCollateralValue();
+
   // Navigate between steps with validation
   const nextStep = async () => {
     let fieldsToValidate: (keyof LoanFormData)[] = [];
@@ -785,68 +789,108 @@ export default function NewLoanPage() {
 
   if (authLoading || configLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f8f7]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
+    <div className="min-h-screen bg-[#f6f8f7] px-4 py-6 md:px-6 md:py-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-[28px] bg-gradient-to-r from-[#163300] via-[#244508] to-[#325c10] text-white shadow-none">
+          <div className="grid gap-6 px-6 py-6 md:px-8 md:py-8 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Nuevo Préstamo</h1>
-              <p className="text-sm text-slate-600 mt-1">
-                Completa el formulario paso a paso para crear un nuevo préstamo
+              <Link href="/loans" className="inline-flex items-center text-sm text-white/78 transition hover:text-white">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al módulo de préstamos
+              </Link>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-white/86">
+                  Flujo guiado
+                </span>
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white/86">
+                  Paso {currentStep} de {STEPS.length}
+                </span>
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white/86">
+                  {completionPercent}% completado
+                </span>
+              </div>
+              <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">Nuevo préstamo</h1>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/78 md:text-base">
+                Armemos la operación con mejor contexto: cliente, términos, garantías y revisión final en una sola vista más clara y ejecutiva.
               </p>
             </div>
-            <Link href="/loans">
-              <Button variant="outline">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Cancelar
-              </Button>
-            </Link>
-          </div>
-        </div>
 
-        {/* Progress Stepper */}
-        <Card className="mb-8 border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              {STEPS.map((step, index) => {
+            <div className="rounded-3xl border border-white/12 bg-white/10 p-4 backdrop-blur-sm">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/70">Lectura operativa</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  <p className="text-xs text-white/70">Paso actual</p>
+                  <p className="mt-1 text-sm font-semibold">{currentStepMeta?.name}</p>
+                  <p className="mt-1 text-xs text-white/70">{currentStepMeta?.description}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  <p className="text-xs text-white/70">Monto capturado</p>
+                  <p className="mt-1 text-sm font-semibold">{principalAmount ? formatCurrency(Number(principalAmount)) : 'Pendiente'}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  <p className="text-xs text-white/70">Respaldo visible</p>
+                  <p className="mt-1 text-sm font-semibold">{collaterals.length} garantías · {guarantors.length} garantes</p>
+                  <p className="mt-1 text-xs text-white/70">{totalCollateralValue > 0 ? formatCurrency(totalCollateralValue) : 'Sin garantías registradas'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <Card className="cf-surface-card overflow-hidden">
+          <CardContent className="p-5 md:p-6">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#486152]">Progreso del expediente</p>
+                <h2 className="mt-1 text-lg font-semibold text-[#163300]">Wizard de originación</h2>
+              </div>
+              <Link href="/loans">
+                <Button variant="outline" className="bg-white">
+                  Cancelar
+                </Button>
+              </Link>
+            </div>
+            <div className="mb-5 h-2 rounded-full bg-[#e7efe9]">
+              <div className="h-2 rounded-full bg-[#163300] transition-all" style={{ width: `${completionPercent}%` }} />
+            </div>
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              {STEPS.map((step) => {
                 const StepIcon = step.icon;
                 const isActive = currentStep === step.id;
                 const isCompleted = currentStep > step.id;
 
                 return (
-                  <div key={step.id} className="flex-1">
-                    <div className="flex items-center">
-                      <div className="flex flex-col items-center flex-1">
-                        <div className={`
-                          flex items-center justify-center w-12 h-12 rounded-full border-2 mb-2
-                          ${isActive ? 'bg-blue-600 border-blue-600 text-white' : ''}
-                          ${isCompleted ? 'bg-green-600 border-green-600 text-white' : ''}
-                          ${!isActive && !isCompleted ? 'bg-slate-100 border-slate-300 text-slate-400' : ''}
-                        `}>
-                          {isCompleted ? (
-                            <CheckCircle className="h-6 w-6" />
-                          ) : (
-                            <StepIcon className="h-6 w-6" />
-                          )}
-                        </div>
-                        <p className={`text-xs font-medium text-center ${isActive ? 'text-blue-600' : 'text-slate-600'}`}>
-                          {step.name}
-                        </p>
+                  <div
+                    key={step.id}
+                    className={`rounded-2xl border px-4 py-3 transition ${
+                      isActive
+                        ? 'border-[#163300] bg-[#f1f6f2]'
+                        : isCompleted
+                          ? 'border-emerald-200 bg-emerald-50'
+                          : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl border ${
+                        isActive
+                          ? 'border-[#163300] bg-[#163300] text-white'
+                          : isCompleted
+                            ? 'border-emerald-500 bg-emerald-500 text-white'
+                            : 'border-slate-200 bg-slate-50 text-slate-400'
+                      }`}>
+                        {isCompleted ? <CheckCircle className="h-5 w-5" /> : <StepIcon className="h-5 w-5" />}
                       </div>
-
-                      {index < STEPS.length - 1 && (
-                        <div className={`h-0.5 flex-1 mx-2 mt-[-24px] ${
-                          currentStep > step.id ? 'bg-green-600' : 'bg-slate-300'
-                        }`} />
-                      )}
+                      <div className="min-w-0">
+                        <p className={`text-sm font-medium ${isActive ? 'text-[#163300]' : 'text-slate-900'}`}>{step.name}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{step.description}</p>
+                      </div>
                     </div>
                   </div>
                 );
@@ -868,7 +912,7 @@ export default function NewLoanPage() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <User className="h-5 w-5 text-blue-600" />
+                  <User className="h-5 w-5 text-[#163300]" />
                   Seleccionar Cliente
                 </CardTitle>
                 <CardDescription className="text-slate-600">
@@ -919,12 +963,12 @@ export default function NewLoanPage() {
                                     key={customer.id}
                                     type="button"
                                     onClick={() => handleSelectCustomer(customer)}
-                                    className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-b-0"
+                                    className="w-full px-4 py-3 text-left hover:bg-[#f1f6f2] transition-colors border-b border-slate-100 last:border-b-0"
                                   >
                                     <div className="flex items-start gap-3">
                                       <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
-                                          <User className="h-4 w-4 text-blue-600" />
+                                          <User className="h-4 w-4 text-[#163300]" />
                                           <p className="font-medium text-slate-900">
                                             {customer.full_name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim()}
                                           </p>
@@ -966,9 +1010,9 @@ export default function NewLoanPage() {
                         )}
 
                         {selectedCustomer && (
-                          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="mt-4 p-4 bg-[#f1f6f2] border border-[#d7e2db] rounded-lg">
                             <div className="flex items-start gap-3">
-                              <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+                              <div className="h-12 w-12 rounded-full bg-[#163300] flex items-center justify-center text-white font-bold">
                                 {selectedCustomer.first_name?.charAt(0)}{selectedCustomer.last_name?.charAt(0)}
                               </div>
                               <div className="flex-1">
@@ -1008,7 +1052,7 @@ export default function NewLoanPage() {
                     )}
                     <p className="text-xs text-slate-500">
                       ¿No encuentras el cliente?{' '}
-                      <Link href="/customers/new" className="text-blue-600 hover:underline font-medium">
+                      <Link href="/customers/new" className="text-[#163300] hover:underline font-medium">
                         Agregar nuevo cliente
                       </Link>
                     </p>
@@ -1017,7 +1061,7 @@ export default function NewLoanPage() {
               </CardContent>
               <CardFooter className="border-t border-slate-200 flex justify-between">
                 <div></div>
-                <Button type="button" onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="button" onClick={nextStep} className="bg-[#163300] hover:bg-[#0f2400]">
                   Siguiente
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1030,7 +1074,7 @@ export default function NewLoanPage() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <DollarSign className="h-5 w-5 text-blue-600" />
+                  <DollarSign className="h-5 w-5 text-[#163300]" />
                   Información del Préstamo
                 </CardTitle>
                 <CardDescription className="text-slate-600">
@@ -1120,9 +1164,9 @@ export default function NewLoanPage() {
                   </div>
 
                   {interestType === 'fixed' && (
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <Info className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-blue-800">
+                    <Alert className="bg-[#f1f6f2] border-[#d7e2db]">
+                      <Info className="h-4 w-4 text-[#163300]" />
+                      <AlertDescription className="text-[#365046]">
                         <strong>Interés Fijo:</strong> El interés total se distribuye equitativamente en todas las cuotas.
                       </AlertDescription>
                     </Alert>
@@ -1152,7 +1196,7 @@ export default function NewLoanPage() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Anterior
                 </Button>
-                <Button type="button" onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="button" onClick={nextStep} className="bg-[#163300] hover:bg-[#0f2400]">
                   Siguiente
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1165,7 +1209,7 @@ export default function NewLoanPage() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <Calendar className="h-5 w-5 text-blue-600" />
+                  <Calendar className="h-5 w-5 text-[#163300]" />
                   Términos y Condiciones
                 </CardTitle>
                 <CardDescription className="text-slate-600">
@@ -1213,7 +1257,7 @@ export default function NewLoanPage() {
                         id="first_payment_date"
                         type="date"
                         {...register('first_payment_date')}
-                        className="bg-blue-50"
+                        className="bg-[#f1f6f2]"
                       />
                       <p className="text-xs text-slate-500">
                         Se calcula automáticamente según la frecuencia de pago. Puedes modificarla si es necesario.
@@ -1222,14 +1266,14 @@ export default function NewLoanPage() {
                   </div>
 
                   {calculatedPayment !== null && (
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <Calculator className="h-5 w-5 text-blue-600" />
+                    <Alert className="bg-[#f1f6f2] border-[#d7e2db]">
+                      <Calculator className="h-5 w-5 text-[#163300]" />
                       <AlertDescription>
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-blue-900">
+                          <span className="font-semibold text-[#163300]">
                             Pago {getPaymentFrequencyLabel(paymentFrequency)} Estimado:
                           </span>
-                          <span className="text-2xl font-bold text-blue-600">
+                          <span className="text-2xl font-bold text-[#163300]">
                             {formatCurrency(calculatedPayment)}
                           </span>
                         </div>
@@ -1265,7 +1309,7 @@ export default function NewLoanPage() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Anterior
                 </Button>
-                <Button type="button" onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="button" onClick={nextStep} className="bg-[#163300] hover:bg-[#0f2400]">
                   Siguiente
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1280,7 +1324,7 @@ export default function NewLoanPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-slate-900">
-                      <Shield className="h-5 w-5 text-blue-600" />
+                      <Shield className="h-5 w-5 text-[#163300]" />
                       Garantías (Opcional)
                     </CardTitle>
                     <CardDescription className="text-slate-600">
@@ -1318,7 +1362,7 @@ export default function NewLoanPage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <h4 className="font-medium text-slate-900">Garantía {index + 1}</h4>
-                            <Badge className="bg-blue-100 text-blue-700">
+                            <Badge className="bg-blue-100 text-[#486152]">
                               {getCollateralTypeLabel(collateral.collateral_type)}
                             </Badge>
                           </div>
@@ -1368,8 +1412,8 @@ export default function NewLoanPage() {
 
                         {/* Dynamic fields based on collateral type */}
                         {collateral.collateral_type === 'vehicle' && (
-                          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <h5 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+                          <div className="mt-4 p-4 bg-[#f1f6f2] rounded-lg border border-[#d7e2db]">
+                            <h5 className="font-medium text-[#163300] mb-3 flex items-center gap-2">
                               <Car className="h-4 w-4" />
                               Información del Vehículo
                             </h5>
@@ -1523,12 +1567,12 @@ export default function NewLoanPage() {
                     ))}
 
                     {collaterals.length > 0 && (
-                      <Alert className="bg-blue-50 border-blue-200">
-                        <Shield className="h-4 w-4 text-blue-600" />
+                      <Alert className="bg-[#f1f6f2] border-[#d7e2db]">
+                        <Shield className="h-4 w-4 text-[#163300]" />
                         <AlertDescription>
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold text-blue-900">Valor Total de Garantías:</span>
-                            <span className="text-xl font-bold text-blue-600">
+                            <span className="font-semibold text-[#163300]">Valor Total de Garantías:</span>
+                            <span className="text-xl font-bold text-[#163300]">
                               {formatCurrency(getTotalCollateralValue())}
                             </span>
                           </div>
@@ -1543,7 +1587,7 @@ export default function NewLoanPage() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Anterior
                 </Button>
-                <Button type="button" onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="button" onClick={nextStep} className="bg-[#163300] hover:bg-[#0f2400]">
                   Siguiente
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1852,7 +1896,7 @@ export default function NewLoanPage() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <CheckCircle className="h-5 w-5 text-blue-600" />
+                  <CheckCircle className="h-5 w-5 text-[#163300]" />
                   Revisión Final
                 </CardTitle>
                 <CardDescription className="text-slate-600">
@@ -1864,12 +1908,12 @@ export default function NewLoanPage() {
                   {/* Customer Info */}
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                      <User className="h-4 w-4 text-blue-600" />
+                      <User className="h-4 w-4 text-[#163300]" />
                       Cliente
                     </h3>
                     {selectedCustomer && (
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+                        <div className="h-12 w-12 rounded-full bg-[#163300] flex items-center justify-center text-white font-bold">
                           {selectedCustomer.first_name?.charAt(0)}{selectedCustomer.last_name?.charAt(0)}
                         </div>
                         <div>
@@ -1885,7 +1929,7 @@ export default function NewLoanPage() {
                   {/* Loan Details */}
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-blue-600" />
+                      <DollarSign className="h-4 w-4 text-[#163300]" />
                       Detalles del Préstamo
                     </h3>
                     <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1911,7 +1955,7 @@ export default function NewLoanPage() {
                       </div>
                       <div>
                         <p className="text-slate-600">Pago Estimado:</p>
-                        <p className="font-bold text-blue-600">{calculatedPayment ? formatCurrency(calculatedPayment) : 'N/A'}</p>
+                        <p className="font-bold text-[#163300]">{calculatedPayment ? formatCurrency(calculatedPayment) : 'N/A'}</p>
                       </div>
                     </div>
                   </div>
@@ -1919,7 +1963,7 @@ export default function NewLoanPage() {
                   {/* Dates */}
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-blue-600" />
+                      <Calendar className="h-4 w-4 text-[#163300]" />
                       Fechas
                     </h3>
                     <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1984,7 +2028,7 @@ export default function NewLoanPage() {
                   {collaterals.length > 0 && (
                     <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                       <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-blue-600" />
+                        <Shield className="h-4 w-4 text-[#163300]" />
                         Garantías ({collaterals.length})
                       </h3>
                       <div className="space-y-3">
@@ -1994,13 +2038,13 @@ export default function NewLoanPage() {
                             <div key={idx} className="bg-white rounded-lg p-3 border border-slate-200">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  {col.collateral_type === 'vehicle' && <Car className="h-4 w-4 text-blue-600" />}
+                                  {col.collateral_type === 'vehicle' && <Car className="h-4 w-4 text-[#163300]" />}
                                   {col.collateral_type === 'property' && <Home className="h-4 w-4 text-green-600" />}
                                   {col.collateral_type === 'equipment' && <Wrench className="h-4 w-4 text-amber-600" />}
                                   {!['vehicle', 'property', 'equipment'].includes(col.collateral_type) && <Shield className="h-4 w-4 text-slate-600" />}
                                   <span className="font-medium text-slate-900">{getCollateralTypeLabel(col.collateral_type)}</span>
                                 </div>
-                                <span className="font-bold text-blue-600">{formatCurrency(col.estimated_value)}</span>
+                                <span className="font-bold text-[#163300]">{formatCurrency(col.estimated_value)}</span>
                               </div>
                               {col.collateral_type === 'vehicle' && (meta as VehicleMetadata).brand && (
                                 <div className="text-sm text-slate-600 space-y-1">
@@ -2031,7 +2075,7 @@ export default function NewLoanPage() {
                         })}
                         <div className="flex items-center justify-between text-sm font-bold border-t border-slate-300 pt-2 mt-2">
                           <span className="text-slate-900">Total:</span>
-                          <span className="text-blue-600">{formatCurrency(getTotalCollateralValue())}</span>
+                          <span className="text-[#163300]">{formatCurrency(getTotalCollateralValue())}</span>
                         </div>
                       </div>
                     </div>
@@ -2043,7 +2087,7 @@ export default function NewLoanPage() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Anterior
                 </Button>
-                <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={isLoading} className="bg-[#163300] hover:bg-[#0f2400]">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Crear Préstamo
