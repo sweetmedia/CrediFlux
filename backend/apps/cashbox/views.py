@@ -71,8 +71,7 @@ class CashSessionViewSet(viewsets.ReadOnlyModelViewSet):
         session = CashSession.objects.create(
             register=register,
             cashier=request.user,
-            opening_balance_amount=serializer.validated_data['opening_balance'],
-            opening_balance_currency='DOP',
+            opening_balance=serializer.validated_data['opening_balance'],
             opening_notes=serializer.validated_data.get('opening_notes', ''),
             status='open',
             created_by=request.user,
@@ -111,12 +110,9 @@ class CashSessionViewSet(viewsets.ReadOnlyModelViewSet):
         expected = opening + inflows - outflows
         difference = closing_balance - expected
 
-        session.closing_balance_amount = closing_balance
-        session.closing_balance_currency = 'DOP'
-        session.expected_balance_amount = expected
-        session.expected_balance_currency = 'DOP'
-        session.difference_amount = difference
-        session.difference_currency = 'DOP'
+        session.closing_balance = closing_balance
+        session.expected_balance = expected
+        session.difference = difference
         session.closing_notes = serializer.validated_data.get('closing_notes', '')
         session.closed_at = timezone.now()
         session.closed_by = request.user
