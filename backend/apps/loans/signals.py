@@ -43,6 +43,7 @@ def recalculate_schedules_from_payments(loan):
     for schedule in schedules:
         schedule.paid_amount = _zero(schedule.total_amount.currency)
         schedule.late_fee_paid = _zero(schedule.late_fee_amount.currency)
+        schedule.late_fee_waived = _zero(schedule.late_fee_amount.currency)
         schedule.status = 'pending'
         schedule.paid_date = None
         schedule.actual_payment_date = None
@@ -50,6 +51,7 @@ def recalculate_schedules_from_payments(loan):
         schedule.save(update_fields=[
             'paid_amount',
             'late_fee_paid',
+            'late_fee_waived',
             'status',
             'paid_date',
             'actual_payment_date',
@@ -77,13 +79,24 @@ def recalculate_schedules_from_payments(loan):
         if first_schedule and payment.late_fee_paid.amount > 0:
             late_fee_to_apply = min(
                 payment.late_fee_paid.amount,
-                max(first_schedule.late_fee_amount.amount - first_schedule.late_fee_paid.amount, Decimal('0.00')),
+                max(first_schedule.late_fee_amount.amount - first_schedule.late_fee_paid.amount - first_schedule.late_fee_waived.amount, Decimal('0.00')),
             )
             if late_fee_to_apply > 0:
                 first_schedule.late_fee_paid += Money(late_fee_to_apply, first_schedule.late_fee_paid.currency)
                 if not first_schedule.actual_payment_date:
                     first_schedule.actual_payment_date = payment.payment_date
                 first_schedule.save(update_fields=['late_fee_paid', 'actual_payment_date', 'updated_at'])
+
+        if first_schedule and payment.late_fee_waived_amount.amount > 0:
+            waived_to_apply = min(
+                payment.late_fee_waived_amount.amount,
+                max(first_schedule.late_fee_amount.amount - first_schedule.late_fee_paid.amount - first_schedule.late_fee_waived.amount, Decimal('0.00')),
+            )
+            if waived_to_apply > 0:
+                first_schedule.late_fee_waived += Money(waived_to_apply, first_schedule.late_fee_waived.currency)
+                if not first_schedule.actual_payment_date:
+                    first_schedule.actual_payment_date = payment.payment_date
+                first_schedule.save(update_fields=['late_fee_waived', 'actual_payment_date', 'updated_at'])
 
         for schedule in schedules_to_apply:
             if remaining_schedule_amount <= 0:

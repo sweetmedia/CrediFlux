@@ -238,6 +238,7 @@ export interface LoanSchedule {
   days_overdue: number;
   late_fee_amount: number;
   late_fee_paid: number;
+  late_fee_waived?: number;
   status: 'pending' | 'paid' | 'overdue' | 'partial' | 'written_off';
   balance: number;
   created_at: string;
@@ -257,6 +258,12 @@ export interface LoanPayment {
   principal_paid: number;
   interest_paid: number;
   late_fee_paid: number;
+  late_fee_original_amount?: number;
+  late_fee_waived_amount?: number;
+  late_fee_waived_by_name?: string;
+  late_fee_waived_at?: string;
+  late_fee_waiver_reason?: string;
+  waive_late_fee?: boolean;
   payment_method: 'cash' | 'check' | 'bank_transfer' | 'card' | 'mobile_payment';
   reference_number?: string;
   status: 'pending' | 'completed' | 'failed' | 'reversed';

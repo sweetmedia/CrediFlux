@@ -598,6 +598,8 @@ class PaymentReceiptReport:
             ('Interés pagado', 'Componente financiero aplicado', payment.interest_paid),
             ('Mora pagada', 'Cargo por atraso cubierto', payment.late_fee_paid),
         ]
+        if getattr(payment, 'late_fee_waived_amount', None) and payment.late_fee_waived_amount.amount > 0:
+            rows.append(('Mora condonada', 'Exoneración aplicada en caja', payment.late_fee_waived_amount))
         for title, desc, amount in rows:
             pdf.setFillColor(text)
             pdf.setFont('Helvetica', 9)
@@ -638,8 +640,13 @@ class PaymentReceiptReport:
         pdf.setFont('Helvetica', 8)
         pdf.drawString(left, notes_top - 14, 'NOTA')
         pdf.setFont('Helvetica', 8.5)
-        pdf.drawString(left, notes_top - 28, 'Este pago se distribuye primero a mora, luego a interés y finalmente a capital.')
-        pdf.drawString(left, notes_top - 40, 'Solo la porción aplicada a capital reduce el balance pendiente del préstamo.')
+        if getattr(payment, 'late_fee_waived_amount', None) and payment.late_fee_waived_amount.amount > 0:
+            waived_by = payment.late_fee_waived_by.get_full_name() if getattr(payment, 'late_fee_waived_by', None) else 'Usuario no disponible'
+            pdf.drawString(left, notes_top - 28, 'Este pago incluye una condonación de mora autorizada y registrada en auditoría.')
+            pdf.drawString(left, notes_top - 40, f'Condonada por: {waived_by}. Motivo: {(payment.late_fee_waiver_reason or "No especificado")[:72]}')
+        else:
+            pdf.drawString(left, notes_top - 28, 'Este pago se distribuye primero a mora, luego a interés y finalmente a capital.')
+            pdf.drawString(left, notes_top - 40, 'Solo la porción aplicada a capital reduce el balance pendiente del préstamo.')
 
         # Signature lines
         sig_y = 106

@@ -278,6 +278,7 @@ class LoanScheduleSerializer(serializers.ModelSerializer):
     balance = serializers.DecimalField(source='balance.amount', max_digits=14, decimal_places=2, read_only=True)
     late_fee_amount = serializers.DecimalField(source='late_fee_amount.amount', max_digits=14, decimal_places=2, read_only=True)
     late_fee_paid = serializers.DecimalField(source='late_fee_paid.amount', max_digits=14, decimal_places=2, read_only=True)
+    late_fee_waived = serializers.DecimalField(source='late_fee_waived.amount', max_digits=14, decimal_places=2, read_only=True)
 
     class Meta:
         model = LoanSchedule
@@ -286,7 +287,7 @@ class LoanScheduleSerializer(serializers.ModelSerializer):
             'installment_number', 'due_date',
             'total_amount', 'principal_amount', 'interest_amount',
             'paid_amount', 'paid_date', 'status', 'balance',
-            'actual_payment_date', 'days_overdue', 'late_fee_amount', 'late_fee_paid',
+            'actual_payment_date', 'days_overdue', 'late_fee_amount', 'late_fee_paid', 'late_fee_waived',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'loan_number', 'customer_name', 'customer_phone', 'customer_address', 'customer_id', 'days_overdue', 'created_at', 'updated_at']
@@ -307,6 +308,9 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
     principal_paid = serializers.DecimalField(source='principal_paid.amount', max_digits=14, decimal_places=2, read_only=True)
     interest_paid = serializers.DecimalField(source='interest_paid.amount', max_digits=14, decimal_places=2, read_only=True)
     late_fee_paid = serializers.DecimalField(source='late_fee_paid.amount', max_digits=14, decimal_places=2, read_only=True)
+    late_fee_original_amount = serializers.DecimalField(source='late_fee_original_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    late_fee_waived_amount = serializers.DecimalField(source='late_fee_waived_amount.amount', max_digits=14, decimal_places=2, read_only=True)
+    late_fee_waived_by_name = serializers.CharField(source='late_fee_waived_by.get_full_name', read_only=True, allow_null=True)
     loan_principal_amount = serializers.DecimalField(source='loan.principal_amount.amount', max_digits=14, decimal_places=2, read_only=True)
     loan_outstanding_balance = serializers.DecimalField(source='loan.outstanding_balance.amount', max_digits=14, decimal_places=2, read_only=True)
     loan_total_paid = serializers.DecimalField(source='loan.total_paid.amount', max_digits=14, decimal_places=2, read_only=True)
@@ -316,7 +320,7 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'payment_number', 'loan', 'loan_number', 'customer_name',
             'schedule', 'payment_date', 'amount', 'principal_paid',
-            'interest_paid', 'late_fee_paid', 'payment_method',
+            'interest_paid', 'late_fee_paid', 'late_fee_original_amount', 'late_fee_waived_amount', 'late_fee_waived_by_name', 'late_fee_waived_at', 'late_fee_waiver_reason', 'payment_method',
             'reference_number', 'status', 'notes', 'receipt',
             'loan_status', 'loan_principal_amount', 'loan_outstanding_balance', 'loan_total_paid',
             'created_at', 'updated_at'
@@ -335,11 +339,15 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
 class LoanPaymentCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating LoanPayment (write-only)"""
 
+    waive_late_fee = serializers.BooleanField(write_only=True, required=False, default=False)
+    late_fee_waiver_reason = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
     class Meta:
         model = LoanPayment
         fields = [
             'loan', 'schedule', 'payment_date', 'amount',
-            'payment_method', 'reference_number', 'status', 'notes'
+            'payment_method', 'reference_number', 'status', 'notes',
+            'waive_late_fee', 'late_fee_waiver_reason'
         ]
         # principal_paid, interest_paid, and late_fee_paid are calculated automatically
 
@@ -350,6 +358,14 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Payment amount must be greater than 0")
         return value
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs.get('waive_late_fee') and not (attrs.get('late_fee_waiver_reason') or '').strip():
+            raise serializers.ValidationError({
+                'late_fee_waiver_reason': 'Debes indicar el motivo de la condonación de mora.'
+            })
+        return attrs
+
     def create(self, validated_data):
         """
         Calculate payment distribution automatically.
@@ -358,9 +374,15 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
         from moneyed import Money
         from decimal import Decimal
 
+        from django.utils import timezone
+        from apps.audit.models import AuditLog
+
+        request = self.context.get('request')
         loan = validated_data['loan']
         amount = validated_data['amount']
         schedule = validated_data.get('schedule')
+        waive_late_fee = validated_data.pop('waive_late_fee', False)
+        waiver_reason = validated_data.get('late_fee_waiver_reason', '')
 
         # Get currency from the amount
         currency = amount.currency if hasattr(amount, 'currency') else 'USD'
@@ -380,13 +402,19 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
         late_fee_payment = Decimal('0')
         interest_payment = Decimal('0')
         principal_payment = Decimal('0')
+        late_fee_original = Decimal('0')
+        late_fee_waived = Decimal('0')
 
         if schedule:
             # STEP 1: Pay late fees first (mora)
-            late_fee_balance = schedule.late_fee_amount.amount - schedule.late_fee_paid.amount
-            if late_fee_balance > 0 and remaining_payment > 0:
-                late_fee_payment = min(remaining_payment, late_fee_balance)
-                remaining_payment -= late_fee_payment
+            late_fee_balance = schedule.late_fee_amount.amount - schedule.late_fee_paid.amount - getattr(schedule.late_fee_waived, 'amount', Decimal('0'))
+            late_fee_original = max(late_fee_balance, Decimal('0'))
+            if late_fee_balance > 0:
+                if waive_late_fee:
+                    late_fee_waived = late_fee_balance
+                elif remaining_payment > 0:
+                    late_fee_payment = min(remaining_payment, late_fee_balance)
+                    remaining_payment -= late_fee_payment
 
             # STEP 2: Pay interest
             interest_balance = schedule.interest_amount.amount - (
@@ -421,10 +449,14 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
             if oldest_overdue:
                 # Apply payment to the oldest overdue schedule with late fees
                 # STEP 1: Pay late fees first
-                late_fee_balance = oldest_overdue.late_fee_amount.amount - oldest_overdue.late_fee_paid.amount
-                if late_fee_balance > 0 and remaining_payment > 0:
-                    late_fee_payment = min(remaining_payment, late_fee_balance)
-                    remaining_payment -= late_fee_payment
+                late_fee_balance = oldest_overdue.late_fee_amount.amount - oldest_overdue.late_fee_paid.amount - getattr(oldest_overdue.late_fee_waived, 'amount', Decimal('0'))
+                late_fee_original = max(late_fee_balance, Decimal('0'))
+                if late_fee_balance > 0:
+                    if waive_late_fee:
+                        late_fee_waived = late_fee_balance
+                    elif remaining_payment > 0:
+                        late_fee_payment = min(remaining_payment, late_fee_balance)
+                        remaining_payment -= late_fee_payment
 
                 # STEP 2: Pay interest for this schedule
                 interest_balance = oldest_overdue.interest_amount.amount - (
@@ -473,8 +505,41 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
         validated_data['late_fee_paid'] = Money(late_fee_payment, currency)
         validated_data['interest_paid'] = Money(interest_payment, currency)
         validated_data['principal_paid'] = Money(principal_payment, currency)
+        validated_data['late_fee_original_amount'] = Money(late_fee_original, currency)
+        validated_data['late_fee_waived_amount'] = Money(late_fee_waived, currency)
 
-        return super().create(validated_data)
+        if late_fee_waived > 0:
+            validated_data['late_fee_waived_by'] = request.user if request and getattr(request, 'user', None) and request.user.is_authenticated else None
+            validated_data['late_fee_waived_at'] = timezone.now()
+            validated_data['late_fee_waiver_reason'] = waiver_reason
+
+        payment = super().create(validated_data)
+
+        if late_fee_waived > 0 and request and getattr(request, 'tenant', None):
+            AuditLog.log(
+                tenant=request.tenant,
+                user=request.user if request.user.is_authenticated else None,
+                action='payment',
+                model_name='LoanPaymentLateFeeWaiver',
+                object_id=payment.id,
+                object_repr=str(payment),
+                changes={
+                    'late_fee_waived_amount': {'old': '0.00', 'new': str(late_fee_waived)},
+                    'late_fee_waiver_reason': {'old': '', 'new': waiver_reason or ''},
+                },
+                extra_data={
+                    'loan_id': str(loan.id),
+                    'loan_number': loan.loan_number,
+                    'payment_number': payment.payment_number,
+                    'schedule_id': str(payment.schedule.id) if payment.schedule else None,
+                    'late_fee_original_amount': str(late_fee_original),
+                    'late_fee_charged_amount': str(late_fee_payment),
+                    'late_fee_waived_amount': str(late_fee_waived),
+                    'waived_by': request.user.get_full_name() if request.user.is_authenticated else None,
+                }
+            )
+
+        return payment
 
 
 class LoanSerializer(serializers.ModelSerializer):
