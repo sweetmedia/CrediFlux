@@ -1065,6 +1065,12 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         """
         from .signals import reconcile_loan_from_payments
 
+        if not (request.user.is_tenant_owner or request.user.is_superuser):
+            return Response(
+                {'error': 'Solo el dueño de la financiera puede revertir pagos'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         payment = self.get_object()
 
         if payment.status == 'reversed':
