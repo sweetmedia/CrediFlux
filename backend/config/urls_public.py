@@ -13,6 +13,7 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
 from apps.communications.webhooks.views import WhatsAppWebhookView
+from apps.users.views import CustomConfirmEmailView
 
 # Swagger/OpenAPI configuration
 schema_view = get_schema_view(
@@ -41,6 +42,13 @@ urlpatterns = [
     path('api/', include('apps.core.urls')),
     path('api/tenants/', include('apps.tenants.urls')),
     path('api/users/', include('apps.users.urls')),
+
+    # Custom email confirmation view (must be before dj_rest_auth.registration.urls)
+    re_path(
+        r'^api/auth/registration/account-confirm-email/(?P<key>[-:\w]+)/$',
+        CustomConfirmEmailView.as_view(),
+        name='account_confirm_email'
+    ),
 
     # Tenant APIs exposed on public schema for dev/single-tenant mode
     path('api/auth/', include('dj_rest_auth.urls')),
