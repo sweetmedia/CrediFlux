@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -46,6 +46,13 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
+  ArrowLeft,
+  ArrowRight,
+  Siren,
+  Filter,
+  CalendarClock,
+  TriangleAlert,
+  Ban,
 } from 'lucide-react';
 import { CollectionReminder } from '@/types';
 
@@ -58,19 +65,16 @@ export default function RemindersListPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Filters
   const [statusFilter, setStatusFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [authLoading, isAuthenticated, router]);
 
-  // Load reminders
   useEffect(() => {
     if (isAuthenticated) {
       loadReminders();
@@ -132,17 +136,17 @@ export default function RemindersListPage() {
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, any> = {
-      pending: { icon: Clock, color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-      sent: { icon: CheckCircle, color: 'bg-green-50 text-green-700 border-green-200' },
-      failed: { icon: XCircle, color: 'bg-red-50 text-red-700 border-red-200' },
-      cancelled: { icon: AlertCircle, color: 'bg-gray-50 text-gray-700 border-gray-200' },
+      pending: { icon: Clock, color: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Pendiente' },
+      sent: { icon: CheckCircle, color: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Enviado' },
+      failed: { icon: XCircle, color: 'bg-red-50 text-red-700 border-red-200', label: 'Fallido' },
+      cancelled: { icon: Ban, color: 'bg-slate-50 text-slate-700 border-slate-200', label: 'Cancelado' },
     };
     const config = variants[status] || variants.pending;
     const Icon = config.icon;
     return (
       <Badge variant="outline" className={config.color}>
-        <Icon className="h-3 w-3 mr-1" />
-        {status}
+        <Icon className="mr-1 h-3 w-3" />
+        {config.label}
       </Badge>
     );
   };
@@ -160,236 +164,359 @@ export default function RemindersListPage() {
 
   const totalPages = Math.ceil(totalCount / 25);
 
+  const stats = useMemo(() => {
+    const pending = reminders.filter((r) => r.status === 'pending').length;
+    const sent = reminders.filter((r) => r.status === 'sent').length;
+    const failed = reminders.filter((r) => r.status === 'failed').length;
+    const cancelled = reminders.filter((r) => r.status === 'cancelled').length;
+    return { pending, sent, failed, cancelled };
+  }, [reminders]);
+
   if (authLoading || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f8f7]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-7xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="min-h-screen bg-[#f6f8f7] px-4 py-6 md:px-6 md:py-8">
+      <div className="mx-auto max-w-7xl space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Recordatorios de Cobranza</h1>
-          <p className="text-muted-foreground mt-2">
-            Gestión de recordatorios automáticos y manuales
-          </p>
-        </div>
-        <Button onClick={() => router.push('/collections/reminders/new')}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Recordatorio
-        </Button>
-      </div>
+          <Link
+            href="/collections"
+            className="mb-3 inline-flex items-center text-sm text-slate-500 transition-colors hover:text-slate-900"
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Volver a Collections
+          </Link>
 
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <label className="text-sm font-medium mb-2 block">Estado</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos los estados" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pending">Pendiente</SelectItem>
-                  <SelectItem value="sent">Enviado</SelectItem>
-                  <SelectItem value="failed">Fallido</SelectItem>
-                  <SelectItem value="cancelled">Cancelado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-2 block">Canal</label>
-              <Select value={channelFilter} onValueChange={setChannelFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos los canales" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="sms">SMS</SelectItem>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="call">Llamada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-2 block">Tipo</label>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos los tipos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="upcoming_3">Próximo (3 días)</SelectItem>
-                  <SelectItem value="upcoming_1">Próximo (1 día)</SelectItem>
-                  <SelectItem value="due_today">Vence Hoy</SelectItem>
-                  <SelectItem value="overdue_1">Atrasado 1 día</SelectItem>
-                  <SelectItem value="overdue_3">Atrasado 3 días</SelectItem>
-                  <SelectItem value="overdue_7">Atrasado 7 días</SelectItem>
-                  <SelectItem value="overdue_15">Atrasado 15 días</SelectItem>
-                  <SelectItem value="overdue_30">Atrasado 30 días</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Reminders Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Recordatorios</CardTitle>
-          <CardDescription>
-            {totalCount} recordatorio(s) encontrado(s)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {reminders.length === 0 ? (
-            <div className="text-center py-12">
-              <Bell className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No hay recordatorios
-              </h3>
-              <p className="text-gray-500 mb-4">
-                Crea un nuevo recordatorio para comenzar
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#d7e2db] bg-white px-3 py-1 text-xs font-medium text-[#486152]">
+                <Siren className="h-3.5 w-3.5" />
+                Centro de salidas programadas
+              </div>
+              <h1 className="text-3xl font-semibold tracking-tight text-[#163300]">Recordatorios de cobranza</h1>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                Gestiona recordatorios pendientes, confirma qué salió bien y detecta rápido lo que falló o ya perdió vigencia.
               </p>
-              <Button onClick={() => router.push('/collections/reminders/new')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nuevo Recordatorio
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="bg-white" onClick={() => router.push('/collections')}>
+                <Bell className="mr-2 h-4 w-4" />
+                Dashboard
+              </Button>
+              <Button className="bg-[#163300] hover:bg-[#0f2400]" onClick={() => router.push('/collections/reminders/new')}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nuevo recordatorio
               </Button>
             </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Préstamo</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Canal</TableHead>
-                      <TableHead>Programado</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Enviado</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reminders.map((reminder) => (
-                      <TableRow key={reminder.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-400" />
-                            {reminder.customer_name}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            href={`/loans/${reminder.loan}`}
-                            className="text-blue-600 hover:underline"
-                          >
-                            #{reminder.loan_number}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{reminder.reminder_type_display}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getChannelIcon(reminder.channel)}
-                            {reminder.channel_display}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-gray-400" />
-                            {formatDateTime(reminder.scheduled_for)}
-                          </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(reminder.status)}</TableCell>
-                        <TableCell>
-                          {reminder.sent_at ? formatDateTime(reminder.sent_at) : '-'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {reminder.status === 'pending' && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleSendReminder(reminder.id)}
-                                >
-                                  <Send className="h-4 w-4 mr-1" />
-                                  Enviar
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleCancelReminder(reminder.id)}
-                                >
-                                  <XCircle className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+          </div>
+        </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-gray-600">
-                    Página {currentPage} de {totalPages}
+        <Card className="overflow-hidden border-[#d7e2db] shadow-none">
+          <CardContent className="p-0">
+            <div className="border-b border-[#d7e2db] bg-gradient-to-r from-[#163300] via-[#244508] to-[#325c10] px-6 py-6 text-white">
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <p className="text-sm text-white/70">Bandeja actual</p>
+                  <h2 className="mt-1 text-3xl font-semibold">{totalCount} recordatorio(s)</h2>
+                  <p className="mt-3 max-w-2xl text-sm text-white/80">
+                    Esta vista debe decirte qué necesita salir ahora, qué ya fue enviado y qué requiere intervención manual.
                   </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(currentPage - 1)}
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                    >
-                      Siguiente
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[440px] xl:grid-cols-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Pendientes</p>
+                    <p className="mt-2 text-2xl font-semibold">{stats.pending}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Enviados</p>
+                    <p className="mt-2 text-2xl font-semibold">{stats.sent}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Fallidos</p>
+                    <p className="mt-2 text-2xl font-semibold">{stats.failed}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/65">Cancelados</p>
+                    <p className="mt-2 text-2xl font-semibold">{stats.cancelled}</p>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 bg-white px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Carga pendiente</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{stats.pending} por disparar</p>
+              </div>
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Entregas correctas</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{stats.sent} enviadas</p>
+              </div>
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Errores operativos</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{stats.failed} fallidas</p>
+              </div>
+              <div className="rounded-2xl border border-[#e7ece8] bg-[#fbfcfb] p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Total visible</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">Página {currentPage} de {Math.max(totalPages, 1)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+          <div className="space-y-6">
+            <Card className="border-[#d7e2db] shadow-none">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base text-[#163300]">
+                  <Filter className="h-4 w-4" />
+                  Filtros
+                </CardTitle>
+                <CardDescription>Recorta la bandeja por estado, canal o tipo.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-1">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Estado</label>
+                    <Select value={statusFilter} onValueChange={(value) => { setCurrentPage(1); setStatusFilter(value); }}>
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Todos los estados" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="pending">Pendiente</SelectItem>
+                        <SelectItem value="sent">Enviado</SelectItem>
+                        <SelectItem value="failed">Fallido</SelectItem>
+                        <SelectItem value="cancelled">Cancelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Canal</label>
+                    <Select value={channelFilter} onValueChange={(value) => { setCurrentPage(1); setChannelFilter(value); }}>
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Todos los canales" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="email">Email</SelectItem>
+                        <SelectItem value="sms">SMS</SelectItem>
+                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                        <SelectItem value="call">Llamada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Tipo</label>
+                    <Select value={typeFilter} onValueChange={(value) => { setCurrentPage(1); setTypeFilter(value); }}>
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Todos los tipos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="upcoming_3">Próximo (3 días)</SelectItem>
+                        <SelectItem value="upcoming_1">Próximo (1 día)</SelectItem>
+                        <SelectItem value="due_today">Vence hoy</SelectItem>
+                        <SelectItem value="overdue_1">Atrasado 1 día</SelectItem>
+                        <SelectItem value="overdue_3">Atrasado 3 días</SelectItem>
+                        <SelectItem value="overdue_7">Atrasado 7 días</SelectItem>
+                        <SelectItem value="overdue_15">Atrasado 15 días</SelectItem>
+                        <SelectItem value="overdue_30">Atrasado 30 días</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-[#d7e2db] shadow-none">
+              <CardHeader>
+                <CardTitle className="text-base text-[#163300]">Lectura rápida</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-slate-700">
+                <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <CalendarClock className="mt-0.5 h-5 w-5 text-amber-600" />
+                  <div>
+                    <p className="font-medium text-slate-900">Pendientes primero</p>
+                    <p className="mt-1 text-sm text-slate-600">Lo que está pendiente es lo que todavía puede empujar recaudo hoy.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <TriangleAlert className="mt-0.5 h-5 w-5 text-red-600" />
+                  <div>
+                    <p className="font-medium text-slate-900">Los fallidos no se ignoran</p>
+                    <p className="mt-1 text-sm text-slate-600">Un recordatorio fallido normalmente necesita revisión de canal, datos o contacto manual.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <Bell className="mt-0.5 h-5 w-5 text-slate-600" />
+                  <div>
+                    <p className="font-medium text-slate-900">Esta vista es operativa</p>
+                    <p className="mt-1 text-sm text-slate-600">Debe ayudarte a decidir qué sale ya, qué se cancela y qué requiere seguimiento humano.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="border-[#d7e2db] shadow-none">
+            <CardHeader>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle className="text-base text-[#163300]">Lista de recordatorios</CardTitle>
+                  <CardDescription>{totalCount} recordatorio(s) encontrado(s)</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" className="bg-white" onClick={() => router.push('/collections/reminders/new')}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nuevo
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {reminders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+                  <Bell className="mb-4 h-12 w-12 text-slate-400" />
+                  <h3 className="text-lg font-medium text-slate-900">No hay recordatorios</h3>
+                  <p className="mt-2 mb-4 max-w-md text-sm text-slate-500">
+                    Ajusta los filtros o crea un nuevo recordatorio para comenzar.
+                  </p>
+                  <Button className="bg-[#163300] hover:bg-[#0f2400]" onClick={() => router.push('/collections/reminders/new')}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nuevo recordatorio
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-slate-50/70">
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Préstamo</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Canal</TableHead>
+                          <TableHead>Programado</TableHead>
+                          <TableHead>Estado</TableHead>
+                          <TableHead>Enviado</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {reminders.map((reminder) => (
+                          <TableRow key={reminder.id} className="hover:bg-slate-50">
+                            <TableCell className="align-top">
+                              <div className="flex items-center gap-2 font-medium text-slate-900">
+                                <User className="h-4 w-4 text-slate-400" />
+                                {reminder.customer_name}
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-top">
+                              <Link href={`/loans/${reminder.loan}`} className="text-[#163300] hover:underline">
+                                #{reminder.loan_number}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="align-top">
+                              <Badge variant="outline" className="bg-white">
+                                {reminder.reminder_type_display}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="align-top">
+                              <div className="flex items-center gap-2 text-sm text-slate-700">
+                                {getChannelIcon(reminder.channel)}
+                                {reminder.channel_display}
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-top">
+                              <div className="flex items-center gap-2 text-sm text-slate-700">
+                                <Calendar className="h-4 w-4 text-slate-400" />
+                                {formatDateTime(reminder.scheduled_for)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-top">{getStatusBadge(reminder.status)}</TableCell>
+                            <TableCell className="align-top text-sm text-slate-600">
+                              {reminder.sent_at ? formatDateTime(reminder.sent_at) : '-'}
+                            </TableCell>
+                            <TableCell className="text-right align-top">
+                              <div className="flex items-center justify-end gap-2">
+                                {reminder.status === 'pending' && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      className="bg-[#163300] hover:bg-[#0f2400]"
+                                      onClick={() => handleSendReminder(reminder.id)}
+                                    >
+                                      <Send className="mr-1 h-4 w-4" />
+                                      Enviar
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="bg-white"
+                                      onClick={() => handleCancelReminder(reminder.id)}
+                                    >
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
+                      <p className="text-sm text-slate-600">
+                        Página {currentPage} de {totalPages}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-white"
+                          disabled={currentPage === 1}
+                          onClick={() => setCurrentPage(currentPage - 1)}
+                        >
+                          <ChevronLeft className="mr-1 h-4 w-4" />
+                          Anterior
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-white"
+                          disabled={currentPage === totalPages}
+                          onClick={() => setCurrentPage(currentPage + 1)}
+                        >
+                          Siguiente
+                          <ChevronRight className="ml-1 h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
