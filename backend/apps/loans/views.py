@@ -760,10 +760,10 @@ class LoanViewSet(viewsets.ModelViewSet):
         current_date = loan.first_payment_date or loan.disbursement_date
         schedules = []
 
-        # Check interest type (default to 'fixed' if not set)
+        # Check amortization / interest method (legacy + new calculator-aligned values)
         interest_type = getattr(loan, 'interest_type', 'fixed')
 
-        if interest_type == 'variable':
+        if interest_type in ['variable', 'saldo_insoluto', 'german']: 
             # ========================================
             # INTERÉS VARIABLE/AMORTIZADO (sobre saldo decreciente)
             # ========================================
@@ -818,6 +818,64 @@ class LoanViewSet(viewsets.ModelViewSet):
                 # Move to next payment date
                 current_date = current_date + relativedelta(**period_delta)
 
+        elif interest_type == 'french':
+            # ========================================
+            # FRANCÉS (CUOTA FIJA / ANNUITY)
+            # ========================================
+            periods_per_month = {
+                'daily': Decimal('30'),
+                'weekly': Decimal('4'),
+                'biweekly': Decimal('2'),
+                'monthly': Decimal('1'),
+                'quarterly': Decimal('0.3333333333'),
+            }
+            multiplier = {
+                'daily': 30,
+                'weekly': 4,
+                'biweekly': 2,
+                'monthly': 1,
+                'quarterly': 1/3,
+            }
+
+            num_payments = max(1, int(round(float(loan.term_months * multiplier.get(loan.payment_frequency, 1)))))
+            period_divisor = periods_per_month.get(loan.payment_frequency, Decimal('1'))
+            period_rate = (loan.interest_rate / Decimal('100') / period_divisor).quantize(Decimal('0.0000001'))
+
+            if period_rate == 0:
+                payment_amount = (loan.principal_amount.amount / Decimal(str(num_payments))).quantize(Decimal('0.01'))
+            else:
+                r = period_rate
+                n = Decimal(str(num_payments))
+                payment_amount = (
+                    loan.principal_amount.amount * r * (Decimal('1') + r) ** int(n)
+                    / (((Decimal('1') + r) ** int(n)) - Decimal('1'))
+                ).quantize(Decimal('0.01'))
+
+            balance = loan.principal_amount.amount
+
+            for i in range(1, num_payments + 1):
+                interest_amount = (balance * period_rate).quantize(Decimal('0.01'))
+
+                if i == num_payments:
+                    principal_amount = balance
+                    total_amount = (principal_amount + interest_amount).quantize(Decimal('0.01'))
+                else:
+                    principal_amount = (payment_amount - interest_amount).quantize(Decimal('0.01'))
+                    total_amount = payment_amount
+
+                schedule = LoanSchedule.objects.create(
+                    loan=loan,
+                    installment_number=i,
+                    due_date=current_date,
+                    total_amount=Money(total_amount, loan.principal_amount.currency),
+                    principal_amount=Money(principal_amount, loan.principal_amount.currency),
+                    interest_amount=Money(interest_amount, loan.principal_amount.currency)
+                )
+                schedules.append(schedule)
+
+                balance = (balance - principal_amount).quantize(Decimal('0.01'))
+                current_date = current_date + relativedelta(**period_delta)
+
         elif interest_type == 'variable_rd':
             # ========================================
             # INTERÉS VARIABLE RD (Tasa directa por período)
@@ -862,7 +920,7 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         else:
             # ========================================
-            # INTERÉS FIJO (tasa mensual)
+            # FLAT / INTERÉS FIJO (tasa mensual)
             # ========================================
             # El interés total se calcula usando la tasa mensual definida por negocio
             # y se distribuye equitativamente entre las cuotas.

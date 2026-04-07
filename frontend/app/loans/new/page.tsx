@@ -56,11 +56,34 @@ import {
 import { CollateralCreate, VehicleMetadata, PropertyMetadata, EquipmentMetadata } from '@/types';
 import { toast } from 'sonner';
 
+const AMORTIZATION_METHODS = [
+  {
+    value: 'flat',
+    label: 'Interés Fijo (Flat)',
+    description: 'Interés calculado sobre el monto original. Cuota simple y muy común en financieras pequeñas.',
+  },
+  {
+    value: 'saldo_insoluto',
+    label: 'Saldo Insoluto',
+    description: 'Interés sobre el balance pendiente. La cuota baja con el tiempo.',
+  },
+  {
+    value: 'french',
+    label: 'Francés (Cuota Fija)',
+    description: 'Cuota total fija. Al inicio se paga más interés y luego más capital.',
+  },
+  {
+    value: 'german',
+    label: 'Alemán (Capital Fijo)',
+    description: 'Capital fijo por cuota y pago total decreciente.',
+  },
+];
+
 const loanSchema = z.object({
   customer: z.string().min(1, 'Cliente requerido'),
   principal_amount: z.string().min(1, 'Monto requerido'),
   interest_rate: z.string().min(1, 'Tasa de interés requerida'),
-  interest_type: z.enum(['fixed', 'variable', 'variable_rd']),
+  interest_type: z.enum(['flat', 'saldo_insoluto', 'french', 'german']),
   term_months: z.string().min(1, 'Plazo requerido'),
   loan_type: z.enum(['personal', 'auto', 'mortgage', 'business', 'student', 'payday']),
   purpose: z.string().optional(),
@@ -117,15 +140,16 @@ export default function NewLoanPage() {
     resolver: zodResolver(loanSchema),
     defaultValues: {
       loan_type: 'personal',
-      interest_type: 'fixed',
+      interest_type: 'flat',
       payment_frequency: 'monthly',
       disbursement_date: new Date().toISOString().split('T')[0],
     },
   });
 
-  const watchedFields = watch(['principal_amount', 'interest_rate', 'term_months', 'payment_frequency']);
+  const watchedFields = watch(['principal_amount', 'interest_rate', 'term_months', 'payment_frequency', 'interest_type']);
   const paymentFrequency = watch('payment_frequency');
   const interestType = watch('interest_type');
+  const selectedAmortizationMethod = AMORTIZATION_METHODS.find((method) => method.value === interestType);
   const disbursementDate = watch('disbursement_date');
   const principalAmount = watch('principal_amount');
   const loanType = watch('loan_type');
@@ -212,6 +236,7 @@ export default function NewLoanPage() {
     const term = searchParams.get('term');
     const frequency = searchParams.get('frequency');
     const startDate = searchParams.get('start_date');
+    const method = searchParams.get('method');
 
     if (principal) setValue('principal_amount', principal);
     if (rate) setValue('interest_rate', rate);
@@ -219,13 +244,16 @@ export default function NewLoanPage() {
     if (frequency && ['daily', 'weekly', 'biweekly', 'monthly'].includes(frequency)) {
       setValue('payment_frequency', frequency as LoanFormData['payment_frequency']);
     }
+    if (method && ['flat', 'saldo_insoluto', 'french', 'german'].includes(method)) {
+      setValue('interest_type', method as LoanFormData['interest_type']);
+    }
     if (startDate) setValue('disbursement_date', startDate);
   }, [searchParams, setValue]);
 
   // Calculate payment
   useEffect(() => {
-    const [principal, rate, term, frequency] = watchedFields;
-    if (principal && rate && term && frequency) {
+    const [principal, rate, term, frequency, method] = watchedFields;
+    if (principal && rate && term && frequency && method) {
       const P = parseFloat(principal);
       const monthlyRate = parseFloat(rate) / 100;
       const termMonths = parseInt(term);
@@ -254,9 +282,25 @@ export default function NewLoanPage() {
 
       const periodicRate = monthlyRate / rateDivisor;
 
-      if (P > 0 && periodicRate > 0 && totalPayments > 0) {
-        const payment = P * (periodicRate * Math.pow(1 + periodicRate, totalPayments)) /
-                       (Math.pow(1 + periodicRate, totalPayments) - 1);
+      if (P > 0 && totalPayments > 0) {
+        let payment: number | null = null;
+
+        if (method === 'flat') {
+          const totalInterest = P * monthlyRate * termMonths;
+          payment = (P + totalInterest) / totalPayments;
+        } else if (method === 'french') {
+          if (periodicRate > 0) {
+            payment = P * (periodicRate * Math.pow(1 + periodicRate, totalPayments)) /
+              (Math.pow(1 + periodicRate, totalPayments) - 1);
+          } else {
+            payment = P / totalPayments;
+          }
+        } else if (method === 'saldo_insoluto' || method === 'german') {
+          const principalPerPayment = P / totalPayments;
+          const firstInterest = P * periodicRate;
+          payment = principalPerPayment + firstInterest;
+        }
+
         setCalculatedPayment(payment);
       } else {
         setCalculatedPayment(null);
@@ -577,6 +621,10 @@ export default function NewLoanPage() {
 
   const getInterestTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
+      flat: 'Interés Fijo (Flat)',
+      saldo_insoluto: 'Saldo Insoluto',
+      french: 'Francés (Cuota Fija)',
+      german: 'Alemán (Capital Fijo)',
       fixed: 'Fijo',
       variable: 'Variable',
       variable_rd: 'Variable (RD)',
@@ -1152,12 +1200,12 @@ export default function NewLoanPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="interest_type" className="text-sm font-medium text-slate-700">
-                        Tipo de Interés <span className="text-red-500">*</span>
+                        Método de Amortización <span className="text-red-500">*</span>
                       </Label>
                       <NativeSelect id="interest_type" {...register('interest_type')}>
-                        <option value="fixed">Fijo</option>
-                        <option value="variable">Variable</option>
-                        <option value="variable_rd">Variable (RD)</option>
+                        {AMORTIZATION_METHODS.map((method) => (
+                          <option key={method.value} value={method.value}>{method.label}</option>
+                        ))}
                       </NativeSelect>
                       {errors.interest_type && (
                         <p className="text-sm text-red-500">{errors.interest_type.message}</p>
@@ -1180,29 +1228,11 @@ export default function NewLoanPage() {
                     </div>
                   </div>
 
-                  {interestType === 'fixed' && (
+                  {selectedAmortizationMethod && (
                     <Alert className="bg-[#f1f6f2] border-[#d7e2db]">
                       <Info className="h-4 w-4 text-[#163300]" />
                       <AlertDescription className="text-[#365046]">
-                        <strong>Interés Fijo:</strong> El interés total se distribuye equitativamente en todas las cuotas.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {interestType === 'variable' && (
-                    <Alert className="bg-amber-50 border-amber-200">
-                      <Info className="h-4 w-4 text-amber-600" />
-                      <AlertDescription className="text-amber-800">
-                        <strong>Interés Variable/Amortizado:</strong> El interés se calcula sobre el capital restante que va disminuyendo.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {interestType === 'variable_rd' && (
-                    <Alert className="bg-purple-50 border-purple-200">
-                      <Info className="h-4 w-4 text-purple-600" />
-                      <AlertDescription className="text-purple-800">
-                        <strong>Interés Variable (RD):</strong> El interés se calcula aplicando la tasa directamente al capital restante.
+                        <strong>{selectedAmortizationMethod.label}:</strong> {selectedAmortizationMethod.description}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -1295,7 +1325,7 @@ export default function NewLoanPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 mt-2">
-                          Cálculo aproximado basado en el método de amortización francesa
+                          Cálculo estimado según el método de amortización seleccionado
                         </p>
                       </AlertDescription>
                     </Alert>

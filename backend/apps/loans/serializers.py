@@ -655,6 +655,10 @@ class LoanListSerializer(serializers.ModelSerializer):
 class LoanCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating loans"""
 
+    interest_type = serializers.ChoiceField(
+        choices=['flat', 'saldo_insoluto', 'french', 'german', 'fixed', 'variable', 'variable_rd']
+    )
+
     class Meta:
         model = Loan
         fields = [
