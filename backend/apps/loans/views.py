@@ -1747,8 +1747,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         company_name = tenant.business_name if tenant else 'CrediFlux'
 
         # Build signature URL
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        signature_url = f"{frontend_url}/sign/{token}"
+        frontend_url = getattr(settings, 'FRONTEND_URL', '').strip()
+        if not frontend_url or 'localhost' in frontend_url or '127.0.0.1' in frontend_url:
+            frontend_url = f"{request.scheme}://{request.get_host()}"
+        signature_url = f"{frontend_url.rstrip('/')}/sign/{token}"
 
         # Track sending results
         sent_via_email = False
