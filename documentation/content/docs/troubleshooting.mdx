@@ -1,0 +1,266 @@
+---
+title: Solución de Problemas
+description: Guía para resolver problemas comunes en CrediFlux
+---
+
+# Solución de Problemas
+
+Guía para diagnosticar y resolver problemas comunes en CrediFlux.
+
+## Problemas de Base de Datos
+
+### "relation does not exist"
+
+**Síntomas**: Error al acceder a tablas en Django shell o scripts.
+
+**Causa**: Ejecutando queries sin el schema context correcto.
+
+**Solución**:
+```python
+from django_tenants.utils import schema_context
+
+with schema_context('tu_tenant'):
+    from apps.loans.models import Loan
+    loans = Loan.objects.all()
+```
+
+### Migraciones no se aplican
+
+**Síntomas**: Cambios en modelos no se reflejan en la base de datos.
+
+**Solución**:
+```bash
+# Para shared apps
+docker-compose exec backend python manage.py migrate_schemas --shared
+
+# Para tenant apps
+docker-compose exec backend python manage.py migrate_schemas
+```
+
+### Tenant no se detecta
+
+**Síntomas**: Error 404 o "No tenant for hostname".
+
+**Verificar**:
+```python
+from apps.tenants.models import Domain
+Domain.objects.filter(domain='tu_dominio.localhost')
+```
+
+**Solución**: Crear el dominio si no existe:
+```python
+from apps.tenants.models import Tenant, Domain
+tenant = Tenant.objects.get(schema_name='tu_tenant')
+Domain.objects.create(domain='tu_dominio.localhost', tenant=tenant, is_primary=True)
+```
+
+## Problemas de Autenticación
+
+### Token JWT inválido
+
+**Síntomas**: Error 401 Unauthorized.
+
+**Posibles causas**:
+1. Token expirado
+2. Token malformado
+3. SECRET_KEY diferente
+
+**Solución**:
+```bash
+# Obtener nuevo token
+curl -X POST http://localhost:8000/api/auth/token/ \
+  -H "Content-Type: application/json" \
+  -d '{"email": "usuario@ejemplo.com", "password": "password"}'
+```
+
+### Usuario no puede acceder
+
+**Verificar permisos**:
+```python
+user = User.objects.get(email='usuario@ejemplo.com')
+print(user.is_active)
+print(user.user_permissions.all())
+print(user.groups.all())
+```
+
+## Problemas de Préstamos
+
+### Cronograma no se genera
+
+**Causa**: Préstamo no ha sido desembolsado.
+
+**Solución**:
+```bash
+POST /api/loans/{loan_id}/disburse/
+```
+
+### Saldos no cuadran
+
+**Diagnóstico**:
+```python
+loan = Loan.objects.get(id='uuid')
+print(f"Outstanding: {loan.outstanding_balance}")
+print(f"Total paid: {loan.total_paid}")
+
+for schedule in loan.payment_schedules.all():
+    print(f"Cuota {schedule.installment_number}: {schedule.paid_amount}/{schedule.total_amount}")
+```
+
+**Solución**:
+```python
+loan.recalculate_balance()
+loan.save()
+```
+
+### Cuota calculada incorrecta
+
+**Verificar frecuencia de pago**:
+- Monthly: rate/12
+- Biweekly: rate/24
+- Weekly: rate/52
+
+## Problemas de Pagos
+
+### Pago no se aplica correctamente
+
+**Verificar distribución**:
+```python
+payment = LoanPayment.objects.get(id='uuid')
+print(f"Total: {payment.amount}")
+print(f"Principal: {payment.principal_paid}")
+print(f"Interest: {payment.interest_paid}")
+print(f"Late Fee: {payment.late_fee_paid}")
+total = payment.principal_paid + payment.interest_paid + payment.late_fee_paid
+print(f"Sum: {total}")
+```
+
+### Reversión de pago falla
+
+**Verificar estado**:
+```python
+payment = LoanPayment.objects.get(id='uuid')
+if payment.status == 'reversed':
+    print("Pago ya fue revertido")
+```
+
+## Problemas de WhatsApp
+
+### Webhook no se verifica
+
+1. Verificar URL accesible públicamente:
+```bash
+curl https://tu-dominio.com/api/webhooks/whatsapp/
+```
+
+2. Verificar Verify Token coincide exactamente.
+
+3. Revisar logs:
+```bash
+docker-compose logs backend | grep -i whatsapp
+```
+
+### Mensajes no llegan
+
+1. Verificar suscripción a `messages` en Meta.
+2. Verificar `whatsapp_phone_id` del tenant.
+3. Revisar logs de Celery:
+```bash
+docker-compose logs celery | grep -i whatsapp
+```
+
+### Error 403 en webhooks
+
+Verificar `whatsapp_app_secret`:
+```python
+from apps.tenants.models import Tenant
+tenant = Tenant.objects.get(schema_name='tu_tenant')
+print(f"App Secret configurado: {bool(tenant.whatsapp_app_secret)}")
+```
+
+## Problemas de Docker
+
+### Contenedor no inicia
+
+**Ver logs**:
+```bash
+docker-compose logs backend
+docker-compose logs celery
+docker-compose logs redis
+```
+
+### Base de datos no conecta
+
+**Verificar**:
+```bash
+docker-compose exec db psql -U crediflux -d crediflux_db -c "SELECT 1"
+```
+
+### Celery no procesa tareas
+
+1. Verificar Redis:
+```bash
+docker-compose exec redis redis-cli ping
+```
+
+2. Verificar Celery:
+```bash
+docker-compose logs celery
+```
+
+3. Reiniciar Celery:
+```bash
+docker-compose restart celery
+```
+
+## Problemas de Performance
+
+### Queries lentas
+
+**Diagnóstico con Django Debug Toolbar** o logs:
+```python
+import logging
+logging.getLogger('django.db.backends').setLevel(logging.DEBUG)
+```
+
+**Optimizar con select_related/prefetch_related**:
+```python
+# Mal
+for loan in Loan.objects.all():
+    print(loan.customer.name)  # N+1 queries
+
+# Bien
+for loan in Loan.objects.select_related('customer'):
+    print(loan.customer.name)  # 1 query
+```
+
+### Alta memoria
+
+1. Usar `.iterator()` para querysets grandes:
+```python
+for loan in Loan.objects.all().iterator():
+    process(loan)
+```
+
+2. Paginar resultados en la API.
+
+## Comandos Útiles
+
+```bash
+# Ver estado de contenedores
+docker-compose ps
+
+# Ver logs en tiempo real
+docker-compose logs -f backend celery
+
+# Reiniciar todos los servicios
+docker-compose restart
+
+# Reconstruir contenedores
+docker-compose build --no-cache
+
+# Acceder a Django shell
+docker-compose exec backend python manage.py shell
+
+# Acceder a la base de datos
+docker-compose exec db psql -U crediflux -d crediflux_db
+```

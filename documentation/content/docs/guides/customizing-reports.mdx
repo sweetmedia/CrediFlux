@@ -1,0 +1,169 @@
+---
+title: Personalización de Reportes
+description: Cómo personalizar y crear reportes PDF en CrediFlux
+---
+
+# Personalización de Reportes PDF
+
+Este documento explica cómo personalizar y crear reportes PDF en CrediFlux.
+
+## Estructura del Sistema
+
+Los reportes PDF se encuentran en:
+```
+backend/apps/loans/reports.py
+```
+
+## Personalizar Reportes Existentes
+
+### Logo del Tenant
+
+El logo se agrega automáticamente si está configurado:
+
+```python
+tenant = connection.tenant
+if tenant and tenant.logo:
+    pdf.drawImage(logo_path, x, y, width, height)
+```
+
+**Para agregar un logo:**
+1. Ve a la configuración del tenant en el admin
+2. Sube una imagen en el campo "Logo"
+3. El logo aparecerá automáticamente en los reportes
+
+### Colores y Estilo
+
+```python
+# Cambiar tamaño de fuente
+pdf.setFont("Helvetica-Bold", 14)
+
+# Cambiar colores (RGB)
+pdf.setFillColorRGB(0.2, 0.4, 0.8)  # Azul personalizado
+
+# Agregar líneas decorativas
+pdf.setStrokeColorRGB(0, 0, 1)
+pdf.line(x1, y1, x2, y2)
+```
+
+### Orientación de Página
+
+```python
+# Landscape (horizontal) - actual
+pdf = canvas.Canvas(self.buffer, pagesize=landscape(letter))
+
+# Portrait (vertical)
+pdf = canvas.Canvas(self.buffer, pagesize=letter)
+```
+
+### Formato de Números
+
+```python
+# Moneda
+formatted = f"${amount:,.2f}"  # $100,000.00
+
+# Fechas
+fecha = date_obj.strftime('%d/%m/%Y')  # 01/11/2025
+
+# Cédula con guiones
+cedula_formateada = self._format_cedula("03103847012")  # 031-0384701-2
+```
+
+## Crear Nuevo Reporte
+
+### Paso 1: Crear la Clase
+
+```python
+# backend/apps/loans/reports.py
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+
+class LoanSummaryReport:
+    """Reporte resumido de préstamos"""
+
+    def __init__(self, loan):
+        self.loan = loan
+        self.buffer = BytesIO()
+
+    def generate(self):
+        pdf = canvas.Canvas(self.buffer, pagesize=letter)
+        width, height = letter
+
+        # Título
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(50, height - 50, f"Resumen - {self.loan.loan_number}")
+
+        # Contenido
+        pdf.setFont("Helvetica", 12)
+        y = height - 100
+        pdf.drawString(50, y, f"Cliente: {self.loan.customer.get_full_name()}")
+        y -= 20
+        pdf.drawString(50, y, f"Monto: ${self.loan.principal_amount:,.2f}")
+        y -= 20
+        pdf.drawString(50, y, f"Balance: ${self.loan.outstanding_balance:,.2f}")
+
+        pdf.showPage()
+        pdf.save()
+
+        self.buffer.seek(0)
+        return self.buffer
+```
+
+### Paso 2: Crear el Endpoint
+
+```python
+# backend/apps/loans/views.py
+from rest_framework.decorators import action
+from django.http import HttpResponse
+from .reports import LoanSummaryReport
+
+class LoanViewSet(viewsets.ModelViewSet):
+    @action(detail=True, methods=['get'])
+    def summary_report(self, request, pk=None):
+        loan = self.get_object()
+        report = LoanSummaryReport(loan)
+        pdf = report.generate()
+
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="summary_{loan.loan_number}.pdf"'
+        return response
+```
+
+### Paso 3: Agregar URL
+
+```python
+# El router de DRF agrega automáticamente:
+# GET /api/loans/{id}/summary_report/
+```
+
+## Tablas en PDF
+
+```python
+from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle
+
+data = [
+    ['Cuota', 'Fecha', 'Monto', 'Estado'],
+    ['1', '01/01/2025', '$10,000.00', 'Pagado'],
+    ['2', '01/02/2025', '$10,000.00', 'Pendiente'],
+]
+
+table = Table(data, colWidths=[50, 100, 100, 80])
+table.setStyle(TableStyle([
+    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+]))
+
+table.wrapOn(pdf, width, height)
+table.drawOn(pdf, x, y)
+```
+
+## Reportes Disponibles
+
+| Reporte | Endpoint | Descripción |
+|---------|----------|-------------|
+| Balance de Cuotas | `/api/loans/{id}/balance_report/` | Detalle de cuotas y pagos |
+| Estado de Cuenta | `/api/loans/{id}/statement/` | Resumen para el cliente |
+| Cartera Vencida | `/api/loans/collections/aging_report/` | Por buckets de mora |

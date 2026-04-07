@@ -1,0 +1,2113 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { tenantsAPI, Tenant, TenantUpdateData } from '@/lib/api/tenants';
+import { authAPI } from '@/lib/api/auth';
+import { getApiUrl } from '@/lib/api/client';
+import { ProfileUpdateData, PasswordChangeData } from '@/types';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import {
+  Loader2,
+  Save,
+  Settings as SettingsIcon,
+  Building2,
+  Mail,
+  Phone,
+  MapPin,
+  Palette,
+  ArrowLeft,
+  CheckCircle2,
+  Image as ImageIcon,
+  Upload,
+  X,
+  User as UserIcon,
+  Lock,
+  Bell,
+  Briefcase,
+  DollarSign,
+  MessageSquare,
+  Shield,
+  AlertTriangle,
+  KeyRound,
+} from 'lucide-react';
+import { TwoFactorSetup, BackupCodesDisplay } from '@/components/auth';
+
+const tenantSettingsSchema = z.object({
+  business_name: z.string().min(2, 'Nombre del negocio debe tener al menos 2 caracteres'),
+  tax_id: z.string().optional(),
+  email: z.string().email('Email inválido'),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  postal_code: z.string().optional(),
+  primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color debe ser formato hexadecimal (ej: #6366f1)').optional(),
+  default_currency: z.enum(['USD', 'DOP', 'EUR', 'GBP']).optional(),
+  currency_symbol: z.string().max(10, 'Símbolo de moneda debe tener máximo 10 caracteres').optional(),
+  enable_whatsapp_reminders: z.boolean().optional(),
+  whatsapp_phone_id: z.string().optional(),
+  whatsapp_token: z.string().optional(),
+  whatsapp_business_account_id: z.string().optional(),
+  whatsapp_verify_token: z.string().optional(),
+  // SMTP/IMAP Email Configuration
+  smtp_host: z.string().optional(),
+  smtp_port: z.number().int().positive().optional(),
+  smtp_username: z.string().optional(),
+  smtp_password: z.string().optional(),
+  smtp_use_tls: z.boolean().optional(),
+  smtp_use_ssl: z.boolean().optional(),
+  imap_host: z.string().optional(),
+  imap_port: z.number().int().positive().optional(),
+  imap_username: z.string().optional(),
+  imap_password: z.string().optional(),
+  imap_use_ssl: z.boolean().optional(),
+});
+
+const profileSchema = z.object({
+  first_name: z.string().min(2, 'Nombre debe tener al menos 2 caracteres'),
+  last_name: z.string().min(2, 'Apellido debe tener al menos 2 caracteres'),
+  phone: z.string().optional(),
+  job_title: z.string().optional(),
+  department: z.string().optional(),
+  bio: z.string().optional(),
+  receive_notifications: z.boolean().optional(),
+});
+
+const passwordChangeSchema = z.object({
+  current_password: z.string().min(1, 'Contraseña actual requerida'),
+  new_password: z.string().min(8, 'La nueva contraseña debe tener al menos 8 caracteres'),
+  confirm_password: z.string().min(8, 'Confirmación requerida'),
+}).refine((data) => data.new_password === data.confirm_password, {
+  message: "Las contraseñas no coinciden",
+  path: ["confirm_password"],
+});
+
+type TenantSettingsFormData = z.infer<typeof tenantSettingsSchema>;
+type ProfileFormData = z.infer<typeof profileSchema>;
+type PasswordChangeFormData = z.infer<typeof passwordChangeSchema>;
+
+export default function TenantSettingsPage() {
+  const router = useRouter();
+  const { user, tenant: authTenant, isAuthenticated, isLoading: authLoading, refreshTenant, refreshUser } = useAuth();
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+  // Profile states
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string>('');
+  const [profileSuccess, setProfileSuccess] = useState<string>('');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+  // Password change states
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string>('');
+  const [passwordSuccess, setPasswordSuccess] = useState<string>('');
+
+  // 2FA states
+  const [is2FASetupOpen, setIs2FASetupOpen] = useState(false);
+  const [is2FADisabling, setIs2FADisabling] = useState(false);
+  const [twoFAError, setTwoFAError] = useState<string>('');
+  const [twoFASuccess, setTwoFASuccess] = useState<string>('');
+  const [showDisable2FAForm, setShowDisable2FAForm] = useState(false);
+  const [disable2FAPassword, setDisable2FAPassword] = useState('');
+  const [disable2FACode, setDisable2FACode] = useState('');
+  const [backupCodesStatus, setBackupCodesStatus] = useState<{ is_2fa_enabled: boolean; backup_codes_remaining: number } | null>(null);
+  const [isRegeneratingBackupCodes, setIsRegeneratingBackupCodes] = useState(false);
+  const [regeneratePassword, setRegeneratePassword] = useState('');
+  const [showRegenerateForm, setShowRegenerateForm] = useState(false);
+  const [newBackupCodes, setNewBackupCodes] = useState<string[]>([]);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  // Tenant settings form
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<TenantSettingsFormData>({
+    resolver: zodResolver(tenantSettingsSchema),
+  });
+
+  // Profile form
+  const {
+    register: registerProfile,
+    handleSubmit: handleSubmitProfile,
+    setValue: setValueProfile,
+    watch: watchProfile,
+    formState: { errors: profileErrors },
+  } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
+  });
+
+  // Password change form
+  const {
+    register: registerPassword,
+    handleSubmit: handleSubmitPassword,
+    reset: resetPassword,
+    formState: { errors: passwordErrors },
+  } = useForm<PasswordChangeFormData>({
+    resolver: zodResolver(passwordChangeSchema),
+  });
+
+  // Load tenant settings
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadTenantSettings();
+    }
+  }, [isAuthenticated]);
+
+  const loadTenantSettings = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+
+      const data = await tenantsAPI.getSettings();
+      setTenant(data);
+
+      // Populate form
+      setValue('business_name', data.business_name);
+      setValue('tax_id', data.tax_id || '');
+      setValue('email', data.email);
+      setValue('phone', data.phone || '');
+      setValue('address', data.address || '');
+      setValue('city', data.city || '');
+      setValue('state', data.state || '');
+      setValue('country', data.country || '');
+      setValue('postal_code', data.postal_code || '');
+      setValue('primary_color', data.primary_color || '#6366f1');
+      setValue('default_currency', (data.default_currency as 'USD' | 'DOP' | 'EUR' | 'GBP' | undefined) || 'USD');
+      setValue('currency_symbol', data.currency_symbol || '$');
+      setValue('enable_whatsapp_reminders', data.enable_whatsapp_reminders || false);
+      setValue('whatsapp_phone_id', data.whatsapp_phone_id || '');
+      setValue('whatsapp_token', data.whatsapp_token || '');
+      setValue('whatsapp_business_account_id', data.whatsapp_business_account_id || '');
+      setValue('whatsapp_verify_token', data.whatsapp_verify_token || '');
+      // SMTP/IMAP Email Configuration
+      setValue('smtp_host', data.smtp_host || '');
+      setValue('smtp_port', data.smtp_port || 587);
+      setValue('smtp_username', data.smtp_username || '');
+      setValue('smtp_password', data.smtp_password || '');
+      setValue('smtp_use_tls', data.smtp_use_tls ?? true);
+      setValue('smtp_use_ssl', data.smtp_use_ssl ?? false);
+      setValue('imap_host', data.imap_host || '');
+      setValue('imap_port', data.imap_port || 993);
+      setValue('imap_username', data.imap_username || '');
+      setValue('imap_password', data.imap_password || '');
+      setValue('imap_use_ssl', data.imap_use_ssl ?? true);
+
+      // Set logo preview - prepend API URL if logo is a relative path
+      if (data.logo) {
+        const apiUrl = getApiUrl();
+        const logoUrl = data.logo.startsWith('http') ? data.logo : `${apiUrl}${data.logo}`;
+        setLogoPreview(logoUrl);
+      } else {
+        setLogoPreview(null);
+      }
+    } catch (err: any) {
+      console.error('Error loading tenant settings:', err);
+      setError('Error al cargar la configuración del tenant');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onSubmit = async (data: TenantSettingsFormData) => {
+    try {
+      setIsSaving(true);
+      setError('');
+      setSuccessMessage('');
+
+      const updateData: TenantUpdateData = {
+        business_name: data.business_name,
+        tax_id: data.tax_id || undefined,
+        email: data.email,
+        phone: data.phone || undefined,
+        address: data.address || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        country: data.country || undefined,
+        postal_code: data.postal_code || undefined,
+        primary_color: data.primary_color || undefined,
+        default_currency: data.default_currency || undefined,
+        currency_symbol: data.currency_symbol || undefined,
+        enable_whatsapp_reminders: data.enable_whatsapp_reminders,
+        whatsapp_phone_id: data.whatsapp_phone_id || undefined,
+        whatsapp_token: data.whatsapp_token || undefined,
+        whatsapp_business_account_id: data.whatsapp_business_account_id || undefined,
+        whatsapp_verify_token: data.whatsapp_verify_token || undefined,
+        // SMTP/IMAP Email Configuration
+        smtp_host: data.smtp_host || undefined,
+        smtp_port: data.smtp_port || undefined,
+        smtp_username: data.smtp_username || undefined,
+        smtp_password: data.smtp_password || undefined,
+        smtp_use_tls: data.smtp_use_tls,
+        smtp_use_ssl: data.smtp_use_ssl,
+        imap_host: data.imap_host || undefined,
+        imap_port: data.imap_port || undefined,
+        imap_username: data.imap_username || undefined,
+        imap_password: data.imap_password || undefined,
+        imap_use_ssl: data.imap_use_ssl,
+      };
+
+      const response = await tenantsAPI.updateSettings(updateData);
+      setTenant(response.tenant);
+      setSuccessMessage('Configuración actualizada exitosamente');
+
+      // Refresh tenant in auth context
+      await refreshTenant();
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err: any) {
+      console.error('Error updating tenant settings:', err);
+
+      // Handle 401 Unauthorized - redirect to login
+      if (err.response?.status === 401) {
+        setError('Tu sesión ha expirado. Redirigiendo al login...');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        if (errorData.error) {
+          setError(errorData.error);
+        } else if (errorData.email) {
+          setError(`Email: ${errorData.email[0]}`);
+        } else if (errorData.business_name) {
+          setError(`Nombre del negocio: ${errorData.business_name[0]}`);
+        } else {
+          setError('Error al actualizar la configuración');
+        }
+      } else {
+        setError('Error al conectar con el servidor');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Por favor selecciona un archivo de imagen válido');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('La imagen debe ser menor a 5MB');
+      return;
+    }
+
+    try {
+      setIsUploadingLogo(true);
+      setError('');
+      setSuccessMessage('');
+
+      const response = await tenantsAPI.uploadLogo(file);
+      setTenant(response.tenant);
+
+      // Set logo preview - prepend API URL if logo is a relative path
+      if (response.tenant.logo) {
+        const apiUrl = getApiUrl();
+        const logoUrl = response.tenant.logo.startsWith('http')
+          ? response.tenant.logo
+          : `${apiUrl}${response.tenant.logo}`;
+        setLogoPreview(logoUrl);
+      } else {
+        setLogoPreview(null);
+      }
+
+      setSuccessMessage('Logo actualizado exitosamente');
+
+      // Refresh tenant in auth context so logo appears in dashboard header
+      await refreshTenant();
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err: any) {
+      console.error('Error uploading logo:', err);
+
+      // Handle 401 Unauthorized - redirect to login
+      if (err.response?.status === 401) {
+        setError('Tu sesión ha expirado. Redirigiendo al login...');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+
+      // Handle different error types
+      let errorMessage = 'Error al subir el logo';
+
+      if (err.response?.data) {
+        // Server validation error
+        if (err.response.data.logo) {
+          errorMessage = Array.isArray(err.response.data.logo)
+            ? err.response.data.logo[0]
+            : err.response.data.logo;
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail;
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error;
+        } else {
+          errorMessage = `Error ${err.response.status}: ${err.response.statusText}`;
+        }
+      } else if (err.message) {
+        // Network error or custom error message
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    if (!confirm('¿Estás seguro de que deseas eliminar el logo?')) {
+      return;
+    }
+
+    try {
+      setIsUploadingLogo(true);
+      setError('');
+      setSuccessMessage('');
+
+      const response = await tenantsAPI.removeLogo();
+      setTenant(response.tenant);
+      setLogoPreview(null);
+      setSuccessMessage('Logo eliminado exitosamente');
+
+      // Refresh tenant in auth context
+      await refreshTenant();
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err: any) {
+      console.error('Error removing logo:', err);
+
+      // Handle 401 Unauthorized - redirect to login
+      if (err.response?.status === 401) {
+        setError('Tu sesión ha expirado. Redirigiendo al login...');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+
+      setError('Error al eliminar el logo');
+    } finally{
+      setIsUploadingLogo(false);
+    }
+  };
+
+  // Load user profile
+  useEffect(() => {
+    if (user) {
+      setValueProfile('first_name', user.first_name);
+      setValueProfile('last_name', user.last_name);
+      setValueProfile('phone', user.phone || '');
+      setValueProfile('job_title', user.job_title || '');
+      setValueProfile('department', user.department || '');
+      setValueProfile('bio', user.bio || '');
+      setValueProfile('receive_notifications', user.receive_notifications);
+
+      // Set avatar preview
+      if (user.avatar) {
+        const apiUrl = getApiUrl();
+        const avatarUrl = user.avatar.startsWith('http') ? user.avatar : `${apiUrl}${user.avatar}`;
+        setAvatarPreview(avatarUrl);
+      }
+    }
+  }, [user]);
+
+  // Handle profile update
+  const onProfileSubmit = async (data: ProfileFormData) => {
+    try {
+      setIsSavingProfile(true);
+      setProfileError('');
+      setProfileSuccess('');
+
+      const updateData: ProfileUpdateData = {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone || undefined,
+        job_title: data.job_title || undefined,
+        department: data.department || undefined,
+        bio: data.bio || undefined,
+        receive_notifications: data.receive_notifications,
+      };
+
+      await authAPI.updateProfile(updateData);
+      await refreshUser();
+      setProfileSuccess('Perfil actualizado exitosamente');
+      setTimeout(() => setProfileSuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error updating profile:', err);
+      setProfileError(err.response?.data?.error || 'Error al actualizar el perfil');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // Handle avatar upload
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setProfileError('Por favor selecciona un archivo de imagen válido');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileError('La imagen debe ser menor a 5MB');
+      return;
+    }
+
+    try {
+      setIsUploadingAvatar(true);
+      setProfileError('');
+      setProfileSuccess('');
+
+      await authAPI.updateProfile({ avatar: file });
+      await refreshUser();
+
+      // Update preview
+      const apiUrl = getApiUrl();
+      const freshUser = await authAPI.getProfile();
+      if (freshUser.avatar) {
+        const avatarUrl = freshUser.avatar.startsWith('http')
+          ? freshUser.avatar
+          : `${apiUrl}${freshUser.avatar}`;
+        setAvatarPreview(avatarUrl);
+      }
+
+      setProfileSuccess('Avatar actualizado exitosamente');
+      setTimeout(() => setProfileSuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error uploading avatar:', err);
+      setProfileError('Error al subir el avatar');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  // Handle avatar remove
+  const handleAvatarRemove = async () => {
+    if (!confirm('¿Estás seguro de que deseas eliminar tu foto de perfil?')) {
+      return;
+    }
+
+    try {
+      setIsUploadingAvatar(true);
+      setProfileError('');
+      setProfileSuccess('');
+
+      await authAPI.updateProfile({ avatar: null });
+      await refreshUser();
+      setAvatarPreview(null);
+      setProfileSuccess('Foto de perfil eliminada exitosamente');
+      setTimeout(() => setProfileSuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error removing avatar:', err);
+      setProfileError('Error al eliminar la foto de perfil');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  // Load 2FA status
+  useEffect(() => {
+    if (user?.is_2fa_enabled) {
+      load2FAStatus();
+    }
+  }, [user?.is_2fa_enabled]);
+
+  const load2FAStatus = async () => {
+    try {
+      const status = await authAPI.get2FAStatus();
+      setBackupCodesStatus(status);
+    } catch (err) {
+      console.error('Error loading 2FA status:', err);
+    }
+  };
+
+  // Handle 2FA setup success
+  const handle2FASetupSuccess = async () => {
+    setTwoFASuccess('Autenticacion de dos factores habilitada exitosamente');
+    await refreshUser();
+    await load2FAStatus();
+    setTimeout(() => setTwoFASuccess(''), 5000);
+  };
+
+  // Handle disable 2FA
+  const handleDisable2FA = async () => {
+    if (!disable2FAPassword || !disable2FACode) {
+      setTwoFAError('Ingresa tu contrasena y codigo de verificacion');
+      return;
+    }
+
+    try {
+      setIs2FADisabling(true);
+      setTwoFAError('');
+
+      await authAPI.disable2FA(disable2FAPassword, disable2FACode);
+
+      setTwoFASuccess('Autenticacion de dos factores deshabilitada');
+      setShowDisable2FAForm(false);
+      setDisable2FAPassword('');
+      setDisable2FACode('');
+      await refreshUser();
+      setTimeout(() => setTwoFASuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error disabling 2FA:', err);
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        if (errorData.password) {
+          setTwoFAError(`Contrasena: ${errorData.password[0]}`);
+        } else if (errorData.code) {
+          setTwoFAError(`Codigo: ${errorData.code[0]}`);
+        } else if (errorData.error) {
+          setTwoFAError(errorData.error);
+        } else {
+          setTwoFAError('Error al deshabilitar 2FA');
+        }
+      } else {
+        setTwoFAError('Error al conectar con el servidor');
+      }
+    } finally {
+      setIs2FADisabling(false);
+    }
+  };
+
+  // Handle regenerate backup codes
+  const handleRegenerateBackupCodes = async () => {
+    if (!regeneratePassword) {
+      setTwoFAError('Ingresa tu contrasena');
+      return;
+    }
+
+    try {
+      setIsRegeneratingBackupCodes(true);
+      setTwoFAError('');
+
+      const response = await authAPI.regenerateBackupCodes(regeneratePassword);
+      setNewBackupCodes(response.backup_codes);
+      setShowRegenerateForm(false);
+      setRegeneratePassword('');
+      await load2FAStatus();
+      setTwoFASuccess('Codigos de respaldo regenerados');
+      setTimeout(() => setTwoFASuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error regenerating backup codes:', err);
+      if (err.response?.data?.password) {
+        setTwoFAError(`Contrasena: ${err.response.data.password[0]}`);
+      } else if (err.response?.data?.error) {
+        setTwoFAError(err.response.data.error);
+      } else {
+        setTwoFAError('Error al regenerar codigos de respaldo');
+      }
+    } finally {
+      setIsRegeneratingBackupCodes(false);
+    }
+  };
+
+  // Handle password change
+  const onPasswordSubmit = async (data: PasswordChangeFormData) => {
+    try {
+      setIsChangingPassword(true);
+      setPasswordError('');
+      setPasswordSuccess('');
+
+      await authAPI.changePassword({
+        current_password: data.current_password,
+        new_password: data.new_password,
+        confirm_password: data.confirm_password,
+      });
+
+      setPasswordSuccess('Contraseña cambiada exitosamente');
+      resetPassword();
+      setTimeout(() => setPasswordSuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error changing password:', err);
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        if (errorData.current_password) {
+          setPasswordError(`Contraseña actual: ${errorData.current_password[0]}`);
+        } else if (errorData.new_password) {
+          setPasswordError(`Nueva contraseña: ${errorData.new_password[0]}`);
+        } else if (errorData.error) {
+          setPasswordError(errorData.error);
+        } else {
+          setPasswordError('Error al cambiar la contraseña');
+        }
+      } else {
+        setPasswordError('Error al conectar con el servidor');
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // Show loading state while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAF7]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
+      </div>
+    );
+  }
+
+  // Check if user has permission
+  if (user && !user.is_tenant_owner && user.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
+        <div className="container mx-auto max-w-4xl">
+          <Alert variant="destructive">
+            <AlertDescription>
+              No tienes permiso para acceder a la configuración del tenant. Solo el propietario o administradores pueden modificar estos ajustes.
+            </AlertDescription>
+          </Alert>
+          <div className="mt-4">
+            <Link href="/dashboard">
+              <Button variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al Dashboard
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F8FAF7] p-6 lg:p-8">
+      <div className="mx-auto max-w-6xl">
+        {/* Header */}
+        <div className="mb-8 space-y-6">
+          <Link
+            href="/settings"
+            className="inline-flex items-center text-sm text-slate-600 transition hover:text-slate-900"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver a Configuración
+          </Link>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="grid gap-0 lg:grid-cols-[1.35fr,0.85fr]">
+              <div className="border-b border-slate-200/70 p-6 lg:border-b-0 lg:border-r lg:p-8">
+                <div className="inline-flex items-center rounded-full border border-[#163300]/10 bg-[#163300]/5 px-3 py-1 text-xs font-medium text-[#163300]">
+                  Workspace del tenant
+                </div>
+                <h1 className="mt-4 flex items-center gap-3 text-3xl font-semibold tracking-tight text-slate-950">
+                  <Building2 className="h-7 w-7 text-[#163300]" />
+                  Configuración general
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                  Organiza la identidad de la empresa, la cuenta del usuario, seguridad,
+                  comunicaciones y branding desde una sola vista clara y compacta.
+                </p>
+              </div>
+
+              <div className="grid gap-3 p-6 lg:p-8">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Organización</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">{tenant?.business_name || authTenant?.business_name || 'CrediFlux'}</p>
+                  <p className="mt-1 text-sm text-slate-600">Email principal: {tenant?.email || user?.email || 'No definido'}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Usuario activo</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">{user?.first_name || user?.email || 'Cuenta actual'}</p>
+                  <p className="mt-1 text-sm text-slate-600">Rol: {user?.role || 'owner'} {user?.is_2fa_enabled ? '· 2FA activo' : '· 2FA pendiente'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Success Message */}
+        {successMessage && (
+          <Alert className="mb-6 bg-[#ECFDF3] border-[#B7E4C7] shadow-sm">
+            <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+            <AlertDescription className="text-[#166534]">
+              {successMessage}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <Alert variant="destructive" className="mb-6 shadow-sm">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-12 w-12 animate-spin text-[#163300] mb-4" />
+            <p className="text-slate-600">Cargando configuración...</p>
+          </div>
+        ) : (
+          <Tabs defaultValue="profile" className="w-full">
+            <TabsList className="mb-6 grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-3 xl:grid-cols-6">
+              <TabsTrigger value="profile" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Perfil</TabsTrigger>
+              <TabsTrigger value="security" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Seguridad</TabsTrigger>
+              <TabsTrigger value="business" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Negocio</TabsTrigger>
+              <TabsTrigger value="email" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Email</TabsTrigger>
+              <TabsTrigger value="notifications" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Notificaciones</TabsTrigger>
+              <TabsTrigger value="appearance" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600 data-[state=active]:border-[#163300]/20 data-[state=active]:bg-[#163300] data-[state=active]:text-white">Apariencia</TabsTrigger>
+            </TabsList>
+
+            {/* PROFILE TAB */}
+            <TabsContent value="profile">
+              <form onSubmit={handleSubmitProfile(onProfileSubmit)}>
+                <Card className="rounded-3xl border-slate-200/80 shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <UserIcon className="h-5 w-5 text-[#163300]" />
+                    Perfil Personal
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">
+                    Tu información personal y preferencias
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Profile Success/Error Messages */}
+                  {profileSuccess && (
+                    <Alert className="bg-[#ECFDF3] border-[#B7E4C7]">
+                      <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+                      <AlertDescription className="text-[#166534]">
+                        {profileSuccess}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {profileError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{profileError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Avatar Section */}
+                  <div className="flex items-start gap-6">
+                    <div className="flex-shrink-0">
+                      {avatarPreview ? (
+                        <div className="relative">
+                          <img
+                            src={avatarPreview}
+                            alt="Avatar"
+                            className="w-24 h-24 rounded-full object-cover border-2 border-slate-200"
+                          />
+                          {!isUploadingAvatar && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute -top-1 -right-1 h-6 w-6 rounded-full p-0"
+                              onClick={handleAvatarRemove}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-100">
+                          <UserIcon className="h-12 w-12 text-slate-400" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Label>Foto de Perfil</Label>
+                      <div className="flex gap-2">
+                        <label htmlFor="avatar-upload">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isUploadingAvatar}
+                            onClick={() => document.getElementById('avatar-upload')?.click()}
+                          >
+                            {isUploadingAvatar ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Subiendo...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="mr-2 h-4 w-4" />
+                                {avatarPreview ? 'Cambiar Foto' : 'Subir Foto'}
+                              </>
+                            )}
+                          </Button>
+                        </label>
+                        <input
+                          id="avatar-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarUpload}
+                          disabled={isUploadingAvatar}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        PNG, JPG o GIF. Máximo 5MB.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Name Fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="first_name">
+                        Nombre <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="first_name"
+                        {...registerProfile('first_name')}
+                        disabled={isSavingProfile}
+                      />
+                      {profileErrors.first_name && (
+                        <p className="text-sm text-red-500">{profileErrors.first_name.message}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="last_name">
+                        Apellido <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="last_name"
+                        {...registerProfile('last_name')}
+                        disabled={isSavingProfile}
+                      />
+                      {profileErrors.last_name && (
+                        <p className="text-sm text-red-500">{profileErrors.last_name.message}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Email (read-only) */}
+                  <div className="space-y-2">
+                    <Label htmlFor="profile_email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        id="profile_email"
+                        type="email"
+                        value={user?.email || ''}
+                        className="pl-10 bg-slate-50"
+                        disabled
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      El email no puede ser modificado
+                    </p>
+                  </div>
+
+                  {/* Phone & Job Info */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="profile_phone">Teléfono</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                          id="profile_phone"
+                          type="tel"
+                          placeholder="+58 212 1234567"
+                          className="pl-10"
+                          {...registerProfile('phone')}
+                          disabled={isSavingProfile}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="job_title">Cargo / Puesto</Label>
+                      <div className="relative">
+                        <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                          id="job_title"
+                          placeholder="Ej: Gerente General"
+                          className="pl-10"
+                          {...registerProfile('job_title')}
+                          disabled={isSavingProfile}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Department & Bio */}
+                  <div className="space-y-2">
+                    <Label htmlFor="department">Departamento</Label>
+                    <Input
+                      id="department"
+                      placeholder="Ej: Administración"
+                      {...registerProfile('department')}
+                      disabled={isSavingProfile}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Biografía</Label>
+                    <Textarea
+                      id="bio"
+                      placeholder="Cuéntanos sobre ti..."
+                      rows={3}
+                      {...registerProfile('bio')}
+                      disabled={isSavingProfile}
+                    />
+                  </div>
+
+                  {/* Notifications */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="receive_notifications"
+                      className="w-4 h-4 text-[#163300] border-slate-300 rounded focus:ring-[#163300]"
+                      {...registerProfile('receive_notifications')}
+                      disabled={isSavingProfile}
+                    />
+                    <Label htmlFor="receive_notifications" className="flex items-center gap-2 cursor-pointer">
+                      <Bell className="h-4 w-4 text-slate-600" />
+                      Recibir notificaciones por email
+                    </Label>
+                  </div>
+
+                  {/* Profile Actions */}
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={isSavingProfile} className="bg-[#163300] hover:bg-[#0f2400]">
+                      {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Save className="mr-2 h-4 w-4" />
+                      Guardar Perfil
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </form>
+            </TabsContent>
+
+            {/* SECURITY TAB */}
+            <TabsContent value="security">
+            <form onSubmit={handleSubmitPassword(onPasswordSubmit)}>
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <Lock className="h-5 w-5 text-[#163300]" />
+                    Cambiar Contraseña
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">
+                    Actualiza tu contraseña para mayor seguridad
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Password Success/Error Messages */}
+                  {passwordSuccess && (
+                    <Alert className="bg-[#ECFDF3] border-[#B7E4C7]">
+                      <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+                      <AlertDescription className="text-[#166534]">
+                        {passwordSuccess}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {passwordError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{passwordError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="current_password">Contraseña Actual</Label>
+                    <Input
+                      id="current_password"
+                      type="password"
+                      {...registerPassword('current_password')}
+                      disabled={isChangingPassword}
+                    />
+                    {passwordErrors.current_password && (
+                      <p className="text-sm text-red-500">{passwordErrors.current_password.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="new_password">Nueva Contraseña</Label>
+                    <Input
+                      id="new_password"
+                      type="password"
+                      {...registerPassword('new_password')}
+                      disabled={isChangingPassword}
+                    />
+                    {passwordErrors.new_password && (
+                      <p className="text-sm text-red-500">{passwordErrors.new_password.message}</p>
+                    )}
+                    <p className="text-xs text-slate-500">
+                      Mínimo 8 caracteres
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm_password">Confirmar Nueva Contraseña</Label>
+                    <Input
+                      id="confirm_password"
+                      type="password"
+                      {...registerPassword('confirm_password')}
+                      disabled={isChangingPassword}
+                    />
+                    {passwordErrors.confirm_password && (
+                      <p className="text-sm text-red-500">{passwordErrors.confirm_password.message}</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={isChangingPassword} className="bg-[#163300] hover:bg-[#0f2400]">
+                      {isChangingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Lock className="mr-2 h-4 w-4" />
+                      Cambiar Contraseña
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </form>
+
+              {/* Two-Factor Authentication Card */}
+              <Card className="rounded-3xl border-slate-200/80 shadow-none mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <Shield className="h-5 w-5 text-[#163300]" />
+                    Autenticacion de Dos Factores (2FA)
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">
+                    Protege tu cuenta con una capa adicional de seguridad
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* 2FA Success/Error Messages */}
+                  {twoFASuccess && (
+                    <Alert className="bg-[#ECFDF3] border-[#B7E4C7]">
+                      <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+                      <AlertDescription className="text-[#166534]">
+                        {twoFASuccess}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {twoFAError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{twoFAError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {user?.is_2fa_enabled ? (
+                    <>
+                      {/* 2FA Enabled Status */}
+                      <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="p-2 bg-green-100 rounded-full">
+                          <Shield className="h-5 w-5 text-[#166534]" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-green-900">2FA Habilitado</p>
+                          <p className="text-sm text-green-700">
+                            Tu cuenta esta protegida con autenticacion de dos factores
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Backup Codes Status */}
+                      {backupCodesStatus && (
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg border">
+                          <div className="p-2 bg-slate-100 rounded-full">
+                            <KeyRound className="h-5 w-5 text-slate-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-slate-900">Codigos de Respaldo</p>
+                            <p className="text-sm text-slate-600">
+                              {backupCodesStatus.backup_codes_remaining} codigos restantes
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowRegenerateForm(true)}
+                          >
+                            Regenerar
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Regenerate Backup Codes Form */}
+                      {showRegenerateForm && (
+                        <div className="p-4 bg-slate-50 rounded-lg border space-y-4">
+                          <p className="text-sm text-slate-700">
+                            Ingresa tu contrasena para regenerar los codigos de respaldo.
+                            Los codigos anteriores seran invalidados.
+                          </p>
+                          <div className="space-y-2">
+                            <Label htmlFor="regenerate_password">Contrasena</Label>
+                            <Input
+                              id="regenerate_password"
+                              type="password"
+                              value={regeneratePassword}
+                              onChange={(e) => setRegeneratePassword(e.target.value)}
+                              disabled={isRegeneratingBackupCodes}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowRegenerateForm(false);
+                                setRegeneratePassword('');
+                              }}
+                              disabled={isRegeneratingBackupCodes}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleRegenerateBackupCodes}
+                              disabled={isRegeneratingBackupCodes}
+                            >
+                              {isRegeneratingBackupCodes && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Regenerar Codigos
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* New Backup Codes Display */}
+                      {newBackupCodes.length > 0 && (
+                        <div className="space-y-3">
+                          <Alert>
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>
+                              Guarda estos nuevos codigos de respaldo. Los codigos anteriores ya no funcionaran.
+                            </AlertDescription>
+                          </Alert>
+                          <BackupCodesDisplay codes={newBackupCodes} />
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setNewBackupCodes([])}
+                          >
+                            Listo, he guardado mis codigos
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Disable 2FA Section */}
+                      {!showDisable2FAForm ? (
+                        <Button
+                          variant="outline"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => setShowDisable2FAForm(true)}
+                        >
+                          Deshabilitar 2FA
+                        </Button>
+                      ) : (
+                        <div className="p-4 bg-red-50 rounded-lg border border-red-200 space-y-4">
+                          <p className="text-sm text-red-700">
+                            Para deshabilitar 2FA, ingresa tu contrasena y un codigo de tu aplicacion de autenticacion.
+                          </p>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="disable_password">Contrasena</Label>
+                              <Input
+                                id="disable_password"
+                                type="password"
+                                value={disable2FAPassword}
+                                onChange={(e) => setDisable2FAPassword(e.target.value)}
+                                disabled={is2FADisabling}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="disable_code">Codigo 2FA</Label>
+                              <Input
+                                id="disable_code"
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={6}
+                                placeholder="000000"
+                                value={disable2FACode}
+                                onChange={(e) => setDisable2FACode(e.target.value.replace(/\D/g, ''))}
+                                disabled={is2FADisabling}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowDisable2FAForm(false);
+                                setDisable2FAPassword('');
+                                setDisable2FACode('');
+                                setTwoFAError('');
+                              }}
+                              disabled={is2FADisabling}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={handleDisable2FA}
+                              disabled={is2FADisabling}
+                            >
+                              {is2FADisabling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Deshabilitar 2FA
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* 2FA Not Enabled */}
+                      <div className="flex items-center gap-3 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                        <div className="p-2 bg-yellow-100 rounded-full">
+                          <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-yellow-900">2FA No Habilitado</p>
+                          <p className="text-sm text-yellow-700">
+                            Tu cuenta no tiene proteccion adicional
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <h4 className="font-medium text-blue-900 mb-2">Beneficios de 2FA:</h4>
+                        <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
+                          <li>Protege tu cuenta incluso si roban tu contrasena</li>
+                          <li>Compatible con Google Authenticator, Authy, etc.</li>
+                          <li>Codigos de respaldo para emergencias</li>
+                        </ul>
+                      </div>
+
+                      <Button
+                        className="bg-[#163300] hover:bg-[#0f2400]"
+                        onClick={() => setIs2FASetupOpen(true)}
+                      >
+                        <Shield className="mr-2 h-4 w-4" />
+                        Configurar 2FA
+                      </Button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* 2FA Setup Dialog */}
+              <TwoFactorSetup
+                isOpen={is2FASetupOpen}
+                onClose={() => setIs2FASetupOpen(false)}
+                onSuccess={handle2FASetupSuccess}
+              />
+            </TabsContent>
+
+            {/* BUSINESS TAB */}
+            <TabsContent value="business">
+            <form onSubmit={handleSubmit(onSubmit)}>
+              {/* Business Information */}
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <Building2 className="h-5 w-5 text-[#163300]" />
+                    Información del Negocio
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">
+                    Información básica de tu organización
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="business_name">
+                        Nombre del Negocio <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="business_name"
+                        {...register('business_name')}
+                        disabled={isSaving}
+                      />
+                      {errors.business_name && (
+                        <p className="text-sm text-red-500">{errors.business_name.message}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="tax_id">RIF / Tax ID</Label>
+                      <Input
+                        id="tax_id"
+                        placeholder="J-12345678-9"
+                        {...register('tax_id')}
+                        disabled={isSaving}
+                      />
+                      {errors.tax_id && (
+                        <p className="text-sm text-red-500">{errors.tax_id.message}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">
+                      Email <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        id="email"
+                        type="email"
+                        className="pl-10"
+                        {...register('email')}
+                        disabled={isSaving}
+                      />
+                    </div>
+                    {errors.email && (
+                      <p className="text-sm text-red-500">{errors.email.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Teléfono</Label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        id="phone"
+                        type="tel"
+                        placeholder="+58 212 1234567"
+                        className="pl-10"
+                        {...register('phone')}
+                        disabled={isSaving}
+                      />
+                    </div>
+                    {errors.phone && (
+                      <p className="text-sm text-red-500">{errors.phone.message}</p>
+                    )}
+                  </div>
+
+                  {/* Currency Settings */}
+                  <div className="pt-4 border-t">
+                    <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-[#166534]" />
+                      Configuración de Moneda
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="default_currency">Moneda Predeterminada</Label>
+                        <select
+                          id="default_currency"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          {...register('default_currency')}
+                          disabled={isSaving}
+                        >
+                          <option value="USD">US Dollar ($)</option>
+                          <option value="DOP">Dominican Peso (RD$)</option>
+                          <option value="EUR">Euro (€)</option>
+                          <option value="GBP">British Pound (£)</option>
+                        </select>
+                        {errors.default_currency && (
+                          <p className="text-sm text-red-500">{errors.default_currency.message}</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="currency_symbol">Símbolo de Moneda</Label>
+                        <Input
+                          id="currency_symbol"
+                          placeholder="$"
+                          maxLength={10}
+                          {...register('currency_symbol')}
+                          disabled={isSaving}
+                        />
+                        {errors.currency_symbol && (
+                          <p className="text-sm text-red-500">{errors.currency_symbol.message}</p>
+                        )}
+                        <p className="text-xs text-slate-500">
+                          Ej: $, RD$, €, £
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Address Information */}
+              <Card className="rounded-3xl border-slate-200/80 shadow-none mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <MapPin className="h-5 w-5 text-[#163300]" />
+                    Dirección
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">
+                    Ubicación física de tu organización
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Dirección</Label>
+                    <Input
+                      id="address"
+                      placeholder="Av. Principal, Edificio X, Piso Y"
+                      {...register('address')}
+                      disabled={isSaving}
+                    />
+                    {errors.address && (
+                      <p className="text-sm text-red-500">{errors.address.message}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="city">Ciudad</Label>
+                      <Input
+                        id="city"
+                        placeholder="Caracas"
+                        {...register('city')}
+                        disabled={isSaving}
+                      />
+                      {errors.city && (
+                        <p className="text-sm text-red-500">{errors.city.message}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="state">Estado / Provincia</Label>
+                      <Input
+                        id="state"
+                        placeholder="Distrito Capital"
+                        {...register('state')}
+                        disabled={isSaving}
+                      />
+                      {errors.state && (
+                        <p className="text-sm text-red-500">{errors.state.message}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="country">País</Label>
+                      <Input
+                        id="country"
+                        placeholder="Venezuela"
+                        {...register('country')}
+                        disabled={isSaving}
+                      />
+                      {errors.country && (
+                        <p className="text-sm text-red-500">{errors.country.message}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="postal_code">Código Postal</Label>
+                      <Input
+                        id="postal_code"
+                        placeholder="1010"
+                        {...register('postal_code')}
+                        disabled={isSaving}
+                      />
+                      {errors.postal_code && (
+                        <p className="text-sm text-red-500">{errors.postal_code.message}</p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Subscription Info (Read-only) */}
+              {tenant && (
+                <Card className="rounded-3xl border-slate-200/80 shadow-none mt-6">
+                  <CardHeader>
+                    <CardTitle className="text-slate-900">Información de Suscripción</CardTitle>
+                    <CardDescription className="text-slate-600">
+                      Detalles de tu plan actual (solo lectura)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label className="text-sm text-slate-600">Plan</Label>
+                        <p className="text-lg font-semibold capitalize">{tenant.subscription_plan}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-slate-600">Usuarios Máximos</Label>
+                        <p className="text-lg font-semibold">{tenant.max_users}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-slate-600">Estado</Label>
+                        <p className="text-lg font-semibold">
+                          {tenant.is_active ? (
+                            <span className="text-[#166534]">Activo</span>
+                          ) : (
+                            <span className="text-red-600">Inactivo</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 mt-6">
+                <Link href="/dashboard">
+                  <Button type="button" variant="outline" disabled={isSaving}>
+                    Cancelar
+                  </Button>
+                </Link>
+                <Button type="submit" disabled={isSaving} className="bg-[#163300] hover:bg-[#0f2400]">
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Save className="mr-2 h-4 w-4" />
+                  Guardar Información del Negocio
+                </Button>
+              </div>
+            </form>
+            </TabsContent>
+
+            {/* EMAIL CONFIGURATION TAB */}
+            <TabsContent value="email">
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <Mail className="h-5 w-5 text-[#163300]" />
+                    Configuración de Email (SMTP/IMAP)
+                  </CardTitle>
+                  <CardDescription>
+                    Configura tu servidor de correo para enviar y recibir emails desde la aplicación
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Quick Presets */}
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700">Configuración Rápida</Label>
+                    <div className="grid grid-cols-3 gap-3 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setValue('smtp_host', 'smtp.gmail.com');
+                          setValue('smtp_port', 587);
+                          setValue('smtp_use_tls', true);
+                          setValue('smtp_use_ssl', false);
+                          setValue('imap_host', 'imap.gmail.com');
+                          setValue('imap_port', 993);
+                          setValue('imap_use_ssl', true);
+                        }}
+                        className="flex items-center justify-center gap-2"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Gmail
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setValue('smtp_host', 'smtp-mail.outlook.com');
+                          setValue('smtp_port', 587);
+                          setValue('smtp_use_tls', true);
+                          setValue('smtp_use_ssl', false);
+                          setValue('imap_host', 'outlook.office365.com');
+                          setValue('imap_port', 993);
+                          setValue('imap_use_ssl', true);
+                        }}
+                        className="flex items-center justify-center gap-2"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Outlook
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setValue('smtp_host', 'smtp.mail.yahoo.com');
+                          setValue('smtp_port', 587);
+                          setValue('smtp_use_tls', true);
+                          setValue('smtp_use_ssl', false);
+                          setValue('imap_host', 'imap.mail.yahoo.com');
+                          setValue('imap_port', 993);
+                          setValue('imap_use_ssl', true);
+                        }}
+                        className="flex items-center justify-center gap-2"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Yahoo
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* SMTP Configuration */}
+                  <div className="border-t pt-6">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-4">Configuración SMTP (Envío)</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="smtp_host">Servidor SMTP</Label>
+                        <Input
+                          id="smtp_host"
+                          placeholder="smtp.gmail.com"
+                          {...register('smtp_host')}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="smtp_port">Puerto</Label>
+                        <Input
+                          id="smtp_port"
+                          type="number"
+                          placeholder="587"
+                          {...register('smtp_port', { valueAsNumber: true })}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="smtp_username">Usuario</Label>
+                        <Input
+                          id="smtp_username"
+                          placeholder="tu-email@gmail.com"
+                          {...register('smtp_username')}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="smtp_password">Contraseña</Label>
+                        <Input
+                          id="smtp_password"
+                          type="password"
+                          placeholder="••••••••"
+                          {...register('smtp_password')}
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="smtp_use_tls"
+                          {...register('smtp_use_tls')}
+                          className="h-4 w-4 text-[#163300] focus:ring-[#163300] border-slate-300 rounded"
+                        />
+                        <Label htmlFor="smtp_use_tls" className="font-normal">
+                          Usar TLS (Recomendado)
+                        </Label>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="smtp_use_ssl"
+                          {...register('smtp_use_ssl')}
+                          className="h-4 w-4 text-[#163300] focus:ring-[#163300] border-slate-300 rounded"
+                        />
+                        <Label htmlFor="smtp_use_ssl" className="font-normal">
+                          Usar SSL
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* IMAP Configuration */}
+                  <div className="border-t pt-6">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-4">Configuración IMAP (Recepción)</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="imap_host">Servidor IMAP</Label>
+                        <Input
+                          id="imap_host"
+                          placeholder="imap.gmail.com"
+                          {...register('imap_host')}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="imap_port">Puerto</Label>
+                        <Input
+                          id="imap_port"
+                          type="number"
+                          placeholder="993"
+                          {...register('imap_port', { valueAsNumber: true })}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="imap_username">Usuario</Label>
+                        <Input
+                          id="imap_username"
+                          placeholder="tu-email@gmail.com"
+                          {...register('imap_username')}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="imap_password">Contraseña</Label>
+                        <Input
+                          id="imap_password"
+                          type="password"
+                          placeholder="••••••••"
+                          {...register('imap_password')}
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="imap_use_ssl"
+                          {...register('imap_use_ssl')}
+                          className="h-4 w-4 text-[#163300] focus:ring-[#163300] border-slate-300 rounded"
+                        />
+                        <Label htmlFor="imap_use_ssl" className="font-normal">
+                          Usar SSL (Recomendado)
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Help Text */}
+                  <Alert>
+                    <Mail className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Nota:</strong> Para Gmail, necesitas crear una "Contraseña de aplicación" en tu configuración de seguridad de Google.
+                      Para Outlook, usa tu contraseña normal o habilita la autenticación de aplicaciones si tienes 2FA activado.
+                    </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end mt-6">
+                <Button
+                  type="submit"
+                  disabled={isSaving}
+                  className="bg-[#163300] hover:bg-[#0f2400] text-white"
+                >
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Save className="mr-2 h-4 w-4" />
+                  Guardar Configuración de Email
+                </Button>
+              </div>
+            </form>
+            </TabsContent>
+
+            {/* NOTIFICATIONS TAB */}
+            <TabsContent value="notifications">
+            <form onSubmit={handleSubmit(onSubmit)}>
+              {/* WhatsApp Configuration */}
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <MessageSquare className="h-5 w-5 text-[#166534]" />
+                    Configuración de WhatsApp
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">
+                    Configura WhatsApp Cloud API para enviar notificaciones automáticas
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Enable WhatsApp Toggle */}
+                  <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <input
+                      type="checkbox"
+                      id="enable_whatsapp_reminders"
+                      className="w-4 h-4 text-[#166534] border-slate-300 rounded focus:ring-green-500 mt-1"
+                      {...register('enable_whatsapp_reminders')}
+                      disabled={isSaving}
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="enable_whatsapp_reminders" className="font-semibold cursor-pointer">
+                        Habilitar Recordatorios por WhatsApp
+                      </Label>
+                      <p className="text-sm text-slate-600 mt-1">
+                        Activa el envío automático de recordatorios de pago, enlaces de firma de contratos y recibos por WhatsApp
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Credentials Info */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-900 mb-2">Cómo obtener las credenciales de WhatsApp:</h4>
+                    <ol className="text-sm text-yellow-800 space-y-1 list-decimal list-inside">
+                      <li>Crea una cuenta en <a href="https://business.facebook.com/" target="_blank" rel="noopener noreferrer" className="underline">Meta Business Suite</a></li>
+                      <li>Configura WhatsApp Business API</li>
+                      <li>Obtén tu Phone Number ID y Access Token</li>
+                      <li>Copia el Business Account ID</li>
+                      <li>Genera un Verify Token para webhooks</li>
+                    </ol>
+                  </div>
+
+                  {/* WhatsApp Phone ID */}
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp_phone_id">
+                      WhatsApp Phone Number ID
+                    </Label>
+                    <Input
+                      id="whatsapp_phone_id"
+                      placeholder="123456789012345"
+                      {...register('whatsapp_phone_id')}
+                      disabled={isSaving}
+                    />
+                    <p className="text-xs text-slate-500">
+                      ID del número de teléfono de WhatsApp Business desde Meta Business
+                    </p>
+                  </div>
+
+                  {/* WhatsApp Token */}
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp_token">
+                      WhatsApp Access Token
+                    </Label>
+                    <Input
+                      id="whatsapp_token"
+                      type="password"
+                      placeholder="EAAxxxxxxxxxxxxxxxx"
+                      {...register('whatsapp_token')}
+                      disabled={isSaving}
+                    />
+                    <p className="text-xs text-slate-500">
+                      Token de acceso de Meta Business (se guardará encriptado)
+                    </p>
+                  </div>
+
+                  {/* WhatsApp Business Account ID */}
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp_business_account_id">
+                      WhatsApp Business Account ID
+                    </Label>
+                    <Input
+                      id="whatsapp_business_account_id"
+                      placeholder="123456789012345"
+                      {...register('whatsapp_business_account_id')}
+                      disabled={isSaving}
+                    />
+                    <p className="text-xs text-slate-500">
+                      ID de la cuenta business de WhatsApp
+                    </p>
+                  </div>
+
+                  {/* Webhook Verify Token */}
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp_verify_token">
+                      Webhook Verify Token
+                    </Label>
+                    <Input
+                      id="whatsapp_verify_token"
+                      type="password"
+                      placeholder="mi_token_secreto_123"
+                      {...register('whatsapp_verify_token')}
+                      disabled={isSaving}
+                    />
+                    <p className="text-xs text-slate-500">
+                      Token para validar webhooks de WhatsApp
+                    </p>
+                  </div>
+
+                  {/* Features Info */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Funcionalidades de WhatsApp:
+                    </h4>
+                    <ul className="text-sm text-[#166534] space-y-1 list-disc list-inside">
+                      <li>Recordatorios automáticos de pago (7, 3 y 1 día antes)</li>
+                      <li>Notificaciones de pagos vencidos (1, 3 y 7 días después)</li>
+                      <li>Envío de enlaces de firma de contratos</li>
+                      <li>Recibos de pago automáticos</li>
+                      <li>Notificaciones de aprobación de préstamos</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 mt-6">
+                <Link href="/dashboard">
+                  <Button type="button" variant="outline" disabled={isSaving}>
+                    Cancelar
+                  </Button>
+                </Link>
+                <Button type="submit" disabled={isSaving} className="bg-green-600 hover:bg-green-700">
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Save className="mr-2 h-4 w-4" />
+                  Guardar Configuración de WhatsApp
+                </Button>
+              </div>
+            </form>
+            </TabsContent>
+
+            {/* APPEARANCE TAB */}
+            <TabsContent value="appearance">
+            <form onSubmit={handleSubmit(onSubmit)}>
+              {/* Branding */}
+              <Card className="rounded-3xl border-slate-200/80 shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <Palette className="h-5 w-5 text-[#163300]" />
+                    Personalización
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">
+                    Personaliza la apariencia de tu tenant
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Logo Section */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4" />
+                      Logo de la Empresa
+                    </Label>
+
+                    {/* Logo Preview */}
+                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center gap-4">
+                      {logoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={logoPreview}
+                            alt="Logo"
+                            className="max-w-xs max-h-32 object-contain"
+                          />
+                          {!isUploadingLogo && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute -top-2 -right-2"
+                              onClick={handleLogoRemove}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-slate-400">
+                          <ImageIcon className="h-12 w-12" />
+                          <p className="text-sm">No hay logo</p>
+                        </div>
+                      )}
+
+                      {/* Upload Button */}
+                      <div className="flex gap-2">
+                        <label htmlFor="logo-upload">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isUploadingLogo}
+                            onClick={() => document.getElementById('logo-upload')?.click()}
+                          >
+                            {isUploadingLogo ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Subiendo...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="mr-2 h-4 w-4" />
+                                {logoPreview ? 'Cambiar Logo' : 'Subir Logo'}
+                              </>
+                            )}
+                          </Button>
+                        </label>
+                        <input
+                          id="logo-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleLogoUpload}
+                          disabled={isUploadingLogo}
+                        />
+                      </div>
+
+                      <p className="text-xs text-slate-500 text-center">
+                        PNG, JPG o GIF. Máximo 5MB.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Color Section */}
+                  <div className="space-y-2">
+                    <Label htmlFor="primary_color">Color Principal</Label>
+                    <div className="flex gap-3 items-center">
+                      <Input
+                        id="primary_color"
+                        type="color"
+                        className="w-20 h-10 cursor-pointer"
+                        {...register('primary_color')}
+                        disabled={isSaving}
+                      />
+                      <Input
+                        type="text"
+                        placeholder="#6366f1"
+                        className="flex-1"
+                        {...register('primary_color')}
+                        disabled={isSaving}
+                      />
+                    </div>
+                    {errors.primary_color && (
+                      <p className="text-sm text-red-500">{errors.primary_color.message}</p>
+                    )}
+                    <p className="text-xs text-slate-500">
+                      Formato hexadecimal (ej: #6366f1)
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 mt-4">
+                <Link href="/dashboard">
+                  <Button type="button" variant="outline" disabled={isSaving || isUploadingLogo}>
+                    Cancelar
+                  </Button>
+                </Link>
+                <Button type="submit" disabled={isSaving || isUploadingLogo} className="bg-[#163300] hover:bg-[#0f2400]">
+                  {(isSaving || isUploadingLogo) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Save className="mr-2 h-4 w-4" />
+                  Guardar Apariencia
+                </Button>
+              </div>
+            </form>
+            </TabsContent>
+          </Tabs>
+        )}
+      </div>
+    </div>
+  );
+}

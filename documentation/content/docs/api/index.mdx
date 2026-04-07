@@ -1,0 +1,173 @@
+---
+title: API Reference
+description: Documentación de la API REST de CrediFlux
+---
+
+# API Reference
+
+CrediFlux expone una API REST completa para integración con sistemas externos.
+
+## Autenticación
+
+La API utiliza JWT (JSON Web Tokens) para autenticación.
+
+### Obtener Token
+
+```bash
+POST /api/auth/token/
+Content-Type: application/json
+
+{
+  "email": "usuario@ejemplo.com",
+  "password": "tu_password"
+}
+```
+
+**Response**:
+```json
+{
+  "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+### Usar Token
+
+Incluye el token en el header `Authorization`:
+
+```bash
+GET /api/loans/
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+```
+
+### Refresh Token
+
+```bash
+POST /api/auth/token/refresh/
+{
+  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+## Endpoints Principales
+
+### Clientes
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/loans/customers/` | Listar clientes |
+| POST | `/api/loans/customers/` | Crear cliente |
+| GET | `/api/loans/customers/{id}/` | Detalle de cliente |
+| PATCH | `/api/loans/customers/{id}/` | Actualizar cliente |
+| DELETE | `/api/loans/customers/{id}/` | Eliminar cliente |
+
+### Préstamos
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/loans/` | Listar préstamos |
+| POST | `/api/loans/` | Crear préstamo |
+| GET | `/api/loans/{id}/` | Detalle de préstamo |
+| POST | `/api/loans/{id}/approve/` | Aprobar préstamo |
+| POST | `/api/loans/{id}/disburse/` | Desembolsar préstamo |
+| POST | `/api/loans/{id}/reject/` | Rechazar préstamo |
+
+### Pagos
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/loans/payments/` | Listar pagos |
+| POST | `/api/loans/payments/` | Registrar pago |
+| GET | `/api/loans/payments/{id}/` | Detalle de pago |
+| POST | `/api/loans/payments/{id}/reverse/` | Reversar pago |
+
+### Cronograma
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/loans/schedules/` | Listar cuotas |
+| GET | `/api/loans/schedules/overdue/` | Cuotas vencidas |
+
+### Cobranza
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/loans/collection-contacts/` | Listar contactos |
+| POST | `/api/loans/collection-contacts/` | Registrar contacto |
+| GET | `/api/loans/collections/dashboard_stats/` | Estadísticas |
+
+## Paginación
+
+La API usa paginación basada en cursor:
+
+```json
+{
+  "count": 150,
+  "next": "http://api/loans/?page=2",
+  "previous": null,
+  "results": [...]
+}
+```
+
+**Parámetros**:
+- `page`: Número de página
+- `page_size`: Resultados por página (máx 100)
+
+## Filtros
+
+La mayoría de endpoints soportan filtros:
+
+```bash
+GET /api/loans/?status=active&loan_type=personal&customer={uuid}
+```
+
+## Ordenamiento
+
+Usa el parámetro `ordering`:
+
+```bash
+GET /api/loans/?ordering=-created_at
+GET /api/loans/payments/?ordering=-payment_date,amount
+```
+
+## Búsqueda
+
+Usa el parámetro `search`:
+
+```bash
+GET /api/loans/?search=Juan
+GET /api/loans/customers/?search=809-555
+```
+
+## Códigos de Estado
+
+| Código | Significado |
+|--------|-------------|
+| 200 | OK |
+| 201 | Creado |
+| 400 | Error de validación |
+| 401 | No autenticado |
+| 403 | Sin permisos |
+| 404 | No encontrado |
+| 500 | Error del servidor |
+
+## Manejo de Errores
+
+```json
+{
+  "error": "validation_error",
+  "message": "Los datos proporcionados no son válidos",
+  "details": {
+    "amount": ["Este campo es requerido"],
+    "loan": ["El préstamo no existe"]
+  }
+}
+```
+
+## Rate Limiting
+
+- 1000 requests por minuto por usuario
+- Headers de respuesta incluyen:
+  - `X-RateLimit-Limit`
+  - `X-RateLimit-Remaining`
+  - `X-RateLimit-Reset`

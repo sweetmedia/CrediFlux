@@ -1,0 +1,56 @@
+/* CrediFlux Admin — Constance config table fixes */
+
+/* Constance table: prevent long URLs from breaking layout */
+.constance-form table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.constance-form table th:nth-child(1),
+.constance-form table td:nth-child(1) {
+    width: 25%;
+}
+
+.constance-form table th:nth-child(2),
+.constance-form table td:nth-child(2) {
+    width: 25%;
+}
+
+.constance-form table th:nth-child(3),
+.constance-form table td:nth-child(3) {
+    width: 35%;
+}
+
+.constance-form table th:nth-child(4),
+.constance-form table td:nth-child(4) {
+    width: 15%;
+}
+
+/* Truncate long text in Constance default/value cells */
+.constance-form td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-all;
+}
+
+/* Make text inputs in constance full-width */
+.constance-form input[type="text"],
+.constance-form input[type="url"],
+.constance-form input[type="number"],
+.constance-form textarea {
+    width: 100% !important;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Fieldset headers: consistent spacing */
+.constance-form fieldset {
+    margin-bottom: 1.5rem;
+}
+
+.constance-form fieldset legend,
+.constance-form fieldset h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
