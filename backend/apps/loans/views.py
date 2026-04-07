@@ -379,7 +379,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             'loan': serializer.data
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
     def disburse(self, request, pk=None):
         """Disburse a loan (mark as active)"""
         loan = self.get_object()
