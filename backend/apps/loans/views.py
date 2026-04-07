@@ -975,7 +975,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'inline; filename="recibo-{payment.payment_number}.pdf"'
         return response
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def confirm(self, request, pk=None):
         """
         Confirm a pending payment.
@@ -1041,7 +1041,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
         return Response(response_data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def cancel(self, request, pk=None):
         """Cancel a pending payment"""
         payment = self.get_object()
@@ -1498,7 +1498,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return contract
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def regenerate(self, request, pk=None):
         """Regenerate contract content from template"""
         from .utils_contracts import replace_contract_variables
@@ -1573,7 +1573,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato firmado por el cliente'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def sign_officer(self, request, pk=None):
         """Mark contract as signed by loan officer"""
         contract = self.get_object()
@@ -1621,7 +1621,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato firmado por el oficial'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def activate(self, request, pk=None):
         """Activate a signed contract"""
         contract = self.get_object()
@@ -1637,7 +1637,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato activado'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def cancel(self, request, pk=None):
         """Cancel a contract"""
         contract = self.get_object()
@@ -1654,7 +1654,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato cancelado'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def archive(self, request, pk=None):
         """Archive a contract (only for cancelled contracts)"""
         contract = self.get_object()
@@ -1678,7 +1678,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato archivado exitosamente'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def unarchive(self, request, pk=None):
         """Unarchive a contract"""
         contract = self.get_object()
@@ -1696,7 +1696,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato desarchivado exitosamente'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def send_for_signature(self, request, pk=None):
         """Send contract via email and/or WhatsApp for signature"""
         import secrets
