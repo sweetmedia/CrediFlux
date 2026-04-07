@@ -277,7 +277,7 @@ export default function NewReminderPage() {
                     <Input
                       id="loan-search"
                       type="text"
-                      placeholder="Número de préstamo o nombre del cliente..."
+                      placeholder="Número de préstamo, nombre o cédula del cliente..."
                       value={selectedLoan ? `${selectedLoan.loan_number} - ${selectedLoan.customer_name}` : searchTerm}
                       onChange={(e) => {
                         if (selectedLoan) return;

@@ -264,14 +264,39 @@ class LoanViewSet(viewsets.ModelViewSet):
         'payment_schedules', 'payments', 'collaterals'
     ).all()
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'loan_type', 'customer']
-    search_fields = [
-        'loan_number', 'customer__customer_id',
-        'customer__first_name', 'customer__last_name'
-    ]
     ordering_fields = ['created_at', 'disbursement_date', 'principal_amount']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        queryset = super().get_queryset().annotate(
+            normalized_customer_id_number=Replace(
+                Replace(
+                    Replace('customer__id_number', Value('-'), Value('')),
+                    Value(' '), Value('')
+                ),
+                Value('_'), Value('')
+            )
+        )
+
+        search = (self.request.query_params.get('search') or '').strip()
+        if not search:
+            return queryset
+
+        normalized_search = ''.join(ch for ch in search if ch.isalnum())
+        filters_q = (
+            Q(loan_number__icontains=search) |
+            Q(customer__customer_id__icontains=search) |
+            Q(customer__first_name__icontains=search) |
+            Q(customer__last_name__icontains=search) |
+            Q(customer__id_number__icontains=search)
+        )
+
+        if normalized_search and normalized_search != search:
+            filters_q |= Q(normalized_customer_id_number__icontains=normalized_search)
+
+        return queryset.filter(filters_q)
 
     def get_serializer_class(self):
         if self.action == 'list':
