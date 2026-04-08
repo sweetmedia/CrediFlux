@@ -80,6 +80,28 @@ const AMORTIZATION_METHODS = [
   },
 ];
 
+const VEHICLE_BRAND_MODELS: Record<string, string[]> = {
+  Toyota: ['Corolla', 'Camry', 'RAV4', 'Hilux', 'Prado', 'Yaris', 'Fortuner', 'Land Cruiser'],
+  Honda: ['Civic', 'Accord', 'CR-V', 'Pilot', 'Fit', 'HR-V'],
+  Hyundai: ['Elantra', 'Sonata', 'Tucson', 'Santa Fe', 'Accent', 'Kona'],
+  Kia: ['K5', 'K3', 'Sportage', 'Sorento', 'Picanto', 'Seltos'],
+  Nissan: ['Sentra', 'Altima', 'X-Trail', 'Frontier', 'Versa', 'Pathfinder'],
+  Ford: ['Explorer', 'Escape', 'F-150', 'Ranger', 'Edge', 'Focus'],
+  Chevrolet: ['Spark', 'Cruze', 'Tracker', 'Tahoe', 'Silverado', 'Equinox'],
+  Mazda: ['Mazda 2', 'Mazda 3', 'CX-3', 'CX-5', 'CX-9', 'BT-50'],
+  Mitsubishi: ['L200', 'Montero', 'Outlander', 'Mirage', 'ASX'],
+  BMW: ['Serie 1', 'Serie 3', 'Serie 5', 'X1', 'X3', 'X5'],
+  Mercedes-Benz: ['Clase A', 'Clase C', 'Clase E', 'GLA', 'GLC', 'GLE'],
+  Lexus: ['IS', 'ES', 'RX', 'GX', 'LX', 'NX'],
+  Jeep: ['Wrangler', 'Cherokee', 'Grand Cherokee', 'Compass', 'Renegade'],
+  Volkswagen: ['Jetta', 'Passat', 'Tiguan', 'Amarok', 'Polo', 'Golf'],
+  Suzuki: ['Swift', 'Vitara', 'Jimny', 'Ertiga', 'Celerio'],
+  Otros: ['Otro modelo'],
+};
+
+const VEHICLE_BRANDS = Object.keys(VEHICLE_BRAND_MODELS);
+const VEHICLE_YEARS = Array.from({ length: 36 }, (_, index) => String(new Date().getFullYear() + 1 - index));
+
 const loanSchema = z.object({
   customer: z.string().min(1, 'Cliente requerido'),
   principal_amount: z.string().min(1, 'Monto requerido'),
@@ -395,12 +417,18 @@ export default function NewLoanPage() {
 
   const updateCollateralMetadata = (index: number, metaField: string, value: any) => {
     const updated = [...collaterals];
+    const nextMetadata = {
+      ...updated[index].metadata,
+      [metaField]: value,
+    } as Record<string, any>;
+
+    if (metaField === 'brand') {
+      nextMetadata.model = '';
+    }
+
     updated[index] = {
       ...updated[index],
-      metadata: {
-        ...updated[index].metadata,
-        [metaField]: value,
-      },
+      metadata: nextMetadata,
     };
     setCollaterals(updated);
   };
@@ -1529,30 +1557,40 @@ export default function NewLoanPage() {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium text-slate-700">Marca</Label>
-                                <Input
-                                  placeholder="Ej: Toyota, Honda, Ford..."
+                                <NativeSelect
                                   value={(collateral.metadata as VehicleMetadata)?.brand || ''}
                                   onChange={(e) => updateCollateralMetadata(index, 'brand', e.target.value)}
-                                />
+                                >
+                                  <option value="">Selecciona una marca</option>
+                                  {VEHICLE_BRANDS.map((brand) => (
+                                    <option key={brand} value={brand}>{brand}</option>
+                                  ))}
+                                </NativeSelect>
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium text-slate-700">Modelo</Label>
-                                <Input
-                                  placeholder="Ej: Corolla, Civic, F-150..."
+                                <NativeSelect
                                   value={(collateral.metadata as VehicleMetadata)?.model || ''}
                                   onChange={(e) => updateCollateralMetadata(index, 'model', e.target.value)}
-                                />
+                                  disabled={!(collateral.metadata as VehicleMetadata)?.brand}
+                                >
+                                  <option value="">Selecciona un modelo</option>
+                                  {VEHICLE_BRAND_MODELS[(collateral.metadata as VehicleMetadata)?.brand || '']?.map((model) => (
+                                    <option key={model} value={model}>{model}</option>
+                                  ))}
+                                </NativeSelect>
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium text-slate-700">Año</Label>
-                                <Input
-                                  type="number"
-                                  placeholder="Ej: 2020"
-                                  min="1900"
-                                  max={new Date().getFullYear() + 1}
-                                  value={(collateral.metadata as VehicleMetadata)?.year || ''}
-                                  onChange={(e) => updateCollateralMetadata(index, 'year', parseInt(e.target.value) || undefined)}
-                                />
+                                <NativeSelect
+                                  value={String((collateral.metadata as VehicleMetadata)?.year || '')}
+                                  onChange={(e) => updateCollateralMetadata(index, 'year', e.target.value ? parseInt(e.target.value) : undefined)}
+                                >
+                                  <option value="">Selecciona un año</option>
+                                  {VEHICLE_YEARS.map((year) => (
+                                    <option key={year} value={year}>{year}</option>
+                                  ))}
+                                </NativeSelect>
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium text-slate-700">Placa</Label>
