@@ -8,6 +8,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from django.db import connection
+from .models import Tenant
 from .serializers import (
     TenantRegistrationSerializer,
     TenantSerializer,
@@ -314,6 +316,17 @@ class TenantSettingsView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
+    def _get_effective_tenant(self, user):
+        """Resolve tenant from user relation first, then current schema as fallback."""
+        if getattr(user, 'tenant', None):
+            return user.tenant
+
+        current_schema = getattr(connection, 'schema_name', 'public')
+        try:
+            return Tenant.objects.get(schema_name=current_schema)
+        except Tenant.DoesNotExist:
+            return None
+
     @swagger_auto_schema(
         operation_id='get_tenant_settings',
         operation_description='Get current tenant information and settings',
@@ -341,14 +354,15 @@ class TenantSettingsView(APIView):
         """
         # Get user's tenant
         user = request.user
+        tenant = self._get_effective_tenant(user)
 
-        if not user.tenant:
+        if not tenant:
             return Response(
                 {'error': 'You do not belong to any tenant.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = TenantSerializer(user.tenant)
+        serializer = TenantSerializer(tenant)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @swagger_auto_schema(
@@ -427,16 +441,17 @@ class TenantSettingsView(APIView):
     def _update_tenant(self, request, partial=False):
         """Helper method to update tenant"""
         user = request.user
+        tenant = self._get_effective_tenant(user)
 
         # Check if user belongs to a tenant
-        if not user.tenant:
+        if not tenant:
             return Response(
                 {'error': 'You do not belong to any tenant.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
         # Check if user has permission (owner or admin)
-        if not (user.is_tenant_owner or user.role == 'admin'):
+        if not (user.is_tenant_owner or user.role == 'admin' or user.is_superuser):
             return Response(
                 {'error': 'You do not have permission to update tenant settings.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -444,7 +459,7 @@ class TenantSettingsView(APIView):
 
         # Update tenant
         serializer = TenantUpdateSerializer(
-            user.tenant,
+            tenant,
             data=request.data,
             partial=partial
         )
@@ -453,7 +468,7 @@ class TenantSettingsView(APIView):
             serializer.save()
 
             # Return updated tenant data
-            response_serializer = TenantSerializer(user.tenant)
+            response_serializer = TenantSerializer(tenant)
             return Response(
                 {
                     'message': 'Tenant settings updated successfully.',
