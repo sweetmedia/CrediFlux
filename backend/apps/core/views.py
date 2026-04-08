@@ -319,6 +319,21 @@ class GlobalSearchView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _format_dominican_id(value):
+        if not value:
+            return ''
+
+        cleaned = ''.join(ch for ch in str(value) if ch.isdigit())
+
+        if len(cleaned) == 11:
+            return f'{cleaned[:3]}-{cleaned[3:10]}-{cleaned[10:]}'
+
+        if len(cleaned) == 9:
+            return f'{cleaned[:1]}-{cleaned[1:3]}-{cleaned[3:8]}-{cleaned[8:]}'
+
+        return value
+
     def get(self, request):
         query = request.query_params.get('q', '').strip()
 
@@ -357,7 +372,7 @@ class GlobalSearchView(APIView):
                 'id': str(c.id),
                 'type': 'customer',
                 'title': c.get_full_name(),
-                'subtitle': f'{c.id_number} - {c.email}' if c.email else c.id_number,
+                'subtitle': f'{self._format_dominican_id(c.id_number)} - {c.email}' if c.email else self._format_dominican_id(c.id_number),
                 'url': f'/customers/{c.id}',
             }
             for c in customers

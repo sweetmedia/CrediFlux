@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { CollateralCreate, VehicleMetadata, PropertyMetadata, EquipmentMetadata } from '@/types';
 import { toast } from 'sonner';
+import { formatDisplayIDNumber } from '@/lib/utils/id-formatter';
 
 const AMORTIZATION_METHODS = [
   {
@@ -126,6 +127,67 @@ const VEHICLE_BRAND_MODELS: Record<string, string[]> = {
 
 const VEHICLE_BRANDS = Object.keys(VEHICLE_BRAND_MODELS);
 const VEHICLE_YEARS = Array.from({ length: 36 }, (_, index) => String(new Date().getFullYear() + 1 - index));
+
+const FIELD_LABELS: Record<string, string> = {
+  customer: 'Cliente',
+  customer_id: 'Cliente',
+  principal_amount: 'Monto',
+  interest_rate: 'Tasa de interés',
+  monthly_interest_rate: 'Tasa mensual',
+  term_months: 'Plazo',
+  payment_frequency: 'Frecuencia',
+  loan_type: 'Tipo de préstamo',
+  amortization_method: 'Método de amortización',
+  disbursement_date: 'Fecha de desembolso',
+  first_payment_date: 'Fecha de primera cuota',
+  start_date: 'Fecha de inicio',
+  guarantors: 'Garantes',
+  collaterals: 'Garantías',
+  detail: 'Detalle',
+  non_field_errors: 'Validación',
+};
+
+function prettifyErrorKey(key: string): string {
+  const cleanKey = key.split('.').pop() || key;
+  return FIELD_LABELS[cleanKey] || cleanKey.replace(/_/g, ' ');
+}
+
+function collectApiErrorMessages(errorData: any, parentKey = ''): string[] {
+  if (!errorData) return [];
+
+  if (typeof errorData === 'string') {
+    return [parentKey ? `${prettifyErrorKey(parentKey)}: ${errorData}` : errorData];
+  }
+
+  if (Array.isArray(errorData)) {
+    return errorData.flatMap((item) => collectApiErrorMessages(item, parentKey));
+  }
+
+  if (typeof errorData === 'object') {
+    return Object.entries(errorData).flatMap(([key, value]) => {
+      const nextKey = parentKey ? `${parentKey}.${key}` : key;
+      return collectApiErrorMessages(value, nextKey);
+    });
+  }
+
+  return [];
+}
+
+function formatLoanCreationError(errorData: any): string {
+  const messages = Array.from(
+    new Set(
+      collectApiErrorMessages(errorData)
+        .map((message) => message.trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (messages.length === 0) {
+    return 'No se pudo crear el préstamo. Verifica los datos e inténtalo otra vez.';
+  }
+
+  return messages.slice(0, 4).join(' • ');
+}
 
 const loanSchema = z.object({
   customer: z.string().min(1, 'Cliente requerido'),
@@ -936,22 +998,13 @@ export default function NewLoanPage() {
     } catch (err: any) {
       console.error('Error creating loan:', err);
       if (err.response?.data) {
-        const errorData = err.response.data;
-        let errorMessages: string[] = [];
-        Object.keys(errorData).forEach(key => {
-          if (Array.isArray(errorData[key])) {
-            errorMessages.push(`${key}: ${errorData[key].join(', ')}`);
-          } else if (typeof errorData[key] === 'string') {
-            errorMessages.push(`${key}: ${errorData[key]}`);
-          }
-        });
-        if (errorMessages.length > 0) {
-          setError(errorMessages.join(' | '));
-        } else {
-          setError('Error al crear el préstamo. Por favor verifica los datos.');
-        }
+        const message = formatLoanCreationError(err.response.data);
+        setError(message);
+        toast.error(message);
       } else {
-        setError('Error al conectar con el servidor');
+        const message = 'Error al conectar con el servidor';
+        setError(message);
+        toast.error(message);
       }
     } finally {
       setIsLoading(false);
@@ -1148,7 +1201,7 @@ export default function NewLoanPage() {
                                           {customer.id_number && (
                                             <span className="flex items-center gap-1">
                                               <IdCard className="h-3 w-3" />
-                                              {customer.id_number}
+                                              {formatDisplayIDNumber(customer.id_number, customer.id_type)}
                                             </span>
                                           )}
                                           {customer.email && (
@@ -1194,7 +1247,7 @@ export default function NewLoanPage() {
                                   {selectedCustomer.id_number && (
                                     <span className="flex items-center gap-1">
                                       <IdCard className="h-4 w-4" />
-                                      {selectedCustomer.id_number}
+                                      {formatDisplayIDNumber(selectedCustomer.id_number, selectedCustomer.id_type)}
                                     </span>
                                   )}
                                   {selectedCustomer.email && (
@@ -2117,7 +2170,7 @@ export default function NewLoanPage() {
                           <p className="font-medium text-slate-900">
                             {selectedCustomer.full_name || `${selectedCustomer.first_name} ${selectedCustomer.last_name}`}
                           </p>
-                          <p className="text-sm text-slate-600">{selectedCustomer.id_number}</p>
+                          <p className="text-sm text-slate-600">{formatDisplayIDNumber(selectedCustomer.id_number, selectedCustomer.id_type)}</p>
                         </div>
                       </div>
                     )}
@@ -2205,7 +2258,7 @@ export default function NewLoanPage() {
                               </div>
                               <div className="text-sm text-slate-600 space-y-0.5">
                                 {g.id_number && (
-                                  <p><strong>Cédula/Doc:</strong> {g.id_number}</p>
+                                  <p><strong>Cédula/Doc:</strong> {formatDisplayIDNumber(g.id_number, g.id_type)}</p>
                                 )}
                                 {g.phone && (
                                   <p><strong>Teléfono:</strong> {g.phone}</p>

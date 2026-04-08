@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { customersAPI } from '@/lib/api/customers';
 import { collectionsAPI } from '@/lib/api/loans';
 import { Customer, CollectionContact, PaginatedResponse } from '@/types';
+import { formatDisplayIDNumber } from '@/lib/utils/id-formatter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, ArrowRight, Loader2, Search, ShieldAlert, Users, Wallet } from 'lucide-react';
@@ -183,7 +184,7 @@ export default function ClientesReportPage() {
                       <p className="font-medium text-slate-900">{customer.full_name}</p>
                       {hasEscalation ? <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Escalado</span> : null}
                     </div>
-                    <p className="mt-1 text-sm text-slate-500">{customer.customer_id} · {customer.id_number}</p>
+                    <p className="mt-1 text-sm text-slate-500">{customer.customer_id} · {formatDisplayIDNumber(customer.id_number, customer.id_type)}</p>
                     <div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-600">
                       <span>Préstamos: <strong className="text-slate-900">{customer.total_loans}</strong></span>
                       <span>Activos: <strong className="text-slate-900">{customer.active_loans}</strong></span>
