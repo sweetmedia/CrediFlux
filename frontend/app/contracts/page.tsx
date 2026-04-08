@@ -65,6 +65,34 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-800',
 };
 
+function getMissingSignatureInfo(contract: Contract): { label: string; className: string } | null {
+  const missingCustomer = !contract.customer_signed_at;
+  const missingOfficer = !contract.officer_signed_at;
+
+  if (!missingCustomer && !missingOfficer) {
+    return null;
+  }
+
+  if (missingCustomer && missingOfficer) {
+    return {
+      label: 'Faltan cliente y oficial',
+      className: 'bg-amber-100 text-amber-800',
+    };
+  }
+
+  if (missingCustomer) {
+    return {
+      label: 'Falta firma del cliente',
+      className: 'bg-orange-100 text-orange-800',
+    };
+  }
+
+  return {
+    label: 'Falta firma del oficial',
+    className: 'bg-[#163300]/10 text-[#163300]',
+  };
+}
+
 export default function ContractsPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -323,6 +351,7 @@ export default function ContractsPage() {
               <div className="divide-y divide-slate-200">
                 {contracts.map((contract) => {
                   const StatusIcon = STATUS_ICONS[contract.status];
+                  const missingSignatureInfo = getMissingSignatureInfo(contract);
                   return (
                     <div
                       key={contract.id}
@@ -346,6 +375,14 @@ export default function ContractsPage() {
                               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 <CheckCircle2 className="h-3 w-3" />
                                 Firmado Completamente
+                              </span>
+                            )}
+                            {missingSignatureInfo && (
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${missingSignatureInfo.className}`}
+                              >
+                                <PenTool className="h-3 w-3" />
+                                {missingSignatureInfo.label}
                               </span>
                             )}
                             {contract.is_archived && (
