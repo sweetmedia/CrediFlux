@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q, Sum, Count, Value
@@ -1184,6 +1185,7 @@ class CollateralViewSet(viewsets.ModelViewSet):
     queryset = Collateral.objects.select_related('loan').all()
     serializer_class = CollateralSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['collateral_type', 'status', 'loan']
     search_fields = ['description', 'loan__loan_number']

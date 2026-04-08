@@ -271,7 +271,14 @@ export const collateralsAPI = {
   },
 
   // Create collateral
-  async createCollateral(data: Partial<Collateral>): Promise<Collateral> {
+  async createCollateral(data: Partial<Collateral> | FormData): Promise<Collateral> {
+    if (data instanceof FormData) {
+      return apiClient.post<Collateral>('/api/loans/collaterals/', data, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    }
     return apiClient.post<Collateral>('/api/loans/collaterals/', data);
   },
 

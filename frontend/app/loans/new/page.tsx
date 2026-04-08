@@ -52,6 +52,7 @@ import {
   Home,
   Wrench,
   UsersRound,
+  Camera,
 } from 'lucide-react';
 import { CollateralCreate, VehicleMetadata, PropertyMetadata, EquipmentMetadata } from '@/types';
 import { toast } from 'sonner';
@@ -358,6 +359,20 @@ export default function NewLoanPage() {
     }
   };
 
+  useEffect(() => {
+    if (loanType === 'auto' && !collaterals.some((item) => item.collateral_type === 'vehicle')) {
+      setCollaterals((prev) => ([
+        ...prev,
+        {
+          collateral_type: 'vehicle',
+          description: 'Vehículo asociado al préstamo',
+          estimated_value: 0,
+          metadata: {},
+        },
+      ]));
+    }
+  }, [loanType, collaterals]);
+
   const addCollateral = () => {
     setCollaterals([...collaterals, {
       collateral_type: 'vehicle',
@@ -386,6 +401,15 @@ export default function NewLoanPage() {
         ...updated[index].metadata,
         [metaField]: value,
       },
+    };
+    setCollaterals(updated);
+  };
+
+  const updateCollateralFile = (index: number, field: 'photos' | 'documents', file?: File) => {
+    const updated = [...collaterals];
+    updated[index] = {
+      ...updated[index],
+      [field]: file,
     };
     setCollaterals(updated);
   };
@@ -764,30 +788,59 @@ export default function NewLoanPage() {
 
       if (collaterals.length > 0) {
         const collateralPromises = collaterals.map(async (collateral) => {
-          const collateralData: any = {
-            loan: createdLoan.id,
-            collateral_type: collateral.collateral_type,
-            description: collateral.description,
-            estimated_value: collateral.estimated_value,
-            status: 'active',
-          };
+          const hasFiles = !!collateral.photos || !!collateral.documents;
+          let collateralData: any;
 
-          // Only include optional fields if they have values
-          if (collateral.appraisal_value) {
-            collateralData.appraisal_value = collateral.appraisal_value;
-          }
-          if (collateral.appraisal_date) {
-            collateralData.appraisal_date = collateral.appraisal_date;
-          }
-          if (collateral.notes) {
-            collateralData.notes = collateral.notes;
-          }
-          // Include metadata if present
-          if (collateral.metadata && Object.keys(collateral.metadata).length > 0) {
-            collateralData.metadata = collateral.metadata;
+          if (hasFiles) {
+            const formData = new FormData();
+            formData.append('loan', createdLoan.id);
+            formData.append('collateral_type', collateral.collateral_type);
+            formData.append('description', collateral.description || '');
+            formData.append('estimated_value', String(collateral.estimated_value || 0));
+            formData.append('status', 'active');
+
+            if (collateral.appraisal_value) {
+              formData.append('appraisal_value', String(collateral.appraisal_value));
+            }
+            if (collateral.appraisal_date) {
+              formData.append('appraisal_date', collateral.appraisal_date);
+            }
+            if (collateral.notes) {
+              formData.append('notes', collateral.notes);
+            }
+            if (collateral.metadata && Object.keys(collateral.metadata).length > 0) {
+              formData.append('metadata', JSON.stringify(collateral.metadata));
+            }
+            if (collateral.photos) {
+              formData.append('photos', collateral.photos);
+            }
+            if (collateral.documents) {
+              formData.append('documents', collateral.documents);
+            }
+            collateralData = formData;
+          } else {
+            collateralData = {
+              loan: createdLoan.id,
+              collateral_type: collateral.collateral_type,
+              description: collateral.description,
+              estimated_value: collateral.estimated_value,
+              status: 'active',
+            };
+
+            if (collateral.appraisal_value) {
+              collateralData.appraisal_value = collateral.appraisal_value;
+            }
+            if (collateral.appraisal_date) {
+              collateralData.appraisal_date = collateral.appraisal_date;
+            }
+            if (collateral.notes) {
+              collateralData.notes = collateral.notes;
+            }
+            if (collateral.metadata && Object.keys(collateral.metadata).length > 0) {
+              collateralData.metadata = collateral.metadata;
+            }
           }
 
-          console.log('Creating collateral with data:', collateralData);
           try {
             return await collateralsAPI.createCollateral(collateralData);
           } catch (collateralError: any) {
@@ -1236,6 +1289,15 @@ export default function NewLoanPage() {
                       </AlertDescription>
                     </Alert>
                   )}
+
+                  {loanType === 'auto' && (
+                    <Alert className="bg-amber-50 border-amber-200">
+                      <Car className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800">
+                        Este préstamo es de vehículo. En el paso de garantías podrás cargar la foto del vehículo para dejar el expediente más completo.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
               </CardContent>
               <CardFooter className="border-t border-slate-200 flex justify-between">
@@ -1515,6 +1577,31 @@ export default function NewLoanPage() {
                                   value={(collateral.metadata as VehicleMetadata)?.vin || ''}
                                   onChange={(e) => updateCollateralMetadata(index, 'vin', e.target.value.toUpperCase())}
                                 />
+                              </div>
+                              <div className="space-y-2 col-span-2">
+                                <Label className="text-sm font-medium text-slate-700">Foto del vehículo</Label>
+                                <div className="rounded-2xl border border-dashed border-[#c9d8cf] bg-white p-4">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div className="flex items-start gap-3">
+                                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f1f6f2] text-[#163300]">
+                                        <Camera className="h-5 w-5" />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-medium text-slate-900">Sube una foto visible del vehículo</p>
+                                        <p className="text-xs text-slate-500">Ideal para dejar evidencia visual del colateral en el expediente.</p>
+                                      </div>
+                                    </div>
+                                    <Input
+                                      type="file"
+                                      accept="image/*"
+                                      className="max-w-sm"
+                                      onChange={(e) => updateCollateralFile(index, 'photos', e.target.files?.[0])}
+                                    />
+                                  </div>
+                                  {collateral.photos ? (
+                                    <p className="mt-3 text-xs font-medium text-[#486152]">Archivo cargado: {collateral.photos.name}</p>
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
                           </div>
