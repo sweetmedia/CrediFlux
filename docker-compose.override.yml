@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+  db:
+    container_name: crediflux_vps_db
+    ports:
+      - "5434:5432"
+
+  redis:
+    container_name: crediflux_vps_redis
+    ports:
+      - "6381:6379"
+
+  mailhog:
+    container_name: crediflux_vps_mailhog
+    ports:
+      - "1625:1025"
+      - "8625:8025"
+
+  backend:
+    container_name: crediflux_vps_backend
+    ports:
+      - "8600:8000"
+    environment:
+      - DJANGO_ALLOWED_HOSTS=*
+
+  celery:
+    container_name: crediflux_vps_celery
+
+  celery-beat:
+    container_name: crediflux_vps_celery_beat
+
+  frontend:
+    container_name: crediflux_vps_frontend
+    ports:
+      - "3600:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://23.95.73.125:8600
+
+  documentation:
+    container_name: crediflux_vps_docs
+    ports:
+      - "3601:3001"
