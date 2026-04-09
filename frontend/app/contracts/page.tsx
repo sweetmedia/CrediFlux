@@ -179,50 +179,50 @@ export default function ContractsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f8f7] p-6 md:p-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-8">
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.8fr)_360px]">
+    <div className="min-h-screen bg-[#f6f8f7] p-5 md:p-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,2.15fr)_320px]">
           <Card className="overflow-hidden border-0 bg-gradient-to-br from-[#163300] via-[#244508] to-[#325c10] text-white shadow-[0_28px_80px_-32px_rgba(22,51,0,0.75)]">
-            <CardContent className="p-6 md:p-8">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <CardContent className="p-5 md:p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="max-w-3xl">
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/85">
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/85">
                     <FileText className="h-3.5 w-3.5" />
                     Flujo documental
                   </div>
-                  <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Contratos</h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 md:text-base">
+                  <h1 className="text-3xl font-semibold tracking-tight">Contratos</h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80">
                     Controla generación, seguimiento y firma de contratos sin perder de vista quién falta por firmar y qué expedientes ya están listos para activar.
                   </p>
 
-                  <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
                       <p className="text-xs uppercase tracking-[0.18em] text-white/60">Total visibles</p>
-                      <p className="mt-2 text-3xl font-semibold">{totalCount}</p>
+                      <p className="mt-1.5 text-2xl font-semibold">{totalCount}</p>
                       <p className="mt-1 text-xs text-white/65">Contratos cargados en esta vista</p>
                     </div>
                     <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
                       <p className="text-xs uppercase tracking-[0.18em] text-white/60">Pendiente firma</p>
-                      <p className="mt-2 text-3xl font-semibold">{stats.pending_signature}</p>
+                      <p className="mt-1.5 text-2xl font-semibold">{stats.pending_signature}</p>
                       <p className="mt-1 text-xs text-white/65">Requieren seguimiento inmediato</p>
                     </div>
                     <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
                       <p className="text-xs uppercase tracking-[0.18em] text-white/60">Completos</p>
-                      <p className="mt-2 text-3xl font-semibold">{signatureStats.fullySigned}</p>
+                      <p className="mt-1.5 text-2xl font-semibold">{signatureStats.fullySigned}</p>
                       <p className="mt-1 text-xs text-white/65">Listos para avance operativo</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 lg:flex-col lg:items-stretch">
+                <div className="flex flex-wrap gap-2 lg:flex-col lg:items-stretch">
                   <Link href="/contracts/generate">
-                    <Button className="h-11 w-full bg-white text-[#163300] hover:bg-white/90 lg:min-w-[220px]">
+                    <Button className="h-10 w-full bg-white text-[#163300] hover:bg-white/90 lg:min-w-[200px]">
                       <Plus className="mr-2 h-4 w-4" />
                       Generar contrato
                     </Button>
                   </Link>
                   <Link href="/contracts/templates">
-                    <Button variant="outline" className="h-11 w-full border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white lg:min-w-[220px]">
+                    <Button variant="outline" className="h-10 w-full border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white lg:min-w-[200px]">
                       <FileEdit className="mr-2 h-4 w-4" />
                       Ver plantillas
                     </Button>
@@ -233,21 +233,21 @@ export default function ContractsPage() {
           </Card>
 
           <Card className="border border-[#d7e2db] bg-white shadow-sm">
-            <CardHeader className="border-b border-[#d7e2db] pb-4">
+            <CardHeader className="border-b border-[#d7e2db] px-5 pb-3 pt-5">
               <CardTitle className="text-base font-semibold text-slate-900">Lectura operativa</CardTitle>
               <CardDescription className="text-sm text-slate-600">
                 Qué mirar primero antes de entrar al detalle.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 pt-5">
+            <CardContent className="space-y-3 px-5 pb-5 pt-4">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">Cliente pendiente</p>
-                <p className="mt-2 text-2xl font-semibold text-amber-900">{signatureStats.missingCustomer}</p>
+                <p className="mt-1.5 text-2xl font-semibold text-amber-900">{signatureStats.missingCustomer}</p>
                 <p className="mt-1 text-sm text-amber-800">Contratos donde aún falta la firma del cliente.</p>
               </div>
               <div className="rounded-2xl border border-[#d7e2db] bg-[#f6f8f7] px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#163300]">Oficial pendiente</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">{signatureStats.missingOfficer}</p>
+                <p className="mt-1.5 text-2xl font-semibold text-slate-900">{signatureStats.missingOfficer}</p>
                 <p className="mt-1 text-sm text-slate-600">Útil para saber qué expedientes están trabados internamente.</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -260,12 +260,12 @@ export default function ContractsPage() {
           </Card>
         </section>
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           <Card className="border-[#d7e2db] bg-white shadow-sm">
-            <CardContent className="flex items-center justify-between p-5">
+            <CardContent className="flex items-center justify-between p-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Borradores</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">{stats.draft}</p>
+                <p className="mt-1.5 text-2xl font-semibold text-slate-900">{stats.draft}</p>
                 <p className="mt-1 text-xs text-slate-500">Pendientes de revisión</p>
               </div>
               <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
@@ -275,10 +275,10 @@ export default function ContractsPage() {
           </Card>
 
           <Card className="border-[#d7e2db] bg-white shadow-sm">
-            <CardContent className="flex items-center justify-between p-5">
+            <CardContent className="flex items-center justify-between p-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pendiente firma</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">{stats.pending_signature}</p>
+                <p className="mt-1.5 text-2xl font-semibold text-slate-900">{stats.pending_signature}</p>
                 <p className="mt-1 text-xs text-slate-500">Requieren seguimiento</p>
               </div>
               <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
@@ -288,10 +288,10 @@ export default function ContractsPage() {
           </Card>
 
           <Card className="border-[#d7e2db] bg-white shadow-sm">
-            <CardContent className="flex items-center justify-between p-5">
+            <CardContent className="flex items-center justify-between p-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Firmados</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">{stats.signed}</p>
+                <p className="mt-1.5 text-2xl font-semibold text-slate-900">{stats.signed}</p>
                 <p className="mt-1 text-xs text-slate-500">Firma completa o validada</p>
               </div>
               <div className="rounded-2xl bg-[#163300]/10 p-3 text-[#163300]">
@@ -301,10 +301,10 @@ export default function ContractsPage() {
           </Card>
 
           <Card className="border-[#d7e2db] bg-white shadow-sm">
-            <CardContent className="flex items-center justify-between p-5">
+            <CardContent className="flex items-center justify-between p-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Activos</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">{stats.active}</p>
+                <p className="mt-1.5 text-2xl font-semibold text-slate-900">{stats.active}</p>
                 <p className="mt-1 text-xs text-slate-500">Contratos ya operativos</p>
               </div>
               <div className="rounded-2xl bg-green-100 p-3 text-green-700">
@@ -322,8 +322,8 @@ export default function ContractsPage() {
         )}
 
         <Card className="overflow-hidden border-[#d7e2db] bg-white shadow-sm">
-          <CardHeader className="border-b border-[#d7e2db] bg-white p-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <CardHeader className="border-b border-[#d7e2db] bg-white px-5 py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div className="flex-1">
                 <CardTitle className="text-lg font-semibold text-slate-900">
                   Bandeja de contratos
@@ -333,18 +333,18 @@ export default function ContractsPage() {
                   {totalCount !== 1 ? 's' : ''}
                 </CardDescription>
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end">
-                <div className="relative min-w-[260px] flex-1 xl:w-80 xl:flex-none">
+              <div className="grid gap-2 md:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end">
+                <div className="relative min-w-[240px] flex-1 xl:w-72 xl:flex-none">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     placeholder="Buscar por contrato, préstamo o cliente..."
                     value={searchTerm}
                     onChange={(e) => handleSearch(e.target.value)}
-                    className="h-11 border-slate-200 pl-10"
+                    className="h-10 border-slate-200 pl-10"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={handleStatusFilter}>
-                  <SelectTrigger className="h-11 w-full border-slate-200 xl:w-52">
+                  <SelectTrigger className="h-10 w-full border-slate-200 xl:w-48">
                     <SelectValue placeholder="Filtrar por estado" />
                   </SelectTrigger>
                   <SelectContent>
@@ -357,7 +357,7 @@ export default function ContractsPage() {
                     <SelectItem value="cancelled">Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
-                <label className="flex h-11 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 hover:bg-slate-50 cursor-pointer">
+                <label className="flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 hover:bg-slate-50 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={showArchived}
@@ -370,7 +370,7 @@ export default function ContractsPage() {
                   </span>
                 </label>
                 <Link href="/contracts/generate">
-                  <Button className="h-11 w-full bg-[#163300] hover:bg-[#0f2400] xl:w-auto">
+                  <Button className="h-10 w-full bg-[#163300] hover:bg-[#0f2400] xl:w-auto">
                     <Plus className="mr-2 h-4 w-4" />
                     Generar Contrato
                   </Button>
@@ -406,21 +406,21 @@ export default function ContractsPage() {
                 </Link>
               </div>
             ) : (
-              <div className="space-y-4 p-4 md:p-6">
+              <div className="space-y-3 p-3 md:p-4">
                 {contracts.map((contract) => {
                   const StatusIcon = STATUS_ICONS[contract.status];
                   const missingSignatureInfo = getMissingSignatureInfo(contract);
                   return (
                     <div
                       key={contract.id}
-                      className="rounded-3xl border border-[#d7e2db] bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                      className="rounded-3xl border border-[#d7e2db] bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                     >
-                      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="flex-1">
                           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-lg font-semibold text-slate-900">
+                                <h3 className="text-base font-semibold text-slate-900">
                                   {contract.contract_number}
                                 </h3>
                                 <span
@@ -452,12 +452,12 @@ export default function ContractsPage() {
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-2 text-sm text-slate-600">
+                              <p className="mt-1.5 text-sm text-slate-600">
                                 {contract.customer_name} · préstamo {contract.loan_number}
                               </p>
                             </div>
 
-                            <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[250px]">
+                            <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[220px]">
                               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Cliente</p>
                                 <p className={`mt-1 text-sm font-medium ${contract.customer_signed_at ? 'text-green-700' : 'text-amber-700'}`}>
@@ -473,8 +473,8 @@ export default function ContractsPage() {
                             </div>
                           </div>
 
-                          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
                               <p className="text-xs text-slate-500 mb-1">
                                 Préstamo
                               </p>
@@ -482,7 +482,7 @@ export default function ContractsPage() {
                                 {contract.loan_number}
                               </p>
                             </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
                               <p className="text-xs text-slate-500 mb-1">
                                 Cliente
                               </p>
@@ -490,7 +490,7 @@ export default function ContractsPage() {
                                 {contract.customer_name}
                               </p>
                             </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
                               <p className="text-xs text-slate-500 mb-1">
                                 Plantilla
                               </p>
@@ -498,7 +498,7 @@ export default function ContractsPage() {
                                 {contract.template_name || 'Plantilla estándar'}
                               </p>
                             </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
                               <p className="text-xs text-slate-500 mb-1">Generado</p>
                               <p className="text-sm font-medium text-slate-700">
                                 {new Date(contract.generated_at).toLocaleDateString('es-ES')}
@@ -506,7 +506,7 @@ export default function ContractsPage() {
                             </div>
                           </div>
 
-                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                             <span className="inline-flex items-center gap-1">
                               Generado:{' '}
                               {new Date(contract.generated_at).toLocaleDateString('es-ES')}
@@ -529,12 +529,12 @@ export default function ContractsPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 xl:ml-4 xl:w-auto xl:flex-col xl:items-stretch">
+                        <div className="flex flex-wrap items-center gap-2 xl:ml-3 xl:w-auto xl:flex-col xl:items-stretch">
                           <Link href={`/contracts/${contract.id}`}>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="w-full border-slate-200 bg-white hover:bg-slate-50 xl:min-w-[140px]"
+                              className="h-9 w-full border-slate-200 bg-white hover:bg-slate-50 xl:min-w-[128px]"
                             >
                               <Eye className="h-4 w-4 mr-1" />
                               Ver
@@ -546,7 +546,7 @@ export default function ContractsPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="w-full border-[#163300]/30 text-[#163300] hover:bg-[#163300]/5 xl:min-w-[140px]"
+                                className="h-9 w-full border-[#163300]/30 text-[#163300] hover:bg-[#163300]/5 xl:min-w-[128px]"
                               >
                                 <PenTool className="h-4 w-4 mr-1" />
                                 Firmar
