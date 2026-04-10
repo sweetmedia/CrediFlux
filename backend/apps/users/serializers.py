@@ -89,6 +89,7 @@ class UserSerializer(serializers.ModelSerializer):
             'phone', 'avatar', 'bio', 'job_title', 'department', 'role',
             'tenant', 'tenant_name', 'is_tenant_owner', 'is_staff',
             'is_superuser', 'email_verified', 'receive_notifications',
+            'preferred_language',
             'is_2fa_enabled', 'created_at', 'last_login_at'
         ]
         read_only_fields = [
@@ -419,7 +420,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'first_name', 'last_name', 'phone', 'avatar',
-            'bio', 'job_title', 'department', 'receive_notifications'
+            'bio', 'job_title', 'department', 'receive_notifications',
+            'preferred_language'
         ]
 
     def validate_phone(self, value):

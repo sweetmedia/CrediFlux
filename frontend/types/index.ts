@@ -25,6 +25,7 @@ export interface User {
   is_active: boolean;
   email_verified: boolean;
   receive_notifications: boolean;
+  preferred_language?: 'es' | 'en';
   is_2fa_enabled: boolean;
   created_at: string;
   updated_at?: string;

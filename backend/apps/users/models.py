@@ -75,6 +75,18 @@ class User(AbstractUser):
     email_verified = models.BooleanField(default=False)
     receive_notifications = models.BooleanField(default=True)
 
+    # Preferred UI language for the dashboard (F2 i18n groundwork)
+    LANGUAGE_CHOICES = [
+        ('es', 'Español'),
+        ('en', 'English'),
+    ]
+    preferred_language = models.CharField(
+        max_length=5,
+        choices=LANGUAGE_CHOICES,
+        default='es',
+        help_text='Preferred UI language for the dashboard'
+    )
+
     # Two-Factor Authentication
     totp_secret = models.CharField(
         max_length=32,
