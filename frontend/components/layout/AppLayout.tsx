@@ -2,12 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
 import { Loader2, Menu, X } from 'lucide-react';
-import { SimplePageTransition } from '@/components/PageTransition';
-import { AIChatBubble } from '@/components/AIChatBubble';
+import { PageTransition } from '@/components/ds';
+import { useLocaleSync } from '@/i18n/client';
+
+// Lazy-load the AI chat bubble so it's not in the initial bundle.
+// It's only shown on authenticated pages and doesn't need SSR.
+const AIChatBubble = dynamic(
+  () => import('@/components/AIChatBubble').then((m) => m.AIChatBubble),
+  { ssr: false }
+);
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -21,6 +29,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Keep the `locale` cookie in sync with the authenticated user's
+  // preferred_language. next-intl reads it on the next SSR pass.
+  useLocaleSync();
 
   const isPublicPage = PUBLIC_PAGES.includes(pathname);
 
@@ -56,9 +68,9 @@ export function AppLayout({ children }: AppLayoutProps) {
   // If it's a public page, don't show sidebar
   if (isPublicPage) {
     return (
-      <SimplePageTransition>
+      <PageTransition>
         {children}
-      </SimplePageTransition>
+      </PageTransition>
     );
   }
 
@@ -67,7 +79,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     return (
       <div className="min-h-screen bg-background">
         {/* Mobile hamburger header */}
-        <div className="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 border-b bg-[#163300]">
+        <div className="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 border-b bg-[var(--color-tenant-primary)]">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-1.5 rounded-md text-white/80 hover:text-white hover:bg-white/10 transition-colors"
@@ -97,9 +109,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Content area */}
         <div className="lg:ml-[240px] pt-14 lg:pt-0">
-          <SimplePageTransition>
+          <PageTransition>
             {children}
-          </SimplePageTransition>
+          </PageTransition>
         </div>
 
         {/* AI Chat Bubble */}

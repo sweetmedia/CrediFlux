@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { Inter, Space_Mono } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import { Providers } from './providers';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -7,22 +8,15 @@ import { NavigationProgress } from '@/components/NavigationProgress';
 import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 
-const inter = Inter({ subsets: ['latin'] });
-const spaceMono = Space_Mono({
-  subsets: ['latin'],
-  weight: ['400', '700'],
-  variable: '--font-space-mono',
-});
-
 export const metadata: Metadata = {
   title: {
-    default: 'CrediFlux - Loan Management System',
+    default: 'CrediFlux — Gestión de préstamos',
     template: '%s | CrediFlux',
   },
-  description: 'Multi-module SaaS platform for financial institutions',
+  description: 'Sistema para gestionar préstamos, cobranza y facturación electrónica en financieras, cooperativas y casas de préstamo.',
   applicationName: 'CrediFlux',
-  keywords: ['loan management', 'financial management', 'lending platform', 'SaaS'],
-  authors: [{ name: 'CrediFlux Team' }],
+  keywords: ['gestión de préstamos', 'cobranza', 'facturación electrónica', 'cooperativas', 'microfinancieras'],
+  authors: [{ name: 'CrediFlux' }],
   creator: 'CrediFlux',
   publisher: 'CrediFlux',
   formatDetection: {
@@ -32,16 +26,16 @@ export const metadata: Metadata = {
   },
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
   openGraph: {
-    title: 'CrediFlux - Loan Management System',
-    description: 'Multi-module SaaS platform for financial institutions',
+    title: 'CrediFlux — Gestión de préstamos',
+    description: 'Sistema para gestionar préstamos, cobranza y facturación electrónica.',
     siteName: 'CrediFlux',
-    locale: 'es_ES',
+    locale: 'es_DO',
     type: 'website',
   },
   twitter: {
     card: 'summary',
-    title: 'CrediFlux - Loan Management System',
-    description: 'Multi-module SaaS platform for financial institutions',
+    title: 'CrediFlux — Gestión de préstamos',
+    description: 'Sistema para gestionar préstamos, cobranza y facturación electrónica.',
   },
   icons: {
     icon: [
@@ -53,21 +47,26 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en">
-      <body className={`${inter.className} ${spaceMono.variable}`}>
-        <Providers>
-          <Suspense fallback={null}>
-            <NavigationProgress />
-          </Suspense>
-          <AppLayout>{children}</AppLayout>
-          <Toaster position="top-right" richColors closeButton duration={4000} />
-        </Providers>
+    <html lang={locale}>
+      <body className="font-sans antialiased">
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <Providers>
+            <Suspense fallback={null}>
+              <NavigationProgress />
+            </Suspense>
+            <AppLayout>{children}</AppLayout>
+            <Toaster position="top-right" richColors closeButton duration={4000} />
+          </Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

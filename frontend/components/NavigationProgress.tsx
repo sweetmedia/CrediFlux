@@ -1,57 +1,55 @@
-'use client';
+'use client'
 
-import { useEffect, useRef, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 
+/**
+ * Top-of-page progress bar that animates in on every route change.
+ * Uses tenant primary + sage tokens so it follows brand theming.
+ */
 export function NavigationProgress() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const progressRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const progressRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [, setIsNavigating] = useState(false)
 
   useEffect(() => {
-    if (!progressRef.current || !containerRef.current) return;
+    if (!progressRef.current || !containerRef.current) return
 
-    // Dynamically import GSAP
     import('gsap').then((gsapModule) => {
-      const gsap = gsapModule.default;
+      const gsap = gsapModule.default
 
-      // Show and animate progress bar
-      setIsNavigating(true);
+      setIsNavigating(true)
 
-      // Reset and show
-      gsap.set(containerRef.current, { opacity: 1 });
-      gsap.set(progressRef.current, { width: '0%' });
+      gsap.set(containerRef.current, { opacity: 1 })
+      gsap.set(progressRef.current, { width: '0%' })
 
-      // Animate to 90% quickly
       gsap.to(progressRef.current, {
         width: '90%',
         duration: 0.5,
-        ease: 'power2.out',
-      });
+        ease: 'power3.out',
+      })
 
-      // Complete the animation after a short delay
       setTimeout(() => {
         gsap.to(progressRef.current, {
           width: '100%',
           duration: 0.2,
           ease: 'power1.in',
           onComplete: () => {
-            // Fade out
             gsap.to(containerRef.current, {
               opacity: 0,
               duration: 0.3,
               delay: 0.1,
               onComplete: () => {
-                setIsNavigating(false);
+                setIsNavigating(false)
               },
-            });
+            })
           },
-        });
-      }, 300);
-    });
-  }, [pathname, searchParams]);
+        })
+      }, 300)
+    })
+  }, [pathname, searchParams])
 
   return (
     <div
@@ -61,9 +59,14 @@ export function NavigationProgress() {
     >
       <div
         ref={progressRef}
-        className="h-full bg-gradient-to-r from-[#163300] via-[#738566] to-[#163300] shadow-lg shadow-[#163300]/30"
-        style={{ width: '0%' }}
+        className="h-full"
+        style={{
+          width: '0%',
+          background:
+            'linear-gradient(to right, var(--color-tenant-primary), var(--color-sage-500), var(--color-tenant-primary))',
+          boxShadow: '0 0 12px rgba(22, 51, 0, 0.3)',
+        }}
       />
     </div>
-  );
+  )
 }
