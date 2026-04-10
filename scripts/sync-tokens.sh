@@ -80,7 +80,7 @@ sync_one() {
   echo "    source: ${SRC}"
   echo "    dest:   ${dest}"
 
-  mkdir -p "${dest}/fonts/display" "${dest}/fonts/mono"
+  mkdir -p "${dest}/fonts/display" "${dest}/fonts/mono" "${dest}/fonts/body"
 
   # tokens.css — single file, overwrite every run
   cp "${SRC}/tokens.css" "${dest}/tokens.css"
@@ -97,6 +97,12 @@ sync_one() {
   local mono_fonts=(
     "ABCWhyteMonoInktrapVariable-Trial.woff2"
   )
+  local body_fonts=(
+    "PlusJakartaSans-normal-latin.woff2"
+    "PlusJakartaSans-normal-latin-ext.woff2"
+    "PlusJakartaSans-italic-latin.woff2"
+    "PlusJakartaSans-italic-latin-ext.woff2"
+  )
 
   for f in "${display_fonts[@]}"; do
     if [[ -f "${SRC}/fonts/display/${f}" ]]; then
@@ -109,6 +115,14 @@ sync_one() {
   for f in "${mono_fonts[@]}"; do
     if [[ -f "${SRC}/fonts/mono/${f}" ]]; then
       cp "${SRC}/fonts/mono/${f}" "${dest}/fonts/mono/${f}"
+    else
+      echo "warn:  ${label} — source font missing: ${f}"
+    fi
+  done
+
+  for f in "${body_fonts[@]}"; do
+    if [[ -f "${SRC}/fonts/body/${f}" ]]; then
+      cp "${SRC}/fonts/body/${f}" "${dest}/fonts/body/${f}"
     else
       echo "warn:  ${label} — source font missing: ${f}"
     fi
