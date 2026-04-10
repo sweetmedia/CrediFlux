@@ -1,78 +1,30 @@
+/* ============================================================================
+ * Dashboard global styles.
+ * Design tokens (colors, fonts, spacing, motion) live in
+ * ./_branding/tokens.css — the single source of truth synced from
+ * /opt/crediflux/branding/tokens.css by scripts/sync-tokens.sh.
+ * ============================================================================ */
+
+@import './_branding/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* CrediFlux Brand — Stripe-style layout with CrediFlux green/gold palette
-       Brand colors:
-       - Dark Forest Green: #163300  (primary, sidebar, headings)
-       - Sage Green: #738566         (secondary text, subtle accents)
-       - Golden Yellow: #FFE026      (highlights, CTAs, badges)
-       - Vibrant Orange: #FF7503     (warm accents, alerts)
-    */
-    --background: 100 10% 97%;       /* very light warm gray-green #f5f6f4 */
-    --foreground: 100 100% 10%;      /* #163300 dark forest green */
-    --card: 0 0% 100%;               /* white */
-    --card-foreground: 100 100% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 100 100% 10%;
-    --primary: 100 100% 10%;         /* #163300 dark forest green */
-    --primary-foreground: 0 0% 100%; /* white on green */
-    --secondary: 95 14% 46%;         /* #738566 sage green */
-    --secondary-foreground: 0 0% 100%;
-    --muted: 100 8% 93%;             /* light sage tint */
-    --muted-foreground: 95 14% 46%;  /* #738566 sage */
-    --accent: 52 100% 57%;           /* #FFE026 golden yellow */
-    --accent-foreground: 100 100% 10%; /* dark green on yellow */
-    --destructive: 25 100% 51%;      /* #FF7503 vibrant orange (used as warning/destructive) */
-    --destructive-foreground: 0 0% 100%;
-    --border: 100 8% 88%;            /* soft green-gray border */
-    --input: 100 8% 88%;
-    --ring: 100 100% 10%;            /* dark green ring */
-    --radius: 0.375rem;
-
-    /* Extended CrediFlux palette for charts/badges */
-    --cf-green-dark: #163300;
-    --cf-green-sage: #738566;
-    --cf-gold: #FFE026;
-    --cf-orange: #FF7503;
-    --cf-green-light: #e8eddf;
-    --cf-success: #2d6a2e;
-    --cf-danger: #c0392b;
-    --cf-warning: #FF7503;
-    --cf-info: #2980b9;
-  }
-
+  /* PARKED — dark mode is not active in the v2.0 overhaul.
+     Left here as a placeholder so a future re-enable only has to fill in
+     values against the same tokens. */
   .dark {
-    --background: 100 30% 6%;        /* very dark green */
-    --foreground: 80 20% 90%;
-    --card: 100 25% 10%;
-    --card-foreground: 80 20% 90%;
-    --popover: 100 25% 10%;
-    --popover-foreground: 80 20% 90%;
-    --primary: 52 100% 57%;          /* golden yellow as primary in dark mode */
-    --primary-foreground: 100 100% 10%;
-    --secondary: 100 20% 20%;
-    --secondary-foreground: 80 20% 90%;
-    --muted: 100 20% 15%;
-    --muted-foreground: 95 10% 55%;
-    --accent: 52 100% 57%;
-    --accent-foreground: 100 100% 10%;
-    --destructive: 25 100% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 100 15% 18%;
-    --input: 100 15% 18%;
-    --ring: 52 100% 57%;
+    /* intentionally empty */
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-body);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
@@ -91,7 +43,13 @@
   }
 
   .cf-mono-number {
-    @apply font-mono tracking-tight tabular-nums;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  .cf-font-display {
+    font-family: var(--font-display);
   }
 
   .cf-data-table thead tr {

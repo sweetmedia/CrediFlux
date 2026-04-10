@@ -19,7 +19,9 @@ const config = {
     },
     extend: {
       fontFamily: {
-        mono: ['var(--font-space-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
+        sans: ['var(--font-body)', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        display: ['var(--font-display)', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -55,6 +57,12 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Raw brand tokens — bypass shadcn's HSL semantic layer for direct use.
+        // Source: branding/tokens.css §1.
+        forest: "var(--color-forest-900)",
+        sage: "var(--color-sage-500)",
+        sun: "var(--color-sun-500)",
+        flame: "var(--color-flame-500)",
       },
       borderRadius: {
         lg: "var(--radius)",
