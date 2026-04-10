@@ -115,6 +115,9 @@ services:
       - backend
 
   documentation:
+    # Disabled by default to free ~465 MB RAM for the F1 WordPress stack.
+    # Start manually when needed: `docker compose --profile docs up -d documentation`
+    profiles: ["docs"]
     build:
       context: ./documentation
       dockerfile: ../docker/documentation/Dockerfile
