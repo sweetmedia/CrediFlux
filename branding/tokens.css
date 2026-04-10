@@ -1,0 +1,332 @@
+/* ============================================================================
+ * CrediFlux Design Tokens
+ * Source of truth for colors, typography, spacing, motion, and elevation.
+ *
+ * This file lives at /opt/crediflux/branding/tokens.css and is the contract
+ * between the landing (Vite + Tailwind 4) and the dashboard (Next.js +
+ * Tailwind 3). `scripts/sync-tokens.sh` copies it (and the `fonts/` folder)
+ * to both apps before each build.
+ *
+ * DO NOT edit the copies in `apps/landing/src/branding/` or
+ * `frontend/app/branding/` directly — they are generated. Edit this file.
+ *
+ * Consumption:
+ *   - Landing (Tailwind 4):  import in src/index.css, then `@theme inline`
+ *   - Dashboard (Tailwind 3): import in app/globals.css, the shadcn HSL
+ *     semantic vars below map onto these raw colors.
+ * ============================================================================ */
+
+:root {
+  /* ------------------------------------------------------------------------
+   * 1. COLOR — raw tokens
+   * Five color families: forest, sage, sun, flame, cream.
+   * Scales follow the 50 → 950 convention (low = light, high = dark).
+   * ------------------------------------------------------------------------ */
+
+  /* forest — primary brand dark, text, icon arc dark end.
+     Anchor: --color-forest-900 = #163300 (from logo). */
+  --color-forest-50:  #f0f7eb;
+  --color-forest-100: #dcecd0;
+  --color-forest-200: #b5d4a0;
+  --color-forest-300: #8ab670;
+  --color-forest-400: #6a9d50;
+  --color-forest-500: #4d8630;
+  --color-forest-600: #3d7020;
+  --color-forest-700: #2d5a10;
+  --color-forest-800: #1e4400;
+  --color-forest-900: #163300;   /* anchor — logo dark end */
+  --color-forest-950: #0a1a00;
+
+  /* sage — secondary brand, body text, icon arc light end.
+     Anchor: --color-sage-500 = #738566 (from logo). */
+  --color-sage-50:  #f3f6f1;
+  --color-sage-100: #e4ebe0;
+  --color-sage-200: #c8d4be;
+  --color-sage-300: #a8b89c;
+  --color-sage-400: #8a9d7a;
+  --color-sage-500: #738566;     /* anchor — logo light end */
+  --color-sage-600: #5c6d4d;
+  --color-sage-700: #4a5a3d;
+
+  /* sun — decorative only, NEVER used as text color (fails WCAG AA).
+     Anchor: --color-sun-500 = #FFE026 (logo sunburst center).
+     Use for: badges, highlights, CTAs on dark bg, chart accents, hover glows. */
+  --color-sun-100: #fffbe6;
+  --color-sun-200: #fff5b3;
+  --color-sun-300: #fff080;
+  --color-sun-400: #ffe84d;
+  --color-sun-500: #ffe026;      /* anchor — logo sunburst center */
+
+  /* flame — warm accent, warnings, overdue states.
+     Anchor: --color-flame-500 = #FF7503 (logo sunburst outer). */
+  --color-flame-100: #ffedd6;
+  --color-flame-200: #ffd1a3;
+  --color-flame-300: #ffad66;
+  --color-flame-400: #ff9133;
+  --color-flame-500: #ff7503;    /* anchor — logo sunburst outer */
+  --color-flame-600: #cc5e02;
+
+  /* cream — neutral warm background, alternative to pure white.
+     Used when pure white feels too clinical for marketing surfaces. */
+  --color-cream:       #faf8f2;
+  --color-warm-white:  #f5f3ed;
+
+  /* neutral — grayscale (warm-biased to harmonize with cream). */
+  --color-neutral-50:  #fafaf9;
+  --color-neutral-100: #f5f5f4;
+  --color-neutral-200: #e7e5e4;
+  --color-neutral-300: #d6d3d1;
+  --color-neutral-400: #a8a29e;
+  --color-neutral-500: #78716c;
+  --color-neutral-600: #57534e;
+  --color-neutral-700: #44403c;
+  --color-neutral-800: #292524;
+  --color-neutral-900: #1c1917;
+
+  /* semantic — map brand colors onto functional roles. */
+  --color-success: #2d6a2e;
+  --color-danger:  #c0392b;
+  --color-warning: var(--color-flame-500);
+  --color-info:    #2980b9;
+
+  /* ------------------------------------------------------------------------
+   * 2. TENANT — runtime-overridable primary for per-tenant theming.
+   * Default is the brand forest. Each tenant can override via ConfigContext
+   * inline on <html data-tenant="..."> at hydration time.
+   * ------------------------------------------------------------------------ */
+  --color-tenant-primary:    var(--color-forest-900);
+  --color-tenant-primary-fg: #ffffff;
+
+  /* ------------------------------------------------------------------------
+   * 3. TYPOGRAPHY — font stacks + fluid scale
+   * ------------------------------------------------------------------------ */
+
+  /* Display: ABC Whyte (Dinamo trial — see fonts/LICENSE.md).
+     Self-hosted from /branding/fonts/display/. */
+  --font-display: 'ABC Whyte', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Body: Plus Jakarta Sans (free, kept from pre-overhaul).
+     The landing loads it from Google Fonts or self-hosts as needed. */
+  --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI',
+               Roboto, 'Helvetica Neue', sans-serif;
+
+  /* Mono: ABC Whyte Mono Inktrap Variable — for financial figures, tables,
+     inline code. Variable font, one file covers all weights. */
+  --font-mono: 'ABC Whyte Mono', ui-monospace, 'SF Mono', 'Monaco', 'Menlo',
+               'Cascadia Mono', 'Roboto Mono', monospace;
+
+  /* Type scale — values in rem, explicit per step (not a formula).
+     Used by DESIGN_SYSTEM.md § Typography. */
+  --font-size-xs:   0.75rem;   /* 12px — captions, badges */
+  --font-size-sm:   0.875rem;  /* 14px — body small, labels */
+  --font-size-base: 1rem;      /* 16px — body default */
+  --font-size-md:   1.125rem;  /* 18px — body emphasized */
+  --font-size-lg:   1.25rem;   /* 20px — heading 5 */
+  --font-size-xl:   1.5rem;    /* 24px — heading 4 */
+  --font-size-2xl:  1.875rem;  /* 30px — heading 3 */
+  --font-size-3xl:  2.25rem;   /* 36px — heading 2 */
+  --font-size-4xl:  3rem;      /* 48px — heading 1 dashboard */
+  --font-size-5xl:  3.75rem;   /* 60px — hero landing */
+
+  --font-weight-regular: 400;
+  --font-weight-medium:  500;
+  --font-weight-bold:    700;
+  --font-weight-black:   900;
+
+  --line-height-tight:   1.15;
+  --line-height-snug:    1.3;
+  --line-height-normal:  1.5;
+  --line-height-relaxed: 1.7;
+
+  --letter-spacing-tight:  -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide:   0.03em;
+
+  /* ------------------------------------------------------------------------
+   * 4. SPACING — 4px base grid
+   * Use numeric step (space-1 = 4px, space-2 = 8px, etc.).
+   * ------------------------------------------------------------------------ */
+  --space-0:  0;
+  --space-1:  0.25rem;   /* 4px  */
+  --space-2:  0.5rem;    /* 8px  */
+  --space-3:  0.75rem;   /* 12px */
+  --space-4:  1rem;      /* 16px */
+  --space-5:  1.25rem;   /* 20px */
+  --space-6:  1.5rem;    /* 24px */
+  --space-8:  2rem;      /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+  --space-16: 4rem;      /* 64px */
+  --space-20: 5rem;      /* 80px */
+  --space-24: 6rem;      /* 96px */
+
+  /* ------------------------------------------------------------------------
+   * 5. RADIUS — rounded corners
+   * ------------------------------------------------------------------------ */
+  --radius-none: 0;
+  --radius-sm:   0.25rem;  /* 4px  — inputs, chips */
+  --radius-md:   0.5rem;   /* 8px  — buttons, cards */
+  --radius-lg:   0.75rem;  /* 12px — modals, panels */
+  --radius-xl:   1rem;     /* 16px — heroes, feature cards */
+  --radius-2xl:  1.5rem;   /* 24px — marketing sections */
+  --radius-full: 9999px;   /* pills, avatars */
+
+  /* ------------------------------------------------------------------------
+   * 6. ELEVATION — shadows
+   * Layered: subtle ambient + direct drop. Designed for cream/warm bg.
+   * ------------------------------------------------------------------------ */
+  --shadow-xs: 0 1px 2px rgba(22, 51, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(22, 51, 0, 0.06),
+               0 1px 2px rgba(22, 51, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(22, 51, 0, 0.08),
+               0 2px 4px -2px rgba(22, 51, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(22, 51, 0, 0.10),
+               0 4px 6px -4px rgba(22, 51, 0, 0.06);
+  --shadow-xl: 0 20px 25px -5px rgba(22, 51, 0, 0.12),
+               0 8px 10px -6px rgba(22, 51, 0, 0.07);
+  --shadow-focus: 0 0 0 3px rgba(115, 133, 102, 0.35);  /* sage-500 glow */
+
+  /* ------------------------------------------------------------------------
+   * 7. MOTION — GSAP durations + easings
+   * See DESIGN_SYSTEM.md § Motion for usage patterns.
+   * GSAP is the ONLY animation library allowed in both apps (no Framer).
+   * All durations honor `prefers-reduced-motion`.
+   * ------------------------------------------------------------------------ */
+  --motion-duration-instant: 0ms;
+  --motion-duration-fast:    150ms;
+  --motion-duration-base:    300ms;
+  --motion-duration-slow:    500ms;
+  --motion-duration-slower:  750ms;
+
+  /* Easings — expressed as cubic-bezier, matching GSAP's named presets
+     so CSS transitions and GSAP tweens look identical. */
+  --motion-ease-linear:     cubic-bezier(0, 0, 1, 1);
+  --motion-ease-out:        cubic-bezier(0.16, 1, 0.3, 1);        /* power3.out — entries */
+  --motion-ease-in:         cubic-bezier(0.7, 0, 0.84, 0);        /* power3.in — exits */
+  --motion-ease-in-out:     cubic-bezier(0.87, 0, 0.13, 1);       /* power3.inOut — page transitions */
+  --motion-ease-back-out:   cubic-bezier(0.34, 1.56, 0.64, 1);    /* back.out — playful pops */
+
+  /* ------------------------------------------------------------------------
+   * 8. Z-INDEX — stacking scale
+   * ------------------------------------------------------------------------ */
+  --z-base:       0;
+  --z-dropdown:   1000;
+  --z-sticky:     1100;
+  --z-drawer:     1200;
+  --z-modal:      1300;
+  --z-popover:    1400;
+  --z-toast:      1500;
+  --z-tooltip:    1600;
+
+  /* ------------------------------------------------------------------------
+   * 9. SHADCN SEMANTIC HSL VARS — for Tailwind 3 dashboard compatibility
+   * These map onto the raw tokens above so shadcn/ui primitives work
+   * without changes. The dashboard's app/globals.css can stop defining
+   * these directly and just @import this file instead.
+   * ------------------------------------------------------------------------ */
+  --background:             100 10% 97%;       /* near-cream */
+  --foreground:             100 100% 10%;      /* forest-900 */
+  --card:                   0 0% 100%;
+  --card-foreground:        100 100% 10%;
+  --popover:                0 0% 100%;
+  --popover-foreground:     100 100% 10%;
+  --primary:                100 100% 10%;      /* forest-900 */
+  --primary-foreground:     0 0% 100%;
+  --secondary:              95 14% 46%;        /* sage-500 */
+  --secondary-foreground:   0 0% 100%;
+  --muted:                  100 8% 93%;
+  --muted-foreground:       95 14% 46%;
+  --accent:                 52 100% 57%;       /* sun-500 — decorative only */
+  --accent-foreground:      100 100% 10%;
+  --destructive:            25 100% 51%;       /* flame-500 */
+  --destructive-foreground: 0 0% 100%;
+  --border:                 100 8% 88%;
+  --input:                  100 8% 88%;
+  --ring:                   100 100% 10%;
+  --radius:                 0.5rem;            /* matches --radius-md */
+}
+
+/* ============================================================================
+ * @font-face declarations — load self-hosted ABC Whyte files.
+ *
+ * Paths are relative to THIS file's final location after sync-tokens.sh copies
+ * it. After sync, the structure in each app is:
+ *   <app>/src/branding/tokens.css
+ *   <app>/src/branding/fonts/display/*.woff2
+ *   <app>/src/branding/fonts/mono/*.woff2
+ *
+ * (The dashboard copy lives at `frontend/app/branding/` instead — Next.js
+ * serves it as a static asset automatically because `app/` is routed.)
+ *
+ * font-display: swap — never block rendering on fonts.
+ * unicode-range — subset to latin + latin-ext to keep download fast.
+ * ============================================================================ */
+
+@font-face {
+  font-family: 'ABC Whyte';
+  src: url('./fonts/display/ABCWhyte-Regular-Trial.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+                 U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191,
+                 U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'ABC Whyte';
+  src: url('./fonts/display/ABCWhyte-Medium-Trial.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+                 U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191,
+                 U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'ABC Whyte';
+  src: url('./fonts/display/ABCWhyte-Bold-Trial.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+                 U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191,
+                 U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'ABC Whyte';
+  src: url('./fonts/display/ABCWhyte-Black-Trial.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+                 U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191,
+                 U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'ABC Whyte Mono';
+  src: url('./fonts/mono/ABCWhyteMonoInktrapVariable-Trial.woff2') format('woff2-variations'),
+       url('./fonts/mono/ABCWhyteMonoInktrapVariable-Trial.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+                 U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191,
+                 U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ============================================================================
+ * Reduced motion — honor the user preference globally.
+ * GSAP ScrollTrigger and tweens should also check matchMedia in JS.
+ * ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast:    0ms;
+    --motion-duration-base:    0ms;
+    --motion-duration-slow:    0ms;
+    --motion-duration-slower:  0ms;
+  }
+}
