@@ -498,11 +498,12 @@ class LoanViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
 
         loans = self.get_queryset()
+        today = timezone.now().date()
 
-        # Count overdue loans (loans with pending schedules past due date)
+        # Count overdue loans from real overdue schedules, not only defaulted loans.
         overdue_loans = loans.filter(
-            payment_schedules__status='pending',
-            payment_schedules__due_date__lt=timezone.now().date()
+            payment_schedules__status__in=['pending', 'partial', 'overdue'],
+            payment_schedules__due_date__lt=today
         ).distinct().count()
 
         stats = {
@@ -536,6 +537,13 @@ class LoanViewSet(viewsets.ModelViewSet):
         today = timezone.now().date()
         six_months_ago = today - timedelta(days=180)
 
+        overdue_loan_ids = LoanSchedule.objects.filter(
+            loan__in=loans,
+            status__in=['pending', 'partial', 'overdue'],
+            due_date__lt=today
+        ).values_list('loan_id', flat=True).distinct()
+        overdue_loans = overdue_loan_ids.count()
+
         # Basic stats
         basic_stats = {
             'total_loans': loans.count(),
@@ -543,6 +551,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             'pending_loans': loans.filter(status='pending').count(),
             'paid_loans': loans.filter(status='paid').count(),
             'defaulted_loans': loans.filter(status='defaulted').count(),
+            'overdue_loans': overdue_loans,
         }
 
         # Status distribution for pie chart
@@ -550,7 +559,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             {'name': 'Activos', 'value': basic_stats['active_loans'], 'color': '#22c55e'},
             {'name': 'Pendientes', 'value': basic_stats['pending_loans'], 'color': '#eab308'},
             {'name': 'Pagados', 'value': basic_stats['paid_loans'], 'color': '#3b82f6'},
-            {'name': 'En mora', 'value': basic_stats['defaulted_loans'], 'color': '#ef4444'},
+            {'name': 'En mora', 'value': basic_stats['overdue_loans'], 'color': '#ef4444'},
         ]
 
         # Monthly disbursements for bar chart
@@ -612,7 +621,7 @@ class LoanViewSet(viewsets.ModelViewSet):
         # Overdue count
         overdue_schedules = LoanSchedule.objects.filter(
             loan__in=loans,
-            status__in=['pending', 'partial'],
+            status__in=['pending', 'partial', 'overdue'],
             due_date__lt=today
         ).count()
 
@@ -635,13 +644,13 @@ class LoanViewSet(viewsets.ModelViewSet):
         total_portfolio = float(total_portfolio_amount.amount) if hasattr(total_portfolio_amount, 'amount') else float(total_portfolio_amount or 0)
 
         # Overdue active loans: active loans with at least one overdue unpaid schedule item
-        overdue_loan_ids = LoanSchedule.objects.filter(
+        active_overdue_loan_ids = LoanSchedule.objects.filter(
             loan__in=loans.filter(status='active'),
-            status__in=['pending', 'partial'],
+            status__in=['pending', 'partial', 'overdue'],
             due_date__lt=today
         ).values_list('loan_id', flat=True).distinct()
 
-        total_overdue_amount = loans.filter(id__in=overdue_loan_ids).aggregate(
+        total_overdue_amount = loans.filter(id__in=active_overdue_loan_ids).aggregate(
             total=Sum('outstanding_balance')
         )['total']
         total_overdue = float(total_overdue_amount.amount) if hasattr(total_overdue_amount, 'amount') else float(total_overdue_amount or 0)
@@ -673,7 +682,7 @@ class LoanViewSet(viewsets.ModelViewSet):
         # Top 5 overdue customers
         overdue_schedules_qs = LoanSchedule.objects.filter(
             loan__in=loans.filter(status='active'),
-            status__in=['pending', 'partial'],
+            status__in=['pending', 'partial', 'overdue'],
             due_date__lt=today
         ).select_related('loan__customer').order_by('due_date')
 
