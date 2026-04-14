@@ -6,20 +6,126 @@ services:
     ports:
       - "3640:8000"
     volumes:
-      - django_ledger_app:/app
-    command: >
-      sh -lc "
-        set -e &&
-        apt-get update && apt-get install -y --no-install-recommends git gcc build-essential && rm -rf /var/lib/apt/lists/* &&
-        if [ ! -f /app/manage.py ]; then git clone --depth 1 https://github.com/arrobalytics/django-ledger.git /app; fi &&
-        cd /app &&
-        pip install --no-cache-dir -U pip &&
-        pip install --no-cache-dir . django-debug-toolbar &&
-        python -c \"from pathlib import Path; p=Path('dev_env/settings.py'); s=p.read_text(); s=s.replace(\"ALLOWED_HOSTS = ['127.0.0.1', '192.168.1.102', 'localhost']\", \"ALLOWED_HOSTS = ['*']\"); s=s.replace(\"CACHES = {\\n    'default': {\\n        'BACKEND': 'django.core.cache.backends.redis.RedisCache',\\n        'LOCATION': 'redis://127.0.0.1:6379',\\n    }\\n}\", \"CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}\"); p.write_text(s)\" &&
-        python manage.py migrate &&
-        python manage.py shell -c \"from django.contrib.auth import get_user_model; U=get_user_model(); U.objects.filter(username='demoadmin').exists() or U.objects.create_superuser('demoadmin','demo@example.com','demo2026')\" &&
+      - django_ledger_starter_app:/app
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        set -e
+        apt-get update
+        apt-get install -y --no-install-recommends git gcc build-essential
+        rm -rf /var/lib/apt/lists/*
+        if [ ! -f /app/manage.py ]; then
+          git clone --depth 1 https://github.com/arrobalytics/django-ledger-starter.git /app
+        fi
+        cd /app
+        python -m pip install --no-cache-dir -U pip
+        python -m pip install --no-cache-dir Django==5.0.1 django-ledger==0.5.5.5 Faker
+        sed -i 's/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = ["*"]/g' django_ledger_starter/settings.py
+        python manage.py migrate
+        python manage.py shell -c "from django.contrib.auth import get_user_model; U=get_user_model(); U.objects.filter(username='demoadmin').exists() or U.objects.create_superuser('demoadmin','demo@example.com','demo2026')"
+        cat >/tmp/seed_rd_demo.py <<'PY'
+        from decimal import Decimal
+        from datetime import timedelta
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from django_ledger.models import EntityModel, TransactionModel
+        from django_ledger.io.io_generator import EntityDataGenerator
+
+        User = get_user_model()
+        user = User.objects.get(username='demoadmin')
+        entity_name = 'Cooperativa La Vega Demo'
+        entity = EntityModel.objects.filter(name=entity_name).first()
+
+        if not entity:
+            entity = EntityModel.create_entity(
+                name=entity_name,
+                use_accrual_method=True,
+                admin=user,
+                fy_start_month=1,
+            )
+
+        entity.address_1 = 'Av. Pedro A. Rivera 45'
+        entity.city = 'La Vega'
+        entity.state = 'La Vega'
+        entity.zip_code = '41000'
+        entity.country = 'DO'
+        entity.email = 'demo@coop-lavega.do'
+        entity.phone = '8095550101'
+        entity.website = 'https://coop-lavega.do'
+        entity.save()
+
+        tx_count = TransactionModel.objects.for_entity(entity_model=entity).count()
+        if tx_count == 0:
+            gen = EntityDataGenerator(
+                user_model=user,
+                entity_model=entity,
+                start_dttm=timezone.now() - timedelta(days=220),
+                capital_contribution=Decimal('3500000.00'),
+                days_forward=180,
+                tx_quantity=8,
+            )
+            gen.COUNTRY = 'DO'
+            gen.NB_UNITS = 3
+            gen.populate_entity(force_populate=True)
+
+        unit_names = [
+            ('Oficina Principal La Vega', 'LVG'),
+            ('Sucursal Santiago', 'STI'),
+            ('Centro Santo Domingo', 'SDQ'),
+        ]
+        for unit, data in zip(entity.entityunitmodel_set.all().order_by('created'), unit_names):
+            unit.name = data[0]
+            unit.document_prefix = data[1]
+            unit.save()
+
+        bank_names = [
+            ('Banco Popular Dominicano - Operaciones', 'Banco Popular Dominicano'),
+            ('Banreservas - Ahorros Institucional', 'Banreservas'),
+            ('BHD - Caja Chica / Tesorería', 'Banco BHD'),
+        ]
+        for acct, data in zip(entity.bankaccountmodel_set.all().order_by('created'), bank_names):
+            acct.name = data[0]
+            acct.financial_institution = data[1]
+            acct.active = True
+            acct.save()
+
+        rd_vendors = [
+            ('Edesur Dominicana', 'Santo Domingo', 'Distrito Nacional'),
+            ('Claro Dominicana', 'Santo Domingo', 'Distrito Nacional'),
+            ('Altice Dominicana', 'Santo Domingo', 'Distrito Nacional'),
+            ('Office Depot RD', 'Santiago', 'Santiago'),
+            ('Papelería La Vega', 'La Vega', 'La Vega'),
+            ('Supermercados Bravo', 'Santo Domingo', 'Distrito Nacional'),
+        ]
+        for vendor, data in zip(entity.vendormodel_set.all().order_by('created'), rd_vendors):
+            vendor.vendor_name = data[0]
+            vendor.city = data[1]
+            vendor.state = data[2]
+            vendor.country = 'DO'
+            vendor.phone = '8095550000'
+            vendor.save()
+
+        rd_customers = [
+            ('José Manuel Pérez', 'La Vega', 'La Vega'),
+            ('María Altagracia Rodríguez', 'Santiago', 'Santiago'),
+            ('Ana Carolina Gómez', 'Santo Domingo', 'Distrito Nacional'),
+            ('Luis Alberto Martínez', 'San Francisco de Macorís', 'Duarte'),
+            ('Yolanda Fernández', 'Moca', 'Espaillat'),
+            ('Rafael de Jesús Rosario', 'Bonao', 'Monseñor Nouel'),
+        ]
+        for customer, data in zip(entity.customermodel_set.all().order_by('created'), rd_customers):
+            customer.customer_name = data[0]
+            customer.city = data[1]
+            customer.state = data[2]
+            customer.country = 'DO'
+            customer.phone = '8095551111'
+            customer.save()
+
+        print({'entity': entity.name, 'transactions': TransactionModel.objects.for_entity(entity_model=entity).count()})
+        PY
+        python /tmp/seed_rd_demo.py
         python manage.py runserver 0.0.0.0:8000
-      "
 
 volumes:
-  django_ledger_app:
+  django_ledger_starter_app:
