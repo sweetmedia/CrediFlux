@@ -1,0 +1,81 @@
+services:
+  web:
+    image: python:3.9-slim
+    container_name: banking-system-web
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      - "3640:8000"
+    volumes:
+      - banking_system_app:/app
+    command: >
+      bash -lc '
+        set -e
+        apt-get update && apt-get install -y --no-install-recommends git gcc && rm -rf /var/lib/apt/lists/*
+        if [ ! -f /app/manage.py ]; then
+          git clone --depth 1 https://github.com/saadmk11/banking-system.git /app
+        fi
+        cd /app
+        sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = [\"*\"]/" banking_system/settings.py || true
+        sed -i "s|redis://localhost:6379|redis://redis:6379|g" banking_system/settings.py || true
+        pip install --no-cache-dir -r requirements.txt
+        python manage.py migrate
+        python manage.py shell -c "from django.contrib.auth import get_user_model; U=get_user_model(); U.objects.filter(username=\"demoadmin\").exists() or U.objects.create_superuser(\"demoadmin\",\"demo@example.com\",\"demo2026\")"
+        python manage.py runserver 0.0.0.0:8000
+      '
+
+  worker:
+    image: python:3.9-slim
+    container_name: banking-system-worker
+    restart: unless-stopped
+    depends_on:
+      - redis
+    volumes:
+      - banking_system_app:/app
+    command: >
+      bash -lc '
+        set -e
+        apt-get update && apt-get install -y --no-install-recommends git gcc && rm -rf /var/lib/apt/lists/*
+        if [ ! -f /app/manage.py ]; then
+          git clone --depth 1 https://github.com/saadmk11/banking-system.git /app
+        fi
+        cd /app
+        sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = [\"*\"]/" banking_system/settings.py || true
+        sed -i "s|redis://localhost:6379|redis://redis:6379|g" banking_system/settings.py || true
+        pip install --no-cache-dir -r requirements.txt
+        celery -A banking_system worker -l info
+      '
+
+  beat:
+    image: python:3.9-slim
+    container_name: banking-system-beat
+    restart: unless-stopped
+    depends_on:
+      - redis
+    volumes:
+      - banking_system_app:/app
+    command: >
+      bash -lc '
+        set -e
+        apt-get update && apt-get install -y --no-install-recommends git gcc && rm -rf /var/lib/apt/lists/*
+        if [ ! -f /app/manage.py ]; then
+          git clone --depth 1 https://github.com/saadmk11/banking-system.git /app
+        fi
+        cd /app
+        sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = [\"*\"]/" banking_system/settings.py || true
+        sed -i "s|redis://localhost:6379|redis://redis:6379|g" banking_system/settings.py || true
+        pip install --no-cache-dir -r requirements.txt
+        celery -A banking_system beat -l info
+      '
+
+  redis:
+    image: redis:7-alpine
+    container_name: banking-system-redis
+    restart: unless-stopped
+    volumes:
+      - banking_system_redis:/data
+
+volumes:
+  banking_system_app:
+  banking_system_redis:
