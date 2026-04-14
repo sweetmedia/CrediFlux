@@ -32,7 +32,7 @@ services:
         from datetime import timedelta
         from django.contrib.auth import get_user_model
         from django.utils import timezone
-        from django_ledger.models import EntityModel, TransactionModel
+        from django_ledger.models import EntityModel, TransactionModel, EntityUnitModel
         from django_ledger.io.roles import (
             ASSET_CA_CASH,
             ASSET_CA_RECEIVABLES,
@@ -101,7 +101,11 @@ services:
             ('Centro Santo Domingo', 'SDQ'),
         ]
         existing_units = list(entity.entityunitmodel_set.all().order_by('created'))
-        for unit, (name, prefix) in zip(existing_units, unit_specs):
+        for name, prefix in unit_specs[len(existing_units):]:
+            unit = EntityUnitModel(name=name, entity=entity, document_prefix=prefix)
+            unit.clean()
+            EntityUnitModel.add_root(instance=unit)
+        for unit, (name, prefix) in zip(entity.entityunitmodel_set.all().order_by('created'), unit_specs):
             unit.name = name
             unit.document_prefix = prefix
             unit.save()
