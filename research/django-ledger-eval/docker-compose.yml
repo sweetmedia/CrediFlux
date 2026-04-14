@@ -1,0 +1,38 @@
+services:
+  web:
+    image: python:3.11-slim
+    container_name: django-ledger-web
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      - "3640:8000"
+    volumes:
+      - django_ledger_app:/app
+    command: >
+      bash -lc '
+        set -e
+        apt-get update && apt-get install -y --no-install-recommends git gcc build-essential && rm -rf /var/lib/apt/lists/*
+        if [ ! -f /app/manage.py ]; then
+          git clone --depth 1 https://github.com/arrobalytics/django-ledger.git /app
+        fi
+        cd /app
+        pip install --no-cache-dir -U pip pipenv
+        sed -i "s/ALLOWED_HOSTS = \['127.0.0.1', '192.168.1.102', 'localhost'\]/ALLOWED_HOSTS = ['*']/" dev_env/settings.py || true
+        sed -i "s|redis://127.0.0.1:6379|redis://redis:6379|" dev_env/settings.py || true
+        pipenv install
+        pipenv run python manage.py migrate
+        pipenv run python manage.py shell -c "from django.contrib.auth import get_user_model; U=get_user_model(); U.objects.filter(username=\"demoadmin\").exists() or U.objects.create_superuser(\"demoadmin\",\"demo@example.com\",\"demo2026\")"
+        pipenv run python manage.py runserver 0.0.0.0:8000
+      '
+
+  redis:
+    image: redis:7-alpine
+    container_name: django-ledger-redis
+    restart: unless-stopped
+    volumes:
+      - django_ledger_redis:/data
+
+volumes:
+  django_ledger_app:
+  django_ledger_redis:
