@@ -128,6 +128,28 @@ class CustomerSerializer(serializers.ModelSerializer):
         return float(obj.monthly_income.amount) if obj.monthly_income else None
 
 
+class PublicContractCustomerSerializer(serializers.ModelSerializer):
+    """Minimal customer data for public contract views"""
+    full_name = serializers.CharField(source='get_full_name', read_only=True)
+
+    class Meta:
+        model = Customer
+        fields = ['full_name']
+
+
+class PublicContractSerializer(serializers.ModelSerializer):
+    """Minimal contract payload safe for tokenized public access"""
+    customer = PublicContractCustomerSerializer(source='loan.customer', read_only=True)
+    loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
+
+    class Meta:
+        model = Contract
+        fields = [
+            'id', 'contract_number', 'status', 'contract_type', 'customer',
+            'loan_number', 'contract_date', 'customer_signed_at', 'officer_signed_at'
+        ]
+
+
 class CustomerListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for customer list"""
     full_name = serializers.CharField(source='get_full_name', read_only=True)

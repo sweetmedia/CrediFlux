@@ -270,6 +270,11 @@ class TenantRegistrationSerializer(serializers.Serializer):
 class TenantSerializer(serializers.ModelSerializer):
     """Basic tenant serializer for read operations"""
     logo = serializers.ImageField(read_only=True)
+    has_ai_api_key = serializers.SerializerMethodField()
+    has_whatsapp_token = serializers.SerializerMethodField()
+    has_whatsapp_verify_token = serializers.SerializerMethodField()
+    has_smtp_password = serializers.SerializerMethodField()
+    has_imap_password = serializers.SerializerMethodField()
 
     class Meta:
         model = Tenant
@@ -323,17 +328,32 @@ class TenantSerializer(serializers.ModelSerializer):
             'reminder_days_before', 'notification_email_from',
 
             # AI Assistant Configuration
-            'enable_ai_assistant', 'ai_provider', 'ai_model', 'ai_api_key',
+            'enable_ai_assistant', 'ai_provider', 'ai_model', 'has_ai_api_key',
 
             # WhatsApp API Configuration
-            'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_business_account_id',
-            'whatsapp_verify_token',
+            'whatsapp_phone_id', 'has_whatsapp_token', 'whatsapp_business_account_id',
+            'has_whatsapp_verify_token',
 
             # SMTP/IMAP Email Configuration
-            'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_use_tls', 'smtp_use_ssl',
-            'imap_host', 'imap_port', 'imap_username', 'imap_password', 'imap_use_ssl',
+            'smtp_host', 'smtp_port', 'smtp_username', 'has_smtp_password', 'smtp_use_tls', 'smtp_use_ssl',
+            'imap_host', 'imap_port', 'imap_username', 'has_imap_password', 'imap_use_ssl',
         ]
         read_only_fields = ['id', 'schema_name', 'created_on', 'updated_on']
+
+    def get_has_ai_api_key(self, obj):
+        return bool(obj.ai_api_key)
+
+    def get_has_whatsapp_token(self, obj):
+        return bool(obj.whatsapp_token)
+
+    def get_has_whatsapp_verify_token(self, obj):
+        return bool(obj.whatsapp_verify_token)
+
+    def get_has_smtp_password(self, obj):
+        return bool(obj.smtp_password)
+
+    def get_has_imap_password(self, obj):
+        return bool(obj.imap_password)
 
 
 class TenantUpdateSerializer(serializers.ModelSerializer):

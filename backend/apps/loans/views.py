@@ -1958,19 +1958,25 @@ Saludos,
 
 
 # Public API views (no authentication required)
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import AnonRateThrottle
+
+
+class PublicContractThrottle(AnonRateThrottle):
+    scope = 'public_contracts'
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes([PublicContractThrottle])
 def public_contract_view(request, token):
     """
     Public endpoint to view contract details with a signature token.
     No authentication required - uses token for access.
     """
-    from .models_contracts import ContractSignatureToken, Contract
-    from .serializers import ContractSerializer
+    from .models_contracts import ContractSignatureToken
+    from .serializers import PublicContractSerializer
 
     try:
         # Get signature token
@@ -1994,7 +2000,7 @@ def public_contract_view(request, token):
         contract = signature_token.contract
 
         # Return contract details with token info
-        serializer = ContractSerializer(contract)
+        serializer = PublicContractSerializer(contract)
         return Response({
             'contract': serializer.data,
             'token_permissions': {
@@ -2013,6 +2019,7 @@ def public_contract_view(request, token):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([PublicContractThrottle])
 def public_contract_sign(request, token):
     """
     Public endpoint to sign a contract with a signature token.
