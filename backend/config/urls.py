@@ -8,6 +8,7 @@ from django.conf.urls.static import static
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from apps.billing.webhooks import NexConnectWebhookView
 from apps.users.views import CustomConfirmEmailView
 
 # Swagger/OpenAPI configuration
@@ -54,6 +55,10 @@ urlpatterns = [
     path('api/billing/', include('apps.billing.urls')),
     path('api/cashbox/', include('apps.cashbox.urls')),
     path('api/ai/', include('apps.ai.urls')),
+
+    # Webhooks (públicos; autenticados por firma)
+    path('api/webhooks/nexconnect/<slug:schema_name>/', NexConnectWebhookView.as_view(),
+         name='nexconnect-webhook'),
 ]
 
 # Serve media files in development

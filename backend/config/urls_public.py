@@ -12,6 +12,7 @@ from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
+from apps.billing.webhooks import NexConnectWebhookView
 from apps.communications.webhooks.views import WhatsAppWebhookView
 from apps.users.views import CustomConfirmEmailView
 
@@ -62,6 +63,8 @@ urlpatterns = [
 
     # Webhooks (public, no authentication)
     path('api/webhooks/whatsapp/', WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
+    path('api/webhooks/nexconnect/<slug:schema_name>/', NexConnectWebhookView.as_view(),
+         name='nexconnect-webhook'),
 ]
 
 # Serve media files in development

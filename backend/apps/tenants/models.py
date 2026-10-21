@@ -147,6 +147,14 @@ class Tenant(TenantMixin):
         max_length=255, blank=True, null=True,
         help_text='API Secret del proveedor PSFE (DGMax/EF2)'
     )
+    nexconnect_webhook_id = models.CharField(
+        max_length=64, blank=True, default='',
+        help_text='Id del webhook registrado en NexConnect (POST /v1/webhooks/)'
+    )
+    nexconnect_webhook_secret = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text='Secret HMAC del webhook de NexConnect, guardado cifrado'
+    )
 
     # Email configuration
     notification_email_from = models.EmailField(

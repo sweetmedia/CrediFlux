@@ -59,3 +59,22 @@ def set_tenant_api_key(tenant, api_key: str, save: bool = True):
     tenant.ecf_provider_api_key = encrypt_secret(api_key) or None
     if save:
         tenant.save(update_fields=['ecf_provider_api_key'])
+
+
+def webhook_secret_for_tenant(tenant) -> str:
+    """Secret HMAC (hex) del webhook del tenant, o '' si no hay webhook registrado."""
+    return decrypt_secret(getattr(tenant, 'nexconnect_webhook_secret', '') or '').strip()
+
+
+def set_tenant_webhook(tenant, webhook_id: str, secret_hex: str, save: bool = True):
+    """Guarda el id y el secret (cifrado) del webhook registrado en NexConnect."""
+    secret_hex = (secret_hex or '').strip()
+    if secret_hex:
+        try:
+            bytes.fromhex(secret_hex)
+        except ValueError:
+            raise NexConnectCredentialsError('El secret del webhook no es hexadecimal')
+    tenant.nexconnect_webhook_id = str(webhook_id or '')
+    tenant.nexconnect_webhook_secret = encrypt_secret(secret_hex)
+    if save:
+        tenant.save(update_fields=['nexconnect_webhook_id', 'nexconnect_webhook_secret'])

@@ -352,6 +352,8 @@ FIELD_ENCRYPTION_KEY = config('FIELD_ENCRYPTION_KEY', default='')
 # NexConnect (PSFE) — API e-CF. El ambiente DGII lo decide el emisor, no la URL.
 NEXCONNECT_BASE_URL = config('NEXCONNECT_BASE_URL', default='https://api.nexconnect.do')
 NEXCONNECT_TIMEOUT = config('NEXCONNECT_TIMEOUT', default=30, cast=int)
+# Máxima diferencia (s) entre el timestamp firmado de un webhook y el reloj local.
+NEXCONNECT_WEBHOOK_TOLERANCE = config('NEXCONNECT_WEBHOOK_TOLERANCE', default=300, cast=int)
 
 # Constance - Dynamic Settings
 CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'

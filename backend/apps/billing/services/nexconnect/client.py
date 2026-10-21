@@ -6,6 +6,7 @@ Contrato (OpenAPI en ``GET /v1/schema``):
 - ``POST /v1/invoices`` → 201 (o 200 si es un reintento idempotente) con la
   factura ya firmada y con e-NCF; el envío a la DGII es asíncrono.
 - ``GET /v1/invoices/{id}/status`` → estado ligero.
+- ``POST /v1/webhooks/`` → 201 con ``secret`` (hex, se muestra una sola vez).
 - Errores: ``{"detail": …, "code": …}`` o el dict de validación de DRF (400).
 """
 import logging
@@ -108,3 +109,13 @@ class NexConnectClient:
 
     def get_invoice_status(self, invoice_id: str) -> dict:
         return self._request('GET', f'/v1/invoices/{invoice_id}/status').json()
+
+    def create_webhook(self, url: str, events: list, description: str = '') -> dict:
+        """Registra un webhook. La respuesta trae ``secret`` solo esta vez."""
+        body = {'url': url, 'events': list(events)}
+        if description:
+            body['description'] = description
+        return self._request('POST', '/v1/webhooks/', json=body).json()
+
+    def delete_webhook(self, webhook_id: str) -> None:
+        self._request('DELETE', f'/v1/webhooks/{webhook_id}/')
