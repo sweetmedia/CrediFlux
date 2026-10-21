@@ -54,6 +54,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { TwoFactorSetup, BackupCodesDisplay } from '@/components/auth';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 const tenantSettingsSchema = z.object({
   business_name: z.string().min(2, 'Nombre del negocio debe tener al menos 2 caracteres'),
@@ -114,6 +115,7 @@ export default function TenantSettingsPage() {
   const router = useRouter();
   const { user, tenant: authTenant, isAuthenticated, isLoading: authLoading, refreshTenant, refreshUser } = useAuth();
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [askConfirm, confirmDialog] = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string>('');
@@ -407,7 +409,12 @@ export default function TenantSettingsPage() {
   };
 
   const handleLogoRemove = async () => {
-    if (!confirm('¿Estás seguro de que deseas eliminar el logo?')) {
+    if (!(await askConfirm({
+      title: '¿Eliminar el logo?',
+      description: 'Los contratos, recibos y la interfaz volverán a mostrar el logo por defecto.',
+      confirmLabel: 'Eliminar logo',
+      variant: 'destructive',
+    }))) {
       return;
     }
 
@@ -538,7 +545,12 @@ export default function TenantSettingsPage() {
 
   // Handle avatar remove
   const handleAvatarRemove = async () => {
-    if (!confirm('¿Estás seguro de que deseas eliminar tu foto de perfil?')) {
+    if (!(await askConfirm({
+      title: '¿Eliminar tu foto de perfil?',
+      description: 'Se mostrarán tus iniciales en su lugar.',
+      confirmLabel: 'Eliminar foto',
+      variant: 'destructive',
+    }))) {
       return;
     }
 
@@ -727,6 +739,7 @@ export default function TenantSettingsPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAF7] p-6 lg:p-8">
+      {confirmDialog}
       <div className="mx-auto max-w-6xl">
         {/* Header */}
         <div className="mb-8 space-y-6">

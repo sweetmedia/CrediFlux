@@ -40,6 +40,7 @@ import {
   PAYMENT_METHOD_LABELS,
   PaymentMethod,
 } from '@/types/billing';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 export default function InvoiceDetailPage() {
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function InvoiceDetailPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [askConfirm, confirmDialog] = useConfirm();
   const [submissions, setSubmissions] = useState<ECFSubmission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -148,7 +150,13 @@ export default function InvoiceDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('¿Estás seguro de eliminar esta factura?')) return;
+    if (!(await askConfirm({
+      title: '¿Eliminar esta factura?',
+      description: `${invoice?.encf_number || 'La factura borrador'} se eliminará. Esta acción no se puede deshacer.`,
+      amount: invoice?.total,
+      confirmLabel: 'Eliminar factura',
+      variant: 'destructive',
+    }))) return;
     try {
       await billingAPI.deleteInvoice(id);
       router.push('/billing');
@@ -225,6 +233,7 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="p-8">
+      {confirmDialog}
       {/* Header */}
       <div className="mb-8">
         <Link href="/billing" className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-4">

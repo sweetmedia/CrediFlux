@@ -37,6 +37,8 @@ import {
   Legend,
 } from 'recharts';
 import type { DashboardStatistics, Loan } from '@/types';
+import { ErrorState } from '@/components/ui/error-state';
+import { getApiErrorMessage } from '@/lib/api/client';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -72,7 +74,7 @@ export default function DashboardPage() {
       setRecentLoans(loansData.results.slice(0, 5));
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
-      setError('Error al cargar los datos del dashboard');
+      setError(getApiErrorMessage(err, 'Error al cargar los datos del dashboard'));
     } finally {
       setIsLoadingStats(false);
     }
@@ -166,9 +168,7 @@ export default function DashboardPage() {
 
       <div className="p-8">
         {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <ErrorState className="mb-6" title="No pudimos cargar el resumen" message={error} onRetry={fetchDashboardData} />
         )}
 
         {isLoadingStats ? (

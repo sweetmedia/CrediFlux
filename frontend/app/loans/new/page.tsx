@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -57,6 +57,9 @@ import {
 import { CollateralCreate, VehicleMetadata, PropertyMetadata, EquipmentMetadata } from '@/types';
 import { toast } from 'sonner';
 import { formatDisplayIDNumber } from '@/lib/utils/id-formatter';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { Field } from '@/components/ui/field';
+import { MoneyInput } from '@/components/ui/money-input';
 
 const AMORTIZATION_METHODS = [
   {
@@ -220,6 +223,7 @@ export default function NewLoanPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { config, isLoading: configLoading } = useConfig();
   const [error, setError] = useState<string>('');
+  const [askConfirm, confirmDialog] = useConfirm();
   const [isLoading, setIsLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
@@ -241,6 +245,7 @@ export default function NewLoanPage() {
 
   const {
     register,
+    control,
     handleSubmit,
     watch,
     setValue,
@@ -529,8 +534,13 @@ export default function NewLoanPage() {
     setCollaterals(updated);
   };
 
-  const removeCollateral = (index: number) => {
-    if (confirm('¿Estás seguro de que deseas eliminar esta garantía?')) {
+  const removeCollateral = async (index: number) => {
+    if (await askConfirm({
+      title: '¿Quitar esta garantía?',
+      description: 'Se quitará de la solicitud junto con los datos que hayas cargado.',
+      confirmLabel: 'Quitar garantía',
+      variant: 'destructive',
+    })) {
       setCollaterals(collaterals.filter((_, i) => i !== index));
     }
   };
@@ -675,8 +685,13 @@ export default function NewLoanPage() {
     }
   };
 
-  const removeGuarantor = (index: number) => {
-    if (confirm('¿Estás seguro de que deseas eliminar este garante?')) {
+  const removeGuarantor = async (index: number) => {
+    if (await askConfirm({
+      title: '¿Quitar este garante?',
+      description: 'Se quitará de la solicitud junto con los datos que hayas cargado.',
+      confirmLabel: 'Quitar garante',
+      variant: 'destructive',
+    })) {
       setGuarantors(guarantors.filter((_, i) => i !== index));
     }
   };
@@ -1021,6 +1036,7 @@ export default function NewLoanPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f8f7] px-4 py-6 md:px-6 md:py-8">
+      {confirmDialog}
       <div className="mx-auto max-w-7xl space-y-6">
         <section className="overflow-hidden rounded-[28px] bg-gradient-to-r from-[#163300] via-[#244508] to-[#325c10] text-white shadow-none">
           <div className="grid gap-6 px-6 py-6 md:px-8 md:py-8 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
@@ -1308,21 +1324,31 @@ export default function NewLoanPage() {
               <CardContent className="pt-6">
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="principal_amount" className="text-sm font-medium text-slate-700">
-                        Monto del Préstamo ({config.currency_symbol} {config.currency}) <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="principal_amount"
-                        type="number"
-                        step="0.01"
-                        placeholder="10000.00"
-                        {...register('principal_amount')}
-                      />
-                      {errors.principal_amount && (
-                        <p className="text-sm text-red-500">{errors.principal_amount.message}</p>
+                    <Field
+                      id="principal_amount"
+                      label={`Monto del préstamo (${config.currency})`}
+                      required
+                      error={errors.principal_amount?.message}
+                    >
+                      {(a11y) => (
+                        <Controller
+                          name="principal_amount"
+                          control={control}
+                          render={({ field }) => (
+                            <MoneyInput
+                              {...a11y}
+                              ref={field.ref}
+                              name={field.name}
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              onBlur={field.onBlur}
+                              currencySymbol={config.currency_symbol}
+                              placeholder="10,000.00"
+                            />
+                          )}
+                        />
                       )}
-                    </div>
+                    </Field>
 
                     <div className="space-y-2">
                       <Label htmlFor="loan_type" className="text-sm font-medium text-slate-700">
@@ -1611,18 +1637,14 @@ export default function NewLoanPage() {
                             </NativeSelect>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700">
-                              Valor Estimado ({config.currency_symbol} {config.currency}) <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                              type="number"
-                              step="0.01"
+                          <Field id={`collateral-${index}-estimated-value`} label={`Valor estimado (${config.currency})`} required>
+                            <MoneyInput
+                              currencySymbol={config.currency_symbol}
                               placeholder="0.00"
                               value={collateral.estimated_value}
-                              onChange={(e) => updateCollateral(index, 'estimated_value', parseFloat(e.target.value) || 0)}
+                              onValueChange={(raw) => updateCollateral(index, 'estimated_value', parseFloat(raw) || 0)}
                             />
-                          </div>
+                          </Field>
                         </div>
 
                         {/* Dynamic fields based on collateral type */}
@@ -2061,18 +2083,14 @@ export default function NewLoanPage() {
 
                           {/* Income + Relationship row */}
                           <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-sm font-medium text-slate-700">
-                                Ingreso Mensual (RD$)
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.01"
+                            <Field id={`guarantor-${index}-monthly-income`} label={`Ingreso mensual (${config.currency})`}>
+                              <MoneyInput
+                                currencySymbol={config.currency_symbol}
                                 placeholder="0.00"
                                 value={guarantor.monthly_income}
-                                onChange={(e) => updateGuarantor(index, 'monthly_income', e.target.value)}
+                                onValueChange={(raw) => updateGuarantor(index, 'monthly_income', raw)}
                               />
-                            </div>
+                            </Field>
                             <div className="space-y-2">
                               <Label className="text-sm font-medium text-slate-700">
                                 Relación con el Cliente <span className="text-red-500">*</span>

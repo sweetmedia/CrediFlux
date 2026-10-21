@@ -55,11 +55,13 @@ import {
   Ban,
 } from 'lucide-react';
 import { CollectionReminder } from '@/types';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 export default function RemindersListPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [reminders, setReminders] = useState<CollectionReminder[]>([]);
+  const [askConfirm, confirmDialog] = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [totalCount, setTotalCount] = useState(0);
@@ -113,7 +115,17 @@ export default function RemindersListPage() {
   };
 
   const handleCancelReminder = async (id: string) => {
-    if (!confirm('¿Está seguro de cancelar este recordatorio?')) return;
+    const reminder = reminders.find((r) => r.id === id);
+    if (!(await askConfirm({
+      title: '¿Cancelar este recordatorio?',
+      description: reminder
+        ? `No se enviará el recordatorio del préstamo #${reminder.loan_number}.`
+        : 'El recordatorio no se enviará.',
+      customer: reminder?.customer_name,
+      confirmLabel: 'Cancelar recordatorio',
+      cancelLabel: 'Volver',
+      variant: 'destructive',
+    }))) return;
 
     try {
       await collectionsAPI.cancelReminder(id);
@@ -182,6 +194,7 @@ export default function RemindersListPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f8f7] px-4 py-6 md:px-6 md:py-8">
+      {confirmDialog}
       <div className="mx-auto max-w-7xl space-y-6">
         <div>
           <Link
