@@ -182,7 +182,7 @@ export interface Loan {
   loan_type: 'personal' | 'auto' | 'mortgage' | 'business' | 'student' | 'payday';
   principal_amount: number;
   interest_rate: number;
-  interest_type: 'fixed' | 'variable' | 'variable_rd';
+  interest_type: 'fixed' | 'variable' | 'variable_rd' | 'flat' | 'saldo_insoluto' | 'french' | 'german';
   term_months: number;
   payment_frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly';
   payment_amount: number;

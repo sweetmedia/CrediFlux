@@ -33,6 +33,7 @@ import {
   InvoiceItemCreate,
 } from '@/types/billing';
 import { Customer } from '@/types';
+import { formatDisplayIDNumber } from '@/lib/utils/id-formatter';
 
 export default function NewInvoicePage() {
   const router = useRouter();
@@ -219,7 +220,7 @@ export default function NewInvoicePage() {
                   <option value="">Seleccionar cliente...</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.full_name} ({c.id_number})
+                      {c.full_name} ({formatDisplayIDNumber(c.id_number, c.id_type)})
                     </option>
                   ))}
                 </Select>

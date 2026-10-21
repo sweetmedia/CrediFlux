@@ -44,6 +44,7 @@ import {
   FileText,
   ExternalLink,
 } from 'lucide-react';
+import { formatDisplayIDNumber } from '@/lib/utils/id-formatter';
 
 export default function CustomersListPage() {
   const router = useRouter();
@@ -314,7 +315,7 @@ export default function CustomersListPage() {
                                 </div>
                                 <div className="text-xs text-gray-500 flex items-center gap-1">
                                   <IdCard className="h-3 w-3" />
-                                  {customer.id_number}
+                                  {formatDisplayIDNumber(customer.id_number, customer.id_type)}
                                 </div>
                               </div>
                             </div>

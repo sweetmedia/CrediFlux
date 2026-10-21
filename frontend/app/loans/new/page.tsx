@@ -52,15 +52,148 @@ import {
   Home,
   Wrench,
   UsersRound,
+  Camera,
 } from 'lucide-react';
 import { CollateralCreate, VehicleMetadata, PropertyMetadata, EquipmentMetadata } from '@/types';
 import { toast } from 'sonner';
+import { formatDisplayIDNumber } from '@/lib/utils/id-formatter';
+
+const AMORTIZATION_METHODS = [
+  {
+    value: 'flat',
+    label: 'Interés Fijo (Flat)',
+    description: 'Interés calculado sobre el monto original. Cuota simple y muy común en financieras pequeñas.',
+  },
+  {
+    value: 'saldo_insoluto',
+    label: 'Saldo Insoluto',
+    description: 'Interés sobre el balance pendiente. La cuota baja con el tiempo.',
+  },
+  {
+    value: 'french',
+    label: 'Francés (Cuota Fija)',
+    description: 'Cuota total fija. Al inicio se paga más interés y luego más capital.',
+  },
+  {
+    value: 'german',
+    label: 'Alemán (Capital Fijo)',
+    description: 'Capital fijo por cuota y pago total decreciente.',
+  },
+];
+
+const VEHICLE_BRAND_MODELS: Record<string, string[]> = {
+  Toyota: ['4Runner', 'Agya', 'Avalon', 'Axio', 'Camry', 'Corolla', 'Corolla Cross', 'Fortuner', 'Hilux', 'Highlander', 'Land Cruiser', 'Prado', 'Raize', 'RAV4', 'Rush', 'Sequoia', 'Sienna', 'Tacoma', 'Tundra', 'Veloz', 'Vitz', 'Yaris'],
+  Honda: ['Accord', 'BR-V', 'City', 'Civic', 'CR-V', 'Fit', 'HR-V', 'Odyssey', 'Passport', 'Pilot', 'Ridgeline'],
+  Hyundai: ['Accent', 'Creta', 'Elantra', 'Grand i10', 'H-1', 'Kona', 'Palisade', 'Santa Fe', 'Sonata', 'Staria', 'Tucson', 'Venue'],
+  Kia: ['Carens', 'Carnival', 'K3', 'K5', 'Morning', 'Picanto', 'Rio', 'Seltos', 'Sonet', 'Sorento', 'Soul', 'Sportage', 'Stonic', 'Telluride'],
+  Nissan: ['Altima', 'Armada', 'Frontier', 'Kicks', 'March', 'Murano', 'Navara', 'Pathfinder', 'Patrol', 'Qashqai', 'Rogue', 'Sentra', 'Sunny', 'Terra', 'Versa', 'X-Trail'],
+  Ford: ['Bronco', 'EcoSport', 'Edge', 'Escape', 'Everest', 'Explorer', 'F-150', 'Fiesta', 'Focus', 'Maverick', 'Mustang', 'Ranger', 'Transit'],
+  Chevrolet: ['Blazer', 'Captiva', 'Colorado', 'Cruze', 'Equinox', 'Groove', 'Onix', 'Prisma', 'S10', 'Silverado', 'Spark', 'Suburban', 'Tahoe', 'Tracker', 'Traverse'],
+  Mazda: ['BT-50', 'CX-3', 'CX-30', 'CX-5', 'CX-9', 'CX-90', 'Mazda 2', 'Mazda 3', 'Mazda 6'],
+  Mitsubishi: ['ASX', 'L200', 'Mirage', 'Montero', 'Montero Sport', 'Outlander', 'Xpander'],
+  BMW: ['Serie 1', 'Serie 2', 'Serie 3', 'Serie 4', 'Serie 5', 'X1', 'X2', 'X3', 'X4', 'X5', 'X6', 'X7'],
+  'Mercedes-Benz': ['Clase A', 'Clase C', 'Clase CLA', 'Clase E', 'Clase GLA', 'Clase GLB', 'Clase GLC', 'Clase GLE', 'Clase GLS', 'Sprinter', 'Vito'],
+  Lexus: ['CT', 'ES', 'GX', 'IS', 'LX', 'NX', 'RX', 'UX'],
+  Jeep: ['Cherokee', 'Compass', 'Gladiator', 'Grand Cherokee', 'Renegade', 'Wrangler'],
+  Volkswagen: ['Amarok', 'Atlas', 'Cross', 'Gol', 'Golf', 'Jetta', 'Nivus', 'Passat', 'Polo', 'Taos', 'T-Cross', 'Tiguan'],
+  Suzuki: ['Baleno', 'Celerio', 'Ciaz', 'Dzire', 'Ertiga', 'Grand Vitara', 'Jimny', 'S-Cross', 'Swift', 'Vitara'],
+  Isuzu: ['D-Max', 'MU-X'],
+  Audi: ['A3', 'A4', 'A5', 'A6', 'Q3', 'Q5', 'Q7', 'Q8'],
+  LandRover: ['Defender', 'Discovery', 'Discovery Sport', 'Range Rover', 'Range Rover Evoque', 'Range Rover Sport', 'Range Rover Velar'],
+  Porsche: ['Cayenne', 'Macan', 'Panamera'],
+  Dodge: ['Challenger', 'Charger', 'Durango', 'Journey', 'RAM 1500', 'RAM 2500'],
+  RAM: ['700', '1000', '1200', '1500', '2500', '3500'],
+  Chrysler: ['300', 'Pacifica'],
+  Subaru: ['Crosstrek', 'Forester', 'Impreza', 'Outback', 'WRX', 'XV'],
+  Peugeot: ['2008', '208', '3008', '5008', 'Landtrek', 'Partner'],
+  Renault: ['Duster', 'Koleos', 'Kwid', 'Logan', 'Oroch', 'Sandero', 'Stepway'],
+  Fiat: ['500', 'Argo', 'Cronos', 'Mobi', 'Strada', 'Toro'],
+  Mini: ['Clubman', 'Cooper', 'Countryman'],
+  Infiniti: ['Q50', 'QX50', 'QX55', 'QX60', 'QX80'],
+  Acura: ['ILX', 'MDX', 'RDX', 'TLX'],
+  Daihatsu: ['Bego', 'Charade', 'Mira', 'Sirion', 'Terios'],
+  'Alfa Romeo': ['Giulia', 'Stelvio', 'Tonale'],
+  'Great Wall': ['Cannon', 'Haval H6', 'Haval Jolion', 'Poer', 'Wingle'],
+  Changan: ['Alsvin', 'CS35', 'CS55', 'CS75', 'Hunter'],
+  Chery: ['Arrizo 5', 'Tiggo 2', 'Tiggo 4', 'Tiggo 7', 'Tiggo 8'],
+  Geely: ['Azkarra', 'Coolray', 'Emgrand', 'GX3 Pro', 'Okavango'],
+  BYD: ['Dolphin', 'Qin Plus', 'Seagull', 'Song Plus', 'Yuan Plus'],
+  JAC: ['JS2', 'JS4', 'JS8', 'T6', 'T8'],
+  MG: ['GT', 'HS', 'RX5', 'ZS'],
+  Volvo: ['S60', 'S90', 'XC40', 'XC60', 'XC90'],
+  Tesla: ['Model 3', 'Model S', 'Model X', 'Model Y'],
+  Otros: ['Otro modelo'],
+};
+
+const VEHICLE_BRANDS = Object.keys(VEHICLE_BRAND_MODELS);
+const VEHICLE_YEARS = Array.from({ length: 36 }, (_, index) => String(new Date().getFullYear() + 1 - index));
+
+const FIELD_LABELS: Record<string, string> = {
+  customer: 'Cliente',
+  customer_id: 'Cliente',
+  principal_amount: 'Monto',
+  interest_rate: 'Tasa de interés',
+  monthly_interest_rate: 'Tasa mensual',
+  term_months: 'Plazo',
+  payment_frequency: 'Frecuencia',
+  loan_type: 'Tipo de préstamo',
+  amortization_method: 'Método de amortización',
+  disbursement_date: 'Fecha de desembolso',
+  first_payment_date: 'Fecha de primera cuota',
+  start_date: 'Fecha de inicio',
+  guarantors: 'Garantes',
+  collaterals: 'Garantías',
+  detail: 'Detalle',
+  non_field_errors: 'Validación',
+};
+
+function prettifyErrorKey(key: string): string {
+  const cleanKey = key.split('.').pop() || key;
+  return FIELD_LABELS[cleanKey] || cleanKey.replace(/_/g, ' ');
+}
+
+function collectApiErrorMessages(errorData: any, parentKey = ''): string[] {
+  if (!errorData) return [];
+
+  if (typeof errorData === 'string') {
+    return [parentKey ? `${prettifyErrorKey(parentKey)}: ${errorData}` : errorData];
+  }
+
+  if (Array.isArray(errorData)) {
+    return errorData.flatMap((item) => collectApiErrorMessages(item, parentKey));
+  }
+
+  if (typeof errorData === 'object') {
+    return Object.entries(errorData).flatMap(([key, value]) => {
+      const nextKey = parentKey ? `${parentKey}.${key}` : key;
+      return collectApiErrorMessages(value, nextKey);
+    });
+  }
+
+  return [];
+}
+
+function formatLoanCreationError(errorData: any): string {
+  const messages = Array.from(
+    new Set(
+      collectApiErrorMessages(errorData)
+        .map((message) => message.trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (messages.length === 0) {
+    return 'No se pudo crear el préstamo. Verifica los datos e inténtalo otra vez.';
+  }
+
+  return messages.slice(0, 4).join(' • ');
+}
 
 const loanSchema = z.object({
   customer: z.string().min(1, 'Cliente requerido'),
   principal_amount: z.string().min(1, 'Monto requerido'),
   interest_rate: z.string().min(1, 'Tasa de interés requerida'),
-  interest_type: z.enum(['fixed', 'variable', 'variable_rd']),
+  interest_type: z.enum(['flat', 'saldo_insoluto', 'french', 'german']),
   term_months: z.string().min(1, 'Plazo requerido'),
   loan_type: z.enum(['personal', 'auto', 'mortgage', 'business', 'student', 'payday']),
   purpose: z.string().optional(),
@@ -117,15 +250,16 @@ export default function NewLoanPage() {
     resolver: zodResolver(loanSchema),
     defaultValues: {
       loan_type: 'personal',
-      interest_type: 'fixed',
+      interest_type: 'flat',
       payment_frequency: 'monthly',
       disbursement_date: new Date().toISOString().split('T')[0],
     },
   });
 
-  const watchedFields = watch(['principal_amount', 'interest_rate', 'term_months', 'payment_frequency']);
+  const watchedFields = watch(['principal_amount', 'interest_rate', 'term_months', 'payment_frequency', 'interest_type']);
   const paymentFrequency = watch('payment_frequency');
   const interestType = watch('interest_type');
+  const selectedAmortizationMethod = AMORTIZATION_METHODS.find((method) => method.value === interestType);
   const disbursementDate = watch('disbursement_date');
   const principalAmount = watch('principal_amount');
   const loanType = watch('loan_type');
@@ -205,10 +339,31 @@ export default function NewLoanPage() {
     loadCustomers();
   }, [isAuthenticated, searchParams, setValue]);
 
+  // Pre-fill values from calculator
+  useEffect(() => {
+    const principal = searchParams.get('principal');
+    const rate = searchParams.get('rate');
+    const term = searchParams.get('term');
+    const frequency = searchParams.get('frequency');
+    const startDate = searchParams.get('start_date');
+    const method = searchParams.get('method');
+
+    if (principal) setValue('principal_amount', principal);
+    if (rate) setValue('interest_rate', rate);
+    if (term) setValue('term_months', term);
+    if (frequency && ['daily', 'weekly', 'biweekly', 'monthly'].includes(frequency)) {
+      setValue('payment_frequency', frequency as LoanFormData['payment_frequency']);
+    }
+    if (method && ['flat', 'saldo_insoluto', 'french', 'german'].includes(method)) {
+      setValue('interest_type', method as LoanFormData['interest_type']);
+    }
+    if (startDate) setValue('disbursement_date', startDate);
+  }, [searchParams, setValue]);
+
   // Calculate payment
   useEffect(() => {
-    const [principal, rate, term, frequency] = watchedFields;
-    if (principal && rate && term && frequency) {
+    const [principal, rate, term, frequency, method] = watchedFields;
+    if (principal && rate && term && frequency && method) {
       const P = parseFloat(principal);
       const monthlyRate = parseFloat(rate) / 100;
       const termMonths = parseInt(term);
@@ -237,9 +392,25 @@ export default function NewLoanPage() {
 
       const periodicRate = monthlyRate / rateDivisor;
 
-      if (P > 0 && periodicRate > 0 && totalPayments > 0) {
-        const payment = P * (periodicRate * Math.pow(1 + periodicRate, totalPayments)) /
-                       (Math.pow(1 + periodicRate, totalPayments) - 1);
+      if (P > 0 && totalPayments > 0) {
+        let payment: number | null = null;
+
+        if (method === 'flat') {
+          const totalInterest = P * monthlyRate * termMonths;
+          payment = (P + totalInterest) / totalPayments;
+        } else if (method === 'french') {
+          if (periodicRate > 0) {
+            payment = P * (periodicRate * Math.pow(1 + periodicRate, totalPayments)) /
+              (Math.pow(1 + periodicRate, totalPayments) - 1);
+          } else {
+            payment = P / totalPayments;
+          }
+        } else if (method === 'saldo_insoluto' || method === 'german') {
+          const principalPerPayment = P / totalPayments;
+          const firstInterest = P * periodicRate;
+          payment = principalPerPayment + firstInterest;
+        }
+
         setCalculatedPayment(payment);
       } else {
         setCalculatedPayment(null);
@@ -297,6 +468,20 @@ export default function NewLoanPage() {
     }
   };
 
+  useEffect(() => {
+    if (loanType === 'auto' && !collaterals.some((item) => item.collateral_type === 'vehicle')) {
+      setCollaterals((prev) => ([
+        ...prev,
+        {
+          collateral_type: 'vehicle',
+          description: 'Vehículo asociado al préstamo',
+          estimated_value: 0,
+          metadata: {},
+        },
+      ]));
+    }
+  }, [loanType, collaterals]);
+
   const addCollateral = () => {
     setCollaterals([...collaterals, {
       collateral_type: 'vehicle',
@@ -319,12 +504,27 @@ export default function NewLoanPage() {
 
   const updateCollateralMetadata = (index: number, metaField: string, value: any) => {
     const updated = [...collaterals];
+    const nextMetadata = {
+      ...updated[index].metadata,
+      [metaField]: value,
+    } as Record<string, any>;
+
+    if (metaField === 'brand') {
+      nextMetadata.model = '';
+    }
+
     updated[index] = {
       ...updated[index],
-      metadata: {
-        ...updated[index].metadata,
-        [metaField]: value,
-      },
+      metadata: nextMetadata,
+    };
+    setCollaterals(updated);
+  };
+
+  const updateCollateralFile = (index: number, field: 'photos' | 'documents', file?: File) => {
+    const updated = [...collaterals];
+    updated[index] = {
+      ...updated[index],
+      [field]: file,
     };
     setCollaterals(updated);
   };
@@ -560,6 +760,10 @@ export default function NewLoanPage() {
 
   const getInterestTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
+      flat: 'Interés Fijo (Flat)',
+      saldo_insoluto: 'Saldo Insoluto',
+      french: 'Francés (Cuota Fija)',
+      german: 'Alemán (Capital Fijo)',
       fixed: 'Fijo',
       variable: 'Variable',
       variable_rd: 'Variable (RD)',
@@ -581,6 +785,10 @@ export default function NewLoanPage() {
       day: 'numeric',
     });
   };
+
+  const currentStepMeta = STEPS[currentStep - 1];
+  const completionPercent = Math.round((currentStep / STEPS.length) * 100);
+  const totalCollateralValue = getTotalCollateralValue();
 
   // Navigate between steps with validation
   const nextStep = async () => {
@@ -695,30 +903,59 @@ export default function NewLoanPage() {
 
       if (collaterals.length > 0) {
         const collateralPromises = collaterals.map(async (collateral) => {
-          const collateralData: any = {
-            loan: createdLoan.id,
-            collateral_type: collateral.collateral_type,
-            description: collateral.description,
-            estimated_value: collateral.estimated_value,
-            status: 'active',
-          };
+          const hasFiles = !!collateral.photos || !!collateral.documents;
+          let collateralData: any;
 
-          // Only include optional fields if they have values
-          if (collateral.appraisal_value) {
-            collateralData.appraisal_value = collateral.appraisal_value;
-          }
-          if (collateral.appraisal_date) {
-            collateralData.appraisal_date = collateral.appraisal_date;
-          }
-          if (collateral.notes) {
-            collateralData.notes = collateral.notes;
-          }
-          // Include metadata if present
-          if (collateral.metadata && Object.keys(collateral.metadata).length > 0) {
-            collateralData.metadata = collateral.metadata;
+          if (hasFiles) {
+            const formData = new FormData();
+            formData.append('loan', createdLoan.id);
+            formData.append('collateral_type', collateral.collateral_type);
+            formData.append('description', collateral.description || '');
+            formData.append('estimated_value', String(collateral.estimated_value || 0));
+            formData.append('status', 'active');
+
+            if (collateral.appraisal_value) {
+              formData.append('appraisal_value', String(collateral.appraisal_value));
+            }
+            if (collateral.appraisal_date) {
+              formData.append('appraisal_date', collateral.appraisal_date);
+            }
+            if (collateral.notes) {
+              formData.append('notes', collateral.notes);
+            }
+            if (collateral.metadata && Object.keys(collateral.metadata).length > 0) {
+              formData.append('metadata', JSON.stringify(collateral.metadata));
+            }
+            if (collateral.photos) {
+              formData.append('photos', collateral.photos);
+            }
+            if (collateral.documents) {
+              formData.append('documents', collateral.documents);
+            }
+            collateralData = formData;
+          } else {
+            collateralData = {
+              loan: createdLoan.id,
+              collateral_type: collateral.collateral_type,
+              description: collateral.description,
+              estimated_value: collateral.estimated_value,
+              status: 'active',
+            };
+
+            if (collateral.appraisal_value) {
+              collateralData.appraisal_value = collateral.appraisal_value;
+            }
+            if (collateral.appraisal_date) {
+              collateralData.appraisal_date = collateral.appraisal_date;
+            }
+            if (collateral.notes) {
+              collateralData.notes = collateral.notes;
+            }
+            if (collateral.metadata && Object.keys(collateral.metadata).length > 0) {
+              collateralData.metadata = collateral.metadata;
+            }
           }
 
-          console.log('Creating collateral with data:', collateralData);
           try {
             return await collateralsAPI.createCollateral(collateralData);
           } catch (collateralError: any) {
@@ -761,22 +998,13 @@ export default function NewLoanPage() {
     } catch (err: any) {
       console.error('Error creating loan:', err);
       if (err.response?.data) {
-        const errorData = err.response.data;
-        let errorMessages: string[] = [];
-        Object.keys(errorData).forEach(key => {
-          if (Array.isArray(errorData[key])) {
-            errorMessages.push(`${key}: ${errorData[key].join(', ')}`);
-          } else if (typeof errorData[key] === 'string') {
-            errorMessages.push(`${key}: ${errorData[key]}`);
-          }
-        });
-        if (errorMessages.length > 0) {
-          setError(errorMessages.join(' | '));
-        } else {
-          setError('Error al crear el préstamo. Por favor verifica los datos.');
-        }
+        const message = formatLoanCreationError(err.response.data);
+        setError(message);
+        toast.error(message);
       } else {
-        setError('Error al conectar con el servidor');
+        const message = 'Error al conectar con el servidor';
+        setError(message);
+        toast.error(message);
       }
     } finally {
       setIsLoading(false);
@@ -785,68 +1013,108 @@ export default function NewLoanPage() {
 
   if (authLoading || configLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f8f7]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
+    <div className="min-h-screen bg-[#f6f8f7] px-4 py-6 md:px-6 md:py-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-[28px] bg-gradient-to-r from-[#163300] via-[#244508] to-[#325c10] text-white shadow-none">
+          <div className="grid gap-6 px-6 py-6 md:px-8 md:py-8 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Nuevo Préstamo</h1>
-              <p className="text-sm text-slate-600 mt-1">
-                Completa el formulario paso a paso para crear un nuevo préstamo
+              <Link href="/loans" className="inline-flex items-center text-sm text-white/78 transition hover:text-white">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al módulo de préstamos
+              </Link>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-white/86">
+                  Flujo guiado
+                </span>
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white/86">
+                  Paso {currentStep} de {STEPS.length}
+                </span>
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white/86">
+                  {completionPercent}% completado
+                </span>
+              </div>
+              <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">Nuevo préstamo</h1>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/78 md:text-base">
+                Armemos la operación con mejor contexto: cliente, términos, garantías y revisión final en una sola vista más clara y ejecutiva.
               </p>
             </div>
-            <Link href="/loans">
-              <Button variant="outline">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Cancelar
-              </Button>
-            </Link>
-          </div>
-        </div>
 
-        {/* Progress Stepper */}
-        <Card className="mb-8 border-slate-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              {STEPS.map((step, index) => {
+            <div className="rounded-3xl border border-white/12 bg-white/10 p-4 backdrop-blur-sm">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/70">Lectura operativa</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  <p className="text-xs text-white/70">Paso actual</p>
+                  <p className="mt-1 text-sm font-semibold">{currentStepMeta?.name}</p>
+                  <p className="mt-1 text-xs text-white/70">{currentStepMeta?.description}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  <p className="text-xs text-white/70">Monto capturado</p>
+                  <p className="mt-1 text-sm font-semibold">{principalAmount ? formatCurrency(Number(principalAmount)) : 'Pendiente'}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  <p className="text-xs text-white/70">Respaldo visible</p>
+                  <p className="mt-1 text-sm font-semibold">{collaterals.length} garantías · {guarantors.length} garantes</p>
+                  <p className="mt-1 text-xs text-white/70">{totalCollateralValue > 0 ? formatCurrency(totalCollateralValue) : 'Sin garantías registradas'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <Card className="cf-surface-card overflow-hidden">
+          <CardContent className="p-5 md:p-6">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#486152]">Progreso del expediente</p>
+                <h2 className="mt-1 text-lg font-semibold text-[#163300]">Wizard de originación</h2>
+              </div>
+              <Link href="/loans">
+                <Button variant="outline" className="bg-white">
+                  Cancelar
+                </Button>
+              </Link>
+            </div>
+            <div className="mb-5 h-2 rounded-full bg-[#e7efe9]">
+              <div className="h-2 rounded-full bg-[#163300] transition-all" style={{ width: `${completionPercent}%` }} />
+            </div>
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              {STEPS.map((step) => {
                 const StepIcon = step.icon;
                 const isActive = currentStep === step.id;
                 const isCompleted = currentStep > step.id;
 
                 return (
-                  <div key={step.id} className="flex-1">
-                    <div className="flex items-center">
-                      <div className="flex flex-col items-center flex-1">
-                        <div className={`
-                          flex items-center justify-center w-12 h-12 rounded-full border-2 mb-2
-                          ${isActive ? 'bg-blue-600 border-blue-600 text-white' : ''}
-                          ${isCompleted ? 'bg-green-600 border-green-600 text-white' : ''}
-                          ${!isActive && !isCompleted ? 'bg-slate-100 border-slate-300 text-slate-400' : ''}
-                        `}>
-                          {isCompleted ? (
-                            <CheckCircle className="h-6 w-6" />
-                          ) : (
-                            <StepIcon className="h-6 w-6" />
-                          )}
-                        </div>
-                        <p className={`text-xs font-medium text-center ${isActive ? 'text-blue-600' : 'text-slate-600'}`}>
-                          {step.name}
-                        </p>
+                  <div
+                    key={step.id}
+                    className={`rounded-2xl border px-4 py-3 transition ${
+                      isActive
+                        ? 'border-[#163300] bg-[#f1f6f2]'
+                        : isCompleted
+                          ? 'border-emerald-200 bg-emerald-50'
+                          : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl border ${
+                        isActive
+                          ? 'border-[#163300] bg-[#163300] text-white'
+                          : isCompleted
+                            ? 'border-emerald-500 bg-emerald-500 text-white'
+                            : 'border-slate-200 bg-slate-50 text-slate-400'
+                      }`}>
+                        {isCompleted ? <CheckCircle className="h-5 w-5" /> : <StepIcon className="h-5 w-5" />}
                       </div>
-
-                      {index < STEPS.length - 1 && (
-                        <div className={`h-0.5 flex-1 mx-2 mt-[-24px] ${
-                          currentStep > step.id ? 'bg-green-600' : 'bg-slate-300'
-                        }`} />
-                      )}
+                      <div className="min-w-0">
+                        <p className={`text-sm font-medium ${isActive ? 'text-[#163300]' : 'text-slate-900'}`}>{step.name}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{step.description}</p>
+                      </div>
                     </div>
                   </div>
                 );
@@ -868,7 +1136,7 @@ export default function NewLoanPage() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <User className="h-5 w-5 text-blue-600" />
+                  <User className="h-5 w-5 text-[#163300]" />
                   Seleccionar Cliente
                 </CardTitle>
                 <CardDescription className="text-slate-600">
@@ -919,12 +1187,12 @@ export default function NewLoanPage() {
                                     key={customer.id}
                                     type="button"
                                     onClick={() => handleSelectCustomer(customer)}
-                                    className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-b-0"
+                                    className="w-full px-4 py-3 text-left hover:bg-[#f1f6f2] transition-colors border-b border-slate-100 last:border-b-0"
                                   >
                                     <div className="flex items-start gap-3">
                                       <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
-                                          <User className="h-4 w-4 text-blue-600" />
+                                          <User className="h-4 w-4 text-[#163300]" />
                                           <p className="font-medium text-slate-900">
                                             {customer.full_name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim()}
                                           </p>
@@ -933,7 +1201,7 @@ export default function NewLoanPage() {
                                           {customer.id_number && (
                                             <span className="flex items-center gap-1">
                                               <IdCard className="h-3 w-3" />
-                                              {customer.id_number}
+                                              {formatDisplayIDNumber(customer.id_number, customer.id_type)}
                                             </span>
                                           )}
                                           {customer.email && (
@@ -966,9 +1234,9 @@ export default function NewLoanPage() {
                         )}
 
                         {selectedCustomer && (
-                          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="mt-4 p-4 bg-[#f1f6f2] border border-[#d7e2db] rounded-lg">
                             <div className="flex items-start gap-3">
-                              <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+                              <div className="h-12 w-12 rounded-full bg-[#163300] flex items-center justify-center text-white font-bold">
                                 {selectedCustomer.first_name?.charAt(0)}{selectedCustomer.last_name?.charAt(0)}
                               </div>
                               <div className="flex-1">
@@ -979,7 +1247,7 @@ export default function NewLoanPage() {
                                   {selectedCustomer.id_number && (
                                     <span className="flex items-center gap-1">
                                       <IdCard className="h-4 w-4" />
-                                      {selectedCustomer.id_number}
+                                      {formatDisplayIDNumber(selectedCustomer.id_number, selectedCustomer.id_type)}
                                     </span>
                                   )}
                                   {selectedCustomer.email && (
@@ -1008,7 +1276,7 @@ export default function NewLoanPage() {
                     )}
                     <p className="text-xs text-slate-500">
                       ¿No encuentras el cliente?{' '}
-                      <Link href="/customers/new" className="text-blue-600 hover:underline font-medium">
+                      <Link href="/customers/new" className="text-[#163300] hover:underline font-medium">
                         Agregar nuevo cliente
                       </Link>
                     </p>
@@ -1017,7 +1285,7 @@ export default function NewLoanPage() {
               </CardContent>
               <CardFooter className="border-t border-slate-200 flex justify-between">
                 <div></div>
-                <Button type="button" onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="button" onClick={nextStep} className="bg-[#163300] hover:bg-[#0f2400]">
                   Siguiente
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1030,7 +1298,7 @@ export default function NewLoanPage() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <DollarSign className="h-5 w-5 text-blue-600" />
+                  <DollarSign className="h-5 w-5 text-[#163300]" />
                   Información del Préstamo
                 </CardTitle>
                 <CardDescription className="text-slate-600">
@@ -1091,12 +1359,12 @@ export default function NewLoanPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="interest_type" className="text-sm font-medium text-slate-700">
-                        Tipo de Interés <span className="text-red-500">*</span>
+                        Método de Amortización <span className="text-red-500">*</span>
                       </Label>
                       <NativeSelect id="interest_type" {...register('interest_type')}>
-                        <option value="fixed">Fijo</option>
-                        <option value="variable">Variable</option>
-                        <option value="variable_rd">Variable (RD)</option>
+                        {AMORTIZATION_METHODS.map((method) => (
+                          <option key={method.value} value={method.value}>{method.label}</option>
+                        ))}
                       </NativeSelect>
                       {errors.interest_type && (
                         <p className="text-sm text-red-500">{errors.interest_type.message}</p>
@@ -1119,29 +1387,20 @@ export default function NewLoanPage() {
                     </div>
                   </div>
 
-                  {interestType === 'fixed' && (
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <Info className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-blue-800">
-                        <strong>Interés Fijo:</strong> El interés total se distribuye equitativamente en todas las cuotas.
+                  {selectedAmortizationMethod && (
+                    <Alert className="bg-[#f1f6f2] border-[#d7e2db]">
+                      <Info className="h-4 w-4 text-[#163300]" />
+                      <AlertDescription className="text-[#365046]">
+                        <strong>{selectedAmortizationMethod.label}:</strong> {selectedAmortizationMethod.description}
                       </AlertDescription>
                     </Alert>
                   )}
 
-                  {interestType === 'variable' && (
+                  {loanType === 'auto' && (
                     <Alert className="bg-amber-50 border-amber-200">
-                      <Info className="h-4 w-4 text-amber-600" />
+                      <Car className="h-4 w-4 text-amber-600" />
                       <AlertDescription className="text-amber-800">
-                        <strong>Interés Variable/Amortizado:</strong> El interés se calcula sobre el capital restante que va disminuyendo.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {interestType === 'variable_rd' && (
-                    <Alert className="bg-purple-50 border-purple-200">
-                      <Info className="h-4 w-4 text-purple-600" />
-                      <AlertDescription className="text-purple-800">
-                        <strong>Interés Variable (RD):</strong> El interés se calcula aplicando la tasa directamente al capital restante.
+                        Este préstamo es de vehículo. En el paso de garantías podrás cargar la foto del vehículo para dejar el expediente más completo.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -1152,7 +1411,7 @@ export default function NewLoanPage() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Anterior
                 </Button>
-                <Button type="button" onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="button" onClick={nextStep} className="bg-[#163300] hover:bg-[#0f2400]">
                   Siguiente
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1165,7 +1424,7 @@ export default function NewLoanPage() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <Calendar className="h-5 w-5 text-blue-600" />
+                  <Calendar className="h-5 w-5 text-[#163300]" />
                   Términos y Condiciones
                 </CardTitle>
                 <CardDescription className="text-slate-600">
@@ -1213,7 +1472,7 @@ export default function NewLoanPage() {
                         id="first_payment_date"
                         type="date"
                         {...register('first_payment_date')}
-                        className="bg-blue-50"
+                        className="bg-[#f1f6f2]"
                       />
                       <p className="text-xs text-slate-500">
                         Se calcula automáticamente según la frecuencia de pago. Puedes modificarla si es necesario.
@@ -1222,19 +1481,19 @@ export default function NewLoanPage() {
                   </div>
 
                   {calculatedPayment !== null && (
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <Calculator className="h-5 w-5 text-blue-600" />
+                    <Alert className="bg-[#f1f6f2] border-[#d7e2db]">
+                      <Calculator className="h-5 w-5 text-[#163300]" />
                       <AlertDescription>
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-blue-900">
+                          <span className="font-semibold text-[#163300]">
                             Pago {getPaymentFrequencyLabel(paymentFrequency)} Estimado:
                           </span>
-                          <span className="text-2xl font-bold text-blue-600">
+                          <span className="text-2xl font-bold text-[#163300]">
                             {formatCurrency(calculatedPayment)}
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 mt-2">
-                          Cálculo aproximado basado en el método de amortización francesa
+                          Cálculo estimado según el método de amortización seleccionado
                         </p>
                       </AlertDescription>
                     </Alert>
@@ -1265,7 +1524,7 @@ export default function NewLoanPage() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Anterior
                 </Button>
-                <Button type="button" onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="button" onClick={nextStep} className="bg-[#163300] hover:bg-[#0f2400]">
                   Siguiente
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1280,7 +1539,7 @@ export default function NewLoanPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-slate-900">
-                      <Shield className="h-5 w-5 text-blue-600" />
+                      <Shield className="h-5 w-5 text-[#163300]" />
                       Garantías (Opcional)
                     </CardTitle>
                     <CardDescription className="text-slate-600">
@@ -1318,7 +1577,7 @@ export default function NewLoanPage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <h4 className="font-medium text-slate-900">Garantía {index + 1}</h4>
-                            <Badge className="bg-blue-100 text-blue-700">
+                            <Badge className="bg-blue-100 text-[#486152]">
                               {getCollateralTypeLabel(collateral.collateral_type)}
                             </Badge>
                           </div>
@@ -1368,38 +1627,48 @@ export default function NewLoanPage() {
 
                         {/* Dynamic fields based on collateral type */}
                         {collateral.collateral_type === 'vehicle' && (
-                          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <h5 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+                          <div className="mt-4 p-4 bg-[#f1f6f2] rounded-lg border border-[#d7e2db]">
+                            <h5 className="font-medium text-[#163300] mb-3 flex items-center gap-2">
                               <Car className="h-4 w-4" />
                               Información del Vehículo
                             </h5>
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium text-slate-700">Marca</Label>
-                                <Input
-                                  placeholder="Ej: Toyota, Honda, Ford..."
+                                <NativeSelect
                                   value={(collateral.metadata as VehicleMetadata)?.brand || ''}
                                   onChange={(e) => updateCollateralMetadata(index, 'brand', e.target.value)}
-                                />
+                                >
+                                  <option value="">Selecciona una marca</option>
+                                  {VEHICLE_BRANDS.map((brand) => (
+                                    <option key={brand} value={brand}>{brand}</option>
+                                  ))}
+                                </NativeSelect>
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium text-slate-700">Modelo</Label>
-                                <Input
-                                  placeholder="Ej: Corolla, Civic, F-150..."
+                                <NativeSelect
                                   value={(collateral.metadata as VehicleMetadata)?.model || ''}
                                   onChange={(e) => updateCollateralMetadata(index, 'model', e.target.value)}
-                                />
+                                  disabled={!(collateral.metadata as VehicleMetadata)?.brand}
+                                >
+                                  <option value="">Selecciona un modelo</option>
+                                  {VEHICLE_BRAND_MODELS[(collateral.metadata as VehicleMetadata)?.brand || '']?.map((model) => (
+                                    <option key={model} value={model}>{model}</option>
+                                  ))}
+                                </NativeSelect>
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium text-slate-700">Año</Label>
-                                <Input
-                                  type="number"
-                                  placeholder="Ej: 2020"
-                                  min="1900"
-                                  max={new Date().getFullYear() + 1}
-                                  value={(collateral.metadata as VehicleMetadata)?.year || ''}
-                                  onChange={(e) => updateCollateralMetadata(index, 'year', parseInt(e.target.value) || undefined)}
-                                />
+                                <NativeSelect
+                                  value={String((collateral.metadata as VehicleMetadata)?.year || '')}
+                                  onChange={(e) => updateCollateralMetadata(index, 'year', e.target.value ? parseInt(e.target.value) : undefined)}
+                                >
+                                  <option value="">Selecciona un año</option>
+                                  {VEHICLE_YEARS.map((year) => (
+                                    <option key={year} value={year}>{year}</option>
+                                  ))}
+                                </NativeSelect>
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium text-slate-700">Placa</Label>
@@ -1424,6 +1693,31 @@ export default function NewLoanPage() {
                                   value={(collateral.metadata as VehicleMetadata)?.vin || ''}
                                   onChange={(e) => updateCollateralMetadata(index, 'vin', e.target.value.toUpperCase())}
                                 />
+                              </div>
+                              <div className="space-y-2 col-span-2">
+                                <Label className="text-sm font-medium text-slate-700">Foto del vehículo</Label>
+                                <div className="rounded-2xl border border-dashed border-[#c9d8cf] bg-white p-4">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div className="flex items-start gap-3">
+                                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f1f6f2] text-[#163300]">
+                                        <Camera className="h-5 w-5" />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-medium text-slate-900">Sube una foto visible del vehículo</p>
+                                        <p className="text-xs text-slate-500">Ideal para dejar evidencia visual del colateral en el expediente.</p>
+                                      </div>
+                                    </div>
+                                    <Input
+                                      type="file"
+                                      accept="image/*"
+                                      className="max-w-sm"
+                                      onChange={(e) => updateCollateralFile(index, 'photos', e.target.files?.[0])}
+                                    />
+                                  </div>
+                                  {collateral.photos ? (
+                                    <p className="mt-3 text-xs font-medium text-[#486152]">Archivo cargado: {collateral.photos.name}</p>
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1523,12 +1817,12 @@ export default function NewLoanPage() {
                     ))}
 
                     {collaterals.length > 0 && (
-                      <Alert className="bg-blue-50 border-blue-200">
-                        <Shield className="h-4 w-4 text-blue-600" />
+                      <Alert className="bg-[#f1f6f2] border-[#d7e2db]">
+                        <Shield className="h-4 w-4 text-[#163300]" />
                         <AlertDescription>
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold text-blue-900">Valor Total de Garantías:</span>
-                            <span className="text-xl font-bold text-blue-600">
+                            <span className="font-semibold text-[#163300]">Valor Total de Garantías:</span>
+                            <span className="text-xl font-bold text-[#163300]">
                               {formatCurrency(getTotalCollateralValue())}
                             </span>
                           </div>
@@ -1543,7 +1837,7 @@ export default function NewLoanPage() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Anterior
                 </Button>
-                <Button type="button" onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="button" onClick={nextStep} className="bg-[#163300] hover:bg-[#0f2400]">
                   Siguiente
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1852,7 +2146,7 @@ export default function NewLoanPage() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <CheckCircle className="h-5 w-5 text-blue-600" />
+                  <CheckCircle className="h-5 w-5 text-[#163300]" />
                   Revisión Final
                 </CardTitle>
                 <CardDescription className="text-slate-600">
@@ -1864,19 +2158,19 @@ export default function NewLoanPage() {
                   {/* Customer Info */}
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                      <User className="h-4 w-4 text-blue-600" />
+                      <User className="h-4 w-4 text-[#163300]" />
                       Cliente
                     </h3>
                     {selectedCustomer && (
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+                        <div className="h-12 w-12 rounded-full bg-[#163300] flex items-center justify-center text-white font-bold">
                           {selectedCustomer.first_name?.charAt(0)}{selectedCustomer.last_name?.charAt(0)}
                         </div>
                         <div>
                           <p className="font-medium text-slate-900">
                             {selectedCustomer.full_name || `${selectedCustomer.first_name} ${selectedCustomer.last_name}`}
                           </p>
-                          <p className="text-sm text-slate-600">{selectedCustomer.id_number}</p>
+                          <p className="text-sm text-slate-600">{formatDisplayIDNumber(selectedCustomer.id_number, selectedCustomer.id_type)}</p>
                         </div>
                       </div>
                     )}
@@ -1885,7 +2179,7 @@ export default function NewLoanPage() {
                   {/* Loan Details */}
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-blue-600" />
+                      <DollarSign className="h-4 w-4 text-[#163300]" />
                       Detalles del Préstamo
                     </h3>
                     <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1911,7 +2205,7 @@ export default function NewLoanPage() {
                       </div>
                       <div>
                         <p className="text-slate-600">Pago Estimado:</p>
-                        <p className="font-bold text-blue-600">{calculatedPayment ? formatCurrency(calculatedPayment) : 'N/A'}</p>
+                        <p className="font-bold text-[#163300]">{calculatedPayment ? formatCurrency(calculatedPayment) : 'N/A'}</p>
                       </div>
                     </div>
                   </div>
@@ -1919,7 +2213,7 @@ export default function NewLoanPage() {
                   {/* Dates */}
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-blue-600" />
+                      <Calendar className="h-4 w-4 text-[#163300]" />
                       Fechas
                     </h3>
                     <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1964,7 +2258,7 @@ export default function NewLoanPage() {
                               </div>
                               <div className="text-sm text-slate-600 space-y-0.5">
                                 {g.id_number && (
-                                  <p><strong>Cédula/Doc:</strong> {g.id_number}</p>
+                                  <p><strong>Cédula/Doc:</strong> {formatDisplayIDNumber(g.id_number, g.id_type)}</p>
                                 )}
                                 {g.phone && (
                                   <p><strong>Teléfono:</strong> {g.phone}</p>
@@ -1984,7 +2278,7 @@ export default function NewLoanPage() {
                   {collaterals.length > 0 && (
                     <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                       <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-blue-600" />
+                        <Shield className="h-4 w-4 text-[#163300]" />
                         Garantías ({collaterals.length})
                       </h3>
                       <div className="space-y-3">
@@ -1994,13 +2288,13 @@ export default function NewLoanPage() {
                             <div key={idx} className="bg-white rounded-lg p-3 border border-slate-200">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  {col.collateral_type === 'vehicle' && <Car className="h-4 w-4 text-blue-600" />}
+                                  {col.collateral_type === 'vehicle' && <Car className="h-4 w-4 text-[#163300]" />}
                                   {col.collateral_type === 'property' && <Home className="h-4 w-4 text-green-600" />}
                                   {col.collateral_type === 'equipment' && <Wrench className="h-4 w-4 text-amber-600" />}
                                   {!['vehicle', 'property', 'equipment'].includes(col.collateral_type) && <Shield className="h-4 w-4 text-slate-600" />}
                                   <span className="font-medium text-slate-900">{getCollateralTypeLabel(col.collateral_type)}</span>
                                 </div>
-                                <span className="font-bold text-blue-600">{formatCurrency(col.estimated_value)}</span>
+                                <span className="font-bold text-[#163300]">{formatCurrency(col.estimated_value)}</span>
                               </div>
                               {col.collateral_type === 'vehicle' && (meta as VehicleMetadata).brand && (
                                 <div className="text-sm text-slate-600 space-y-1">
@@ -2031,7 +2325,7 @@ export default function NewLoanPage() {
                         })}
                         <div className="flex items-center justify-between text-sm font-bold border-t border-slate-300 pt-2 mt-2">
                           <span className="text-slate-900">Total:</span>
-                          <span className="text-blue-600">{formatCurrency(getTotalCollateralValue())}</span>
+                          <span className="text-[#163300]">{formatCurrency(getTotalCollateralValue())}</span>
                         </div>
                       </div>
                     </div>
@@ -2043,7 +2337,7 @@ export default function NewLoanPage() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Anterior
                 </Button>
-                <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={isLoading} className="bg-[#163300] hover:bg-[#0f2400]">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Crear Préstamo

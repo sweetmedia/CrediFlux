@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { whatsappAPI, WhatsAppConversation, WhatsAppMessage as WAMessage } from '@/lib/api/whatsapp';
 import { Button } from '@/components/ui/button';
@@ -317,54 +317,98 @@ export default function CommunicationsPage() {
     .filter(email => email.folder === selectedFolder)
     .filter(email => emailFilter === 'all' || !email.read);
 
+  const emailStats = useMemo(() => ({
+    total: emails.length,
+    unread: emails.filter((email) => !email.read).length,
+    important: emails.filter((email) => email.important).length,
+  }), [emails]);
+
+  const whatsappStats = useMemo(() => ({
+    total: conversations.length,
+    unread: conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0),
+    active: conversations.filter((conv) => !!conv.last_message).length,
+  }), [conversations]);
+
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f8f7]">
         <Loader2 className="h-8 w-8 animate-spin text-[#163300]" />
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <div className="container mx-auto max-w-full">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <MessageSquare className="h-6 w-6 text-[#163300]" />
-            Comunicaciones
-          </h1>
-          <p className="text-sm text-slate-600 mt-1">
-            Gestiona tus comunicaciones por email y WhatsApp desde un solo lugar
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#f6f8f7] px-4 py-6 md:px-6 md:py-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-[28px] bg-gradient-to-r from-[#163300] via-[#244508] to-[#325c10] text-white shadow-none">
+          <div className="grid gap-6 px-6 py-6 md:px-8 md:py-8 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-white/86">
+                <MessageSquare className="h-3.5 w-3.5" />
+                Centro de comunicaciones
+              </div>
+              <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">Comunicaciones</h1>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/78 md:text-base">
+                Gestiona correo y WhatsApp desde una sola bandeja más clara, con lectura rápida de pendientes, conversaciones activas y seguimiento comercial.
+              </p>
+            </div>
 
-        {/* Main Tabs */}
+            <div className="rounded-3xl border border-white/12 bg-white/10 p-4 backdrop-blur-sm">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/70">Resumen rápido</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  <p className="text-xs text-white/70">Emails</p>
+                  <p className="mt-1 text-sm font-semibold">{emailStats.total} visibles</p>
+                  <p className="mt-1 text-xs text-white/70">{emailStats.unread} sin leer · {emailStats.important} importantes</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  <p className="text-xs text-white/70">WhatsApp</p>
+                  <p className="mt-1 text-sm font-semibold">{whatsappStats.total} conversaciones</p>
+                  <p className="mt-1 text-xs text-white/70">{whatsappStats.unread} no leídos · {whatsappStats.active} activas</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  <p className="text-xs text-white/70">Usuario</p>
+                  <p className="mt-1 text-sm font-semibold">{user?.first_name || user?.email || 'Equipo'}</p>
+                  <p className="mt-1 text-xs text-white/70">Vista centralizada de atención y seguimiento</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'email' | 'whatsapp')} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2 mb-6 bg-slate-100">
-            <TabsTrigger
-              value="email"
-              className="data-[state=active]:bg-[#163300] data-[state=active]:text-white flex items-center gap-2"
-            >
-              <Mail className="h-4 w-4" />
-              Email
-            </TabsTrigger>
-            <TabsTrigger
-              value="whatsapp"
-              className="data-[state=active]:bg-green-600 data-[state=active]:text-white flex items-center gap-2"
-            >
-              <MessageSquare className="h-4 w-4" />
-              WhatsApp
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <TabsList className="grid w-full max-w-md grid-cols-2 rounded-2xl border border-[#d7e2db] bg-white p-1">
+              <TabsTrigger
+                value="email"
+                className="rounded-xl data-[state=active]:bg-[#163300] data-[state=active]:text-white flex items-center gap-2"
+              >
+                <Mail className="h-4 w-4" />
+                Email
+              </TabsTrigger>
+              <TabsTrigger
+                value="whatsapp"
+                className="rounded-xl data-[state=active]:bg-[#163300] data-[state=active]:text-white flex items-center gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                WhatsApp
+              </TabsTrigger>
+            </TabsList>
+
+            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[440px]">
+              <Card className="cf-surface-card"><CardContent className="p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Sin leer</p><p className="mt-2 text-2xl font-semibold text-[#163300]">{activeTab === 'email' ? emailStats.unread : whatsappStats.unread}</p></CardContent></Card>
+              <Card className="cf-surface-card"><CardContent className="p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Vista activa</p><p className="mt-2 text-sm font-semibold text-slate-900">{activeTab === 'email' ? 'Bandeja email' : 'WhatsApp inbox'}</p></CardContent></Card>
+              <Card className="cf-surface-card"><CardContent className="p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Prioridad</p><p className="mt-2 text-sm font-semibold text-slate-900">Responder rápido y mantener contexto limpio</p></CardContent></Card>
+            </div>
+          </div>
 
           {/* EMAIL TAB */}
           <TabsContent value="email" className="mt-0">
             {emailView === 'compose' ? (
-              <Card className="border-slate-200">
-                <CardHeader>
-                  <CardTitle>Redactar Email</CardTitle>
-                  <CardDescription>Envía un nuevo email</CardDescription>
+              <Card className="cf-surface-card">
+                <CardHeader className="border-b border-[#d7e2db]">
+                  <CardTitle className="text-[#163300]">Redactar email</CardTitle>
+                  <CardDescription>Escribe un mensaje limpio y sal de aquí con el seguimiento resuelto.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -397,22 +441,21 @@ export default function CommunicationsPage() {
                     />
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={handleSendEmail} disabled={isSendingEmail}>
+                    <Button onClick={handleSendEmail} disabled={isSendingEmail} className="bg-[#163300] hover:bg-[#0f2400]">
                       {isSendingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       <Send className="mr-2 h-4 w-4" />
                       Enviar
                     </Button>
-                    <Button variant="outline" onClick={() => setEmailView('inbox')}>
+                    <Button variant="outline" className="bg-white" onClick={() => setEmailView('inbox')}>
                       Cancelar
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-12 gap-4">
-                {/* Left Sidebar - Folders */}
-                <div className="col-span-2">
-                  <Card className="border-slate-200">
+              <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_minmax(0,1fr)]">
+                <div>
+                  <Card className="cf-surface-card">
                     <CardContent className="p-4 space-y-1">
                       <Button
                         className="w-full mb-4 bg-[#163300] hover:bg-[#0f2400]"
@@ -431,17 +474,17 @@ export default function CommunicationsPage() {
                             onClick={() => setSelectedFolder(folder.id)}
                             className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors ${
                               isSelected
-                                ? 'bg-green-50 text-green-700 font-medium'
+                                ? 'bg-[#f1f6f2] text-[#163300] font-medium'
                                 : 'text-gray-700 hover:bg-gray-100'
                             }`}
                           >
                             <div className="flex items-center gap-2">
-                              <Icon className={`h-4 w-4 ${isSelected ? 'text-green-700' : folder.color}`} />
+                              <Icon className={`h-4 w-4 ${isSelected ? 'text-[#163300]' : folder.color}`} />
                               <span>{folder.name}</span>
                             </div>
                             {folder.count > 0 && (
                               <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                isSelected ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-700'
+                                isSelected ? 'bg-[#dfeadf] text-[#163300]' : 'bg-gray-200 text-gray-700'
                               }`}>
                                 {folder.count}
                               </span>
@@ -454,12 +497,13 @@ export default function CommunicationsPage() {
                 </div>
 
                 {/* Middle - Email List */}
-                <div className="col-span-5">
-                  <Card className="border-slate-200">
+                <div>
+                  <Card className="cf-surface-card">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <CardTitle className="text-lg capitalize">{selectedFolder}</CardTitle>
+                          <CardTitle className="text-lg capitalize text-[#163300]">{selectedFolder}</CardTitle>
+                          <CardDescription>Lectura rápida de mensajes en la carpeta activa.</CardDescription>
                         </div>
                         <Button
                           variant="ghost"
@@ -511,12 +555,12 @@ export default function CommunicationsPage() {
                               onClick={() => setSelectedEmail(email)}
                               className={`p-4 cursor-pointer transition-colors hover:bg-slate-50 ${
                                 !email.read ? 'bg-[#163300]/5' : ''
-                              } ${selectedEmail?.id === email.id ? 'bg-slate-100 border-l-4 border-blue-600' : ''}`}
+                              } ${selectedEmail?.id === email.id ? 'bg-slate-100 border-l-4 border-[#163300]' : ''}`}
                             >
                               <div className="flex gap-3">
                                 {/* Avatar */}
                                 <div className="flex-shrink-0">
-                                  <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold`}>
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#163300] to-[#325c10] flex items-center justify-center text-white text-sm font-semibold">
                                     {getInitials(email.fromName)}
                                   </div>
                                 </div>
@@ -566,14 +610,14 @@ export default function CommunicationsPage() {
                 </div>
 
                 {/* Right - Email Detail */}
-                <div className="col-span-5">
+                <div>
                   {selectedEmail ? (
-                    <Card className="border-slate-200">
+                    <Card className="cf-surface-card">
                       <CardHeader className="border-b">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#163300] to-[#325c10] flex items-center justify-center text-white text-sm font-semibold">
                                 {getInitials(selectedEmail.fromName)}
                               </div>
                               <div>
@@ -639,15 +683,15 @@ export default function CommunicationsPage() {
                             onChange={(e) => setReplyText(e.target.value)}
                             className="mb-3"
                           />
-                          <Button className="bg-green-600 hover:bg-green-700">
+                          <Button className="bg-[#163300] hover:bg-[#0f2400]">
                             <Send className="h-4 w-4 mr-2" />
-                            Send
+                            Enviar respuesta
                           </Button>
                         </div>
                       </CardContent>
                     </Card>
                   ) : (
-                    <Card className="border-slate-200 h-full">
+                    <Card className="cf-surface-card h-full">
                       <CardContent className="flex items-center justify-center h-full min-h-[600px]">
                         <div className="text-center text-gray-500">
                           <Mail className="h-16 w-16 mx-auto mb-4 opacity-50" />
@@ -664,15 +708,15 @@ export default function CommunicationsPage() {
 
           {/* WHATSAPP TAB */}
           <TabsContent value="whatsapp">
-            <Card className="border-slate-200">
-              <CardHeader className="flex flex-row items-center justify-between">
+            <Card className="cf-surface-card">
+              <CardHeader className="flex flex-row items-center justify-between border-b border-[#d7e2db]">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5 text-green-600" />
+                  <CardTitle className="flex items-center gap-2 text-[#163300]">
+                    <MessageSquare className="h-5 w-5 text-[#163300]" />
                     Conversaciones de WhatsApp
                   </CardTitle>
                   <CardDescription>
-                    Gestiona tus conversaciones de WhatsApp con clientes
+                    Atención rápida, contexto completo y seguimiento de clientes desde una sola bandeja.
                   </CardDescription>
                 </div>
                 <Button
@@ -689,9 +733,8 @@ export default function CommunicationsPage() {
                 </Button>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-12 gap-4">
-                  {/* Chats List */}
-                  <div className="col-span-4 border-r pr-4">
+                <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+                  <div className="rounded-3xl border border-[#d7e2db] bg-white p-4">
                     <div className="mb-4">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -718,14 +761,14 @@ export default function CommunicationsPage() {
                         conversations.map((conv) => (
                           <div
                             key={conv.conversation_id}
-                            className={`p-3 border rounded-lg cursor-pointer transition-colors hover:bg-slate-50 ${
-                              selectedChat === conv.conversation_id ? 'bg-green-50 border-green-200' : 'border-slate-200'
+                            className={`p-3 border rounded-2xl cursor-pointer transition-colors hover:bg-slate-50 ${
+                              selectedChat === conv.conversation_id ? 'bg-[#f1f6f2] border-[#d7e2db]' : 'border-slate-200'
                             }`}
                             onClick={() => setSelectedChat(conv.conversation_id)}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-semibold text-xs">
+                                <div className="h-8 w-8 rounded-full bg-[#e7efe9] flex items-center justify-center text-[#163300] font-semibold text-xs">
                                   {conv.customer_name
                                     ? getInitials(conv.customer_name)
                                     : conv.profile_name
@@ -746,7 +789,7 @@ export default function CommunicationsPage() {
                                   {getTimeAgo(conv.last_message_time)}
                                 </span>
                                 {conv.unread_count > 0 && (
-                                  <Badge className="bg-green-600 text-white text-xs mt-1">
+                                  <Badge className="bg-[#163300] text-white text-xs mt-1">
                                     {conv.unread_count}
                                   </Badge>
                                 )}
@@ -766,14 +809,13 @@ export default function CommunicationsPage() {
                     </div>
                   </div>
 
-                  {/* Chat Area */}
-                  <div className="col-span-8">
+                  <div className="rounded-3xl border border-[#d7e2db] bg-white p-4">
                     {selectedChat ? (
                       <div className="flex flex-col h-[500px]">
                         {/* Chat Header */}
                         <div className="pb-4 border-b">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-semibold">
+                            <div className="h-10 w-10 rounded-full bg-[#e7efe9] flex items-center justify-center text-[#163300] font-semibold">
                               {selectedConversation?.customer_name
                                 ? getInitials(selectedConversation.customer_name)
                                 : selectedConversation?.profile_name
@@ -809,7 +851,7 @@ export default function CommunicationsPage() {
                                   className={`max-w-xs px-4 py-2 rounded-lg ${
                                     msg.direction === 'inbound'
                                       ? 'bg-gray-100 text-gray-900'
-                                      : 'bg-green-600 text-white'
+                                      : 'bg-[#163300] text-white'
                                   }`}
                                 >
                                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -841,7 +883,7 @@ export default function CommunicationsPage() {
                                 }
                               }}
                             />
-                            <Button onClick={handleSendWhatsApp} disabled={isSendingWhatsApp || !whatsappMessage.trim()}>
+                            <Button onClick={handleSendWhatsApp} disabled={isSendingWhatsApp || !whatsappMessage.trim()} className="bg-[#163300] hover:bg-[#0f2400]">
                               {isSendingWhatsApp ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (

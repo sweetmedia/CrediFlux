@@ -92,6 +92,65 @@ export function formatIDNumber(
 }
 
 /**
+ * Intentar inferir el tipo de identificación cuando no viene explícito.
+ * Útil para listados, badges y vistas de detalle donde solo tenemos el valor.
+ */
+export function inferIDType(value?: string | null): 'cedula' | 'rnc' | null {
+  if (!value) return null;
+
+  const cleaned = cleanIDNumber(String(value));
+
+  if (/^\d{11}$/.test(cleaned)) {
+    return 'cedula';
+  }
+
+  if (/^\d{9}$/.test(cleaned)) {
+    return 'rnc';
+  }
+
+  return null;
+}
+
+/**
+ * Formateo visual seguro para mostrar identificaciones en pantalla.
+ * - Si conocemos el tipo, respetamos ese tipo.
+ * - Si no, inferimos cédula (11) o RNC (9).
+ * - Si no aplica, devolvemos el valor original.
+ */
+export function formatDisplayIDNumber(
+  value?: string | null,
+  type?: 'cedula' | 'rnc' | 'nss' | 'ncf' | 'passport' | 'driver_license' | string | null
+): string {
+  if (!value) return '';
+
+  const raw = String(value);
+  const normalizedType = typeof type === 'string' ? type.toLowerCase() : type;
+
+  if (
+    normalizedType === 'cedula' ||
+    normalizedType === 'rnc' ||
+    normalizedType === 'nss' ||
+    normalizedType === 'ncf' ||
+    normalizedType === 'passport' ||
+    normalizedType === 'driver_license'
+  ) {
+    return formatIDNumber(raw, normalizedType);
+  }
+
+  const inferredType = inferIDType(raw);
+
+  if (inferredType === 'cedula') {
+    return formatCedula(raw);
+  }
+
+  if (inferredType === 'rnc') {
+    return formatRNC(raw);
+  }
+
+  return raw;
+}
+
+/**
  * Limpiar formato (remover guiones) para enviar al backend
  */
 export function cleanIDNumber(value: string): string {

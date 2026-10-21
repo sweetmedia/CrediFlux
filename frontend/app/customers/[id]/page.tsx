@@ -35,6 +35,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { CustomerDocuments } from '@/components/documents';
+import { formatDisplayIDNumber } from '@/lib/utils/id-formatter';
 
 interface Customer {
   id: string;
@@ -339,7 +340,7 @@ export default function CustomerDetailPage() {
                         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-white/80">
                           <span>ID interno: {customer.customer_id}</span>
                           <span>•</span>
-                          <span>{customer.id_number}</span>
+                          <span>{formatDisplayIDNumber(customer.id_number, customer.id_type)}</span>
                         </div>
                         <div className="mt-4">{getStatusBadge(customer.status)}</div>
                       </div>
@@ -470,7 +471,7 @@ export default function CustomerDetailPage() {
                           </div>
                           <div>
                             <p className="text-xs text-slate-500">Número</p>
-                            <p className="font-medium text-slate-900">{customer.id_number}</p>
+                            <p className="font-medium text-slate-900">{formatDisplayIDNumber(customer.id_number, customer.id_type)}</p>
                           </div>
                           <div>
                             <p className="text-xs text-slate-500">Vencimiento</p>

@@ -47,7 +47,35 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Administrador',
+  manager: 'Gerente',
+  loan_officer: 'Oficial de crédito',
+  collector: 'Cobrador',
+  collection_supervisor: 'Supervisor de cobros',
+  accountant: 'Contador',
+  cashier: 'Cajero',
+  viewer: 'Solo lectura',
+};
+
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
+  // Below lg the sidebar is an off-canvas drawer: when closed it must leave the
+  // tab order (inert), and Escape closes it.
+  const [isDesktop, setIsDesktop] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose?.();
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   const pathname = usePathname();
   const router = useRouter();
   const { user, tenant, logout } = useAuth();
@@ -133,10 +161,13 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   return (
     <aside
-      className={`flex flex-col h-screen fixed left-0 top-0 z-50 transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+      id="app-sidebar"
+      aria-label="Navegación principal"
+      inert={!isDesktop && !isOpen}
+      className={`flex flex-col h-[100dvh] fixed left-0 top-0 z-50 bg-tenant transition-transform duration-slow ease-spring lg:translate-x-0 ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       }`}
-      style={{ width: 240, backgroundColor: '#163300' }}
+      style={{ width: 240 }}
     >
       {/* Logo & Tenant */}
       <div className="px-5 py-5 border-b border-white/10">
@@ -161,7 +192,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           />
         )}
         {tenant && (
-          <div className="flex items-center gap-1.5 text-xs text-white/40 mt-2">
+          <div className="flex items-center gap-1.5 text-xs text-white/60 mt-2">
             <Building2 className="h-3 w-3 shrink-0" />
             <span className="truncate">{tenant.business_name}</span>
           </div>
@@ -170,13 +201,13 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         {/* Search */}
         <button
           onClick={() => setIsSearchOpen(true)}
-          className="mt-4 w-full flex items-center justify-between px-3 py-2 rounded-md text-xs text-white/50 bg-white/5 hover:bg-white/10 transition-colors"
+          className="mt-4 w-full flex items-center justify-between px-3 py-2 rounded-md text-xs text-white/70 bg-white/5 hover:bg-white/10 transition-colors"
         >
           <div className="flex items-center gap-2">
             <Search className="h-3.5 w-3.5" />
             <span>Buscar...</span>
           </div>
-          <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/40" style={{ fontSize: 10 }}>⌘K</kbd>
+          <kbd className="px-1.5 py-0.5 bg-white/10 rounded font-mono text-white/60" style={{ fontSize: 10 }}>⌘K</kbd>
         </button>
       </div>
 
@@ -198,6 +229,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   <>
                     <button
                       onClick={() => toggleExpanded(item.href)}
+                      aria-expanded={isExpanded}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors ${
                         anySubActive
                           ? 'text-white bg-white/10'
@@ -225,8 +257,9 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                               className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
                                 subActive
                                   ? 'text-white bg-white/10'
-                                  : 'text-white/50 hover:text-white hover:bg-white/5'
+                                  : 'text-white/70 hover:text-white hover:bg-white/5'
                               }`}
+                              aria-current={subActive ? 'page' : undefined}
                             >
                               <SubIcon className="h-3.5 w-3.5 shrink-0" />
                               <span>{subItem.label}</span>
@@ -239,6 +272,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 ) : (
                   <Link
                     href={item.href}
+                    aria-current={active ? 'page' : undefined}
                     className={`relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
                       active
                         ? 'text-white bg-white/10'
@@ -247,7 +281,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   >
                     {active && (
                       <span
-                        className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-[#FFE026]"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-sun-500"
                       />
                     )}
                     <Icon className="h-4 w-4 shrink-0" />
@@ -262,7 +296,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         {/* Admin Section */}
         {(user?.is_tenant_owner || user?.role === 'admin') && (
           <div className="mt-6">
-            <p className="px-3 mb-1.5 text-[10px] font-semibold text-white/30 uppercase tracking-widest">
+            <p className="px-3 mb-1.5 font-mono text-[11px] font-medium text-white/60 uppercase tracking-widest">
               Administración
             </p>
             <div className="space-y-0.5">
@@ -273,6 +307,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-current={active ? 'page' : undefined}
                     className={`relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
                       active
                         ? 'text-white bg-white/10'
@@ -280,7 +315,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     }`}
                   >
                     {active && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-[#FFE026]" />
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-sun-500" />
                     )}
                     <Icon className="h-4 w-4 shrink-0" />
                     <span>{item.label}</span>
@@ -295,21 +330,21 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       {/* User Profile */}
       <div className="px-3 py-4 border-t border-white/10">
         <div className="flex items-center gap-3 px-2 mb-2">
-          <div className="h-8 w-8 rounded-full bg-[#738566] flex items-center justify-center text-white text-xs font-semibold shrink-0">
+          <div className="h-8 w-8 rounded-full bg-sage-500 flex items-center justify-center text-white text-xs font-semibold shrink-0">
             {initials}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate leading-tight">
               {user?.full_name}
             </p>
-            <p className="text-xs text-white/40 capitalize truncate">
-              {user?.role.replace('_', ' ')}
+            <p className="text-xs text-white/60 truncate">
+              {user?.role ? ROLE_LABELS[user.role] ?? user.role : ''}
             </p>
           </div>
         </div>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
         >
           <LogOut className="h-4 w-4 shrink-0" />
           <span>Cerrar Sesión</span>

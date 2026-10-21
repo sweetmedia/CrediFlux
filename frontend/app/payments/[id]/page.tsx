@@ -39,7 +39,7 @@ export default function PaymentDetailPage() {
   const router = useRouter();
   const params = useParams();
   const paymentId = params.id as string;
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { config } = useConfig();
   const [payment, setPayment] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -205,6 +205,7 @@ export default function PaymentDetailPage() {
   const lateFeePaid = Number(payment?.late_fee_paid || 0);
   const loanOutstandingBalance = Number(payment?.loan_outstanding_balance || 0);
   const loanPrincipalAmount = Number(payment?.loan_principal_amount || 0);
+  const canReversePayment = !!user && (user.is_tenant_owner || user.is_superuser);
 
   const paymentExplanation =
     interestPaid > 0 || lateFeePaid > 0
@@ -462,7 +463,7 @@ export default function PaymentDetailPage() {
                   </CardContent>
                 </Card>
 
-                {payment.status === 'completed' && (
+                {payment.status === 'completed' && canReversePayment && (
                   <Card className="border-[#d7e2db] shadow-none print:hidden">
                     <CardHeader>
                       <CardTitle className="text-[#163300]">Acciones</CardTitle>
