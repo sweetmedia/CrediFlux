@@ -120,10 +120,10 @@ class CashSessionOpenSerializer(serializers.Serializer):
     """Serializer for opening a cash session."""
     register = serializers.UUIDField()
     opening_balance = serializers.DecimalField(max_digits=14, decimal_places=2)
-    opening_notes = serializers.CharField(required=False, default='')
+    opening_notes = serializers.CharField(required=False, allow_blank=True, default='')
 
 
 class CashSessionCloseSerializer(serializers.Serializer):
     """Serializer for closing a cash session."""
     closing_balance = serializers.DecimalField(max_digits=14, decimal_places=2)
-    closing_notes = serializers.CharField(required=False, default='')
+    closing_notes = serializers.CharField(required=False, allow_blank=True, default='')
