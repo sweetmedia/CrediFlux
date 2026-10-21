@@ -18,7 +18,8 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ErrorState } from '@/components/ui/error-state';
+import { getApiErrorMessage } from '@/lib/api/client';
 import {
   Loader2,
   DollarSign,
@@ -31,7 +32,6 @@ import {
   Banknote,
   TrendingUp,
   TrendingDown,
-  AlertCircle,
   CheckCircle,
   Calculator,
   X,
@@ -70,6 +70,8 @@ export default function CashboxPage() {
   const [recentSessions, setRecentSessions] = useState<CashSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Errores de los modales: se muestran dentro del modal, no detrás del overlay.
+  const [formError, setFormError] = useState('');
 
   // Modals
   const [showOpenModal, setShowOpenModal] = useState(false);
@@ -101,6 +103,10 @@ export default function CashboxPage() {
     if (!authLoading && !isAuthenticated) router.push('/login');
   }, [authLoading, isAuthenticated, router]);
 
+  useEffect(() => {
+    setFormError('');
+  }, [showOpenModal, showCloseModal, showMovementModal]);
+
   const fetchData = async () => {
     try {
       setError('');
@@ -127,7 +133,7 @@ export default function CashboxPage() {
         setMovements([]);
       }
     } catch (err: any) {
-      setError(err?.message || 'Error cargando datos');
+      setError(getApiErrorMessage(err, 'No se pudieron cargar los datos de caja.'));
     } finally {
       setLoading(false);
     }
@@ -140,6 +146,7 @@ export default function CashboxPage() {
   const handleOpenSession = async () => {
     if (!selectedRegister || !openingBalance) return;
     setSubmitting(true);
+    setFormError('');
     try {
       await cashboxAPI.openSession({
         register: selectedRegister,
@@ -151,7 +158,7 @@ export default function CashboxPage() {
       setOpeningNotes('');
       await fetchData();
     } catch (err: any) {
-      setError(err?.message || 'Error abriendo caja');
+      setFormError(getApiErrorMessage(err, 'No se pudo abrir la caja.'));
     } finally {
       setSubmitting(false);
     }
@@ -160,6 +167,7 @@ export default function CashboxPage() {
   const handleCloseSession = async () => {
     if (!activeSession || !closingBalance) return;
     setSubmitting(true);
+    setFormError('');
     try {
       await cashboxAPI.closeSession(activeSession.id, {
         closing_balance: parseFloat(closingBalance),
@@ -170,7 +178,7 @@ export default function CashboxPage() {
       setClosingNotes('');
       await fetchData();
     } catch (err: any) {
-      setError(err?.message || 'Error cerrando caja');
+      setFormError(getApiErrorMessage(err, 'No se pudo cerrar la caja.'));
     } finally {
       setSubmitting(false);
     }
@@ -179,6 +187,7 @@ export default function CashboxPage() {
   const handleAddMovement = async () => {
     if (!activeSession || !movAmount || !movCategory || !movDescription) return;
     setSubmitting(true);
+    setFormError('');
     try {
       await cashboxAPI.createMovement({
         session: activeSession.id,
@@ -198,7 +207,7 @@ export default function CashboxPage() {
       setMovCustomerName('');
       await fetchData();
     } catch (err: any) {
-      setError(err?.message || 'Error registrando movimiento');
+      setFormError(getApiErrorMessage(err, 'No se pudo registrar el movimiento.'));
     } finally {
       setSubmitting(false);
     }
@@ -240,12 +249,7 @@ export default function CashboxPage() {
         </div>
       </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      {error && <ErrorState message={error} onRetry={fetchData} />}
 
       {/* Active Session */}
       {activeSession && summary ? (
@@ -539,6 +543,7 @@ export default function CashboxPage() {
                 <Label>Notas (opcional)</Label>
                 <Textarea value={openingNotes} onChange={e => setOpeningNotes(e.target.value)} placeholder="Observaciones al abrir..." />
               </div>
+              {formError && <ErrorState message={formError} />}
               <Button onClick={handleOpenSession} disabled={submitting || !selectedRegister || !openingBalance} className="w-full bg-[#163300]">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Unlock className="h-4 w-4 mr-2" />}
                 Abrir Caja
@@ -576,6 +581,7 @@ export default function CashboxPage() {
                 <Label>Notas de Cierre (opcional)</Label>
                 <Textarea value={closingNotes} onChange={e => setClosingNotes(e.target.value)} placeholder="Observaciones al cerrar..." />
               </div>
+              {formError && <ErrorState message={formError} />}
               <Button onClick={handleCloseSession} disabled={submitting || !closingBalance} variant="destructive" className="w-full">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
                 Cerrar Caja
@@ -621,6 +627,7 @@ export default function CashboxPage() {
                 <Label>Referencia (opcional)</Label>
                 <Input value={movReference} onChange={e => setMovReference(e.target.value)} placeholder="Número de recibo, etc." />
               </div>
+              {formError && <ErrorState message={formError} />}
               <Button
                 onClick={handleAddMovement}
                 disabled={submitting || !movAmount || !movCategory || !movDescription}

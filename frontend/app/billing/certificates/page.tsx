@@ -24,11 +24,13 @@ import {
   Upload,
 } from 'lucide-react';
 import { DigitalCertificate } from '@/types/billing';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 export default function CertificatesPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [certificates, setCertificates] = useState<DigitalCertificate[]>([]);
+  const [askConfirm, confirmDialog] = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -54,7 +56,12 @@ export default function CertificatesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este certificado?')) return;
+    if (!(await askConfirm({
+      title: '¿Eliminar este certificado?',
+      description: 'No podrás firmar comprobantes electrónicos con él. Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar certificado',
+      variant: 'destructive',
+    }))) return;
     try {
       await billingAPI.deleteCertificate(id);
       setSuccess('Certificado eliminado');
@@ -96,6 +103,7 @@ export default function CertificatesPage() {
 
   return (
     <div className="p-8 max-w-5xl">
+      {confirmDialog}
       {/* Header */}
       <div className="mb-8">
         <Link href="/billing" className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-4">

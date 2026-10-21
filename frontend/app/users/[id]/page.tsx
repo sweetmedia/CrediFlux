@@ -35,6 +35,7 @@ import {
   AlertCircle,
   Trash2,
 } from 'lucide-react';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 export default function UserDetailPage() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function UserDetailPage() {
   const userId = params?.id as string;
   const { isAuthenticated, isLoading: authLoading, user: currentUser } = useAuth();
   const [user, setUser] = useState<User | null>(null);
+  const [askConfirm, confirmDialog] = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
@@ -121,7 +123,14 @@ export default function UserDetailPage() {
   const handleDeactivate = async () => {
     if (!user) return;
 
-    if (!confirm(`¿Estás seguro de que deseas ${user.is_active ? 'desactivar' : 'activar'} a ${user.full_name}?`)) {
+    if (!(await askConfirm({
+      title: user.is_active ? `¿Desactivar a ${user.full_name}?` : `¿Activar a ${user.full_name}?`,
+      description: user.is_active
+        ? 'No podrá iniciar sesión hasta que lo vuelvas a activar.'
+        : 'Podrá volver a iniciar sesión con sus permisos actuales.',
+      confirmLabel: user.is_active ? 'Desactivar usuario' : 'Activar usuario',
+      variant: user.is_active ? 'destructive' : 'default',
+    }))) {
       return;
     }
 
@@ -218,6 +227,7 @@ export default function UserDetailPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
+      {confirmDialog}
       <div className="container mx-auto max-w-4xl">
         {/* Header */}
         <div className="mb-6">

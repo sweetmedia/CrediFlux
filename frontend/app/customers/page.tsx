@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
   DialogContent,
@@ -45,6 +44,8 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { formatDisplayIDNumber } from '@/lib/utils/id-formatter';
+import { ErrorState } from '@/components/ui/error-state';
+import { getApiErrorMessage } from '@/lib/api/client';
 
 export default function CustomersListPage() {
   const router = useRouter();
@@ -93,7 +94,7 @@ export default function CustomersListPage() {
       setTotalCount(response.count || 0);
     } catch (err: any) {
       console.error('Error loading customers:', err);
-      setError('Error al cargar los clientes');
+      setError(getApiErrorMessage(err, 'Error al cargar los clientes'));
     } finally {
       setIsLoading(false);
     }
@@ -215,9 +216,7 @@ export default function CustomersListPage() {
 
         {/* Error */}
         {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <ErrorState className="mb-6" title="No pudimos cargar los clientes" message={error} onRetry={loadCustomers} />
         )}
 
         {/* Main Content Card */}

@@ -34,6 +34,7 @@ import {
   BadgeDollarSign,
   CircleDollarSign,
 } from 'lucide-react';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 export default function PaymentDetailPage() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function PaymentDetailPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { config } = useConfig();
   const [payment, setPayment] = useState<any>(null);
+  const [askConfirm, confirmDialog] = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -75,7 +77,14 @@ export default function PaymentDetailPage() {
   };
 
   const handleReversePayment = async () => {
-    if (!confirm('¿Estás seguro de que deseas revertir este pago? Esta acción no se puede deshacer.')) {
+    if (!(await askConfirm({
+      title: '¿Revertir este pago?',
+      description: 'El pago se anulará y el balance del préstamo se recalculará. Esta acción no se puede deshacer.',
+      customer: payment?.customer_name,
+      amount: payment?.amount,
+      confirmLabel: 'Revertir pago',
+      variant: 'destructive',
+    }))) {
       return;
     }
 
@@ -248,6 +257,7 @@ export default function PaymentDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f8f7] p-4 py-8 print:bg-white md:p-6">
+      {confirmDialog}
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between print:hidden">
           <div>

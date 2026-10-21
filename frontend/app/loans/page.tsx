@@ -25,6 +25,8 @@ import {
   CheckCircle,
   X,
 } from 'lucide-react';
+import { ErrorState } from '@/components/ui/error-state';
+import { getApiErrorMessage } from '@/lib/api/client';
 
 export default function LoansListPage() {
   const router = useRouter();
@@ -83,7 +85,7 @@ export default function LoansListPage() {
       setTotalCount(response.count || 0);
     } catch (err: any) {
       console.error('Error loading loans:', err);
-      setError('Error al cargar los préstamos');
+      setError(getApiErrorMessage(err, 'Error al cargar los préstamos'));
     } finally {
       setIsLoading(false);
     }
@@ -295,9 +297,7 @@ export default function LoansListPage() {
       </div>
 
       {error && (
-        <Alert variant="destructive" className="mb-5">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <ErrorState className="mb-5" title="No pudimos cargar los préstamos" message={error} onRetry={loadLoans} />
       )}
 
       {/* Loans Table */}
