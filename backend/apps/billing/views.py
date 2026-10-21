@@ -329,6 +329,32 @@ class ECFProviderViewSet(viewsets.ViewSet):
             return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
 
 
+    @action(detail=False, methods=['post'], url_path='cancel')
+    def cancel_invoice(self, request):
+        """Anula un e-CF vía el proveedor (NexConnect: emite una Nota de Crédito E34)."""
+        from .services.ecf_provider import get_ecf_provider, ECFProviderError
+        from .models import Invoice
+
+        invoice_id = request.data.get('invoice_id')
+        reason = (request.data.get('reason') or '').strip()
+        if not invoice_id:
+            return Response({'error': 'invoice_id requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        if not reason:
+            return Response({'error': 'reason requerido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            invoice = Invoice.objects.get(id=invoice_id)
+        except Invoice.DoesNotExist:
+            return Response({'error': 'Factura no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            provider = get_ecf_provider()
+            result = provider.cancel_invoice(invoice, reason)
+            return Response(result)
+        except ECFProviderError as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
 class DGIIReportViewSet(viewsets.ViewSet):
     """
     Endpoints para generar reportes DGII 606 y 607.

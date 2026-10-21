@@ -9,9 +9,10 @@ import base64
 import binascii
 import logging
 
+from django.db import transaction
 from django.utils import timezone
 
-from ...models import ECFSubmission
+from ...models import ECFSubmission, Invoice, InvoiceItem
 from ..ecf_provider import ECFProvider, ECFProviderError
 from . import mapping
 from .client import NexConnectClient, NexConnectError
@@ -23,6 +24,14 @@ PROVIDER_KEY = 'nexconnect'
 
 # Estados locales desde los que se puede emitir.
 EMITTABLE_STATUSES = {'draft', 'generated'}
+
+# Estados en que NexConnect deja anular con una E34 (su regla 5, en local).
+CANCELLABLE_STATUSES = {'accepted', 'conditionally_accepted'}
+
+# Una NC de anulación que terminó así ya no cuenta: se puede intentar otra.
+DEAD_NOTE_STATUSES = {'rejected', 'cancelled'}
+
+CREDIT_NOTE_TYPE = '34'
 
 
 def nexconnect_invoice_id(invoice):
@@ -75,6 +84,106 @@ class NexConnectProvider(ECFProvider):
         invoice.dgii_trackid = data.get('dgii_tracking_id') or invoice.dgii_trackid or ''
         update_fields += ['dgii_response', 'dgii_status', 'status', 'dgii_trackid']
         invoice.save(update_fields=update_fields + ['updated_at'])
+        if (str(invoice.ecf_type) == CREDIT_NOTE_TYPE and invoice.reference_invoice_id
+                and invoice.status in CANCELLABLE_STATUSES):
+            self._mark_reference_cancelled(invoice)
+
+    # ------------------------------------------------------------------
+    # Notas de crédito (E34)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_cancellation_note(note, reference) -> bool:
+        return mapping.credit_note_indicator(
+            list(note.items.all()), list(reference.items.all()),
+        ) == mapping.INDICADOR_NC_ANULACION
+
+    def _mark_reference_cancelled(self, note):
+        """La E34 de anulación quedó aceptada: la original pasa a anulada.
+
+        NexConnect también manda ``invoice.cancelled`` de la original (webhook);
+        esto cubre el polling, que no vuelve a consultar facturas ya aceptadas.
+        """
+        original = note.reference_invoice
+        if original is None or original.status == 'cancelled':
+            return
+        if not self._is_cancellation_note(note, original):
+            return
+        previous = original.dgii_response if isinstance(original.dgii_response, dict) else {}
+        original.dgii_response = {**previous, 'cancelled_by_ncf': note.encf_number}
+        original.status = 'cancelled'
+        original.dgii_status = 'cancelled'
+        original.save(update_fields=['dgii_response', 'dgii_status', 'status', 'updated_at'])
+        self._log(original, 'cancel', status='cancelled',
+                  body={'nota_credito': note.encf_number, 'nota_credito_id': str(note.id)})
+
+    def _live_cancellation_note(self, original):
+        """La E34 de anulación de ``original`` que sigue viva, si la hay."""
+        candidates = (
+            Invoice.objects
+            .filter(reference_invoice=original, ecf_type=CREDIT_NOTE_TYPE)
+            .exclude(status__in=DEAD_NOTE_STATUSES)
+            .order_by('created_at')
+        )
+        for note in candidates:
+            if self._is_cancellation_note(note, original):
+                return note
+        return None
+
+    @staticmethod
+    def _credit_note_buyer(original):
+        """Comprador de la E34: el de la original o, si no tenía, el cliente.
+
+        NexConnect exige comprador en toda E34. Si la original lo identificaba,
+        NexConnect usa el de la original firmada e ignora este; si era una E32 de
+        consumo anónima, este es el que sale en la nota.
+        """
+        rnc, name = original.comprador_rnc, original.comprador_razon_social
+        if (not rnc or not name) and original.customer_id:
+            customer = original.customer
+            rnc = rnc or ''.join(ch for ch in (customer.id_number or '') if ch.isdigit())[:11]
+            name = name or customer.get_full_name()
+        return rnc or '', (name or '')[:255]
+
+    @classmethod
+    def _build_cancellation_note(cls, original, reason: str):
+        """E34 local que acredita la original completa (mismas líneas)."""
+        comprador_rnc, comprador_razon_social = cls._credit_note_buyer(original)
+        note = Invoice.objects.create(
+            ecf_type=CREDIT_NOTE_TYPE,
+            reference_invoice=original,
+            customer_id=original.customer_id,
+            loan_id=original.loan_id,
+            payment_id=original.payment_id,
+            emisor_rnc=original.emisor_rnc,
+            emisor_razon_social=original.emisor_razon_social,
+            comprador_rnc=comprador_rnc,
+            comprador_razon_social=comprador_razon_social,
+            issue_date=timezone.localdate(),
+            # NexConnect solo acepta la E34 al contado.
+            payment_method='01',
+            subtotal=original.subtotal,
+            total_itbis=original.total_itbis,
+            total_discount=original.total_discount,
+            total=original.total,
+            status='draft',
+            notes=f'Anulación de {original.encf_number}: {reason}'[:mapping.CANCELLATION_REASON_MAX],
+        )
+        InvoiceItem.objects.bulk_create([
+            InvoiceItem(
+                invoice=note,
+                line_number=item.line_number,
+                description=item.description,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                discount_amount=item.discount_amount,
+                itbis_rate=item.itbis_rate,
+                itbis_amount=item.itbis_amount,
+                total=item.total,
+            )
+            for item in original.items.all().order_by('line_number')
+        ])
+        return note
 
     # ------------------------------------------------------------------
     # ECFProvider
@@ -159,9 +268,60 @@ class NexConnectProvider(ECFProvider):
         }
 
     def cancel_invoice(self, invoice, reason: str) -> dict:
-        raise ECFProviderError(
-            'En NexConnect un e-CF se anula emitiendo una Nota de Crédito (E34); aún no implementado'
-        )
+        """Anula un e-CF emitiendo una Nota de Crédito (E34) por el total.
+
+        Idempotente: si ya hay una E34 de anulación viva para la factura no se
+        crea otra; si quedó en borrador (falló el envío) se reintenta con el
+        mismo Idempotency-Key. La original pasa a ``cancelled`` cuando la E34
+        queda aceptada (webhook o polling), no al emitirla.
+        """
+        reason = (reason or '').strip()
+        if not reason:
+            raise ECFProviderError('Indique el motivo de la anulación')
+        if str(invoice.ecf_type) == CREDIT_NOTE_TYPE:
+            raise ECFProviderError(
+                'Una nota de crédito no se anula con otra; emita una nota de débito (E33)'
+            )
+        if not nexconnect_invoice_id(invoice):
+            raise ECFProviderError('La factura no ha sido emitida por NexConnect')
+        if invoice.status == 'cancelled':
+            raise ECFProviderError(f'La factura {invoice.encf_number} ya está anulada')
+        if invoice.status not in CANCELLABLE_STATUSES:
+            raise ECFProviderError(
+                f'Solo se puede anular una factura aceptada por la DGII '
+                f'(estado actual: "{invoice.get_status_display()}")'
+            )
+
+        with transaction.atomic():
+            # Candado sobre la original: dos anulaciones simultáneas no crean dos E34.
+            original = Invoice.objects.select_for_update().get(pk=invoice.pk)
+            note = self._live_cancellation_note(original)
+            created = note is None
+            if created:
+                note = self._build_cancellation_note(original, reason)
+
+        if nexconnect_invoice_id(note):
+            return {
+                'status': note.dgii_status,
+                'ncf': note.encf_number,
+                'credit_note_id': str(note.id),
+                'created': False,
+                'message': f'La anulación ya está en curso con la nota de crédito {note.encf_number}',
+            }
+
+        result = self.submit_invoice(note)
+        self._log(invoice, 'cancel', status=note.dgii_status,
+                  body={'nota_credito': note.encf_number, 'nota_credito_id': str(note.id),
+                        'motivo': reason})
+        return {
+            'status': note.dgii_status,
+            'ncf': note.encf_number,
+            'credit_note_id': str(note.id),
+            'created': created,
+            'message': (f'Nota de crédito {note.encf_number} emitida; la factura queda anulada '
+                        f'cuando la DGII la acepte'),
+            'nexconnect_id': result.get('nexconnect_id'),
+        }
 
     def test_connection(self) -> dict:
         try:

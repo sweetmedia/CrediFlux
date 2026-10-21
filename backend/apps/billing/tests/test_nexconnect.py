@@ -261,9 +261,11 @@ class MappingTests(SimpleTestCase):
     def test_credit_note_is_always_contado_and_references_original(self):
         original = make_invoice(encf_number='E310000000001')
         note = make_invoice(ecf_type='34', payment_method='04', reference_invoice=original)
-        payload = mapping.build_invoice_payload(note, items=make_items(note))
+        payload = mapping.build_invoice_payload(note, items=make_items(note),
+                                                reference_items=make_items(original))
         self.assertEqual(payload['tipo_pago'], 1)
         self.assertEqual(payload['ncf_modificado'], 'E310000000001')
+        self.assertEqual(payload['indicador_nota_credito'], mapping.INDICADOR_NC_ANULACION)
 
     def test_consumo_without_buyer(self):
         invoice = make_invoice(ecf_type='32', comprador_rnc='', comprador_razon_social='')

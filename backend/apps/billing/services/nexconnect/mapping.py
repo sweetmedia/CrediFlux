@@ -24,6 +24,13 @@ PAYMENT_METHOD_CREDITO = '04'
 # Tipos de e-CF que NexConnect solo acepta al contado.
 ECF_TYPES_SOLO_CONTADO = {'33', '34', '41', '43'}
 
+# indicador_nota_credito de una E34. NexConnect solo anula la original con el 1
+# (DEVOLUCION_MERCANCIA → motivo "anulacion"); cualquier otro es un ajuste de
+# montos (motivo "descuento", CodigoModificacion=3).
+INDICADOR_NC_ANULACION = 1
+INDICADOR_NC_DESCUENTO = 2
+CANCELLATION_REASON_MAX = 500
+
 # Estado NexConnect → Invoice.status de CrediFlux.
 STATUS_MAP = {
     'signed': 'signed',
@@ -73,14 +80,37 @@ def build_line(item) -> dict:
     }
 
 
-def build_invoice_payload(invoice, items=None) -> dict:
+def line_total_cents(item) -> int:
+    """Total de una línea en centavos (base − descuento + ITBIS)."""
+    base = (Decimal(item.quantity) * Decimal(getattr(item.unit_price, 'amount', item.unit_price))
+            - Decimal(getattr(item.discount_amount, 'amount', item.discount_amount)))
+    rate = Decimal(str(item.itbis_rate or '0')) / Decimal('100')
+    return to_cents(base + base * rate)
+
+
+def items_total_cents(items) -> int:
+    return sum(line_total_cents(item) for item in items)
+
+
+def credit_note_indicator(items, reference_items) -> int:
+    """Una E34 que acredita el total de la original la anula; si no, es un descuento.
+
+    Se deriva de las líneas (y no de un parámetro) para que el payload sea el
+    mismo en cada reintento: el Idempotency-Key exige el mismo cuerpo.
+    """
+    if items_total_cents(items) == items_total_cents(reference_items):
+        return INDICADOR_NC_ANULACION
+    return INDICADOR_NC_DESCUENTO
+
+
+def build_invoice_payload(invoice, items=None, reference_items=None) -> dict:
     """Invoice de CrediFlux → cuerpo de ``POST /v1/invoices``.
 
     No mandamos totales: NexConnect los calcula de las líneas (y rechaza totales
     que no cuadren), así que la fuente de verdad son las líneas.
     """
     if items is None:
-        items = invoice.items.all().order_by('line_number')
+        items = list(invoice.items.all().order_by('line_number'))
     lines = [build_line(item) for item in items]
     if not lines:
         raise ValueError('La factura no tiene líneas')
@@ -108,6 +138,13 @@ def build_invoice_payload(invoice, items=None) -> dict:
     reference = getattr(invoice, 'reference_invoice', None)
     if reference is not None and reference.encf_number:
         payload['ncf_modificado'] = reference.encf_number
+        if ecf_type == '34':
+            if reference_items is None:
+                reference_items = list(reference.items.all())
+            indicador = credit_note_indicator(items, reference_items)
+            payload['indicador_nota_credito'] = indicador
+            if indicador == INDICADOR_NC_ANULACION and invoice.notes:
+                payload['cancellation_reason'] = invoice.notes[:CANCELLATION_REASON_MAX]
     return payload
 
 
