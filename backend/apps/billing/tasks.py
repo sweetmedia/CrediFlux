@@ -13,8 +13,14 @@ def check_pending_submissions():
     Consulta el estado de todas las facturas enviadas a DGII
     que aún no tienen respuesta definitiva.
     """
+    from django.db import connection
     from .models import Invoice
     from .services.dgii_client import DGIIClient, DGIIClientError
+    from .services.ecf_provider import DEFAULT_ECF_PROVIDER
+
+    tenant = getattr(connection, 'tenant', None)
+    if (getattr(tenant, 'ecf_provider', None) or DEFAULT_ECF_PROVIDER) == 'nexconnect':
+        return _check_pending_nexconnect(tenant)
 
     pending = Invoice.objects.filter(
         status='submitted',
@@ -53,6 +59,38 @@ def check_pending_submissions():
             results['errors'] += 1
 
     logger.info(f'Resultado consulta pendientes: {results}')
+    return results
+
+
+def _check_pending_nexconnect(tenant):
+    """Consulta en NexConnect las facturas cuyo estado aún puede cambiar."""
+    from .models import Invoice
+    from .services.ecf_provider import ECFProviderError
+    from .services.nexconnect.mapping import PENDING_STATUSES
+    from .services.nexconnect.provider import NexConnectProvider, nexconnect_invoice_id
+
+    provider = NexConnectProvider(tenant)
+    pending = Invoice.objects.filter(
+        dgii_status__in=PENDING_STATUSES,
+        dgii_response__provider='nexconnect',
+    )
+    results = {'checked': 0, 'accepted': 0, 'rejected': 0, 'errors': 0}
+
+    for invoice in pending:
+        if not nexconnect_invoice_id(invoice):
+            continue
+        try:
+            provider.query_status(invoice)
+            results['checked'] += 1
+            if invoice.status in ('accepted', 'conditionally_accepted'):
+                results['accepted'] += 1
+            elif invoice.status == 'rejected':
+                results['rejected'] += 1
+        except ECFProviderError as e:
+            logger.error(f'Error consultando {invoice.encf_number} en NexConnect: {e}')
+            results['errors'] += 1
+
+    logger.info(f'Resultado consulta pendientes (NexConnect): {results}')
     return results
 
 

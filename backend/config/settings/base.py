@@ -345,6 +345,14 @@ CACHES = {
     }
 }
 
+# Cifrado de secretos guardados en DB (API keys de proveedores por tenant).
+# Si no se define, se deriva de SECRET_KEY: rotar SECRET_KEY invalida esos secretos.
+FIELD_ENCRYPTION_KEY = config('FIELD_ENCRYPTION_KEY', default='')
+
+# NexConnect (PSFE) — API e-CF. El ambiente DGII lo decide el emisor, no la URL.
+NEXCONNECT_BASE_URL = config('NEXCONNECT_BASE_URL', default='https://api.nexconnect.do')
+NEXCONNECT_TIMEOUT = config('NEXCONNECT_TIMEOUT', default=30, cast=int)
+
 # Constance - Dynamic Settings
 CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
 

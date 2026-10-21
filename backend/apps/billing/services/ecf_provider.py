@@ -2,6 +2,7 @@
 e-CF Provider Strategy Pattern.
 
 Allows tenants to choose between different e-CF providers:
+0. NexConnect — Via NexConnect API (PSFE propio; default). See services/nexconnect/.
 1. DirectDGII — Direct submission to DGII (requires own certificate)
 2. DGMax — Via DGMax.do API (PSFE provider)
 3. EF2 — Via EF2.do API (PSFE provider)
@@ -492,13 +493,23 @@ class EF2Provider(ECFProvider):
 # Provider Factory
 # ============================================================
 
+def _nexconnect_provider(tenant):
+    # Import diferido: nexconnect.provider importa este módulo.
+    from .nexconnect.provider import NexConnectProvider
+    return NexConnectProvider(tenant)
+
+
+DEFAULT_ECF_PROVIDER = 'nexconnect'
+
 PROVIDER_MAP = {
+    'nexconnect': _nexconnect_provider,
     'direct': DirectDGIIProvider,
     'dgmax': DGMaxProvider,
     'ef2': EF2Provider,
 }
 
 ECF_PROVIDER_CHOICES = [
+    ('nexconnect', 'NexConnect (PSFE)'),
     ('direct', 'DGII Directo (certificado propio)'),
     ('dgmax', 'DGMax.do (PSFE)'),
     ('ef2', 'EF2.do (PSFE)'),
@@ -511,12 +522,12 @@ def get_ecf_provider(tenant=None) -> ECFProvider:
     Factory function — returns the configured e-CF provider for the tenant.
     
     Reads tenant.ecf_provider field to determine which provider to use.
-    Falls back to DirectDGII if not configured.
+    Falls back to NexConnect if not configured.
     """
     if tenant is None:
         tenant = connection.tenant
 
-    provider_key = getattr(tenant, 'ecf_provider', 'direct') or 'direct'
+    provider_key = getattr(tenant, 'ecf_provider', None) or DEFAULT_ECF_PROVIDER
 
     if provider_key == 'none':
         raise ECFProviderError('Facturación electrónica no está habilitada para este tenant')
