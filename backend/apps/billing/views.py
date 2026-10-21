@@ -477,7 +477,8 @@ class ECFProviderViewSet(viewsets.ViewSet):
             result = provider.cancel_invoice(invoice, reason)
             return Response(result)
         except ECFProviderError as e:
-            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+            # 400 para reglas de negocio (no aceptada, ya anulada…); 502 si NexConnect no respondió.
+            return Response({'error': str(e)}, status=provider_error_status(e))
 
 
 class DGIIReportViewSet(viewsets.ViewSet):

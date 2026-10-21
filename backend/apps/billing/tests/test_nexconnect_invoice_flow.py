@@ -5,6 +5,7 @@ Sin base de datos, como en ``test_nexconnect``: ``get_object`` devuelve una
 Invoice sin guardar, ``save`` y ``ECFSubmission.objects.create`` parcheados, y
 NexConnect simulado con ``FakeSession``.
 """
+import uuid
 from types import SimpleNamespace
 from unittest import mock
 
@@ -28,6 +29,7 @@ from .test_nexconnect import (
 )
 
 factory = APIRequestFactory()
+NOTE_UUID = uuid.UUID('99999999-8888-7777-6666-555555555555')
 
 
 def make_tenant(**overrides):
@@ -284,9 +286,21 @@ class InvoiceSerializerTests(SimpleTestCase):
         self.assertEqual(s.get_dgii_error_message(invoice), 'RNC del comprador inválido')
         self.assertEqual(s.get_dgii_error_message(make_invoice(dgii_response=None)), '')
 
+    def test_credit_notes(self):
+        note = make_invoice(id=NOTE_UUID, ecf_type='34', encf_number='E340000000003', status='submitted')
+        manager = mock.Mock()
+        manager.all.return_value.order_by.return_value = [note]
+        original = SimpleNamespace(credit_debit_notes=manager)
+        self.assertEqual(self.serializer(make_tenant()).get_credit_notes(original), [{
+            'id': str(NOTE_UUID), 'ecf_type': '34', 'encf_number': 'E340000000003',
+            'status': 'submitted', 'status_display': 'Enviado a DGII', 'created_at': None,
+        }])
+        manager.all.return_value.order_by.assert_called_once_with('created_at')
+
     def test_fields_are_exposed(self):
         fields = InvoiceDetailSerializer.Meta.fields
-        for name in ('ecf_provider', 'is_final', 'dgii_error_message', 'security_code', 'encf_number'):
+        for name in ('ecf_provider', 'is_final', 'dgii_error_message', 'credit_notes',
+                     'security_code', 'encf_number'):
             self.assertIn(name, fields)
 
     def test_webhook_submission_is_labelled(self):

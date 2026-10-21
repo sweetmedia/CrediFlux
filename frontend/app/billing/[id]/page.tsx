@@ -29,6 +29,7 @@ import {
   Copy,
   Download,
   AlertTriangle,
+  Ban,
 } from 'lucide-react';
 import {
   Invoice,
@@ -41,7 +42,9 @@ import {
   PAYMENT_METHOD_LABELS,
   PaymentMethod,
 } from '@/types/billing';
-import { useConfirm } from '@/components/ui/confirm-dialog';
+import { ConfirmDialog, useConfirm } from '@/components/ui/confirm-dialog';
+import { Field } from '@/components/ui/field';
+import { Textarea } from '@/components/ui/textarea';
 import { ErrorState } from '@/components/ui/error-state';
 import { getApiErrorMessage } from '@/lib/api/client';
 
@@ -79,7 +82,11 @@ const SUBMISSION_ACTION_LABELS: Record<string, string> = {
   submit: 'Emisión',
   query_status: 'Consulta de estado',
   webhook: 'Notificación de NexConnect',
+  cancel: 'Anulación',
 };
+
+// Una E34 en estos estados ya no anula nada; se puede intentar otra.
+const DEAD_NOTE_STATUSES: InvoiceStatus[] = ['rejected', 'cancelled'];
 
 const submissionStatusClass = (value: string) => {
   if (['aceptado', 'accepted'].includes(value)) return 'bg-green-100 text-green-700';
@@ -112,6 +119,8 @@ export default function InvoiceDetailPage() {
   const [loadError, setLoadError] = useState('');
   const [success, setSuccess] = useState('');
   const [showXML, setShowXML] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login');
@@ -168,6 +177,25 @@ export default function InvoiceDetailPage() {
     } finally {
       await reloadSubmissions();
       setActionLoading(null);
+    }
+  };
+
+  const handleCancel = async () => {
+    try {
+      setError('');
+      setSuccess('');
+      const result = await billingAPI.cancelInvoice(id, cancelReason.trim());
+      setInvoice(await billingAPI.getInvoice(id));
+      setCancelReason('');
+      setSuccess(
+        result.created
+          ? `Anulación en curso: se emitió la nota de crédito ${result.ncf}. La factura quedará anulada cuando la DGII la acepte.`
+          : result.message
+      );
+    } catch (err: any) {
+      setError(getApiErrorMessage(err, 'Error al anular el e-CF'));
+    } finally {
+      await reloadSubmissions();
     }
   };
 
@@ -312,6 +340,21 @@ export default function InvoiceDetailPage() {
   const emittedViaNexConnect = invoice?.dgii_response?.provider === 'nexconnect';
   const canEmit = isNexConnect && !emittedViaNexConnect && ['draft', 'generated'].includes(invoice?.status ?? '');
   const canRefresh = isNexConnect && emittedViaNexConnect;
+  // E34 de anulación todavía en camino (ni aceptada —la original ya estaría anulada— ni muerta).
+  const pendingCancellation = invoice?.status !== 'cancelled'
+    ? invoice?.credit_notes?.find(
+        (note) => note.ecf_type === '34' && !DEAD_NOTE_STATUSES.includes(note.status) && !['accepted', 'conditionally_accepted'].includes(note.status)
+      )
+    : undefined;
+  const cancelledByNcf: string | undefined = invoice?.dgii_response?.cancelled_by_ncf;
+  const cancellingNote = cancelledByNcf
+    ? invoice?.credit_notes?.find((note) => note.encf_number === cancelledByNcf)
+    : undefined;
+  const canCancel =
+    emittedViaNexConnect &&
+    invoice?.ecf_type !== '34' &&
+    ['accepted', 'conditionally_accepted'].includes(invoice?.status ?? '') &&
+    !pendingCancellation;
   const canGenerate = invoice?.status === 'draft';
   const canSign = invoice?.status === 'generated';
   const canSubmit = invoice?.status === 'signed';
@@ -346,6 +389,30 @@ export default function InvoiceDetailPage() {
   return (
     <div className="p-8">
       {confirmDialog}
+      <ConfirmDialog
+        open={cancelOpen}
+        onOpenChange={(open) => {
+          setCancelOpen(open);
+          if (!open) setCancelReason('');
+        }}
+        title="¿Anular este e-CF?"
+        description={`Se emitirá una nota de crédito (E34) por el total de ${invoice.encf_number}. La factura queda anulada cuando la DGII acepte la nota; no se puede deshacer.`}
+        customer={invoice.comprador_razon_social || null}
+        amount={invoice.total}
+        confirmLabel="Emitir nota de crédito"
+        variant="destructive"
+        confirmDisabled={!cancelReason.trim()}
+        onConfirm={handleCancel}
+      >
+        <Field label="Motivo de la anulación" required>
+          <Textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            rows={3}
+            placeholder="Ej.: pago revertido, factura emitida por error"
+          />
+        </Field>
+      </ConfirmDialog>
       {/* Header */}
       <div className="mb-8">
         <Link href="/billing" className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-4">
@@ -396,6 +463,43 @@ export default function InvoiceDetailPage() {
           </AlertDescription>
         </Alert>
       )}
+      {invoice.status === 'cancelled' && cancelledByNcf && (
+        <Alert className="mb-6 border-slate-300 bg-slate-50">
+          <Ban className="h-4 w-4" />
+          <AlertDescription className="text-slate-800">
+            Anulada por la nota de crédito{' '}
+            {cancellingNote ? (
+              <Link href={`/billing/${cancellingNote.id}`} className="font-mono font-medium underline">
+                {cancelledByNcf}
+              </Link>
+            ) : (
+              <span className="font-mono font-medium">{cancelledByNcf}</span>
+            )}
+            .
+          </AlertDescription>
+        </Alert>
+      )}
+      {pendingCancellation && (
+        <Alert className="mb-6 border-amber-200 bg-amber-50">
+          <Clock className="h-4 w-4" />
+          <AlertDescription className="text-amber-900">
+            Anulación en curso con la nota de crédito{' '}
+            <Link href={`/billing/${pendingCancellation.id}`} className="font-mono font-medium underline">
+              {pendingCancellation.encf_number || 'en borrador'}
+            </Link>{' '}
+            ({pendingCancellation.status_display}). La factura quedará anulada cuando la DGII acepte la nota.
+          </AlertDescription>
+        </Alert>
+      )}
+      {invoice.ecf_type === '34' && invoice.reference_invoice && (
+        <p className="mb-6 text-sm text-slate-600">
+          Nota de crédito de la{' '}
+          <Link href={`/billing/${invoice.reference_invoice}`} className="font-medium text-blue-700 underline">
+            factura original
+          </Link>
+          .
+        </p>
+      )}
 
       {/* Workflow Actions Bar */}
       {isNexConnect ? (
@@ -435,6 +539,18 @@ export default function InvoiceDetailPage() {
                 <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleEmit} disabled={!!actionLoading}>
                   {actionLoading === 'emit' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                   Emitir vía NexConnect
+                </Button>
+              )}
+              {canCancel && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700"
+                  onClick={() => setCancelOpen(true)}
+                  disabled={!!actionLoading}
+                >
+                  <Ban className="mr-2 h-4 w-4" />
+                  Anular
                 </Button>
               )}
               {canRefresh && (

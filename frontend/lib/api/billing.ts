@@ -102,6 +102,17 @@ export const billingAPI = {
     return apiClient.post(`/api/billing/invoices/${id}/refresh-status/`);
   },
 
+  // NexConnect: anular con una Nota de Crédito E34 (idempotente: reusa la E34 viva)
+  async cancelInvoice(id: string, reason: string): Promise<{
+    status: string;
+    ncf: string;
+    credit_note_id: string;
+    created: boolean;
+    message: string;
+  }> {
+    return apiClient.post('/api/billing/ecf-provider/cancel/', { invoice_id: id, reason });
+  },
+
   // Get invoice submissions history
   async getInvoiceSubmissions(id: string): Promise<ECFSubmission[]> {
     return apiClient.get<ECFSubmission[]>(`/api/billing/invoices/${id}/submissions/`);

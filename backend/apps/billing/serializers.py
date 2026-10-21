@@ -96,6 +96,9 @@ class InvoiceDetailSerializer(serializers.ModelSerializer):
         help_text='La DGII ya resolvió la factura (aceptada, condicional, rechazada o anulada)'
     )
     dgii_error_message = serializers.SerializerMethodField()
+    credit_notes = serializers.SerializerMethodField(
+        help_text='Notas de crédito/débito que referencian esta factura (p. ej. la E34 de anulación)'
+    )
 
     class Meta:
         model = Invoice
@@ -103,7 +106,7 @@ class InvoiceDetailSerializer(serializers.ModelSerializer):
             'id', 'encf_number', 'ecf_type', 'ecf_type_display',
             'fiscal_sequence', 'security_code',
             'status', 'status_display',
-            'ecf_provider', 'is_final', 'dgii_error_message',
+            'ecf_provider', 'is_final', 'dgii_error_message', 'credit_notes',
             # Emisor
             'emisor_rnc', 'emisor_razon_social',
             # Comprador
@@ -150,6 +153,20 @@ class InvoiceDetailSerializer(serializers.ModelSerializer):
     def get_dgii_error_message(self, obj):
         data = obj.dgii_response if isinstance(obj.dgii_response, dict) else {}
         return data.get('dgii_error_message') or ''
+
+    def get_credit_notes(self, obj):
+        notes = obj.credit_debit_notes.all().order_by('created_at')
+        return [
+            {
+                'id': str(note.id),
+                'ecf_type': note.ecf_type,
+                'encf_number': note.encf_number or '',
+                'status': note.status,
+                'status_display': note.get_status_display(),
+                'created_at': note.created_at,
+            }
+            for note in notes
+        ]
 
 
 class InvoiceCreateSerializer(serializers.ModelSerializer):

@@ -134,6 +134,15 @@ export interface InvoiceItem {
 // e-CF providers (Tenant.ecf_provider)
 export type ECFProviderKey = 'nexconnect' | 'direct' | 'dgmax' | 'ef2' | 'none';
 
+export interface InvoiceCreditNote {
+  id: string;
+  ecf_type: ECFType;
+  encf_number: string;
+  status: InvoiceStatus;
+  status_display: string;
+  created_at: string;
+}
+
 export interface Invoice {
   id: string;
   encf_number: string | null;
@@ -148,6 +157,8 @@ export interface Invoice {
   /** La DGII ya resolvió la factura (aceptada, condicional, rechazada o anulada). */
   is_final: boolean;
   dgii_error_message: string;
+  /** Notas de crédito/débito que referencian esta factura (p. ej. la E34 de anulación). */
+  credit_notes: InvoiceCreditNote[];
   // Emisor
   emisor_rnc: string;
   emisor_razon_social: string;

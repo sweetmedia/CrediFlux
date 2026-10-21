@@ -343,11 +343,20 @@ class CancelEndpointTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         fake_provider.cancel_invoice.assert_called_once_with(invoice, 'Pago revertido')
 
-    def test_provider_error_is_502(self):
+    def call_failing(self, error):
         fake_provider = mock.Mock()
-        fake_provider.cancel_invoice.side_effect = ECFProviderError('Solo se puede anular una factura aceptada')
+        fake_provider.cancel_invoice.side_effect = error
         with mock.patch.object(Invoice.objects, 'get', return_value=make_invoice()), \
                 mock.patch('apps.billing.services.ecf_provider.get_ecf_provider', return_value=fake_provider):
-            response = self.call({'invoice_id': str(NOTE_ID), 'reason': 'x'})
-        self.assertEqual(response.status_code, 502)
+            return self.call({'invoice_id': str(NOTE_ID), 'reason': 'x'})
+
+    def test_business_rule_error_is_400(self):
+        response = self.call_failing(ECFProviderError('Solo se puede anular una factura aceptada'))
+        self.assertEqual(response.status_code, 400)
         self.assertIn('aceptada', response.data['error'])
+
+    def test_nexconnect_down_is_502(self):
+        from apps.billing.services.nexconnect.client import NexConnectError
+        error = ECFProviderError('NexConnect no disponible')
+        error.__cause__ = NexConnectError('Service Unavailable', status_code=503)
+        self.assertEqual(self.call_failing(error).status_code, 502)
