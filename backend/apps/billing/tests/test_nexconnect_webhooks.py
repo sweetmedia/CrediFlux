@@ -467,6 +467,19 @@ class RegisterCommandTests(SimpleTestCase):
         self.assertEqual(session.calls[0]['method'], 'DELETE')
         self.assertEqual(self.tenant.nexconnect_webhook_id, 'wh-new')
 
+    def test_replace_deactivates_when_delete_is_refused(self):
+        self.tenant.nexconnect_webhook_id = 'wh-old'
+        session, out = self.run_cmd(
+            FakeResponse(500, text='ProtectedError'),
+            FakeResponse(200, {'id': 'wh-old', 'active': False}),
+            FakeResponse(201, {'id': 'wh-new', 'secret': SECRET}),
+            base_url='https://x.test', replace=True,
+        )
+        self.assertEqual([c['method'] for c in session.calls], ['DELETE', 'PATCH', 'POST'])
+        self.assertEqual(session.calls[1]['json'], {'active': False})
+        self.assertIn('desactivado', out)
+        self.assertEqual(self.tenant.nexconnect_webhook_id, 'wh-new')
+
     def test_api_error_is_reported(self):
         with self.assertRaises(CommandError) as ctx:
             self.run_cmd(FakeResponse(400, {'url': ['Webhook URL must be https://']}),

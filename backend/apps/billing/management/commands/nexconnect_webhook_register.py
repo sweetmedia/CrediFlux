@@ -75,7 +75,12 @@ class Command(BaseCommand):
                 self.stdout.write(f'Webhook anterior {previous_id} borrado en NexConnect')
             except NexConnectError as e:
                 if e.status_code != 404:
-                    raise CommandError(f'No se pudo borrar el webhook anterior: {e}')
+                    # Con entregas registradas NexConnect responde 500 (ProtectedError): se apaga.
+                    try:
+                        client.deactivate_webhook(previous_id)
+                    except NexConnectError as e2:
+                        raise CommandError(f'No se pudo borrar ni desactivar el webhook anterior: {e2}')
+                    self.stdout.write(f'Webhook anterior {previous_id} desactivado en NexConnect')
 
         try:
             data = client.create_webhook(url, event_list, description=f'CrediFlux {tenant.schema_name}')

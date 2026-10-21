@@ -119,3 +119,7 @@ class NexConnectClient:
 
     def delete_webhook(self, webhook_id: str) -> None:
         self._request('DELETE', f'/v1/webhooks/{webhook_id}/')
+
+    def deactivate_webhook(self, webhook_id: str) -> dict:
+        """Apaga un webhook sin borrarlo (NexConnect no deja borrar uno con entregas)."""
+        return self._request('PATCH', f'/v1/webhooks/{webhook_id}/', json={'active': False}).json()
