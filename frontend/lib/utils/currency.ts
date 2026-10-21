@@ -1,20 +1,9 @@
 /**
- * Single money formatter for the app. Accepts the loose shapes the API returns
- * (numeric strings, null) so callers don't each re-implement the guard.
+ * Format currency with dynamic symbol from tenant configuration
  */
-export const formatMoney = (
-  amount: number | string | null | undefined,
-  currencySymbol: string,
-  decimals = 2
-): string => {
-  const n = typeof amount === 'string' ? parseFloat(amount) : amount;
-  const safe = n === null || n === undefined || Number.isNaN(n) ? 0 : n;
-  return `${currencySymbol}${safe.toLocaleString('es-DO', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+export const formatCurrency = (amount: number, currencySymbol: string): string => {
+  return `${currencySymbol}${amount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
   })}`;
 };
-
-/** @deprecated use formatMoney */
-export const formatCurrency = (amount: number, currencySymbol: string): string =>
-  formatMoney(amount, currencySymbol);

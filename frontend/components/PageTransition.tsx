@@ -1,45 +1,105 @@
 'use client';
 
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import gsap from 'gsap';
 
 interface PageTransitionProps {
   children: React.ReactNode;
 }
 
-// Route change entrance. Navigation happens dozens of times a day, so it stays
-// short and subtle. clearProps removes the inline transform afterwards: a
-// leftover transform turns this wrapper into the containing block for every
-// position:fixed descendant (modals would anchor to the page, not the viewport).
+// Simpler version that just animates on pathname change
 export function SimplePageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-    const mm = gsap.matchMedia();
-    mm.add(
-      {
-        motion: '(prefers-reduced-motion: no-preference)',
-        reduce: '(prefers-reduced-motion: reduce)',
-      },
-      (ctx) => {
-        if (ctx.conditions?.reduce) {
-          gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.15, ease: 'none', clearProps: 'opacity' });
-        } else {
-          gsap.fromTo(
-            el,
-            { opacity: 0, y: 6 },
-            { opacity: 1, y: 0, duration: 0.2, ease: 'power3.out', clearProps: 'opacity,transform' }
-          );
-        }
-      }
-    );
-    return () => mm.revert();
+    // Dynamically import GSAP
+    import('gsap').then(({ default: gsap }) => {
+      gsap.fromTo(
+        containerRef.current,
+        { opacity: 0, y: 15 },
+        { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }
+      );
+    });
   }, [pathname]);
 
-  return <div ref={containerRef}>{children}</div>;
+  return (
+    <div ref={containerRef}>
+      {children}
+    </div>
+  );
+}
+
+// Fade transition
+export function FadeTransition({ children }: PageTransitionProps) {
+  const pathname = usePathname();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    import('gsap').then(({ default: gsap }) => {
+      gsap.fromTo(
+        containerRef.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.3, ease: 'power1.out' }
+      );
+    });
+  }, [pathname]);
+
+  return (
+    <div ref={containerRef}>
+      {children}
+    </div>
+  );
+}
+
+// Slide transition
+export function SlideTransition({ children }: PageTransitionProps) {
+  const pathname = usePathname();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    import('gsap').then(({ default: gsap }) => {
+      gsap.fromTo(
+        containerRef.current,
+        { opacity: 0, x: 30 },
+        { opacity: 1, x: 0, duration: 0.4, ease: 'power3.out' }
+      );
+    });
+  }, [pathname]);
+
+  return (
+    <div ref={containerRef}>
+      {children}
+    </div>
+  );
+}
+
+// Scale transition
+export function ScaleTransition({ children }: PageTransitionProps) {
+  const pathname = usePathname();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    import('gsap').then(({ default: gsap }) => {
+      gsap.fromTo(
+        containerRef.current,
+        { opacity: 0, scale: 0.95 },
+        { opacity: 1, scale: 1, duration: 0.35, ease: 'power2.out' }
+      );
+    });
+  }, [pathname]);
+
+  return (
+    <div ref={containerRef}>
+      {children}
+    </div>
+  );
 }

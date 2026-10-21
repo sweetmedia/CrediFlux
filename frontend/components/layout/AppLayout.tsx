@@ -14,7 +14,7 @@ interface AppLayoutProps {
 }
 
 // Pages that should not show the sidebar (public pages)
-const PUBLIC_PAGES = ['/', '/login', '/register', '/forgot-password', '/select-tenant', '/reset-password', '/v2-probe'];
+const PUBLIC_PAGES = ['/', '/login', '/register', '/forgot-password', '/select-tenant', '/reset-password'];
 
 export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
@@ -65,14 +65,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   // If authenticated, show sidebar with content
   if (isAuthenticated) {
     return (
-      <div className="min-h-[100dvh] bg-background">
+      <div className="min-h-screen bg-background">
         {/* Mobile hamburger header */}
-        <div className="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 border-b bg-tenant">
+        <div className="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 border-b bg-[#163300]">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label={sidebarOpen ? 'Cerrar menú' : 'Abrir menú'}
-            aria-expanded={sidebarOpen}
-            aria-controls="app-sidebar"
             className="p-1.5 rounded-md text-white/80 hover:text-white hover:bg-white/10 transition-colors"
           >
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -88,13 +85,12 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Backdrop overlay (mobile) */}
-        <div
-          aria-hidden="true"
-          className={`lg:hidden fixed inset-0 z-40 bg-black/40 transition-opacity duration-slow ease-out ${
-            sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-          onClick={() => setSidebarOpen(false)}
-        />
+        {sidebarOpen && (
+          <div
+            className="lg:hidden fixed inset-0 z-40 bg-black/50 transition-opacity"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
         {/* Sidebar */}
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />

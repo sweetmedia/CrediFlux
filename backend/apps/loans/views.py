@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q, Sum, Count, Value
@@ -379,7 +380,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             'loan': serializer.data
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
     def disburse(self, request, pk=None):
         """Disburse a loan (mark as active)"""
         loan = self.get_object()
@@ -497,11 +498,12 @@ class LoanViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
 
         loans = self.get_queryset()
+        today = timezone.now().date()
 
-        # Count overdue loans (loans with pending schedules past due date)
+        # Count overdue loans from real overdue schedules, not only defaulted loans.
         overdue_loans = loans.filter(
-            payment_schedules__status='pending',
-            payment_schedules__due_date__lt=timezone.now().date()
+            payment_schedules__status__in=['pending', 'partial', 'overdue'],
+            payment_schedules__due_date__lt=today
         ).distinct().count()
 
         stats = {
@@ -535,6 +537,13 @@ class LoanViewSet(viewsets.ModelViewSet):
         today = timezone.now().date()
         six_months_ago = today - timedelta(days=180)
 
+        overdue_loan_ids = LoanSchedule.objects.filter(
+            loan__in=loans,
+            status__in=['pending', 'partial', 'overdue'],
+            due_date__lt=today
+        ).values_list('loan_id', flat=True).distinct()
+        overdue_loans = overdue_loan_ids.count()
+
         # Basic stats
         basic_stats = {
             'total_loans': loans.count(),
@@ -542,6 +551,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             'pending_loans': loans.filter(status='pending').count(),
             'paid_loans': loans.filter(status='paid').count(),
             'defaulted_loans': loans.filter(status='defaulted').count(),
+            'overdue_loans': overdue_loans,
         }
 
         # Status distribution for pie chart
@@ -549,7 +559,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             {'name': 'Activos', 'value': basic_stats['active_loans'], 'color': '#22c55e'},
             {'name': 'Pendientes', 'value': basic_stats['pending_loans'], 'color': '#eab308'},
             {'name': 'Pagados', 'value': basic_stats['paid_loans'], 'color': '#3b82f6'},
-            {'name': 'En mora', 'value': basic_stats['defaulted_loans'], 'color': '#ef4444'},
+            {'name': 'En mora', 'value': basic_stats['overdue_loans'], 'color': '#ef4444'},
         ]
 
         # Monthly disbursements for bar chart
@@ -611,7 +621,7 @@ class LoanViewSet(viewsets.ModelViewSet):
         # Overdue count
         overdue_schedules = LoanSchedule.objects.filter(
             loan__in=loans,
-            status__in=['pending', 'partial'],
+            status__in=['pending', 'partial', 'overdue'],
             due_date__lt=today
         ).count()
 
@@ -634,13 +644,13 @@ class LoanViewSet(viewsets.ModelViewSet):
         total_portfolio = float(total_portfolio_amount.amount) if hasattr(total_portfolio_amount, 'amount') else float(total_portfolio_amount or 0)
 
         # Overdue active loans: active loans with at least one overdue unpaid schedule item
-        overdue_loan_ids = LoanSchedule.objects.filter(
+        active_overdue_loan_ids = LoanSchedule.objects.filter(
             loan__in=loans.filter(status='active'),
-            status__in=['pending', 'partial'],
+            status__in=['pending', 'partial', 'overdue'],
             due_date__lt=today
         ).values_list('loan_id', flat=True).distinct()
 
-        total_overdue_amount = loans.filter(id__in=overdue_loan_ids).aggregate(
+        total_overdue_amount = loans.filter(id__in=active_overdue_loan_ids).aggregate(
             total=Sum('outstanding_balance')
         )['total']
         total_overdue = float(total_overdue_amount.amount) if hasattr(total_overdue_amount, 'amount') else float(total_overdue_amount or 0)
@@ -672,7 +682,7 @@ class LoanViewSet(viewsets.ModelViewSet):
         # Top 5 overdue customers
         overdue_schedules_qs = LoanSchedule.objects.filter(
             loan__in=loans.filter(status='active'),
-            status__in=['pending', 'partial'],
+            status__in=['pending', 'partial', 'overdue'],
             due_date__lt=today
         ).select_related('loan__customer').order_by('due_date')
 
@@ -760,10 +770,10 @@ class LoanViewSet(viewsets.ModelViewSet):
         current_date = loan.first_payment_date or loan.disbursement_date
         schedules = []
 
-        # Check interest type (default to 'fixed' if not set)
+        # Check amortization / interest method (legacy + new calculator-aligned values)
         interest_type = getattr(loan, 'interest_type', 'fixed')
 
-        if interest_type == 'variable':
+        if interest_type in ['variable', 'saldo_insoluto', 'german']: 
             # ========================================
             # INTERÉS VARIABLE/AMORTIZADO (sobre saldo decreciente)
             # ========================================
@@ -818,6 +828,64 @@ class LoanViewSet(viewsets.ModelViewSet):
                 # Move to next payment date
                 current_date = current_date + relativedelta(**period_delta)
 
+        elif interest_type == 'french':
+            # ========================================
+            # FRANCÉS (CUOTA FIJA / ANNUITY)
+            # ========================================
+            periods_per_month = {
+                'daily': Decimal('30'),
+                'weekly': Decimal('4'),
+                'biweekly': Decimal('2'),
+                'monthly': Decimal('1'),
+                'quarterly': Decimal('0.3333333333'),
+            }
+            multiplier = {
+                'daily': 30,
+                'weekly': 4,
+                'biweekly': 2,
+                'monthly': 1,
+                'quarterly': 1/3,
+            }
+
+            num_payments = max(1, int(round(float(loan.term_months * multiplier.get(loan.payment_frequency, 1)))))
+            period_divisor = periods_per_month.get(loan.payment_frequency, Decimal('1'))
+            period_rate = (loan.interest_rate / Decimal('100') / period_divisor).quantize(Decimal('0.0000001'))
+
+            if period_rate == 0:
+                payment_amount = (loan.principal_amount.amount / Decimal(str(num_payments))).quantize(Decimal('0.01'))
+            else:
+                r = period_rate
+                n = Decimal(str(num_payments))
+                payment_amount = (
+                    loan.principal_amount.amount * r * (Decimal('1') + r) ** int(n)
+                    / (((Decimal('1') + r) ** int(n)) - Decimal('1'))
+                ).quantize(Decimal('0.01'))
+
+            balance = loan.principal_amount.amount
+
+            for i in range(1, num_payments + 1):
+                interest_amount = (balance * period_rate).quantize(Decimal('0.01'))
+
+                if i == num_payments:
+                    principal_amount = balance
+                    total_amount = (principal_amount + interest_amount).quantize(Decimal('0.01'))
+                else:
+                    principal_amount = (payment_amount - interest_amount).quantize(Decimal('0.01'))
+                    total_amount = payment_amount
+
+                schedule = LoanSchedule.objects.create(
+                    loan=loan,
+                    installment_number=i,
+                    due_date=current_date,
+                    total_amount=Money(total_amount, loan.principal_amount.currency),
+                    principal_amount=Money(principal_amount, loan.principal_amount.currency),
+                    interest_amount=Money(interest_amount, loan.principal_amount.currency)
+                )
+                schedules.append(schedule)
+
+                balance = (balance - principal_amount).quantize(Decimal('0.01'))
+                current_date = current_date + relativedelta(**period_delta)
+
         elif interest_type == 'variable_rd':
             # ========================================
             # INTERÉS VARIABLE RD (Tasa directa por período)
@@ -862,7 +930,7 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         else:
             # ========================================
-            # INTERÉS FIJO (tasa mensual)
+            # FLAT / INTERÉS FIJO (tasa mensual)
             # ========================================
             # El interés total se calcula usando la tasa mensual definida por negocio
             # y se distribuye equitativamente entre las cuotas.
@@ -975,7 +1043,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'inline; filename="recibo-{payment.payment_number}.pdf"'
         return response
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def confirm(self, request, pk=None):
         """
         Confirm a pending payment.
@@ -1041,7 +1109,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
         return Response(response_data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def cancel(self, request, pk=None):
         """Cancel a pending payment"""
         payment = self.get_object()
@@ -1064,6 +1132,12 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         This will reverse the updates made to loan and schedule.
         """
         from .signals import reconcile_loan_from_payments
+
+        if not (request.user.is_tenant_owner or request.user.is_superuser):
+            return Response(
+                {'error': 'Solo el dueño de la financiera puede revertir pagos'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         payment = self.get_object()
 
@@ -1120,6 +1194,7 @@ class CollateralViewSet(viewsets.ModelViewSet):
     queryset = Collateral.objects.select_related('loan').all()
     serializer_class = CollateralSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['collateral_type', 'status', 'loan']
     search_fields = ['description', 'loan__loan_number']
@@ -1492,7 +1567,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return contract
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def regenerate(self, request, pk=None):
         """Regenerate contract content from template"""
         from .utils_contracts import replace_contract_variables
@@ -1567,7 +1642,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato firmado por el cliente'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def sign_officer(self, request, pk=None):
         """Mark contract as signed by loan officer"""
         contract = self.get_object()
@@ -1615,7 +1690,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato firmado por el oficial'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def activate(self, request, pk=None):
         """Activate a signed contract"""
         contract = self.get_object()
@@ -1631,7 +1706,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato activado'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def cancel(self, request, pk=None):
         """Cancel a contract"""
         contract = self.get_object()
@@ -1648,7 +1723,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato cancelado'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def archive(self, request, pk=None):
         """Archive a contract (only for cancelled contracts)"""
         contract = self.get_object()
@@ -1672,7 +1747,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato archivado exitosamente'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def unarchive(self, request, pk=None):
         """Unarchive a contract"""
         contract = self.get_object()
@@ -1690,7 +1765,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato desarchivado exitosamente'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def send_for_signature(self, request, pk=None):
         """Send contract via email and/or WhatsApp for signature"""
         import secrets
@@ -1747,8 +1822,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         company_name = tenant.business_name if tenant else 'CrediFlux'
 
         # Build signature URL
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        signature_url = f"{frontend_url}/sign/{token}"
+        frontend_url = getattr(settings, 'FRONTEND_URL', '').strip()
+        if not frontend_url or 'localhost' in frontend_url or '127.0.0.1' in frontend_url:
+            frontend_url = f"{request.scheme}://{request.get_host()}"
+        signature_url = f"{frontend_url.rstrip('/')}/sign/{token}"
 
         # Track sending results
         sent_via_email = False
@@ -1881,19 +1958,25 @@ Saludos,
 
 
 # Public API views (no authentication required)
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import AnonRateThrottle
+
+
+class PublicContractThrottle(AnonRateThrottle):
+    scope = 'public_contracts'
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes([PublicContractThrottle])
 def public_contract_view(request, token):
     """
     Public endpoint to view contract details with a signature token.
     No authentication required - uses token for access.
     """
-    from .models_contracts import ContractSignatureToken, Contract
-    from .serializers import ContractSerializer
+    from .models_contracts import ContractSignatureToken
+    from .serializers import PublicContractSerializer
 
     try:
         # Get signature token
@@ -1917,7 +2000,7 @@ def public_contract_view(request, token):
         contract = signature_token.contract
 
         # Return contract details with token info
-        serializer = ContractSerializer(contract)
+        serializer = PublicContractSerializer(contract)
         return Response({
             'contract': serializer.data,
             'token_permissions': {
@@ -1936,6 +2019,7 @@ def public_contract_view(request, token):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([PublicContractThrottle])
 def public_contract_sign(request, token):
     """
     Public endpoint to sign a contract with a signature token.

@@ -201,6 +201,8 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
+    ] if not DEBUG else [
+        'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
     'EXCEPTION_HANDLER': 'apps.core.exceptions.custom_exception_handler',
@@ -209,6 +211,7 @@ REST_FRAMEWORK = {
 }
 
 # JWT Settings
+JWT_SIGNING_KEY = config('JWT_SIGNING_KEY', default=SECRET_KEY)
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config('JWT_ACCESS_TOKEN_LIFETIME', default=60, cast=int)),
     'REFRESH_TOKEN_LIFETIME': timedelta(minutes=config('JWT_REFRESH_TOKEN_LIFETIME', default=1440, cast=int)),
@@ -216,7 +219,7 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
     'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
+    'SIGNING_KEY': JWT_SIGNING_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
@@ -246,6 +249,16 @@ ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https' if BACKEND_URL.startswith('https') else 
 
 # Use custom adapter to ensure email confirmation URLs use Site domain
 ACCOUNT_ADAPTER = 'apps.users.adapters.CustomAccountAdapter'
+
+REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
+    'rest_framework.throttling.AnonRateThrottle',
+    'rest_framework.throttling.UserRateThrottle',
+]
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+    'anon': config('DRF_THROTTLE_ANON', default='60/minute'),
+    'user': config('DRF_THROTTLE_USER', default='300/minute'),
+    'public_contracts': config('DRF_THROTTLE_PUBLIC_CONTRACTS', default='20/hour'),
+}
 
 # dj-rest-auth configuration (v6.0+)
 REST_AUTH = {

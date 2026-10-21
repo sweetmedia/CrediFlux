@@ -105,13 +105,16 @@ class WhatsAppWebhookView(APIView):
                 logger.warning(f"No tenant found for phone_number_id: {phone_number_id}")
                 return Response(status=status.HTTP_200_OK)
 
-            # Validate signature if app_secret is configured
-            if tenant.whatsapp_app_secret:
-                if not verify_signature(raw_body, signature, tenant.whatsapp_app_secret):
-                    logger.warning(f"Invalid webhook signature for tenant: {tenant.name}")
-                    return Response(status=status.HTTP_200_OK)
-            else:
-                logger.debug(f"Skipping signature validation (no app_secret) for tenant: {tenant.name}")
+            # Validate signature, fail closed if app_secret is missing
+            if not tenant.whatsapp_app_secret:
+                logger.warning(
+                    f"Webhook rejected for tenant {tenant.name}: whatsapp_app_secret not configured"
+                )
+                return Response(status=status.HTTP_200_OK)
+
+            if not verify_signature(raw_body, signature, tenant.whatsapp_app_secret):
+                logger.warning(f"Invalid webhook signature for tenant: {tenant.name}")
+                return Response(status=status.HTTP_200_OK)
 
             # Dispatch to Celery for async processing
             from apps.communications.tasks import process_whatsapp_webhook
