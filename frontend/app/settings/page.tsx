@@ -16,6 +16,7 @@ import {
   UserCircle2,
   Workflow,
   ArrowUpRight,
+  Receipt,
 } from 'lucide-react';
 
 interface SettingsCard {
@@ -60,6 +61,13 @@ export default function SettingsPage() {
       icon: <Workflow className="h-5 w-5 text-[#163300]" />,
       href: '/settings/loans',
       badge: 'Prioridad',
+    },
+    {
+      title: 'Facturación electrónica',
+      description: 'Proveedor e-CF (NexConnect o DGII directo), ambiente DGII y API key.',
+      eyebrow: 'e-CF',
+      icon: <Receipt className="h-5 w-5 text-[#163300]" />,
+      href: '/settings/ecf',
     },
     {
       title: 'Perfil del usuario',

@@ -131,6 +131,9 @@ export interface InvoiceItem {
   total_currency: string;
 }
 
+// e-CF providers (Tenant.ecf_provider)
+export type ECFProviderKey = 'nexconnect' | 'direct' | 'dgmax' | 'ef2' | 'none';
+
 export interface Invoice {
   id: string;
   encf_number: string | null;
@@ -140,6 +143,11 @@ export interface Invoice {
   security_code: string;
   status: InvoiceStatus;
   status_display: string;
+  /** Flujo de emisión: 'nexconnect' = Emitir en un paso; 'direct' = XML → Firmar → Enviar. */
+  ecf_provider: ECFProviderKey;
+  /** La DGII ya resolvió la factura (aceptada, condicional, rechazada o anulada). */
+  is_final: boolean;
+  dgii_error_message: string;
   // Emisor
   emisor_rnc: string;
   emisor_razon_social: string;
@@ -209,7 +217,7 @@ export interface InvoiceItemCreate {
 export interface ECFSubmission {
   id: string;
   invoice: string;
-  action: 'submit' | 'query_status' | 'query_result' | 'cancel';
+  action: 'submit' | 'query_status' | 'query_result' | 'cancel' | 'webhook';
   action_display: string;
   environment: DGIIEnvironment;
   environment_display: string;
@@ -233,4 +241,42 @@ export interface BillingStatistics {
   rejected_count: number;
   total_billed: number;
   total_itbis: number;
+}
+
+// ============================================================
+// e-CF provider configuration
+// ============================================================
+
+export interface ECFProviderChoice<T extends string = string> {
+  value: T;
+  label: string;
+}
+
+export interface ECFProviderConfig {
+  ecf_provider: ECFProviderKey;
+  dgii_environment: DGIIEnvironment;
+  has_api_key: boolean;
+  /** null si no hay key o no es de NexConnect. */
+  is_test_key: boolean | null;
+  webhook_registered: boolean;
+  ecf_provider_choices: ECFProviderChoice<ECFProviderKey>[];
+  dgii_environment_choices: ECFProviderChoice<DGIIEnvironment>[];
+}
+
+export interface ECFProviderConfigUpdate {
+  ecf_provider?: ECFProviderKey;
+  dgii_environment?: DGIIEnvironment;
+  /** Solo escritura: nunca vuelve en la respuesta. */
+  api_key?: string;
+  clear_api_key?: boolean;
+}
+
+export interface ECFProviderStatus {
+  provider?: string;
+  status: 'online' | 'offline' | 'error' | 'not_configured';
+  environment?: string;
+  organization?: string | null;
+  test_key?: boolean;
+  http_code?: number | null;
+  error?: string;
 }

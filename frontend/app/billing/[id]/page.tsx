@@ -28,6 +28,7 @@ import {
   Trash2,
   Copy,
   Download,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   Invoice,
@@ -41,6 +42,60 @@ import {
   PaymentMethod,
 } from '@/types/billing';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { ErrorState } from '@/components/ui/error-state';
+import { getApiErrorMessage } from '@/lib/api/client';
+
+// Pasos del flujo NexConnect: NexConnect firma y envía; el último paso es el veredicto de la DGII.
+const NEXCONNECT_STEPS = ['Borrador', 'Firmado', 'Enviado'] as const;
+
+const NEXCONNECT_STEP_INDEX: Partial<Record<InvoiceStatus, number>> = {
+  draft: 0,
+  generated: 0,
+  signed: 1,
+  submitted: 2,
+};
+
+const FINAL_STEP: Partial<Record<InvoiceStatus, { label: string; className: string }>> = {
+  accepted: { label: 'Aceptado', className: 'bg-green-600 text-white' },
+  conditionally_accepted: { label: 'Aceptado condicional', className: 'bg-orange-500 text-white' },
+  rejected: { label: 'Rechazado', className: 'bg-red-600 text-white' },
+  cancelled: { label: 'Anulado', className: 'bg-slate-500 text-white' },
+};
+
+// Estados que devuelve NexConnect (Invoice.dgii_status / ECFSubmission.response_status).
+const NEXCONNECT_STATUS_LABELS: Record<string, string> = {
+  signed: 'Firmado',
+  submitted: 'Enviado a la DGII',
+  delivered_to_receiver: 'Entregado al receptor',
+  queued_offline: 'En cola (DGII sin conexión)',
+  accepted: 'Aceptado',
+  accepted_conditional: 'Aceptado condicional',
+  rejected: 'Rechazado',
+  cancelled: 'Anulado',
+  error: 'Error',
+};
+
+const SUBMISSION_ACTION_LABELS: Record<string, string> = {
+  submit: 'Emisión',
+  query_status: 'Consulta de estado',
+  webhook: 'Notificación de NexConnect',
+};
+
+const submissionStatusClass = (value: string) => {
+  if (['aceptado', 'accepted'].includes(value)) return 'bg-green-100 text-green-700';
+  if (['accepted_conditional'].includes(value)) return 'bg-orange-100 text-orange-700';
+  if (['rechazado', 'rejected', 'error'].includes(value)) return 'bg-red-100 text-red-700';
+  return 'bg-slate-100 text-slate-700';
+};
+
+/** Un 502 de emit/refresh-status significa que NexConnect no respondió, no que CrediFlux esté caído. */
+const providerErrorMessage = (err: any, fallback: string) => {
+  const body = err?.response?.data;
+  if (err?.response?.status === 502 && typeof body?.error === 'string') {
+    return `NexConnect no respondió: ${body.error}`;
+  }
+  return getApiErrorMessage(err, fallback);
+};
 
 export default function InvoiceDetailPage() {
   const router = useRouter();
@@ -54,6 +109,7 @@ export default function InvoiceDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [success, setSuccess] = useState('');
   const [showXML, setShowXML] = useState(false);
 
@@ -71,6 +127,7 @@ export default function InvoiceDetailPage() {
     try {
       setIsLoading(true);
       setError('');
+      setLoadError('');
       const [inv, subs] = await Promise.all([
         billingAPI.getInvoice(id),
         billingAPI.getInvoiceSubmissions(id).catch(() => []),
@@ -78,9 +135,56 @@ export default function InvoiceDetailPage() {
       setInvoice(inv);
       setSubmissions(subs);
     } catch (err: any) {
-      setError('Error al cargar la factura');
+      setLoadError(getApiErrorMessage(err, 'Error al cargar la factura'));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const reloadSubmissions = async () => {
+    setSubmissions(await billingAPI.getInvoiceSubmissions(id).catch(() => submissions));
+  };
+
+  const handleEmit = async () => {
+    if (!invoice) return;
+    const confirmed = await askConfirm({
+      title: '¿Emitir este e-CF vía NexConnect?',
+      description:
+        'NexConnect asigna el e-NCF, firma y envía a la DGII. Una vez emitida, la factura ya no se puede editar ni eliminar; para anularla hará falta una nota de crédito.',
+      customer: invoice.comprador_razon_social || null,
+      amount: invoice.total,
+      confirmLabel: 'Emitir e-CF',
+    });
+    if (!confirmed) return;
+    try {
+      setActionLoading('emit');
+      setError('');
+      setSuccess('');
+      const result = await billingAPI.emitInvoice(id);
+      setInvoice(result.invoice);
+      setSuccess(`e-CF emitido: ${result.ncf}. NexConnect lo está enviando a la DGII.`);
+    } catch (err: any) {
+      setError(providerErrorMessage(err, 'Error al emitir el e-CF'));
+    } finally {
+      await reloadSubmissions();
+      setActionLoading(null);
+    }
+  };
+
+  const handleRefreshStatus = async () => {
+    try {
+      setActionLoading('refresh');
+      setError('');
+      setSuccess('');
+      const result = await billingAPI.refreshInvoiceStatus(id);
+      setInvoice(result.invoice);
+      const label = NEXCONNECT_STATUS_LABELS[result.status] || result.status;
+      setSuccess(result.is_final ? `Estado final: ${label}` : `Estado actual: ${label}. La DGII aún no responde.`);
+    } catch (err: any) {
+      setError(providerErrorMessage(err, 'Error al consultar el estado'));
+    } finally {
+      await reloadSubmissions();
+      setActionLoading(null);
     }
   };
 
@@ -93,7 +197,7 @@ export default function InvoiceDetailPage() {
       setInvoice(updated);
       setSuccess('✅ XML generado exitosamente. e-NCF asignado: ' + updated.encf_number);
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Error al generar el e-CF');
+      setError(getApiErrorMessage(err, 'Error al generar el e-CF'));
     } finally {
       setActionLoading(null);
     }
@@ -108,7 +212,7 @@ export default function InvoiceDetailPage() {
       setInvoice(updated);
       setSuccess('✅ e-CF firmado digitalmente');
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Error al firmar el e-CF');
+      setError(getApiErrorMessage(err, 'Error al firmar el e-CF'));
     } finally {
       setActionLoading(null);
     }
@@ -122,11 +226,9 @@ export default function InvoiceDetailPage() {
       const result = await billingAPI.submitToDGII(id);
       setInvoice(result.invoice);
       setSuccess(`✅ Enviado a DGII. TrackId: ${result.trackid}`);
-      // Reload submissions
-      const subs = await billingAPI.getInvoiceSubmissions(id);
-      setSubmissions(subs);
+      await reloadSubmissions();
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Error al enviar a DGII');
+      setError(getApiErrorMessage(err, 'Error al enviar a DGII'));
     } finally {
       setActionLoading(null);
     }
@@ -140,10 +242,9 @@ export default function InvoiceDetailPage() {
       const result = await billingAPI.checkDGIIStatus(id);
       setInvoice(result.invoice);
       setSuccess(`Estado DGII: ${result.dgii_status}`);
-      const subs = await billingAPI.getInvoiceSubmissions(id);
-      setSubmissions(subs);
+      await reloadSubmissions();
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Error al consultar DGII');
+      setError(getApiErrorMessage(err, 'Error al consultar DGII'));
     } finally {
       setActionLoading(null);
     }
@@ -161,7 +262,7 @@ export default function InvoiceDetailPage() {
       await billingAPI.deleteInvoice(id);
       router.push('/billing');
     } catch (err: any) {
-      setError('Error al eliminar la factura');
+      setError(getApiErrorMessage(err, 'Error al eliminar la factura'));
     }
   };
 
@@ -207,6 +308,10 @@ export default function InvoiceDetailPage() {
   };
 
   // Workflow: which actions are available
+  const isNexConnect = invoice?.ecf_provider === 'nexconnect';
+  const emittedViaNexConnect = invoice?.dgii_response?.provider === 'nexconnect';
+  const canEmit = isNexConnect && !emittedViaNexConnect && ['draft', 'generated'].includes(invoice?.status ?? '');
+  const canRefresh = isNexConnect && emittedViaNexConnect;
   const canGenerate = invoice?.status === 'draft';
   const canSign = invoice?.status === 'generated';
   const canSubmit = invoice?.status === 'signed';
@@ -224,12 +329,19 @@ export default function InvoiceDetailPage() {
   if (!invoice) {
     return (
       <div className="p-8">
-        <Alert variant="destructive">
-          <AlertDescription>Factura no encontrada</AlertDescription>
-        </Alert>
+        {loadError ? (
+          <ErrorState variant="page" message={loadError} onRetry={loadInvoice} />
+        ) : (
+          <Alert variant="destructive">
+            <AlertDescription>Factura no encontrada</AlertDescription>
+          </Alert>
+        )}
       </div>
     );
   }
+
+  const nexconnectStepIndex = NEXCONNECT_STEP_INDEX[invoice.status] ?? NEXCONNECT_STEPS.length;
+  const finalStep = FINAL_STEP[invoice.status];
 
   return (
     <div className="p-8">
@@ -264,18 +376,84 @@ export default function InvoiceDetailPage() {
       </div>
 
       {/* Alerts */}
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      {error && <ErrorState message={error} className="mb-6" />}
       {success && (
         <Alert className="mb-6 border-green-200 bg-green-50">
           <AlertDescription className="text-green-800">{success}</AlertDescription>
         </Alert>
       )}
+      {invoice.status === 'rejected' && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <p className="font-semibold">La DGII rechazó este e-CF.</p>
+            <p className="mt-1">
+              {invoice.dgii_error_message || 'La DGII no indicó el motivo.'}
+              {invoice.dgii_response?.dgii_error_code && (
+                <span className="ml-1 font-mono text-xs">(código {invoice.dgii_response.dgii_error_code})</span>
+              )}
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Workflow Actions Bar */}
+      {isNexConnect ? (
+      <Card className="mb-6 border-blue-200 bg-blue-50/50 shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium text-blue-900">Emisión vía NexConnect:</p>
+              <ol className="flex items-center gap-1" aria-label="Progreso de la emisión">
+                {NEXCONNECT_STEPS.map((label, idx) => {
+                  const isCompleted = idx < nexconnectStepIndex;
+                  const isCurrent = idx === nexconnectStepIndex;
+                  return (
+                    <li key={label} className="flex items-center" aria-current={isCurrent ? 'step' : undefined}>
+                      {idx > 0 && <div className={`w-6 h-0.5 ${isCompleted || isCurrent ? 'bg-green-500' : 'bg-slate-300'}`} />}
+                      <div className={`
+                        px-2 py-1 rounded text-xs font-medium
+                        ${isCompleted ? 'bg-green-100 text-green-700' : ''}
+                        ${isCurrent ? 'bg-blue-600 text-white' : ''}
+                        ${!isCompleted && !isCurrent ? 'bg-slate-200 text-slate-500' : ''}
+                      `}>
+                        {label}
+                      </div>
+                    </li>
+                  );
+                })}
+                <li className="flex items-center" aria-current={finalStep ? 'step' : undefined}>
+                  <div className={`w-6 h-0.5 ${finalStep ? 'bg-green-500' : 'bg-slate-300'}`} />
+                  <div className={`px-2 py-1 rounded text-xs font-medium ${finalStep ? finalStep.className : 'bg-slate-200 text-slate-500'}`}>
+                    {finalStep ? finalStep.label : 'Aceptado / Rechazado'}
+                  </div>
+                </li>
+              </ol>
+            </div>
+            <div className="flex gap-2">
+              {canEmit && (
+                <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleEmit} disabled={!!actionLoading}>
+                  {actionLoading === 'emit' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  Emitir vía NexConnect
+                </Button>
+              )}
+              {canRefresh && (
+                <Button size="sm" variant="outline" onClick={handleRefreshStatus} disabled={!!actionLoading}>
+                  {actionLoading === 'refresh' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  Actualizar estado
+                </Button>
+              )}
+            </div>
+          </div>
+          {emittedViaNexConnect && !invoice.is_final && (
+            <p className="mt-2 text-xs text-blue-900/80">
+              <Clock className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+              NexConnect avisa automáticamente cuando la DGII responde; «Actualizar estado» consulta ahora mismo.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+      ) : (
       <Card className="mb-6 border-blue-200 bg-blue-50/50 shadow-sm">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -339,6 +517,7 @@ export default function InvoiceDetailPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <div className="grid grid-cols-3 gap-6">
         {/* Left: Invoice Details */}
@@ -432,7 +611,9 @@ export default function InvoiceDetailPage() {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-semibold text-slate-900">XML del e-CF</CardTitle>
+                  <CardTitle className="text-base font-semibold text-slate-900">
+                    {emittedViaNexConnect ? 'XML firmado por NexConnect' : 'XML del e-CF'}
+                  </CardTitle>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setShowXML(!showXML)}>
                       <FileCode className="mr-2 h-4 w-4" />
@@ -490,7 +671,7 @@ export default function InvoiceDetailPage() {
                   {PAYMENT_METHOD_LABELS[invoice.payment_method as PaymentMethod] || invoice.payment_method}
                 </p>
               </div>
-              {invoice.security_code && (
+              {invoice.security_code && !emittedViaNexConnect && (
                 <div>
                   <p className="text-xs text-slate-500">Código Seguridad</p>
                   <p className="text-sm font-mono font-medium text-slate-900">{invoice.security_code}</p>
@@ -505,8 +686,58 @@ export default function InvoiceDetailPage() {
             </CardContent>
           </Card>
 
+          {/* NexConnect / DGII Status */}
+          {emittedViaNexConnect && (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="border-b border-slate-200">
+                <CardTitle className="text-sm font-semibold text-slate-700">e-CF en NexConnect</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3">
+                <div>
+                  <p className="text-xs text-slate-500">e-NCF</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-mono font-medium text-slate-900">{invoice.encf_number || '—'}</p>
+                    {invoice.encf_number && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-1.5"
+                        onClick={() => copyToClipboard(invoice.encf_number!)}
+                        aria-label="Copiar e-NCF"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Código de seguridad</p>
+                  <p className="text-sm font-mono font-medium text-slate-900">{invoice.security_code || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Estado</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {NEXCONNECT_STATUS_LABELS[invoice.dgii_status] || invoice.dgii_status || 'Pendiente'}
+                  </p>
+                </div>
+                {invoice.dgii_trackid && (
+                  <div>
+                    <p className="text-xs text-slate-500">TrackId DGII</p>
+                    <p className="text-sm font-mono text-slate-900 break-all">{invoice.dgii_trackid}</p>
+                  </div>
+                )}
+                {invoice.dgii_submitted_at && (
+                  <div>
+                    <p className="text-xs text-slate-500">Emitido</p>
+                    <p className="text-sm text-slate-700">{formatDateTime(invoice.dgii_submitted_at)}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* DGII Status */}
-          {invoice.dgii_trackid && (
+          {invoice.dgii_trackid && !emittedViaNexConnect && (
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-200">
                 <CardTitle className="text-sm font-semibold text-slate-700">Estado DGII</CardTitle>
@@ -542,18 +773,14 @@ export default function InvoiceDetailPage() {
                 <div className="space-y-3">
                   {submissions.map((sub) => (
                     <div key={sub.id} className="border-l-2 border-slate-200 pl-3">
-                      <p className="text-xs font-medium text-slate-900">{sub.action_display}</p>
+                      <p className="text-xs font-medium text-slate-900">
+                        {(emittedViaNexConnect && SUBMISSION_ACTION_LABELS[sub.action]) || sub.action_display}
+                      </p>
                       <p className="text-xs text-slate-600">{sub.environment_display}</p>
                       <p className="text-xs text-slate-500">{formatDateTime(sub.submitted_at)}</p>
                       {sub.response_status && (
-                        <span className={`
-                          inline-block mt-1 text-xs px-2 py-0.5 rounded-full
-                          ${sub.response_status === 'aceptado' ? 'bg-green-100 text-green-700' : ''}
-                          ${sub.response_status === 'rechazado' ? 'bg-red-100 text-red-700' : ''}
-                          ${sub.response_status === 'error' ? 'bg-red-100 text-red-700' : ''}
-                          ${!['aceptado', 'rechazado', 'error'].includes(sub.response_status) ? 'bg-slate-100 text-slate-700' : ''}
-                        `}>
-                          {sub.response_status}
+                        <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${submissionStatusClass(sub.response_status)}`}>
+                          {(emittedViaNexConnect && NEXCONNECT_STATUS_LABELS[sub.response_status]) || sub.response_status}
                         </span>
                       )}
                       {sub.error_message && (
