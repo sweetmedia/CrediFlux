@@ -15,13 +15,32 @@ from .serializers import (
     DigitalCertificateSerializer, DigitalCertificateUploadSerializer,
     FiscalSequenceSerializer,
     InvoiceListSerializer, InvoiceDetailSerializer, InvoiceCreateSerializer,
-    ECFSubmissionSerializer,
+    ECFSubmissionSerializer, ECFProviderConfigSerializer,
 )
 from .services.ecf_generator import ECFGenerator
 from .services.ecf_signer import ECFSigner, ECFSignerError
 from .services.dgii_client import DGIIClient, DGIIClientError
+from .services.ecf_provider import (
+    ECFProviderError, current_tenant, get_ecf_provider, tenant_provider_key,
+)
+from .services.nexconnect.provider import PROVIDER_KEY as NEXCONNECT, nexconnect_invoice_id
 
 logger = logging.getLogger(__name__)
+
+
+def provider_error_status(error: ECFProviderError) -> int:
+    """502 si NexConnect no respondió o falló (5xx); 400 para lo demás."""
+    from .services.nexconnect.client import NexConnectError
+    cause = error.__cause__
+    if isinstance(cause, NexConnectError) and (cause.status_code is None or cause.status_code >= 500):
+        return status.HTTP_502_BAD_GATEWAY
+    return status.HTTP_400_BAD_REQUEST
+
+
+NEXCONNECT_DIRECT_FLOW_ERROR = (
+    'Este tenant emite sus e-CF vía NexConnect: use "Emitir vía NexConnect" '
+    '(POST /api/billing/invoices/{id}/emit/). NexConnect asigna el e-NCF, firma y envía a la DGII.'
+)
 
 
 class DigitalCertificateViewSet(viewsets.ModelViewSet):
@@ -45,13 +64,22 @@ class FiscalSequenceViewSet(viewsets.ModelViewSet):
 class InvoiceViewSet(viewsets.ModelViewSet):
     """
     CRUD de facturas electrónicas con acciones para:
-    - Generar XML (e-CF)
-    - Firmar digitalmente
-    - Enviar a DGII
-    - Consultar estado en DGII
+    - Flujo directo (certificado propio): generar XML, firmar, enviar a DGII,
+      consultar estado en DGII.
+    - Flujo NexConnect (``tenant.ecf_provider == 'nexconnect'``): emitir y
+      actualizar estado. El flujo directo queda bloqueado para esos tenants.
     """
     queryset = Invoice.objects.all()
     permission_classes = [IsAuthenticated]
+
+    def _refuse_direct_flow(self):
+        """Respuesta 400 si el tenant emite vía NexConnect; None si puede usar el flujo directo."""
+        if tenant_provider_key(current_tenant()) == NEXCONNECT:
+            return Response(
+                {'error': NEXCONNECT_DIRECT_FLOW_ERROR, 'code': 'provider_nexconnect'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return None
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -69,6 +97,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         Genera el XML del e-CF para una factura.
         Asigna e-NCF de la secuencia activa.
         """
+        refused = self._refuse_direct_flow()
+        if refused:
+            return refused
+
         invoice = self.get_object()
 
         if invoice.status not in ('draft',):
@@ -127,6 +159,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='sign')
     def sign_ecf(self, request, pk=None):
         """Firma digitalmente el XML del e-CF."""
+        refused = self._refuse_direct_flow()
+        if refused:
+            return refused
+
         invoice = self.get_object()
 
         if invoice.status != 'generated':
@@ -171,6 +207,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='submit-dgii')
     def submit_to_dgii(self, request, pk=None):
         """Envía el e-CF firmado a la DGII."""
+        refused = self._refuse_direct_flow()
+        if refused:
+            return refused
+
         invoice = self.get_object()
 
         if invoice.status != 'signed':
@@ -215,6 +255,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         """Consulta el estado de un e-CF en la DGII."""
         invoice = self.get_object()
 
+        if nexconnect_invoice_id(invoice):
+            return Response(
+                {'error': 'Esta factura se emitió vía NexConnect: use "Actualizar estado" '
+                          '(POST /api/billing/invoices/{id}/refresh-status/).',
+                 'code': 'provider_nexconnect'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if not invoice.dgii_trackid:
             return Response(
                 {'error': 'Esta factura no ha sido enviada a la DGII'},
@@ -247,6 +295,57 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_502_BAD_GATEWAY
             )
 
+    @action(detail=True, methods=['post'])
+    def emit(self, request, pk=None):
+        """
+        Emite la factura vía NexConnect (un solo paso): NexConnect asigna el
+        e-NCF, firma y envía a la DGII en segundo plano. El estado final llega
+        por webhook o con ``refresh-status``.
+        """
+        invoice = self.get_object()
+        tenant = current_tenant()
+        if tenant_provider_key(tenant) != NEXCONNECT:
+            return Response(
+                {'error': 'La emisión en un paso es solo para tenants con NexConnect; '
+                          'use el flujo Generar XML → Firmar → Enviar a DGII.',
+                 'code': 'provider_not_nexconnect'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = get_ecf_provider(tenant).submit_invoice(invoice)
+        except ECFProviderError as e:
+            return Response({'error': str(e)}, status=provider_error_status(e))
+
+        return Response({
+            'message': result.get('message'),
+            'status': result.get('status'),
+            'ncf': result.get('ncf'),
+            'invoice': InvoiceDetailSerializer(invoice, context={'tenant': tenant}).data,
+        })
+
+    @action(detail=True, methods=['post'], url_path='refresh-status')
+    def refresh_status(self, request, pk=None):
+        """Consulta a NexConnect el estado de una factura emitida por NexConnect."""
+        invoice = self.get_object()
+        tenant = current_tenant()
+        if not nexconnect_invoice_id(invoice):
+            return Response(
+                {'error': 'La factura no ha sido emitida vía NexConnect'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = get_ecf_provider(tenant).query_status(invoice)
+        except ECFProviderError as e:
+            return Response({'error': str(e)}, status=provider_error_status(e))
+
+        return Response({
+            'status': result.get('status'),
+            'is_final': result.get('is_final'),
+            'invoice': InvoiceDetailSerializer(invoice, context={'tenant': tenant}).data,
+        })
+
     @action(detail=True, methods=['get'])
     def submissions(self, request, pk=None):
         """Lista el historial de envíos a DGII de una factura."""
@@ -269,13 +368,39 @@ class ECFProviderViewSet(viewsets.ViewSet):
     """
     permission_classes = [IsAuthenticated]
 
+    @action(detail=False, methods=['get', 'patch'], url_path='config')
+    def config(self, request):
+        """
+        GET: proveedor, ambiente y si hay API key (la key nunca se devuelve).
+        PATCH: ``ecf_provider``, ``dgii_environment``, ``api_key`` (solo escritura,
+        se guarda cifrada) o ``clear_api_key``. Solo dueño/admin del tenant.
+        """
+        tenant = current_tenant()
+        if tenant is None:
+            return Response({'error': 'No se pudo determinar el tenant'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if request.method == 'GET':
+            return Response(ECFProviderConfigSerializer(tenant).data)
+
+        user = request.user
+        if not (getattr(user, 'is_tenant_owner', False) or getattr(user, 'role', None) == 'admin'
+                or user.is_superuser):
+            return Response(
+                {'error': 'Solo el dueño o un administrador puede cambiar la facturación electrónica.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = ECFProviderConfigSerializer(tenant, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'], url_path='status')
     def provider_status(self, request):
-        """Test connection to the configured e-CF provider."""
-        from .services.ecf_provider import get_ecf_provider, ECFProviderError
-
+        """Prueba la conexión con el proveedor e-CF del tenant."""
         try:
-            provider = get_ecf_provider()
+            provider = get_ecf_provider(current_tenant())
             result = provider.test_connection()
             return Response(result)
         except ECFProviderError as e:

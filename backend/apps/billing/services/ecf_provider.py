@@ -517,6 +517,16 @@ ECF_PROVIDER_CHOICES = [
 ]
 
 
+def current_tenant():
+    """Tenant de la petición (django-tenants lo deja en la conexión)."""
+    return getattr(connection, 'tenant', None)
+
+
+def tenant_provider_key(tenant) -> str:
+    """Clave del proveedor e-CF del tenant (NexConnect si no tiene uno)."""
+    return getattr(tenant, 'ecf_provider', None) or DEFAULT_ECF_PROVIDER
+
+
 def get_ecf_provider(tenant=None) -> ECFProvider:
     """
     Factory function — returns the configured e-CF provider for the tenant.
@@ -527,7 +537,7 @@ def get_ecf_provider(tenant=None) -> ECFProvider:
     if tenant is None:
         tenant = connection.tenant
 
-    provider_key = getattr(tenant, 'ecf_provider', None) or DEFAULT_ECF_PROVIDER
+    provider_key = tenant_provider_key(tenant)
 
     if provider_key == 'none':
         raise ECFProviderError('Facturación electrónica no está habilitada para este tenant')
