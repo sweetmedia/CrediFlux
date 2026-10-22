@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from '@/lib/navigation';
 import { authAPI } from '@/lib/api/auth';
-import { User, Tenant, LoginCredentials, TenantLoginResponse, TwoFactorLoginRequired } from '@/types';
+import { User, Tenant, LoginCredentials, TenantLoginResponse, AuthResponse, TwoFactorLoginRequired } from '@/types';
 
 interface AuthContextType {
   user: User | null;
@@ -9,7 +9,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<TenantLoginResponse | TwoFactorLoginRequired>;
-  complete2FALogin: (code: string, tempToken: string, useBackupCode?: boolean) => Promise<TenantLoginResponse>;
+  complete2FALogin: (code: string, tempToken: string, useBackupCode?: boolean) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   refreshTenant: () => Promise<void>;
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const handle2FALogin = async (code: string, tempToken: string, useBackupCode: boolean = false): Promise<TenantLoginResponse> => {
+  const handle2FALogin = async (code: string, tempToken: string, useBackupCode: boolean = false): Promise<AuthResponse> => {
     try {
       const response = await authAPI.verify2FALogin(code, tempToken, useBackupCode);
 

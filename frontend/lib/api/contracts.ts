@@ -64,6 +64,7 @@ export const contractTemplatesAPI = {
   // Get all contract templates
   async getTemplates(params?: {
     page?: number;
+    page_size?: number;
     search?: string;
     is_active?: boolean;
     is_default?: boolean;

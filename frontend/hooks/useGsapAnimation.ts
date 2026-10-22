@@ -46,7 +46,7 @@ const animationConfigs: Record<AnimationType, { from: object; to: object }> = {
 export function useGsapAnimation<T extends HTMLElement>(
   type: AnimationType = 'fadeInUp',
   options: AnimationOptions = {}
-): RefObject<T> {
+): RefObject<T | null> {
   const ref = useRef<T>(null);
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export function useGsapAnimation<T extends HTMLElement>(
 export function useGsapStagger<T extends HTMLElement>(
   type: AnimationType = 'fadeInUp',
   options: AnimationOptions = {}
-): RefObject<T> {
+): RefObject<T | null> {
   const containerRef = useRef<T>(null);
 
   useEffect(() => {
