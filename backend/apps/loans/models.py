@@ -337,7 +337,7 @@ class Loan(UUIDModel, AuditModel):
     )
 
     # Dates
-    application_date = models.DateField(default=timezone.now)
+    application_date = models.DateField(default=timezone.localdate)  # date, no datetime
     approval_date = models.DateField(blank=True, null=True)
     rejection_date = models.DateField(blank=True, null=True)
     disbursement_date = models.DateField(blank=True, null=True)
@@ -596,7 +596,7 @@ class LoanPayment(UUIDModel, AuditModel):
     )
 
     # Payment Details
-    payment_date = models.DateField(default=timezone.now)
+    payment_date = models.DateField(default=timezone.localdate)  # date, no datetime
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,

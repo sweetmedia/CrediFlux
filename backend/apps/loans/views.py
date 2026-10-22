@@ -28,7 +28,7 @@ from .serializers import (
     LoanCalculatorInputSerializer, LoanCalculatorResultSerializer,
     GuarantorSerializer, GuarantorListSerializer,
 )
-from .permissions import CanApproveLoan, CanManageLoans
+from .permissions import CanApproveLoan, CanManageLoans, CanRegisterPayments
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -843,7 +843,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'head', 'options']
     queryset = LoanPayment.objects.select_related('loan', 'schedule').all()
     serializer_class = LoanPaymentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanRegisterPayments]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'payment_method', 'loan']
     search_fields = ['payment_number', 'reference_number', 'loan__loan_number']

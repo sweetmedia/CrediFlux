@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from celery import shared_task
+from django.core.management import call_command
 from django.db.models import Q
 from django_tenants.utils import schema_context
 
@@ -14,6 +15,24 @@ from .models import LoanSchedule, Loan
 from .utils_whatsapp import get_whatsapp_service
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(name='loans.calculate_late_fees')
+def calculate_late_fees():
+    """
+    Tarea diaria: recalcula la mora de las cuotas vencidas en cada tenant
+    (comando `calculate_late_fees`; reglas en apps.loans.late_fees).
+    Un tenant que falla no detiene a los demás.
+    """
+    processed, failed = [], []
+    for tenant in Tenant.objects.exclude(schema_name='public'):
+        try:
+            call_command('calculate_late_fees', tenant=tenant.schema_name)
+            processed.append(tenant.schema_name)
+        except Exception:
+            logger.exception("Error calculando mora del tenant %s", tenant.schema_name)
+            failed.append(tenant.schema_name)
+    return {'processed': processed, 'failed': failed}
 
 
 @shared_task(name='loans.send_payment_reminders')

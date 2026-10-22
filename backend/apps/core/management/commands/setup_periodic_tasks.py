@@ -59,6 +59,30 @@ class Command(BaseCommand):
                 self.style.WARNING('  Updated existing task: Update RNC Database from DGII')
             )
 
+        # Daily late-fee calculation (mora) — 00:30 Santo Domingo
+        daily_schedule, _ = CrontabSchedule.objects.get_or_create(
+            minute='30',
+            hour='0',
+            day_of_week='*',
+            day_of_month='*',
+            month_of_year='*',
+            timezone='America/Santo_Domingo'
+        )
+        late_fee_task, created = PeriodicTask.objects.update_or_create(
+            name='Calculate late fees (mora)',
+            defaults={
+                'task': 'loans.calculate_late_fees',
+                'crontab': daily_schedule,
+                'enabled': True,
+                'description': 'Recalcula la mora de las cuotas vencidas en todos los tenants (diario 00:30)',
+            }
+        )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'✓ {"Created" if created else "Updated"} periodic task: {late_fee_task.name} (daily 00:30)'
+            )
+        )
+
         # Show summary
         self.stdout.write('\n' + '='*60)
         self.stdout.write('Periodic Tasks Summary:')
