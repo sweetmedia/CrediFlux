@@ -644,6 +644,17 @@ class LoanPayment(UUIDModel, AuditModel):
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
 
+    # Reverso / anulación (traza obligatoria; el detalle completo va en AuditLog)
+    reversed_at = models.DateTimeField(blank=True, null=True)
+    reversed_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reversed_payments',
+    )
+    reversal_reason = models.TextField(blank=True, default='')
+
     notes = models.TextField(blank=True, null=True)
     receipt = models.FileField(upload_to='payment_receipts/', blank=True, null=True)
 

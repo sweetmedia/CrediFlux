@@ -130,7 +130,9 @@ def test_reverso_con_la_caja_aun_abierta_saca_el_efectivo(auth_client, active_lo
 
     _pay(auth_client, active_loan)
     payment = LoanPayment.objects.get(loan=active_loan)
-    assert auth_client.post(f"/api/loans/payments/{payment.id}/reverse/").status_code == 200
+    assert auth_client.post(
+        f"/api/loans/payments/{payment.id}/reverse/", {"reason": "Error de cobro"}, format="json"
+    ).status_code == 200
 
     refund = CashMovement.objects.get(movement_type="outflow")
     assert refund.category == "refund"

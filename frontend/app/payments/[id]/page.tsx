@@ -75,14 +75,17 @@ export default function PaymentDetailPage() {
   };
 
   const handleReversePayment = async () => {
-    if (!confirm('¿Estás seguro de que deseas revertir este pago? Esta acción no se puede deshacer.')) {
+    const reason = prompt(
+      'Vas a revertir este pago. Esta acción no se puede deshacer.\n\nIndica el motivo del reverso:'
+    )?.trim();
+    if (!reason) {
       return;
     }
 
     try {
       setIsProcessing(true);
       setError('');
-      await paymentsAPI.reversePayment(paymentId);
+      await paymentsAPI.reversePayment(paymentId, reason);
       await loadPayment(); // Reload payment details
     } catch (err: any) {
       console.error('Error reversing payment:', err);

@@ -341,9 +341,13 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
             'interest_paid', 'late_fee_paid', 'payment_method',
             'reference_number', 'status', 'notes', 'receipt',
             'loan_status', 'loan_principal_amount', 'loan_outstanding_balance', 'loan_total_paid',
+            'reversed_at', 'reversed_by', 'reversal_reason',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'payment_number', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'payment_number', 'reversed_at', 'reversed_by', 'reversal_reason',
+            'created_at', 'updated_at',
+        ]
 
     def get_loan(self, obj):
         """Return loan UUID as string"""
@@ -352,6 +356,16 @@ class LoanPaymentSerializer(serializers.ModelSerializer):
     def get_schedule(self, obj):
         """Return schedule UUID as string"""
         return str(obj.schedule.id) if obj.schedule else None
+
+
+def _paid_on_schedule(schedule, field):
+    """Lo ya cobrado de un componente (interest_paid / principal_paid) en una cuota."""
+    from decimal import Decimal
+
+    return sum(
+        (getattr(p, field).amount for p in schedule.payments.filter(status='completed')),
+        Decimal('0'),
+    )
 
 
 class LoanPaymentCreateSerializer(serializers.ModelSerializer):
@@ -411,19 +425,13 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
                 remaining_payment -= late_fee_payment
 
             # STEP 2: Pay interest
-            interest_balance = schedule.interest_amount.amount - (
-                schedule.paid_amount.amount * (schedule.interest_amount.amount / schedule.total_amount.amount)
-                if schedule.paid_amount and schedule.total_amount.amount > 0 else Decimal('0')
-            )
+            interest_balance = schedule.interest_amount.amount - _paid_on_schedule(schedule, 'interest_paid')
             if interest_balance > 0 and remaining_payment > 0:
                 interest_payment = min(remaining_payment, interest_balance)
                 remaining_payment -= interest_payment
 
             # STEP 3: Pay principal
-            principal_balance = schedule.principal_amount.amount - (
-                schedule.paid_amount.amount * (schedule.principal_amount.amount / schedule.total_amount.amount)
-                if schedule.paid_amount and schedule.total_amount.amount > 0 else Decimal('0')
-            )
+            principal_balance = schedule.principal_amount.amount - _paid_on_schedule(schedule, 'principal_paid')
             if principal_balance > 0 and remaining_payment > 0:
                 principal_payment = min(remaining_payment, principal_balance)
                 remaining_payment -= principal_payment
@@ -432,16 +440,15 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
             if remaining_payment > 0:
                 principal_payment += remaining_payment
         else:
-            # No schedule specified - find the oldest overdue schedule and apply payment there
-            from django.utils import timezone
-
+            # No schedule specified - apply to the oldest unpaid schedule (overdue
+            # first; if nothing is overdue, the next one due). Es la misma cuota
+            # a la que la conciliación aplica el pago (signals.py).
             oldest_overdue = loan.payment_schedules.filter(
-                due_date__lt=timezone.now().date(),
                 status__in=['pending', 'overdue', 'partial']
-            ).order_by('due_date').first()
+            ).order_by('due_date', 'installment_number').first()
 
             if oldest_overdue:
-                # Apply payment to the oldest overdue schedule with late fees
+                # Apply payment to that schedule with late fees
                 # STEP 1: Pay late fees first
                 late_fee_balance = oldest_overdue.late_fee_amount.amount - oldest_overdue.late_fee_paid.amount
                 if late_fee_balance > 0 and remaining_payment > 0:
@@ -449,19 +456,13 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
                     remaining_payment -= late_fee_payment
 
                 # STEP 2: Pay interest for this schedule
-                interest_balance = oldest_overdue.interest_amount.amount - (
-                    oldest_overdue.paid_amount.amount * (oldest_overdue.interest_amount.amount / oldest_overdue.total_amount.amount)
-                    if oldest_overdue.paid_amount and oldest_overdue.total_amount.amount > 0 else Decimal('0')
-                )
+                interest_balance = oldest_overdue.interest_amount.amount - _paid_on_schedule(oldest_overdue, 'interest_paid')
                 if interest_balance > 0 and remaining_payment > 0:
                     interest_payment = min(remaining_payment, interest_balance)
                     remaining_payment -= interest_payment
 
                 # STEP 3: Pay principal for this schedule
-                principal_balance = oldest_overdue.principal_amount.amount - (
-                    oldest_overdue.paid_amount.amount * (oldest_overdue.principal_amount.amount / oldest_overdue.total_amount.amount)
-                    if oldest_overdue.paid_amount and oldest_overdue.total_amount.amount > 0 else Decimal('0')
-                )
+                principal_balance = oldest_overdue.principal_amount.amount - _paid_on_schedule(oldest_overdue, 'principal_paid')
                 if principal_balance > 0 and remaining_payment > 0:
                     principal_payment = min(remaining_payment, principal_balance)
                     remaining_payment -= principal_payment
@@ -473,12 +474,25 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
                 if remaining_payment > 0:
                     principal_payment += remaining_payment
             else:
-                # No overdue schedules - apply to loan balances generically
+                # No unpaid schedules - apply to loan balances generically
                 late_fee_payment = Decimal('0')
 
-                # STEP 2: Pay interest based on MONTHLY rate
-                monthly_rate = loan.interest_rate / Decimal('100')
-                interest_due = loan.outstanding_balance.amount * monthly_rate
+                # STEP 2: Interest for one period on the PENDING PRINCIPAL.
+                # Nunca sobre outstanding_balance: incluye intereses futuros.
+                # Con el cronograma ya saldado, no queda interés por cobrar.
+                if loan.payment_schedules.exists():
+                    interest_due = Decimal('0')
+                else:
+                    from .amortization import period_rate
+
+                    principal_paid = sum(
+                        (p.principal_paid.amount for p in loan.payments.filter(status='completed')),
+                        Decimal('0'),
+                    )
+                    pending_principal = max(loan.principal_amount.amount - principal_paid, Decimal('0'))
+                    interest_due = (
+                        pending_principal * period_rate(loan.interest_rate, loan.payment_frequency)
+                    ).quantize(Decimal('0.01'))
 
                 if remaining_payment >= interest_due:
                     interest_payment = interest_due

@@ -961,9 +961,35 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
         return Response(response_data)
 
+    def _log_void(self, request, payment, old_status, reason, **extra):
+        """Traza de anulación/reverso en AuditLog (falla junto con la operación)."""
+        from apps.audit.middleware import get_client_ip, get_user_agent
+        from apps.audit.models import AuditLog
+
+        AuditLog.log(
+            tenant=request.tenant,
+            user=request.user,
+            action='payment_void',
+            model_name='LoanPayment',
+            object_id=payment.id,
+            object_repr=str(payment),
+            changes={'status': {'old': old_status, 'new': payment.status}},
+            ip_address=get_client_ip(request),
+            user_agent=get_user_agent(request),
+            extra_data={
+                'reason': reason,
+                'payment_number': payment.payment_number,
+                'loan_number': payment.loan.loan_number,
+                'amount': str(payment.amount.amount),
+                'currency': payment.amount.currency.code,
+                'payment_method': payment.payment_method,
+                **extra,
+            },
+        )
+
     @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def cancel(self, request, pk=None):
-        """Cancel a pending payment"""
+        """Cancel a pending payment (`reason` opcional, queda en AuditLog)."""
         payment = self.get_object()
 
         if payment.status not in ['pending']:
@@ -972,8 +998,11 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        payment.status = 'cancelled'
-        payment.save(update_fields=['status', 'updated_at'])
+        reason = (request.data.get('reason') or '').strip()
+        with transaction.atomic():
+            payment.status = 'cancelled'
+            payment.save(update_fields=['status', 'updated_at'])
+            self._log_void(request, payment, 'pending', reason)
 
         return Response({'message': 'Pago cancelado'})
 
@@ -982,6 +1011,8 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         """
         Reverse a completed payment.
         This will reverse the updates made to loan and schedule.
+
+        Exige `reason`; guarda quién, cuándo y por qué en el pago y en AuditLog.
         """
         from .signals import reconcile_loan_from_payments
 
@@ -1005,6 +1036,13 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return Response(
+                {'error': 'Indica el motivo del reverso'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         from apps.cashbox.services import record_payment_reversal
 
         loan = payment.loan
@@ -1012,10 +1050,19 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         # Mark payment as reversed, then rebuild the loan state from remaining completed payments
         with transaction.atomic():
             payment.status = 'reversed'
-            payment.save(update_fields=['status', 'updated_at'])
+            payment.reversed_at = timezone.now()
+            payment.reversed_by = request.user
+            payment.reversal_reason = reason
+            payment.save(update_fields=[
+                'status', 'reversed_at', 'reversed_by', 'reversal_reason', 'updated_at',
+            ])
 
             reconcile_loan_from_payments(loan)
-            record_payment_reversal(payment, request.user)
+            refunds = record_payment_reversal(payment, request.user)
+            self._log_void(
+                request, payment, 'completed', reason,
+                cash_refund_movements=[str(m.id) for m in refunds],
+            )
 
         return Response({'message': 'Pago reversado exitosamente'})
 

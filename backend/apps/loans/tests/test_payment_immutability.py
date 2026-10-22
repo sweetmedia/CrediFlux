@@ -75,18 +75,67 @@ def test_cancelar_pago_pendiente_usa_un_estado_valido(auth_client, active_loan, 
 
 
 def test_el_reverso_sigue_siendo_la_via_para_anular_un_pago(auth_client, payment):
-    response = auth_client.post(_url(payment, "reverse/"))
+    response = auth_client.post(_url(payment, "reverse/"), {"reason": "Pago duplicado"}, format="json")
 
     assert response.status_code == 200, response.content
     payment.refresh_from_db()
     assert payment.status == "reversed"
 
 
+@pytest.mark.parametrize("body", [{}, {"reason": ""}, {"reason": "   "}])
+def test_el_reverso_exige_motivo(auth_client, payment, body):
+    response = auth_client.post(_url(payment, "reverse/"), body, format="json")
+
+    assert response.status_code == 400
+    payment.refresh_from_db()
+    assert payment.status == "completed"
+
+
+def test_el_reverso_deja_traza_en_el_pago_y_en_auditoria(auth_client, payment, tenant):
+    from apps.audit.models import AuditLog
+
+    response = auth_client.post(
+        _url(payment, "reverse/"), {"reason": "Cliente pagó dos veces"}, format="json"
+    )
+    assert response.status_code == 200, response.content
+
+    payment.refresh_from_db()
+    assert payment.reversal_reason == "Cliente pagó dos veces"
+    assert payment.reversed_by == auth_client.user
+    assert payment.reversed_at is not None
+    detail = auth_client.get(_url(payment)).json()
+    assert detail["reversal_reason"] == "Cliente pagó dos veces"
+
+    log = AuditLog.objects.get(action="payment_void", object_id=str(payment.id))
+    assert log.tenant == tenant
+    assert log.user == auth_client.user
+    assert log.model_name == "LoanPayment"
+    assert log.changes == {"status": {"old": "completed", "new": "reversed"}}
+    assert log.extra_data["reason"] == "Cliente pagó dos veces"
+    assert log.extra_data["amount"] == "500.00"
+    assert log.extra_data["loan_number"] == payment.loan.loan_number
+
+
+def test_cancelar_deja_traza_en_auditoria(auth_client, active_loan, admin_user):
+    from apps.audit.models import AuditLog
+    from apps.loans.models import LoanPayment
+
+    pending = LoanPayment.objects.create(
+        loan=active_loan, amount=Money(Decimal("300.00"), "DOP"),
+        payment_method="check", status="pending", created_by=admin_user,
+    )
+    auth_client.post(_url(pending, "cancel/"), {"reason": "Cheque devuelto"}, format="json")
+
+    log = AuditLog.objects.get(action="payment_void", object_id=str(pending.id))
+    assert log.changes == {"status": {"old": "pending", "new": "cancelled"}}
+    assert log.extra_data["reason"] == "Cheque devuelto"
+
+
 def test_el_reverso_exige_dueno_del_tenant(api_client, user_factory, payment):
     manager = user_factory(role="manager")
     api_client.force_authenticate(user=manager)
 
-    response = api_client.post(_url(payment, "reverse/"))
+    response = api_client.post(_url(payment, "reverse/"), {"reason": "x"}, format="json")
 
     assert response.status_code == 403
     payment.refresh_from_db()
