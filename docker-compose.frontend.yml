@@ -1,7 +1,8 @@
 # CrediFlux Frontend Docker Compose
 # Deploy: docker compose -f docker-compose.frontend.yml up -d --build
 #
-# The frontend connects to the backend at NEXT_PUBLIC_API_URL
+# SPA estática (Vite) servida por nginx. VITE_API_URL se incrusta en el
+# bundle en tiempo de build: cambiarlo exige reconstruir la imagen.
 # Backend should already be running on port 8600
 
 services:
@@ -10,14 +11,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://10.0.0.93:8600
+        VITE_API_URL: http://10.0.0.93:8600
+        VITE_APP_URL: http://10.0.0.93:3600
     container_name: crediflux-frontend
     restart: unless-stopped
     ports:
       - "3600:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://10.0.0.93:8600
     networks:
       - proxy_network
     labels:
