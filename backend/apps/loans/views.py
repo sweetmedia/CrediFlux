@@ -28,7 +28,7 @@ from .serializers import (
     LoanCalculatorInputSerializer, LoanCalculatorResultSerializer,
     GuarantorSerializer, GuarantorListSerializer,
 )
-from .permissions import CanApproveLoan, CanManageLoans
+from .permissions import CanApproveLoan, CanManageLoans, CanRegisterPayments
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -306,6 +306,20 @@ class LoanViewSet(viewsets.ModelViewSet):
             return LoanCreateSerializer
         return LoanSerializer
 
+    @staticmethod
+    def _calculate_payment_amount(loan):
+        from moneyed import Money
+        from .amortization import build_installments, number_of_payments
+
+        _, payment, _ = build_installments(
+            loan.principal_amount.amount,
+            loan.interest_rate,
+            number_of_payments(loan.term_months, loan.payment_frequency),
+            loan.payment_frequency,
+            loan.interest_type,
+        )
+        return Money(payment, loan.principal_amount.currency)
+
     def _get_default_contract_template(self, loan):
         from .models_contracts import ContractTemplate
 
@@ -346,6 +360,9 @@ class LoanViewSet(viewsets.ModelViewSet):
 
             # Set outstanding balance to principal amount
             loan.outstanding_balance = loan.principal_amount
+            # La cuota del contrato sale del mismo cálculo que el cronograma,
+            # nunca del valor que envía el cliente.
+            loan.payment_amount = self._calculate_payment_amount(loan)
             loan.save()
 
             self._generate_initial_contract(loan)
@@ -382,8 +399,23 @@ class LoanViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
     def disburse(self, request, pk=None):
-        """Disburse a loan (mark as active)"""
+        """
+        Disburse a loan (mark as active).
+
+        `disbursement_method` (opcional): con 'cash' el desembolso sale de la caja
+        abierta y se registra el egreso; sin caja abierta se rechaza. Cualquier
+        otro método (o ninguno) no toca la caja.
+        """
+        from apps.cashbox.services import find_open_session, record_disbursement_outflow
+
         loan = self.get_object()
+        disbursement_method = request.data.get('disbursement_method')
+        valid_methods = {value for value, _ in LoanPayment.PAYMENT_METHOD_CHOICES}
+        if disbursement_method and disbursement_method not in valid_methods:
+            return Response(
+                {'error': f'Método de desembolso inválido: {disbursement_method}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if loan.status != 'approved':
             return Response(
@@ -408,17 +440,30 @@ class LoanViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        loan.status = 'active'
-        loan.disbursement_date = timezone.now().date()
-        loan.outstanding_balance = loan.principal_amount
-        loan.save()
+        with transaction.atomic():
+            cash_session = None
+            if disbursement_method == 'cash':
+                cash_session = find_open_session(request.user)
+                if cash_session is None:
+                    return Response(
+                        {'error': 'No hay una caja abierta para desembolsar en efectivo.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-        if contract.status != 'active':
-            contract.status = 'active'
-            contract.save(update_fields=['status', 'updated_at'])
+            loan.status = 'active'
+            loan.disbursement_date = timezone.now().date()
+            loan.outstanding_balance = loan.principal_amount
+            loan.save()
 
-        # Generate payment schedule
-        self._generate_payment_schedule(loan)
+            if contract.status != 'active':
+                contract.status = 'active'
+                contract.save(update_fields=['status', 'updated_at'])
+
+            # Generate payment schedule
+            self._generate_payment_schedule(loan)
+
+            if cash_session:
+                record_disbursement_outflow(loan, request.user, cash_session)
 
         return Response({'status': 'loan disbursed', 'contract_id': str(contract.id)})
 
@@ -737,12 +782,14 @@ class LoanViewSet(viewsets.ModelViewSet):
         })
 
     def _generate_payment_schedule(self, loan):
-        """Generate payment schedule for a loan"""
+        """
+        Genera el cronograma con el mismo cálculo que la calculadora
+        (`apps.loans.amortization`): tasa MENSUAL, período = mes / divisor.
+        """
         from dateutil.relativedelta import relativedelta
         from moneyed import Money
-        from decimal import Decimal
+        from .amortization import build_installments, number_of_payments
 
-        # Calculate period based on payment frequency
         frequency_map = {
             'daily': {'days': 1},
             'weekly': {'weeks': 1},
@@ -750,257 +797,53 @@ class LoanViewSet(viewsets.ModelViewSet):
             'monthly': {'months': 1},
             'quarterly': {'months': 3},
         }
-
         period_delta = frequency_map.get(loan.payment_frequency, {'months': 1})
+        currency = loan.principal_amount.currency
 
-        # Calculate number of payments
-        if loan.payment_frequency == 'monthly':
-            num_payments = loan.term_months
-        elif loan.payment_frequency == 'quarterly':
-            num_payments = loan.term_months // 3
-        elif loan.payment_frequency == 'weekly':
-            num_payments = loan.term_months * 4
-        elif loan.payment_frequency == 'biweekly':
-            num_payments = loan.term_months * 2
-        elif loan.payment_frequency == 'daily':
-            num_payments = loan.term_months * 30
-        else:
-            num_payments = loan.term_months
+        num_payments = number_of_payments(loan.term_months, loan.payment_frequency)
+        rows, _, _ = build_installments(
+            loan.principal_amount.amount,
+            loan.interest_rate,
+            num_payments,
+            loan.payment_frequency,
+            getattr(loan, 'interest_type', 'fixed'),
+        )
 
         current_date = loan.first_payment_date or loan.disbursement_date
         schedules = []
+        for i, row in enumerate(rows, start=1):
+            schedules.append(LoanSchedule.objects.create(
+                loan=loan,
+                installment_number=i,
+                due_date=current_date,
+                total_amount=Money(row['payment'], currency),
+                principal_amount=Money(row['principal'], currency),
+                interest_amount=Money(row['interest'], currency),
+            ))
+            current_date = current_date + relativedelta(**period_delta)
 
-        # Check amortization / interest method (legacy + new calculator-aligned values)
-        interest_type = getattr(loan, 'interest_type', 'fixed')
-
-        if interest_type in ['variable', 'saldo_insoluto', 'german']: 
-            # ========================================
-            # INTERÉS VARIABLE/AMORTIZADO (sobre saldo decreciente)
-            # ========================================
-            # El interés se calcula sobre el CAPITAL RESTANTE
-            # Cada cuota paga MENOS interés que la anterior
-
-            principal_per_payment = (loan.principal_amount.amount / num_payments).quantize(Decimal('0.01'))
-            capital_restante = loan.principal_amount.amount
-
-            # Calculate period rate based on payment frequency
-            # For monthly: annual_rate / 12
-            # For quarterly: annual_rate / 4
-            # For weekly: annual_rate / 52
-            # For daily: annual_rate / 365
-            periods_per_year = {
-                'daily': 365,
-                'weekly': 52,
-                'biweekly': 26,
-                'monthly': 12,
-                'quarterly': 4,
-            }
-            period_divisor = Decimal(periods_per_year.get(loan.payment_frequency, 12))
-
-            for i in range(1, int(num_payments) + 1):
-                # Calcular interés sobre capital restante
-                # interes(i) = capital_restante * (tasa_anual / periodos_por_año)
-                # Ejemplo mensual: capital_restante * (10% / 12) = capital_restante * 0.00833
-                interest_amount = (capital_restante * loan.interest_rate / 100 / period_divisor).quantize(Decimal('0.01'))
-
-                # Para la última cuota, ajustar el capital para que sume exactamente el total
-                if i == int(num_payments):
-                    total_principal_assigned = sum(s.principal_amount.amount for s in schedules)
-                    principal_amount = loan.principal_amount.amount - total_principal_assigned
-                else:
-                    principal_amount = principal_per_payment
-
-                total_amount = (principal_amount + interest_amount).quantize(Decimal('0.01'))
-
-                schedule = LoanSchedule.objects.create(
-                    loan=loan,
-                    installment_number=i,
-                    due_date=current_date,
-                    total_amount=Money(total_amount, loan.principal_amount.currency),
-                    principal_amount=Money(principal_amount, loan.principal_amount.currency),
-                    interest_amount=Money(interest_amount, loan.principal_amount.currency)
-                )
-                schedules.append(schedule)
-
-                # Reducir capital restante
-                capital_restante = (capital_restante - principal_amount).quantize(Decimal('0.01'))
-
-                # Move to next payment date
-                current_date = current_date + relativedelta(**period_delta)
-
-        elif interest_type == 'french':
-            # ========================================
-            # FRANCÉS (CUOTA FIJA / ANNUITY)
-            # ========================================
-            periods_per_month = {
-                'daily': Decimal('30'),
-                'weekly': Decimal('4'),
-                'biweekly': Decimal('2'),
-                'monthly': Decimal('1'),
-                'quarterly': Decimal('0.3333333333'),
-            }
-            multiplier = {
-                'daily': 30,
-                'weekly': 4,
-                'biweekly': 2,
-                'monthly': 1,
-                'quarterly': 1/3,
-            }
-
-            num_payments = max(1, int(round(float(loan.term_months * multiplier.get(loan.payment_frequency, 1)))))
-            period_divisor = periods_per_month.get(loan.payment_frequency, Decimal('1'))
-            period_rate = (loan.interest_rate / Decimal('100') / period_divisor).quantize(Decimal('0.0000001'))
-
-            if period_rate == 0:
-                payment_amount = (loan.principal_amount.amount / Decimal(str(num_payments))).quantize(Decimal('0.01'))
-            else:
-                r = period_rate
-                n = Decimal(str(num_payments))
-                payment_amount = (
-                    loan.principal_amount.amount * r * (Decimal('1') + r) ** int(n)
-                    / (((Decimal('1') + r) ** int(n)) - Decimal('1'))
-                ).quantize(Decimal('0.01'))
-
-            balance = loan.principal_amount.amount
-
-            for i in range(1, num_payments + 1):
-                interest_amount = (balance * period_rate).quantize(Decimal('0.01'))
-
-                if i == num_payments:
-                    principal_amount = balance
-                    total_amount = (principal_amount + interest_amount).quantize(Decimal('0.01'))
-                else:
-                    principal_amount = (payment_amount - interest_amount).quantize(Decimal('0.01'))
-                    total_amount = payment_amount
-
-                schedule = LoanSchedule.objects.create(
-                    loan=loan,
-                    installment_number=i,
-                    due_date=current_date,
-                    total_amount=Money(total_amount, loan.principal_amount.currency),
-                    principal_amount=Money(principal_amount, loan.principal_amount.currency),
-                    interest_amount=Money(interest_amount, loan.principal_amount.currency)
-                )
-                schedules.append(schedule)
-
-                balance = (balance - principal_amount).quantize(Decimal('0.01'))
-                current_date = current_date + relativedelta(**period_delta)
-
-        elif interest_type == 'variable_rd':
-            # ========================================
-            # INTERÉS VARIABLE RD (Tasa directa por período)
-            # ========================================
-            # El interés se calcula aplicando la tasa DIRECTAMENTE al capital restante
-            # SIN dividir entre períodos (método República Dominicana)
-            # NOTA: Esto NO es estándar financiero internacional
-
-            principal_per_payment = (loan.principal_amount.amount / num_payments).quantize(Decimal('0.01'))
-            capital_restante = loan.principal_amount.amount
-
-            for i in range(1, int(num_payments) + 1):
-                # Calcular interés aplicando la tasa DIRECTAMENTE
-                # interes(i) = capital_restante * tasa / 100
-                # Ejemplo: $100,000 * 10% = $10,000
-                interest_amount = (capital_restante * loan.interest_rate / 100).quantize(Decimal('0.01'))
-
-                # Para la última cuota, ajustar el capital para que sume exactamente el total
-                if i == int(num_payments):
-                    total_principal_assigned = sum(s.principal_amount.amount for s in schedules)
-                    principal_amount = loan.principal_amount.amount - total_principal_assigned
-                else:
-                    principal_amount = principal_per_payment
-
-                total_amount = (principal_amount + interest_amount).quantize(Decimal('0.01'))
-
-                schedule = LoanSchedule.objects.create(
-                    loan=loan,
-                    installment_number=i,
-                    due_date=current_date,
-                    total_amount=Money(total_amount, loan.principal_amount.currency),
-                    principal_amount=Money(principal_amount, loan.principal_amount.currency),
-                    interest_amount=Money(interest_amount, loan.principal_amount.currency)
-                )
-                schedules.append(schedule)
-
-                # Reducir capital restante
-                capital_restante = (capital_restante - principal_amount).quantize(Decimal('0.01'))
-
-                # Move to next payment date
-                current_date = current_date + relativedelta(**period_delta)
-
-        else:
-            # ========================================
-            # FLAT / INTERÉS FIJO (tasa mensual)
-            # ========================================
-            # El interés total se calcula usando la tasa mensual definida por negocio
-            # y se distribuye equitativamente entre las cuotas.
-
-            total_interest = loan.principal_amount * (loan.interest_rate / 100) * loan.term_months
-            total_amount = loan.principal_amount + total_interest
-
-            # Calculate and round amounts to 2 decimal places
-            payment_amount = (total_amount / num_payments).amount.quantize(Decimal('0.01'))
-            principal_per_payment = (loan.principal_amount / num_payments).amount.quantize(Decimal('0.01'))
-            interest_per_payment = (total_interest / num_payments).amount.quantize(Decimal('0.01'))
-
-            # Create schedule entries (all except last)
-            for i in range(1, int(num_payments)):
-                schedule = LoanSchedule.objects.create(
-                    loan=loan,
-                    installment_number=i,
-                    due_date=current_date,
-                    total_amount=Money(payment_amount, loan.principal_amount.currency),
-                    principal_amount=Money(principal_per_payment, loan.principal_amount.currency),
-                    interest_amount=Money(interest_per_payment, loan.principal_amount.currency)
-                )
-                schedules.append(schedule)
-
-                # Move to next payment date
-                current_date = current_date + relativedelta(**period_delta)
-
-            # Create last installment with adjusted amounts
-            if num_payments > 0:
-                total_principal_assigned = sum(s.principal_amount.amount for s in schedules)
-                total_interest_assigned = sum(s.interest_amount.amount for s in schedules)
-
-                last_principal = loan.principal_amount.amount - total_principal_assigned
-                last_interest = total_interest.amount - total_interest_assigned
-                last_total = last_principal + last_interest
-
-                last_schedule = LoanSchedule.objects.create(
-                    loan=loan,
-                    installment_number=int(num_payments),
-                    due_date=current_date,
-                    total_amount=Money(last_total, loan.principal_amount.currency),
-                    principal_amount=Money(last_principal, loan.principal_amount.currency),
-                    interest_amount=Money(last_interest, loan.principal_amount.currency)
-                )
-                schedules.append(last_schedule)
-
-                # Move to next payment date for maturity
-                current_date = current_date + relativedelta(**period_delta)
-
-        # Update maturity date
-        loan.maturity_date = current_date
-
-        # Update outstanding_balance to reflect the total amount in the payment schedule
-        # This is important for Variable RD and other interest types where the total
-        # differs from the principal amount
+        # Vencimiento = fecha de la última cuota (antes quedaba un período después)
         if schedules:
-            from moneyed import Money
-            total_schedule_amount = sum(s.total_amount.amount for s in schedules)
-            loan.outstanding_balance = Money(total_schedule_amount, loan.principal_amount.currency)
+            loan.maturity_date = schedules[-1].due_date
+            # outstanding_balance = total del cronograma (capital + interés)
+            loan.outstanding_balance = Money(sum(row['payment'] for row in rows), currency)
+            loan.payment_amount = Money(rows[0]['payment'], currency)
 
         loan.save()
 
 
 class LoanPaymentViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for managing loan payments
+    ViewSet for managing loan payments.
+
+    Los pagos son inmutables por la API: no hay PUT/PATCH/DELETE (405). Un pago
+    sólo cambia de estado con `confirm`, `cancel` (pendientes) o `reverse`
+    (completados, sólo el dueño del tenant).
     """
+    http_method_names = ['get', 'post', 'head', 'options']
     queryset = LoanPayment.objects.select_related('loan', 'schedule').all()
     serializer_class = LoanPaymentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanRegisterPayments]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'payment_method', 'loan']
     search_fields = ['payment_number', 'reference_number', 'loan__loan_number']
@@ -1010,12 +853,17 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         """Use different serializers for create vs read"""
         from .serializers import LoanPaymentCreateSerializer
-        if self.action in ['create', 'update', 'partial_update']:
+        if self.action == 'create':
             return LoanPaymentCreateSerializer
         return LoanPaymentSerializer
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        from apps.cashbox.services import record_payment_inflow
+
+        # Pago, conciliación del préstamo (señal post_save) y caja: todo o nada
+        with transaction.atomic():
+            payment = serializer.save(created_by=self.request.user)
+            record_payment_inflow(payment, self.request.user)
 
     @action(detail=True, methods=['get'], url_path='receipt-pdf')
     def receipt_pdf(self, request, pk=None):
@@ -1065,12 +913,16 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         send_whatsapp = request.data.get('send_whatsapp', False)
         phone = request.data.get('phone')
 
-        # Update payment status and reconcile loan + schedules from the same source of truth
-        payment.status = 'completed'
-        payment.save(update_fields=['status', 'updated_at'])
+        from apps.cashbox.services import record_payment_inflow
 
-        loan = payment.loan
-        reconcile_loan_from_payments(loan)
+        # Update payment status and reconcile loan + schedules from the same source of truth
+        with transaction.atomic():
+            payment.status = 'completed'
+            payment.save(update_fields=['status', 'updated_at'])
+
+            loan = payment.loan
+            reconcile_loan_from_payments(loan)
+            record_payment_inflow(payment, request.user)
 
         # Send WhatsApp receipt — either explicitly requested or auto-enabled
         whatsapp_sent = False
@@ -1109,9 +961,35 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
         return Response(response_data)
 
+    def _log_void(self, request, payment, old_status, reason, **extra):
+        """Traza de anulación/reverso en AuditLog (falla junto con la operación)."""
+        from apps.audit.middleware import get_client_ip, get_user_agent
+        from apps.audit.models import AuditLog
+
+        AuditLog.log(
+            tenant=request.tenant,
+            user=request.user,
+            action='payment_void',
+            model_name='LoanPayment',
+            object_id=payment.id,
+            object_repr=str(payment),
+            changes={'status': {'old': old_status, 'new': payment.status}},
+            ip_address=get_client_ip(request),
+            user_agent=get_user_agent(request),
+            extra_data={
+                'reason': reason,
+                'payment_number': payment.payment_number,
+                'loan_number': payment.loan.loan_number,
+                'amount': str(payment.amount.amount),
+                'currency': payment.amount.currency.code,
+                'payment_method': payment.payment_method,
+                **extra,
+            },
+        )
+
     @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def cancel(self, request, pk=None):
-        """Cancel a pending payment"""
+        """Cancel a pending payment (`reason` opcional, queda en AuditLog)."""
         payment = self.get_object()
 
         if payment.status not in ['pending']:
@@ -1120,8 +998,11 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        payment.status = 'cancelled'
-        payment.save()
+        reason = (request.data.get('reason') or '').strip()
+        with transaction.atomic():
+            payment.status = 'cancelled'
+            payment.save(update_fields=['status', 'updated_at'])
+            self._log_void(request, payment, 'pending', reason)
 
         return Response({'message': 'Pago cancelado'})
 
@@ -1130,6 +1011,8 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         """
         Reverse a completed payment.
         This will reverse the updates made to loan and schedule.
+
+        Exige `reason`; guarda quién, cuándo y por qué en el pago y en AuditLog.
         """
         from .signals import reconcile_loan_from_payments
 
@@ -1153,13 +1036,33 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return Response(
+                {'error': 'Indica el motivo del reverso'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from apps.cashbox.services import record_payment_reversal
+
         loan = payment.loan
 
         # Mark payment as reversed, then rebuild the loan state from remaining completed payments
-        payment.status = 'reversed'
-        payment.save(update_fields=['status', 'updated_at'])
+        with transaction.atomic():
+            payment.status = 'reversed'
+            payment.reversed_at = timezone.now()
+            payment.reversed_by = request.user
+            payment.reversal_reason = reason
+            payment.save(update_fields=[
+                'status', 'reversed_at', 'reversed_by', 'reversal_reason', 'updated_at',
+            ])
 
-        reconcile_loan_from_payments(loan)
+            reconcile_loan_from_payments(loan)
+            refunds = record_payment_reversal(payment, request.user)
+            self._log_void(
+                request, payment, 'completed', reason,
+                cash_refund_movements=[str(m.id) for m in refunds],
+            )
 
         return Response({'message': 'Pago reversado exitosamente'})
 
@@ -2123,8 +2026,9 @@ class LoanCalculatorView(APIView):
       calculated on the outstanding balance each period.
     - french: Equal installments (standard annuity formula). Most common globally.
     - german: Equal principal each period; interest portion declines over time.
-    - flat: Interest is computed on the original principal for the full term and
-      spread equally across all payments (very common for small/short loans in RD).
+    - flat: Interest is computed on the original principal for the full term
+      (principal × monthly rate × months) and spread equally across all payments
+      (very common for small/short loans in RD).
 
     The interest_rate is the MONTHLY rate in percentage (e.g. 3.5 = 3.5% per month).
     For non-monthly payment frequencies the monthly rate is converted to a per-period
@@ -2136,13 +2040,13 @@ class LoanCalculatorView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    # Maps payment_frequency to date increment args and the divisor used to
-    # convert monthly rate to per-period rate.
+    # Date increment per payment_frequency. The per-period rate lives in
+    # apps.loans.amortization (shared with the loan schedule).
     FREQUENCY_CONFIG = {
-        'daily':    {'delta': {'days': 1},    'rate_divisor': Decimal('30')},
-        'weekly':   {'delta': {'weeks': 1},   'rate_divisor': Decimal('4')},
-        'biweekly': {'delta': {'weeks': 2},   'rate_divisor': Decimal('2')},
-        'monthly':  {'delta': {'months': 1},  'rate_divisor': Decimal('1')},
+        'daily':    {'delta': {'days': 1}},
+        'weekly':   {'delta': {'weeks': 1}},
+        'biweekly': {'delta': {'weeks': 2}},
+        'monthly':  {'delta': {'months': 1}},
     }
 
     def post(self, request, *args, **kwargs):
@@ -2156,20 +2060,15 @@ class LoanCalculatorView(APIView):
 
     def _calculate(self, data):
         from dateutil.relativedelta import relativedelta
+        from .amortization import build_installments
 
         principal = Decimal(str(data['principal_amount']))
-        monthly_rate_pct = Decimal(str(data['interest_rate']))  # e.g. 3.5 for 3.5 %
-        monthly_rate = monthly_rate_pct / Decimal('100')
         num_payments = int(data['term'])
         frequency = data['payment_frequency']
-        method = data['amortization_method']
         legal_fees = Decimal(str(data.get('legal_fees') or 0))
         legal_fees_condition = data.get('legal_fees_condition', 'deducted')
         start_date = data['start_date']
-
-        freq_cfg = self.FREQUENCY_CONFIG[frequency]
-        period_rate = monthly_rate / freq_cfg['rate_divisor']
-        date_delta = freq_cfg['delta']
+        date_delta = self.FREQUENCY_CONFIG[frequency]['delta']
 
         # Legal fees: financed → added to principal; deducted → subtracted from disbursement
         if legal_fees_condition == 'financed':
@@ -2179,22 +2078,18 @@ class LoanCalculatorView(APIView):
             loan_principal = principal
             total_disbursed = principal - legal_fees
 
-        dispatch = {
-            'saldo_insoluto': self._saldo_insoluto,
-            'french': self._french,
-            'german': self._german,
-            'flat': self._flat,
-        }
+        rows, payment_amount, total_interest = build_installments(
+            loan_principal, data['interest_rate'], num_payments, frequency, data['amortization_method'],
+        )
 
-        if method == 'flat':
-            schedule, payment_amount, total_interest = dispatch[method](
-                loan_principal, monthly_rate, num_payments, start_date, date_delta
-            )
-        else:
-            schedule, payment_amount, total_interest = dispatch[method](
-                loan_principal, period_rate, num_payments, start_date, date_delta
-            )
-
+        schedule = [
+            {
+                'installment_number': i,
+                'due_date': (start_date + relativedelta(**date_delta) * i).isoformat(),
+                **row,
+            }
+            for i, row in enumerate(rows, start=1)
+        ]
         total_loan = loan_principal + total_interest
 
         return {
@@ -2204,159 +2099,6 @@ class LoanCalculatorView(APIView):
             'total_disbursed': round(total_disbursed, 2),
             'schedule': schedule,
         }
-
-    # ------------------------------------------------------------------
-    # Amortization method implementations
-    # ------------------------------------------------------------------
-
-    def _saldo_insoluto(self, principal, period_rate, num_payments, start_date, date_delta):
-        """
-        Reducing balance (saldo insoluto / cuota variable).
-        Equal principal portions; interest computed on outstanding balance each period.
-        """
-        from dateutil.relativedelta import relativedelta
-
-        principal_per_payment = (principal / num_payments).quantize(Decimal('0.01'))
-        balance = principal
-        total_interest = Decimal('0')
-        schedule = []
-
-        for i in range(1, num_payments + 1):
-            interest = (balance * period_rate).quantize(Decimal('0.01'))
-            principal_portion = balance if i == num_payments else principal_per_payment
-            payment = principal_portion + interest
-            balance -= principal_portion
-            total_interest += interest
-
-            due_date = start_date + relativedelta(**date_delta) * i
-            schedule.append({
-                'installment_number': i,
-                'due_date': due_date.isoformat(),
-                'payment': round(payment, 2),
-                'principal': round(principal_portion, 2),
-                'interest': round(interest, 2),
-                'balance': round(max(balance, Decimal('0')), 2),
-            })
-
-        # Return first-payment amount as the representative "payment_amount"
-        first_payment = Decimal(str(schedule[0]['payment'])) if schedule else Decimal('0')
-        return schedule, first_payment, total_interest
-
-    def _french(self, principal, period_rate, num_payments, start_date, date_delta):
-        """
-        French / equal installment amortization (standard annuity formula).
-        """
-        from dateutil.relativedelta import relativedelta
-
-        if period_rate == 0:
-            payment = (principal / num_payments).quantize(Decimal('0.01'))
-        else:
-            r = period_rate
-            n = num_payments
-            payment = (principal * r * (1 + r) ** n / ((1 + r) ** n - 1)).quantize(Decimal('0.01'))
-
-        balance = principal
-        total_interest = Decimal('0')
-        schedule = []
-
-        for i in range(1, num_payments + 1):
-            interest = (balance * period_rate).quantize(Decimal('0.01'))
-            if i == num_payments:
-                # Last payment absorbs rounding drift
-                principal_portion = balance
-                payment_actual = principal_portion + interest
-            else:
-                principal_portion = payment - interest
-                payment_actual = payment
-            balance -= principal_portion
-            total_interest += interest
-
-            due_date = start_date + relativedelta(**date_delta) * i
-            schedule.append({
-                'installment_number': i,
-                'due_date': due_date.isoformat(),
-                'payment': round(payment_actual, 2),
-                'principal': round(principal_portion, 2),
-                'interest': round(interest, 2),
-                'balance': round(max(balance, Decimal('0')), 2),
-            })
-
-        return schedule, payment, total_interest
-
-    def _german(self, principal, period_rate, num_payments, start_date, date_delta):
-        """
-        German amortization: equal principal portions, declining total payment.
-        """
-        from dateutil.relativedelta import relativedelta
-
-        principal_per_payment = (principal / num_payments).quantize(Decimal('0.01'))
-        balance = principal
-        total_interest = Decimal('0')
-        schedule = []
-
-        for i in range(1, num_payments + 1):
-            interest = (balance * period_rate).quantize(Decimal('0.01'))
-            principal_portion = balance if i == num_payments else principal_per_payment
-            payment = principal_portion + interest
-            balance -= principal_portion
-            total_interest += interest
-
-            due_date = start_date + relativedelta(**date_delta) * i
-            schedule.append({
-                'installment_number': i,
-                'due_date': due_date.isoformat(),
-                'payment': round(payment, 2),
-                'principal': round(principal_portion, 2),
-                'interest': round(interest, 2),
-                'balance': round(max(balance, Decimal('0')), 2),
-            })
-
-        first_payment = Decimal(str(schedule[0]['payment'])) if schedule else Decimal('0')
-        return schedule, first_payment, total_interest
-
-    def _flat(self, principal, monthly_rate, num_payments, start_date, date_delta):
-        """
-        Flat rate (interés sobre saldo original / tasa plana).
-        Total interest = principal * monthly_rate * num_payments.
-        Payment = (principal + total_interest) / num_payments.
-
-        In DR financieras this is the default for short personal and payday loans.
-        The monthly_rate is used directly regardless of payment frequency so the
-        calculation stays transparent for the borrower.
-        """
-        from dateutil.relativedelta import relativedelta
-
-        total_interest = (principal * monthly_rate * num_payments).quantize(Decimal('0.01'))
-        total_amount = principal + total_interest
-        payment = (total_amount / num_payments).quantize(Decimal('0.01'))
-        principal_per_payment = (principal / num_payments).quantize(Decimal('0.01'))
-        interest_per_payment = (total_interest / num_payments).quantize(Decimal('0.01'))
-
-        balance = principal
-        schedule = []
-
-        for i in range(1, num_payments + 1):
-            if i == num_payments:
-                principal_portion = balance
-                interest_portion = total_interest - interest_per_payment * (num_payments - 1)
-                payment_actual = principal_portion + interest_portion
-            else:
-                principal_portion = principal_per_payment
-                interest_portion = interest_per_payment
-                payment_actual = payment
-            balance -= principal_portion
-
-            due_date = start_date + relativedelta(**date_delta) * i
-            schedule.append({
-                'installment_number': i,
-                'due_date': due_date.isoformat(),
-                'payment': round(payment_actual, 2),
-                'principal': round(principal_portion, 2),
-                'interest': round(interest_portion, 2),
-                'balance': round(max(balance, Decimal('0')), 2),
-            })
-
-        return schedule, payment, total_interest
 
 
 class GuarantorViewSet(viewsets.ModelViewSet):

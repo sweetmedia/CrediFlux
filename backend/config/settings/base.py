@@ -418,12 +418,12 @@ CONSTANCE_CONFIG = {
     # Pagos y Cargos
     'LATE_PAYMENT_FEE': (
         500.0,
-        'Cargo por mora (DOP)',
+        'Cargo por mora (DOP). Respaldo: sólo si el tenant no tiene mora fija configurada (ver apps/loans/late_fees.py)',
         float
     ),
     'LATE_PAYMENT_GRACE_DAYS': (
         5,
-        'Días de gracia antes de mora',
+        'Días de gracia antes de mora. Respaldo: sólo sin tenant (ver apps/loans/late_fees.py)',
         int
     ),
     'PAYMENT_REMINDER_DAYS': (

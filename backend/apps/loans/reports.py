@@ -353,27 +353,14 @@ class LoanBalanceReport:
         return pdf_data
 
     def _get_interest_per_period(self):
-        """Calculate interest rate per period"""
-        if self.loan.interest_type == 'fixed':
-            # For fixed, total interest divided by periods
-            return f"{self.loan.interest_rate:.2f}"
-        elif self.loan.interest_type == 'variable':
-            # For variable, rate divided by periods per year
-            if self.loan.payment_frequency == 'monthly':
-                return f"{self.loan.interest_rate / 12:.2f}"
-            elif self.loan.payment_frequency == 'weekly':
-                return f"{self.loan.interest_rate / 52:.2f}"
-            elif self.loan.payment_frequency == 'biweekly':
-                return f"{self.loan.interest_rate / 26:.2f}"
-            elif self.loan.payment_frequency == 'daily':
-                return f"{self.loan.interest_rate / 365:.2f}"
-            elif self.loan.payment_frequency == 'quarterly':
-                return f"{self.loan.interest_rate / 4:.2f}"
-        elif self.loan.interest_type == 'variable_rd':
-            # For Variable RD, it's the direct rate per period
-            return f"{self.loan.interest_rate:.2f}"
+        """Tasa por período en % (la tasa del préstamo es MENSUAL)."""
+        from .amortization import normalize_method, period_rate
 
-        return f"{self.loan.interest_rate:.2f}"
+        if normalize_method(self.loan.interest_type) == 'variable_rd':
+            # Variable RD: la tasa se aplica directa a cada período
+            return f"{self.loan.interest_rate:.2f}"
+        rate = period_rate(self.loan.interest_rate, self.loan.payment_frequency) * 100
+        return f"{rate:.2f}"
 
     def _get_period_description(self):
         """Get human-readable period description"""
