@@ -849,7 +849,7 @@ class ContractTemplateSerializer(serializers.ModelSerializer):
         model = ContractTemplate
         fields = [
             'id', 'name', 'description', 'content', 'is_active', 'is_default',
-            'loan_types', 'header_image', 'footer_text',
+            'loan_types', 'header_image', 'footer_text', 'includes_signatures',
             'created_by', 'created_by_name', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']

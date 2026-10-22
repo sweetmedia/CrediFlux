@@ -90,6 +90,11 @@ class ContractTemplate(models.Model):
         blank=True,
         help_text="Optional footer text (terms, conditions, etc.)"
     )
+    includes_signatures = models.BooleanField(
+        default=False,
+        help_text="El contenido ya trae su propio bloque de firmas (ej. pagaré notarial); "
+                  "el PDF omite el bloque genérico de firmas"
+    )
 
     # Metadata
     created_by = models.ForeignKey(

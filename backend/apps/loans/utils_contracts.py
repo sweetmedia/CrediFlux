@@ -27,24 +27,96 @@ def get_spanish_month_name(month_number):
     return spanish_months.get(month_number, str(month_number))
 
 
+_UNIDADES = [
+    '', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE',
+    'DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE',
+    'DIECIOCHO', 'DIECINUEVE', 'VEINTE', 'VEINTIUNO', 'VEINTIDÓS', 'VEINTITRÉS',
+    'VEINTICUATRO', 'VEINTICINCO', 'VEINTISÉIS', 'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE',
+]
+_DECENAS = ['', '', '', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA']
+_CENTENAS = [
+    '', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS',
+    'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS',
+]
+
+
+def _hasta_999(n):
+    if n == 100:
+        return 'CIEN'
+    centenas, resto = divmod(n, 100)
+    if resto < 30:
+        resto_str = _UNIDADES[resto]
+    else:
+        decenas, unidades = divmod(resto, 10)
+        resto_str = _DECENAS[decenas] + (f' Y {_UNIDADES[unidades]}' if unidades else '')
+    return ' '.join(p for p in (_CENTENAS[centenas], resto_str) if p)
+
+
+def _apocopar(words):
+    """'UNO' delante de un sustantivo (MIL, MILLONES, PESOS) se apocopa: VEINTIÚN MIL, UN MILLÓN."""
+    if words.endswith('VEINTIUNO'):
+        return words[:-len('VEINTIUNO')] + 'VEINTIÚN'
+    if words.endswith('UNO'):
+        return words[:-1]
+    return words
+
+
 def number_to_words_es(number):
-    """
-    Convert a number to words in Spanish (Dominican Republic format).
-    For now, returns a simple format. Can be expanded for full word conversion.
-    """
-    # Simplified version - in production, you might want to use num2words library
-    # Example: 50000.00 -> "CINCUENTA MIL PESOS CON 00/100"
+    """Convierte un entero no negativo a letras en español (mayúsculas): 82800 -> 'OCHENTA Y DOS MIL OCHOCIENTOS'."""
+    n = int(number)
+    if n == 0:
+        return 'CERO'
 
-    try:
-        number = Decimal(str(number))
-        integer_part = int(number)
-        decimal_part = int((number - integer_part) * 100)
+    millones, resto = divmod(n, 1_000_000)
+    miles, unidades = divmod(resto, 1000)
+    parts = []
+    if millones:
+        parts.append('UN MILLÓN' if millones == 1 else f'{_apocopar(number_to_words_es(millones))} MILLONES')
+    if miles:
+        parts.append('MIL' if miles == 1 else f'{_apocopar(_hasta_999(miles))} MIL')
+    if unidades:
+        parts.append(_hasta_999(unidades))
+    return ' '.join(parts)
 
-        # For now, return a formatted string
-        # TODO: Implement full Spanish word conversion
-        return f"{integer_part:,} PESOS CON {decimal_part:02d}/100".replace(',', ' ')
-    except:
-        return str(number)
+
+def amount_to_words_es(amount, currency_name='PESOS'):
+    """Monto en letras con centavos en formato de cheque: 'OCHENTA Y DOS MIL OCHOCIENTOS PESOS CON 00/100'."""
+    if hasattr(amount, 'amount'):
+        amount = amount.amount
+    amount = Decimal(str(amount)).quantize(Decimal('0.01'))
+    integer_part = int(amount)
+    cents = int((amount - integer_part) * 100)
+    if integer_part == 1:
+        return f"UN {currency_name[:-1] if currency_name.endswith('S') else currency_name} CON {cents:02d}/100"
+    words = number_to_words_es(integer_part)
+    if words.endswith('MILLÓN') or words.endswith('MILLONES'):
+        words += ' DE'
+    return f"{_apocopar(words)} {currency_name} CON {cents:02d}/100"
+
+
+PAYMENT_FREQUENCY_ES = {
+    'daily': ('Diaria', 'diarias'),
+    'weekly': ('Semanal', 'semanales'),
+    'biweekly': ('Quincenal', 'quincenales'),
+    'monthly': ('Mensual', 'mensuales'),
+    'quarterly': ('Trimestral', 'trimestrales'),
+}
+
+LATE_FEE_FREQUENCY_ES = {
+    'daily': 'por cada día de retraso',
+    'monthly': 'por cada mes de retraso',
+    'one_time': 'por única vez al vencer la cuota',
+}
+
+
+# Línea para completar a mano cuando falta un dato del tenant (documentos legales)
+BLANK = '________________'
+
+
+def _long_date(value):
+    if not value:
+        return 'N/A'
+    return f"{value.day} de {get_spanish_month_name(value.month)} de {value.year}"
 
 
 def _money_str(value, currency_symbol='RD$'):
@@ -69,7 +141,7 @@ def replace_contract_variables(template_content, loan, tenant=None):
     - {{loan_number}}: Loan number
     - {{loan_amount}}: Principal loan amount
     - {{loan_amount_words}}: Loan amount in words
-    - {{interest_rate}}: Annual interest rate
+    - {{interest_rate}}: Monthly interest rate (the app stores rates as % per month)
     - {{loan_term}}: Loan term in months
     - {{payment_frequency}}: Payment frequency
     - {{monthly_payment}}: Monthly payment amount
@@ -107,6 +179,20 @@ def replace_contract_variables(template_content, loan, tenant=None):
     customer_address = f"{customer.address_line1 or ''}{', ' + customer.address_line2 if customer.address_line2 else ''}, {customer.city or ''}, {customer.state or ''}".strip(', ')
     customer_id_number = customer.id_number or 'N/A'
 
+    # Calendario: total con interés, número de cuotas y fecha de la última cuota
+    schedules = list(loan.payment_schedules.order_by('installment_number'))
+    if schedules:
+        installments = len(schedules)
+        total_with_interest = sum((s.total_amount.amount for s in schedules), Decimal('0'))
+        final_payment_date = schedules[-1].due_date
+    else:
+        installments = 0
+        total_with_interest = loan.total_amount.amount
+        final_payment_date = loan.maturity_date
+    frequency_singular, frequency_plural = PAYMENT_FREQUENCY_ES.get(
+        loan.payment_frequency, (loan.get_payment_frequency_display(), loan.get_payment_frequency_display())
+    )
+
     # Customer + loan variables
     replacements = {
         '{{customer_name}}': customer_name,
@@ -129,18 +215,26 @@ def replace_contract_variables(template_content, loan, tenant=None):
         '{{loan_number}}': loan.loan_number,
         '{{numero_prestamo}}': loan.loan_number,
         '{{loan_amount}}': _money_str(loan.principal_amount, currency_symbol),
-        '{{loan_amount_words}}': number_to_words_es(loan.principal_amount.amount),
+        '{{loan_amount_words}}': amount_to_words_es(loan.principal_amount),
         '{{interest_rate}}': f"{loan.interest_rate}%",
         '{{loan_term}}': str(loan.term_months),
         '{{plazo_prestamo}}': str(loan.term_months),
-        '{{payment_frequency}}': loan.get_payment_frequency_display(),
+        '{{payment_frequency}}': frequency_singular,
+        '{{frecuencia_pago}}': frequency_singular,
+        '{{frecuencia_pago_plural}}': frequency_plural,
         '{{monthly_payment}}': _money_str(loan.payment_amount, currency_symbol) if loan.payment_amount else 'N/A',
         '{{total_amount}}': _money_str(loan.outstanding_balance, currency_symbol) if loan.outstanding_balance else 'N/A',
+        '{{monto_cuota}}': _money_str(loan.payment_amount, currency_symbol) if loan.payment_amount else 'N/A',
+        '{{monto_cuota_letras}}': amount_to_words_es(loan.payment_amount) if loan.payment_amount else 'N/A',
+        '{{total_con_interes}}': _money_str(total_with_interest, currency_symbol),
+        '{{total_con_interes_letras}}': amount_to_words_es(total_with_interest),
+        '{{cantidad_cuotas}}': str(installments) if installments else 'N/A',
+        '{{cantidad_cuotas_letras}}': number_to_words_es(installments) if installments else 'N/A',
 
         # Dates
         '{{disbursement_date}}': f"{loan.disbursement_date.day} de {get_spanish_month_name(loan.disbursement_date.month)} de {loan.disbursement_date.year}" if loan.disbursement_date else 'Pendiente',
         '{{first_payment_date}}': f"{loan.first_payment_date.day} de {get_spanish_month_name(loan.first_payment_date.month)} de {loan.first_payment_date.year}" if loan.first_payment_date else 'N/A',
-        '{{final_payment_date}}': f"{loan.maturity_date.day} de {get_spanish_month_name(loan.maturity_date.month)} de {loan.maturity_date.year}" if loan.maturity_date else 'N/A',
+        '{{final_payment_date}}': _long_date(final_payment_date),
         '{{contract_date}}': f"{now.day} de {get_spanish_month_name(now.month)} de {now.year}",
 
         # Date components
@@ -158,12 +252,15 @@ def replace_contract_variables(template_content, loan, tenant=None):
             '{{company_name}}': company_name,
             '{{empresa}}': company_name,
             '{{nombre_empresa}}': company_name,
-            '{{company_address}}': f"{tenant.address or ''}, {tenant.city or ''}, {tenant.state or ''}".strip(', '),
+            '{{company_address}}': ', '.join(p for p in (tenant.address, tenant.city, tenant.state) if p) or BLANK,
             '{{company_phone}}': str(tenant.phone) if tenant.phone else 'N/A',
             '{{company_email}}': tenant.email or 'N/A',
-            '{{ciudad}}': tenant.city or 'N/A',
-            '{{municipio}}': tenant.city or 'N/A',  # Using city as municipality
-            '{{provincia}}': tenant.state or 'N/A',
+            '{{company_tax_id}}': tenant.tax_id or BLANK,
+            '{{mora_porcentaje}}': f"{tenant.late_fee_percentage}%",
+            '{{mora_frecuencia}}': LATE_FEE_FREQUENCY_ES.get(tenant.late_fee_frequency, ''),
+            '{{ciudad}}': tenant.city or BLANK,
+            '{{municipio}}': tenant.city or BLANK,  # Using city as municipality
+            '{{provincia}}': tenant.state or BLANK,
             '{{pais}}': tenant.country or 'República Dominicana',
         })
     else:
@@ -172,6 +269,9 @@ def replace_contract_variables(template_content, loan, tenant=None):
             '{{company_address}}': 'N/A',
             '{{company_phone}}': 'N/A',
             '{{company_email}}': 'N/A',
+            '{{company_tax_id}}': BLANK,
+            '{{mora_porcentaje}}': 'N/A',
+            '{{mora_frecuencia}}': '',
             '{{ciudad}}': 'N/A',
             '{{municipio}}': 'N/A',
             '{{provincia}}': 'N/A',
@@ -246,11 +346,17 @@ def get_available_variables():
         {'variable': '{{loan_number}}', 'description': 'Número del préstamo'},
         {'variable': '{{loan_amount}}', 'description': 'Monto del préstamo'},
         {'variable': '{{loan_amount_words}}', 'description': 'Monto del préstamo en palabras'},
-        {'variable': '{{interest_rate}}', 'description': 'Tasa de interés anual'},
+        {'variable': '{{interest_rate}}', 'description': 'Tasa de interés mensual'},
         {'variable': '{{loan_term}}', 'description': 'Plazo del préstamo en meses'},
-        {'variable': '{{payment_frequency}}', 'description': 'Frecuencia de pago'},
-        {'variable': '{{monthly_payment}}', 'description': 'Pago mensual'},
-        {'variable': '{{total_amount}}', 'description': 'Monto total a pagar'},
+        {'variable': '{{payment_frequency}}', 'description': 'Frecuencia de pago (Quincenal, Mensual…)'},
+        {'variable': '{{frecuencia_pago_plural}}', 'description': 'Frecuencia en plural (quincenales, mensuales…)'},
+        {'variable': '{{monthly_payment}}', 'description': 'Monto de la cuota'},
+        {'variable': '{{monto_cuota_letras}}', 'description': 'Monto de la cuota en letras'},
+        {'variable': '{{cantidad_cuotas}}', 'description': 'Cantidad de cuotas del calendario'},
+        {'variable': '{{cantidad_cuotas_letras}}', 'description': 'Cantidad de cuotas en letras'},
+        {'variable': '{{total_con_interes}}', 'description': 'Total a pagar (capital + interés, suma del calendario)'},
+        {'variable': '{{total_con_interes_letras}}', 'description': 'Total a pagar en letras'},
+        {'variable': '{{total_amount}}', 'description': 'Balance pendiente actual'},
         {'variable': '{{disbursement_date}}', 'description': 'Fecha de desembolso'},
         {'variable': '{{first_payment_date}}', 'description': 'Fecha del primer pago'},
         {'variable': '{{final_payment_date}}', 'description': 'Fecha del último pago'},
@@ -263,11 +369,15 @@ def get_available_variables():
         {'variable': '{{company_address}}', 'description': 'Dirección de la empresa'},
         {'variable': '{{company_phone}}', 'description': 'Teléfono de la empresa'},
         {'variable': '{{company_email}}', 'description': 'Correo de la empresa'},
+        {'variable': '{{company_tax_id}}', 'description': 'RNC/Cédula de la empresa'},
+        {'variable': '{{mora_porcentaje}}', 'description': 'Porcentaje de mora configurado'},
+        {'variable': '{{mora_frecuencia}}', 'description': "Frecuencia de la mora ('por cada día de retraso'…)"},
         {'variable': '{{ciudad}}', 'description': 'Ciudad de la empresa'},
         {'variable': '{{municipio}}', 'description': 'Municipio de la empresa'},
         {'variable': '{{provincia}}', 'description': 'Provincia/Estado de la empresa'},
         {'variable': '{{pais}}', 'description': 'País de la empresa'},
         {'variable': '{{guarantor_name}}', 'description': 'Nombre del garante (si aplica)'},
         {'variable': '{{guarantor_id}}', 'description': 'Cédula del garante (si aplica)'},
+        {'variable': '{{guarantor_address}}', 'description': 'Dirección del garante (si aplica)'},
         {'variable': '{{collateral_description}}', 'description': 'Descripción de garantías'},
     ]
