@@ -214,7 +214,7 @@ CrediFlux/
 │   │   └── tasks/          # ⏳ Pendiente crear
 │   ├── config/
 │   ├── media/
-│   └── requirements.txt
+│   └── pyproject.toml + uv.lock
 │
 └── frontend/
     ├── app/
@@ -297,7 +297,7 @@ ALLOWED_HOSTS=yourdomain.com
 
 **Frontend:**
 ```env
-NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+VITE_API_URL=https://api.yourdomain.com
 ```
 
 ### Próximos Pasos de Deployment

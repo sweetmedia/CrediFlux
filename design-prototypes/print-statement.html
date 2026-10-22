@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Estado de cuenta</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/print.css">
+</head>
+<body class="print-desk">
+<div class="desk">
+  <div class="desk__bar"><div><div class="desk__meta">Impresos · Préstamos</div><div class="desk__title">Estado de cuenta</div></div><div class="desk__meta">Carta · 8.5 × 11 in</div></div>
+  <div class="page page--letter">
+    <div class="lh">
+      <div class="lh__brand"><div class="lh__logo">CSJ</div><div><div class="lh__name">Cooperativa de Ahorro y Crédito San José, Inc.</div><div class="lh__sub">RNC 1-31-24587-3 · Calle del Sol #85, Santiago de los Caballeros<br>809-582-4410 · contacto@coopsanjose.do</div></div></div>
+      <div class="lh__doc"><div class="lh__type">Estado de cuenta</div><div class="lh__num">LN-2025-0118</div><div class="lh__date">Al 10 de abril de 2026</div></div>
+    </div>
+
+    <div class="grid2 blk">
+      <div>
+        <div class="eb">Cliente</div>
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:3px">Ana María Ramírez Guzmán</div>
+        <div style="font-size:10.5px;line-height:1.5;color:var(--ink-2)">Cédula <span class="mono">001-5678901-4</span><br>Calle Duarte #45, Los Pepines, Santiago<br><span class="mono">829-555-8901</span> · ana.ramirez@gmail.com</div>
+      </div>
+      <div>
+        <div class="eb">Préstamo</div>
+        <dl class="kv" style="margin-top:4px">
+          <dt>Tipo</dt><dd>Personal · interés fijo (flat)</dd>
+          <dt>Monto</dt><dd class="mono">RD$ 75,000.00</dd>
+          <dt>Tasa</dt><dd><span class="mono">2.5%</span> mensual</dd>
+          <dt>Plazo</dt><dd><span class="mono">24</span> cuotas mensuales de <span class="mono">RD$ 5,000.00</span></dd>
+          <dt>Desembolso</dt><dd class="mono">15 ago 2025</dd>
+          <dt>Vence</dt><dd class="mono">15 ago 2027</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="grid3 blk" style="grid-template-columns:repeat(4,1fr)">
+      <div class="box"><div class="eb">Balance de capital</div><div class="amt" style="font-size:16px;margin-top:4px">50,000.00</div></div>
+      <div class="box"><div class="eb">Pagado a la fecha</div><div class="amt" style="font-size:16px;margin-top:4px">40,000.00</div></div>
+      <div class="box"><div class="eb">Vencido · mora</div><div class="amt" style="font-size:16px;margin-top:4px">0.00</div></div>
+      <div class="box box--ink"><div class="eb">Próxima cuota</div><div class="amt" style="font-size:16px;margin-top:4px">5,000.00</div><div class="note">15 may 2026</div></div>
+    </div>
+
+    <div class="blk">
+      <div class="eb">Movimientos</div>
+      <table class="pt">
+        <thead><tr><th>Fecha</th><th>Documento</th><th>Concepto</th><th class="r">Cargo</th><th class="r">Abono</th><th class="r">Capital</th><th class="r">Interés</th><th class="r">Saldo</th></tr></thead>
+        <tbody class="mono">
+          <tr><td>15 ago 2025</td><td>LN-2025-0118</td><td style="font-family:var(--font-body)">Desembolso</td><td class="r">75,000.00</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">75,000.00</td></tr>
+          <tr><td>12 sep 2025</td><td>RC-02540</td><td style="font-family:var(--font-body)">Cuota 1 · efectivo</td><td class="r">—</td><td class="r">5,000.00</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">71,875.00</td></tr>
+          <tr><td>14 oct 2025</td><td>RC-02815</td><td style="font-family:var(--font-body)">Cuota 2 · transferencia</td><td class="r">—</td><td class="r">5,000.00</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">68,750.00</td></tr>
+          <tr><td>13 nov 2025</td><td>RC-03098</td><td style="font-family:var(--font-body)">Cuota 3 · efectivo</td><td class="r">—</td><td class="r">5,000.00</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">65,625.00</td></tr>
+          <tr><td>12 dic 2025</td><td>RC-03344</td><td style="font-family:var(--font-body)">Cuota 4 · efectivo</td><td class="r">—</td><td class="r">5,000.00</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">62,500.00</td></tr>
+          <tr><td>13 ene 2026</td><td>RC-03611</td><td style="font-family:var(--font-body)">Cuota 5 · transferencia</td><td class="r">—</td><td class="r">5,000.00</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">59,375.00</td></tr>
+          <tr><td>15 feb 2026</td><td>RC-03902</td><td style="font-family:var(--font-body)">Cuota 6 · efectivo</td><td class="r">—</td><td class="r">5,000.00</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">56,250.00</td></tr>
+          <tr><td>14 mar 2026</td><td>RC-04187</td><td style="font-family:var(--font-body)">Cuota 7 · efectivo campo</td><td class="r">—</td><td class="r">5,000.00</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">53,125.00</td></tr>
+          <tr><td>05 abr 2026</td><td>RC-04412</td><td style="font-family:var(--font-body)">Cuota 8 · transferencia</td><td class="r">—</td><td class="r">5,000.00</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">50,000.00</td></tr>
+        </tbody>
+        <tfoot class="mono"><tr><td colspan="3" style="font-family:var(--font-body)">Totales</td><td class="r">75,000.00</td><td class="r">40,000.00</td><td class="r">25,000.00</td><td class="r">15,000.00</td><td class="r">50,000.00</td></tr></tfoot>
+      </table>
+    </div>
+
+    <div class="blk">
+      <div class="eb">Próximas cuotas</div>
+      <table class="pt">
+        <thead><tr><th>Cuota</th><th>Vence</th><th class="r">Capital</th><th class="r">Interés</th><th class="r">Total</th></tr></thead>
+        <tbody class="mono">
+          <tr><td>9 / 24</td><td>15 may 2026</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">5,000.00</td></tr>
+          <tr><td>10 / 24</td><td>15 jun 2026</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">5,000.00</td></tr>
+          <tr><td>11 / 24</td><td>15 jul 2026</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">5,000.00</td></tr>
+        </tbody>
+      </table>
+      <p class="note" style="margin-top:6px">Para saldar el préstamo hoy: <b class="mono">RD$ 50,000.00</b> de capital (método flat: no se cobra el interés de cuotas futuras al saldar por adelantado, según la política vigente). Mora por atraso: RD$ 500.00 por cuota con más de 5 días de vencida.</p>
+    </div>
+
+    <div class="pf"><div>Generado el 10 abr 2026 14:32 por María Fernández · CrediFlux v2.0<br>Este estado de cuenta es informativo. Verifique en crediflux.do/v/EC-0118-260410</div><div style="display:flex;gap:10px;align-items:flex-end"><span>Página 1 de 1</span><div class="qr"></div></div></div>
+  </div>
+</div>
+</body>
+</html>

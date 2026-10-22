@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Asistente IA</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',500:'#4d8630',700:'#2d5a10',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 500:'#ffe026' },
+            flame: { 500:'#ff7503',600:'#cc5e02' },
+            cream: '#faf8f2', 'warm-white':'#f5f3ed',
+            tenant: 'var(--color-tenant-primary)',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    html,body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#faf8f2;color:#163300;-webkit-font-smoothing:antialiased;}
+    .paper-bg{background-color:#faf8f2;background-image:radial-gradient(circle at 1px 1px,rgba(22,51,0,0.035) 1px,transparent 0);background-size:28px 28px;}
+    .sidebar{background:var(--color-tenant-primary,#163300);}
+    .nav-item{position:relative;display:flex;align-items:center;gap:11px;padding:6px 12px 6px 14px;border-radius:4px;color:rgba(255,255,255,0.55);font-size:13px;font-weight:400;text-decoration:none;transition:color 150ms,background-color 150ms;}
+    .nav-item:hover{color:rgba(255,255,255,0.92);background:rgba(255,255,255,0.04);}
+    .nav-item.active{color:#fff;background:rgba(255,255,255,0.08);font-weight:500;}
+    .nav-item.active::before{content:'';position:absolute;left:-1px;top:50%;transform:translateY(-50%);width:2px;height:18px;background:#ffe026;border-radius:0 2px 2px 0;}
+    .nav-group-header{display:flex;align-items:center;justify-content:space-between;width:100%;padding:4px 14px;font-family:'ABC Whyte',system-ui,sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:rgba(255,255,255,0.32);background:transparent;border:none;cursor:pointer;}
+    .nav-group-header.flat{cursor:default;}
+    .nav-group-chevron{transition:transform 200ms;opacity:0.7;}
+    .nav-group[data-collapsed="true"] .nav-group-chevron{transform:rotate(-90deg);}
+    .nav-group[data-collapsed="true"] .nav-group-items{display:none;}
+    .kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;line-height:1;color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-bottom-width:2px;border-radius:3px;}
+    .sidebar-search{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 24px);margin:12px 12px 0;padding:7px 10px 7px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:4px;font-size:12px;color:rgba(255,255,255,0.5);cursor:pointer;}
+    .util-btn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 8px;border-radius:4px;color:#5c6d4d;background:transparent;border:none;cursor:pointer;}
+    .util-btn:hover{color:#163300;background:rgba(22,51,0,0.04);}
+    .util-btn--icon{width:32px;padding:0;}
+    .dev-banner{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;align-items:center;gap:14px;padding:10px 14px 10px 16px;background:rgba(22,51,0,0.92);backdrop-filter:blur(8px);color:rgba(255,255,255,0.85);border-radius:6px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;}
+    .dev-banner__label{color:rgba(255,255,255,0.45);}.dev-banner__swatches{display:flex;gap:8px;}
+    .dev-banner__swatch{width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;padding:0;}
+    .dev-banner__swatch.active{box-shadow:0 0 0 2px #ffe026,0 0 0 3px rgba(22,51,0,0.92);}
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .rule-b{border-bottom:1px solid rgba(22,51,0,0.08);}.rule-t{border-top:1px solid rgba(22,51,0,0.08);}.rule-r{border-right:1px solid rgba(22,51,0,0.08);}
+    .logo-white{filter:brightness(0) invert(1);}
+    .no-scrollbar::-webkit-scrollbar{display:none;}.no-scrollbar{scrollbar-width:none;}
+
+    /* AI sparkle gradient */
+    .ai-spark{background:linear-gradient(135deg,#ffe026 0%,#ff7503 100%);}
+    .ai-star{color:#8a6a00;}
+
+    /* Conversation item */
+    .conv{display:flex;flex-direction:column;gap:3px;padding:11px 14px;border-bottom:1px solid rgba(22,51,0,0.05);cursor:pointer;text-decoration:none;color:inherit;}
+    .conv:hover{background:rgba(22,51,0,0.02);}
+    .conv.active{background:#fff;border-left:2px solid #ffe026;padding-left:12px;}
+    .conv-title{font-family:'ABC Whyte',system-ui,sans-serif;font-size:12.5px;color:#163300;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+    .conv-meta{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#8a9d7a;}
+
+    /* Messages */
+    .msg-block{display:flex;gap:14px;padding:20px 0;border-bottom:1px solid rgba(22,51,0,0.05);}
+    .msg-avatar{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-weight:500;flex-shrink:0;font-size:10px;color:#fff;}
+    .msg-content{flex:1;min-width:0;}
+    .msg-author{font-family:'ABC Whyte',system-ui,sans-serif;font-size:12px;font-weight:600;color:#163300;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+    .msg-author .ts{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;color:#8a9d7a;font-weight:400;letter-spacing:0.12em;text-transform:uppercase;}
+    .msg-body{font-size:14px;line-height:1.6;color:#163300;}
+    .msg-body p{margin-bottom:10px;}
+    .msg-body p:last-child{margin-bottom:0;}
+    .msg-body strong{font-weight:600;color:#163300;}
+    .msg-body code{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:12px;background:rgba(22,51,0,0.06);padding:1px 6px;border-radius:3px;}
+
+    /* Inline result table */
+    .res-table{border:1px solid rgba(22,51,0,0.1);border-radius:6px;overflow:hidden;margin:12px 0;background:#fff;}
+    .res-head{padding:10px 14px;background:#f3f6f1;border-bottom:1px solid rgba(22,51,0,0.08);display:flex;align-items:center;justify-content:space-between;}
+    .res-title{font-family:'ABC Whyte',system-ui,sans-serif;font-size:11px;font-weight:600;color:#163300;display:flex;align-items:center;gap:6px;}
+    .res-count{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;color:#738566;letter-spacing:0.08em;text-transform:uppercase;}
+    .res-table table{width:100%;border-collapse:collapse;}
+    .res-table th{padding:8px 14px;text-align:left;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.14em;color:#738566;border-bottom:1px solid rgba(22,51,0,0.06);}
+    .res-table td{padding:10px 14px;font-size:12px;color:#163300;border-bottom:1px solid rgba(22,51,0,0.05);}
+    .res-table tbody tr:last-child td{border-bottom:none;}
+
+    /* Action chips */
+    .act-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid rgba(22,51,0,0.12);background:#fff;border-radius:4px;font-size:11px;color:#163300;cursor:pointer;margin:0 4px 4px 0;}
+    .act-chip:hover{border-color:#163300;background:#f3f6f1;}
+
+    /* Suggested prompts */
+    .sugg{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid rgba(22,51,0,0.1);background:#fff;border-radius:6px;cursor:pointer;transition:border-color 120ms;}
+    .sugg:hover{border-color:rgba(22,51,0,0.28);}
+    .sugg-ico{flex-shrink:0;margin-top:1px;}
+
+    /* Composer */
+    .composer{background:#fff;border:1px solid rgba(22,51,0,0.15);border-radius:10px;padding:14px 16px;transition:border-color 150ms;}
+    .composer:focus-within{border-color:#163300;}
+    .composer-input{width:100%;border:none;background:transparent;font-size:14px;color:#163300;resize:none;min-height:44px;max-height:200px;font-family:'Plus Jakarta Sans',sans-serif;line-height:1.5;}
+    .composer-input::placeholder{color:#a8b89c;}
+
+    /* Data source chip */
+    .src-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;background:rgba(22,51,0,0.06);border-radius:3px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;color:#4a5a3d;letter-spacing:0.04em;}
+
+    /* Context card */
+    .ctx-card{padding:11px 13px;background:#fff;border:1px solid rgba(22,51,0,0.08);border-radius:6px;}
+    .ctx-label{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:#738566;margin-bottom:4px;}
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="sidebar fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col text-white">
+    <div class="px-5 pt-5 pb-4 border-b border-white/[0.08]">
+      <div class="mb-4"><img src="../branding/logo-full/svg/crediflux-logo.svg" alt="CrediFlux" class="logo-white h-[22px] w-auto"/></div>
+      <div>
+        <div class="font-display text-[14px] font-medium text-white">Cooperativa San&nbsp;José</div>
+        <div class="mt-1 flex items-center gap-2 font-mono text-[10px] text-white/40 uppercase tracking-widest"><span>coop-san-jose</span><span class="text-white/15">·</span><span>rd</span></div>
+      </div>
+    </div>
+    <button class="sidebar-search"><span class="flex items-center gap-2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar</span></span><span class="kbd">⌘K</span></button>
+    <nav class="flex-1 overflow-y-auto px-3 py-5">
+      <div class="mb-6"><div class="nav-group-header flat"><span>Overview</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="appshell.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/></svg><span>Dashboard</span></a>
+        <a href="ai-assistant.html" class="nav-item active" aria-current="page"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/></svg><span>Asistente IA</span></a>
+      </div></div>
+      <div class="mb-6 nav-group" data-collapsed="true"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Operación</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]"><a href="loans-list.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span>Préstamos</span></a></div></div>
+      <div><div class="nav-group-header flat"><span>Administración</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="settings-general.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></svg><span>Configuración</span></a>
+      </div></div>
+    </nav>
+    <div class="border-t border-white/[0.08] px-3 py-3">
+      <div class="flex items-center gap-3 px-2 py-1.5">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-[11px] text-white" style="background:#738566;">MF</div>
+        <div class="min-w-0 flex-1"><div class="truncate font-display text-[13px] font-medium text-white">María Fernández</div><div class="truncate font-mono text-[9px] uppercase tracking-widest text-white/45 mt-0.5">Oficial de Cobranza</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="ml-[240px]">
+    <header class="sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div class="flex h-14 items-center gap-3 pl-8 pr-6">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="appshell.html" class="text-[12px] text-sage-500 hover:text-forest-900">Inicio</a>
+          <span class="text-sun-500 text-[9px]">●</span>
+          <span class="font-display text-[13px] font-medium text-forest-900">Asistente IA</span>
+          <span class="ml-2 px-2 py-0.5 bg-sun-500 text-forest-900 font-mono text-[9px] uppercase tracking-widest rounded font-bold">Beta</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button class="util-btn util-btn--icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+          <button class="flex items-center gap-2 h-8 pl-1 pr-2 ml-1 rounded hover:bg-forest-900/[0.04]"><div class="flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] text-white" style="background:#738566;">MF</div></button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Three-col layout -->
+    <div class="grid" style="grid-template-columns:280px 1fr 300px;min-height:calc(100vh - 56px);">
+
+      <!-- Conversations left rail -->
+      <aside class="rule-r bg-cream/60 flex flex-col">
+        <div class="px-4 py-4 border-b border-forest-900/10 flex items-center justify-between">
+          <div>
+            <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Conversaciones</div>
+            <div class="font-display text-[13px] font-semibold text-forest-900 mt-0.5">14 guardadas</div>
+          </div>
+          <button class="h-8 w-8 rounded flex items-center justify-center text-white bg-forest-900 hover:bg-forest-950" title="Nueva">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+
+        <div class="px-4 py-2 border-b border-forest-900/10">
+          <input type="text" placeholder="Buscar en historial..." class="w-full h-8 px-3 text-[12px] bg-white border border-forest-900/10 rounded placeholder:text-sage-400"/>
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+          <div class="px-4 pt-3 pb-1 font-mono text-[9px] uppercase tracking-widest text-sage-500">Hoy</div>
+          <a class="conv active">
+            <div class="conv-title">Morosos sobre 30 días en zona Santiago-norte</div>
+            <div class="conv-meta">14:20 · 6 mensajes</div>
+          </a>
+          <a class="conv">
+            <div class="conv-title">Resumen de cobros de hoy</div>
+            <div class="conv-meta">11:42 · 3 mensajes</div>
+          </a>
+          <div class="px-4 pt-4 pb-1 font-mono text-[9px] uppercase tracking-widest text-sage-500">Ayer</div>
+          <a class="conv">
+            <div class="conv-title">Mensaje WhatsApp para Francisco Ureña sobre mora</div>
+            <div class="conv-meta">16:30 · 4 mensajes</div>
+          </a>
+          <a class="conv">
+            <div class="conv-title">Predicción de cartera vencida próxima semana</div>
+            <div class="conv-meta">10:15 · 7 mensajes</div>
+          </a>
+          <a class="conv">
+            <div class="conv-title">Comparar desempeño Pedro vs Luis · abril</div>
+            <div class="conv-meta">09:20 · 5 mensajes</div>
+          </a>
+          <div class="px-4 pt-4 pb-1 font-mono text-[9px] uppercase tracking-widest text-sage-500">Esta semana</div>
+          <a class="conv">
+            <div class="conv-title">Draft plantilla recordatorio cuota hoy en español RD informal</div>
+            <div class="conv-meta">Lun · 4 mensajes</div>
+          </a>
+          <a class="conv">
+            <div class="conv-title">Clientes con mejores hábitos de pago últimos 6 meses</div>
+            <div class="conv-meta">Lun · 5 mensajes</div>
+          </a>
+          <a class="conv">
+            <div class="conv-title">Explicar por qué bajó la tasa de recuperación en marzo</div>
+            <div class="conv-meta">Dom · 8 mensajes</div>
+          </a>
+          <div class="px-4 pt-4 pb-1 font-mono text-[9px] uppercase tracking-widest text-sage-500">Marzo</div>
+          <a class="conv">
+            <div class="conv-title">Generar propuesta préstamo para Carlos Silva</div>
+            <div class="conv-meta">31 mar · 12 mensajes</div>
+          </a>
+          <a class="conv">
+            <div class="conv-title">Riesgo crediticio · nuevo cliente Laura H</div>
+            <div class="conv-meta">28 mar · 6 mensajes</div>
+          </a>
+        </div>
+      </aside>
+
+      <!-- Chat center -->
+      <section class="flex flex-col bg-warm-white">
+
+        <!-- Chat header -->
+        <div class="px-8 py-4 border-b border-forest-900/10 flex items-center justify-between">
+          <div class="min-w-0">
+            <div class="font-display text-[15px] font-semibold text-forest-900 truncate">Morosos sobre 30 días en zona Santiago-norte</div>
+            <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums mt-0.5">Iniciada 14:20 · contexto completo del tenant</div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button class="util-btn util-btn--icon" title="Exportar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg></button>
+            <button class="util-btn util-btn--icon" title="Compartir"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/></svg></button>
+            <button class="util-btn util-btn--icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+          </div>
+        </div>
+
+        <!-- Messages stream -->
+        <div class="flex-1 overflow-y-auto px-8 pb-28">
+
+          <!-- User message -->
+          <div class="msg-block">
+            <div class="msg-avatar" style="background:#738566;">MF</div>
+            <div class="msg-content">
+              <div class="msg-author">María Fernández <span class="ts tabular-nums">14:20</span></div>
+              <div class="msg-body">
+                <p>Muéstrame los clientes con mora mayor a 30 días en la zona Santiago-norte. Necesito priorizar visitas para Pedro esta semana.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Assistant response -->
+          <div class="msg-block">
+            <div class="msg-avatar ai-spark"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/></svg></div>
+            <div class="msg-content">
+              <div class="msg-author">Asistente <span class="ts tabular-nums">14:20 · 3.4s</span></div>
+              <div class="msg-body">
+                <p>Encontré <strong>7 clientes</strong> con mora sobre 30 días asignados a la ruta <strong>Santiago-norte</strong>. Los ordené por <strong>riesgo descendente</strong> considerando días de mora, monto adeudado y cantidad de incidentes previos de impago.</p>
+
+                <!-- Inline result -->
+                <div class="res-table">
+                  <div class="res-head">
+                    <div class="res-title">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#163300" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+                      Morosos 30+ · Santiago-norte
+                    </div>
+                    <span class="res-count">7 resultados · RD$ 48,400</span>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr><th>Cliente</th><th>Préstamo</th><th>Mora</th><th class="text-right">Monto</th><th>Riesgo</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="customer-profile.html" class="hover:text-forest-500">Joaquín Bautista</a></td>
+                        <td class="font-mono tabular-nums text-[11px]">LN-2025-0198</td>
+                        <td class="font-mono tabular-nums" style="color:#cc5e02;">47d</td>
+                        <td class="font-mono tabular-nums text-right">RD$ 8,400</td>
+                        <td><span class="font-mono text-[10px] uppercase tracking-widest" style="color:#cc5e02;">Alto</span></td>
+                      </tr>
+                      <tr>
+                        <td>Francisco Ureña</td>
+                        <td class="font-mono tabular-nums text-[11px]">LN-2025-0201</td>
+                        <td class="font-mono tabular-nums" style="color:#cc5e02;">42d</td>
+                        <td class="font-mono tabular-nums text-right">RD$ 7,600</td>
+                        <td><span class="font-mono text-[10px] uppercase tracking-widest" style="color:#cc5e02;">Alto</span></td>
+                      </tr>
+                      <tr>
+                        <td>Isabel Reyes</td>
+                        <td class="font-mono tabular-nums text-[11px]">LN-2025-0222</td>
+                        <td class="font-mono tabular-nums" style="color:#ff7503;">38d</td>
+                        <td class="font-mono tabular-nums text-right">RD$ 7,800</td>
+                        <td><span class="font-mono text-[10px] uppercase tracking-widest" style="color:#cc5e02;">Alto</span></td>
+                      </tr>
+                      <tr>
+                        <td>Mario Acosta</td>
+                        <td class="font-mono tabular-nums text-[11px]">LN-2025-0167</td>
+                        <td class="font-mono tabular-nums" style="color:#ff7503;">35d</td>
+                        <td class="font-mono tabular-nums text-right">RD$ 6,200</td>
+                        <td><span class="font-mono text-[10px] uppercase tracking-widest" style="color:#ff7503;">Medio</span></td>
+                      </tr>
+                      <tr>
+                        <td>Yanet Frías</td>
+                        <td class="font-mono tabular-nums text-[11px]">LN-2025-0189</td>
+                        <td class="font-mono tabular-nums" style="color:#ff7503;">34d</td>
+                        <td class="font-mono tabular-nums text-right">RD$ 8,900</td>
+                        <td><span class="font-mono text-[10px] uppercase tracking-widest" style="color:#ff7503;">Medio</span></td>
+                      </tr>
+                      <tr>
+                        <td>Alba Peguero</td>
+                        <td class="font-mono tabular-nums text-[11px]">LN-2025-0213</td>
+                        <td class="font-mono tabular-nums" style="color:#ff7503;">32d</td>
+                        <td class="font-mono tabular-nums text-right">RD$ 5,100</td>
+                        <td><span class="font-mono text-[10px] uppercase tracking-widest" style="color:#ff7503;">Medio</span></td>
+                      </tr>
+                      <tr>
+                        <td>Luis Morales</td>
+                        <td class="font-mono tabular-nums text-[11px]">LN-2025-0176</td>
+                        <td class="font-mono tabular-nums">31d</td>
+                        <td class="font-mono tabular-nums text-right">RD$ 4,400</td>
+                        <td><span class="font-mono text-[10px] uppercase tracking-widest" style="color:#a8b89c;">Bajo</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <p><strong>Observación:</strong> <em>Joaquín Bautista</em> ya tiene una <strong>promesa confirmada para hoy</strong> (5 PM, transferencia). Puedes dejarlo fuera de la ruta mañana si se cumple.</p>
+                <p>¿Quieres que <strong>arme la ruta optimizada</strong> para Pedro con los 6 restantes (ordenados por distancia desde oficina), o prefieres <strong>enviar recordatorios WhatsApp</strong> antes de enviar cobrador?</p>
+              </div>
+
+              <!-- Action chips -->
+              <div class="mt-3">
+                <button class="act-chip">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                  Armar ruta optimizada
+                </button>
+                <button class="act-chip">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Enviar WhatsApp
+                </button>
+                <button class="act-chip">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>
+                  Exportar CSV
+                </button>
+                <button class="act-chip">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  Crear 6 tareas cobranza
+                </button>
+              </div>
+
+              <!-- Footer meta -->
+              <div class="mt-3 flex items-center gap-4 font-mono text-[9px] uppercase tracking-widest text-sage-500 tabular-nums">
+                <span class="flex items-center gap-1.5">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Fuentes: loans · customers · collections
+                </span>
+                <span>·</span>
+                <span>847 tokens</span>
+                <span>·</span>
+                <div class="flex items-center gap-2">
+                  <button class="hover:text-forest-900"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M15 5.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7"/></svg></button>
+                  <button class="hover:text-forest-900"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2M9 18.12L10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17"/></svg></button>
+                  <button class="hover:text-forest-900"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- User follow-up -->
+          <div class="msg-block">
+            <div class="msg-avatar" style="background:#738566;">MF</div>
+            <div class="msg-content">
+              <div class="msg-author">María Fernández <span class="ts tabular-nums">14:22</span></div>
+              <div class="msg-body">
+                <p>Arma la ruta. Pedro sale a las 9 AM desde la oficina. Además redacta un WhatsApp para <strong>Yanet Frías</strong> en español RD informal, tono amable pero firme — ya tiene 3 meses pagando tarde.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Assistant response 2 -->
+          <div class="msg-block">
+            <div class="msg-avatar ai-spark"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/></svg></div>
+            <div class="msg-content">
+              <div class="msg-author">Asistente <span class="ts tabular-nums">14:22 · 4.1s</span></div>
+              <div class="msg-body">
+                <p>Ruta optimizada <strong>6 visitas · 18.4 km · ~3h 40min</strong>, partiendo de oficina Av. 27 de Febrero #101:</p>
+
+                <div class="res-table">
+                  <div class="res-head">
+                    <div class="res-title">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#163300" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                      Ruta Pedro · 11 abr 9:00 AM
+                    </div>
+                    <span class="res-count">6 paradas</span>
+                  </div>
+                  <table>
+                    <thead><tr><th>#</th><th>Cliente</th><th>Dirección</th><th>ETA</th><th class="text-right">Monto</th></tr></thead>
+                    <tbody>
+                      <tr><td class="font-mono">1</td><td>Francisco Ureña</td><td class="text-[11px] text-sage-600">Duarte #42, Los Ciruelitos</td><td class="font-mono tabular-nums">9:20</td><td class="font-mono tabular-nums text-right">7,600</td></tr>
+                      <tr><td class="font-mono">2</td><td>Mario Acosta</td><td class="text-[11px] text-sage-600">Las Carreras #56</td><td class="font-mono tabular-nums">10:05</td><td class="font-mono tabular-nums text-right">6,200</td></tr>
+                      <tr><td class="font-mono">3</td><td>Yanet Frías</td><td class="text-[11px] text-sage-600">Res. Aurora, Apto 2-B</td><td class="font-mono tabular-nums">10:45</td><td class="font-mono tabular-nums text-right">8,900</td></tr>
+                      <tr><td class="font-mono">4</td><td>Alba Peguero</td><td class="text-[11px] text-sage-600">Villa Olga, Edif. C</td><td class="font-mono tabular-nums">11:30</td><td class="font-mono tabular-nums text-right">5,100</td></tr>
+                      <tr><td class="font-mono">5</td><td>Isabel Reyes</td><td class="text-[11px] text-sage-600">Cienfuegos #14</td><td class="font-mono tabular-nums">12:15</td><td class="font-mono tabular-nums text-right">7,800</td></tr>
+                      <tr><td class="font-mono">6</td><td>Luis Morales</td><td class="text-[11px] text-sage-600">Av. Estrella Sadhalá, km 3.5</td><td class="font-mono tabular-nums">13:00</td><td class="font-mono tabular-nums text-right">4,400</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <p><strong>Mensaje WhatsApp propuesto para Yanet Frías</strong>:</p>
+
+                <div class="p-4 rounded" style="background:#dcecd0;border:1px solid rgba(77,134,48,0.22);">
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-600 mb-2">Tono · español RD informal · amable-firme</div>
+                  <div class="text-[13px] text-forest-900 leading-relaxed">
+                    Buenos días doña Yanet, saludos desde Cooperativa San José 👋<br/><br/>
+                    Le escribo porque la cuota de abril se pasó ya 34 días y no hemos tenido contacto. Sabemos que a veces se complica pero queremos ayudarle a ponerse al día antes de que la mora siga subiendo.<br/><br/>
+                    ¿Podemos coordinar un pago esta semana o me comenta qué día le conviene para que pase Pedro a recoger? Avíseme por aquí mismo 🙏<br/><br/>
+                    Gracias siempre por su confianza.
+                  </div>
+                </div>
+
+                <div class="mt-3">
+                  <button class="act-chip" style="background:#163300;color:#fff;border-color:#163300;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    Enviar WhatsApp a Yanet
+                  </button>
+                  <button class="act-chip">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Editar mensaje
+                  </button>
+                  <button class="act-chip">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    Asignar ruta a Pedro
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Suggested prompts for continuation -->
+          <div class="pt-8 border-t border-dashed border-forest-900/10 mt-6">
+            <div class="flex items-center gap-2 mb-3">
+              <svg class="ai-star" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/></svg>
+              <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Preguntas sugeridas</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="sugg">
+                <svg class="sugg-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#163300" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><polyline points="7 14 12 9 16 13 21 8"/></svg>
+                <span class="text-[12px] text-forest-900 leading-snug">¿Cómo va la tasa de recuperación esta semana comparada con la semana pasada?</span>
+              </div>
+              <div class="sugg">
+                <svg class="sugg-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#163300" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                <span class="text-[12px] text-forest-900 leading-snug">Identifica clientes con perfil similar al de Ana Ramírez para ofrecer aumento de línea</span>
+              </div>
+              <div class="sugg">
+                <svg class="sugg-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#163300" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="text-[12px] text-forest-900 leading-snug">¿Qué firmas de contratos pendientes llevan más de 3 días sin respuesta?</span>
+              </div>
+              <div class="sugg">
+                <svg class="sugg-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#163300" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+                <span class="text-[12px] text-forest-900 leading-snug">Prepara el resumen ejecutivo de cartera para la reunión de consejo mañana</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Composer -->
+        <div class="absolute bottom-0 left-[280px] right-[300px] bg-warm-white border-t border-forest-900/10 px-8 py-4" style="margin-left:240px;">
+          <div class="composer">
+            <textarea class="composer-input" rows="1" placeholder="Pregúntale al asistente sobre tu cartera, clientes, cobranza..."></textarea>
+            <div class="mt-3 flex items-center justify-between">
+              <div class="flex items-center gap-2 flex-wrap">
+                <button class="h-7 px-2 inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-widest text-sage-600 hover:text-forest-900 border border-forest-900/10 rounded">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                  Adjuntar
+                </button>
+                <span class="src-chip">loans · clientes · cobranza</span>
+                <button class="h-7 px-2 text-[10px] font-mono uppercase tracking-widest text-sage-500 hover:text-forest-900 underline decoration-dotted underline-offset-2">Cambiar alcance</button>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-[10px] text-sage-400 uppercase tracking-widest">⌘↵</span>
+                <button class="h-8 px-4 inline-flex items-center gap-2 text-[12px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  Enviar
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="mt-2 text-center font-mono text-[9px] uppercase tracking-widest text-sage-400 tabular-nums">
+            Las respuestas pueden contener imprecisiones · verifica datos críticos antes de ejecutar acciones
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Right context rail -->
+      <aside class="border-l border-forest-900/10 bg-cream/60 overflow-y-auto">
+        <div class="px-5 py-4 border-b border-forest-900/10">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="flex h-6 w-6 rounded items-center justify-center ai-spark"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/></svg></span>
+            <span class="font-display text-[14px] font-semibold text-forest-900">Contexto del asistente</span>
+          </div>
+          <div class="text-[11px] text-sage-600 leading-relaxed">El asistente solo accede a datos de Cooperativa San José y respeta los permisos de tu rol (Officer). Nunca comparte información entre tenants.</div>
+        </div>
+
+        <!-- Scope toggles -->
+        <div class="px-5 py-4 border-b border-forest-900/10">
+          <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-3">Alcance actual</div>
+          <div class="space-y-2">
+            <label class="flex items-center justify-between text-[12px] cursor-pointer">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" checked/>
+                <span class="text-forest-900">Préstamos · 412 activos</span>
+              </div>
+              <span class="src-chip">loans</span>
+            </label>
+            <label class="flex items-center justify-between text-[12px] cursor-pointer">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" checked/>
+                <span class="text-forest-900">Clientes · 347</span>
+              </div>
+              <span class="src-chip">customers</span>
+            </label>
+            <label class="flex items-center justify-between text-[12px] cursor-pointer">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" checked/>
+                <span class="text-forest-900">Cobranza · 30d</span>
+              </div>
+              <span class="src-chip">collections</span>
+            </label>
+            <label class="flex items-center justify-between text-[12px] cursor-pointer">
+              <div class="flex items-center gap-2">
+                <input type="checkbox"/>
+                <span class="text-forest-900">Comunicaciones</span>
+              </div>
+              <span class="src-chip">messages</span>
+            </label>
+            <label class="flex items-center justify-between text-[12px] cursor-pointer">
+              <div class="flex items-center gap-2">
+                <input type="checkbox"/>
+                <span class="text-forest-900">Contratos firmados</span>
+              </div>
+              <span class="src-chip">contracts</span>
+            </label>
+            <label class="flex items-center justify-between text-[12px] cursor-pointer">
+              <div class="flex items-center gap-2">
+                <input type="checkbox"/>
+                <span class="text-forest-900">Caja · tx</span>
+              </div>
+              <span class="src-chip">cashbox</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Data freshness -->
+        <div class="px-5 py-4 border-b border-forest-900/10">
+          <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-3">Datos usados en la conversación</div>
+          <div class="space-y-3">
+            <div class="ctx-card">
+              <div class="ctx-label">Último sync</div>
+              <div class="flex items-center gap-1.5 font-mono text-[12px] text-forest-900 tabular-nums">
+                <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-forest-500 opacity-40" style="animation:pulse 2s infinite;"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-forest-500"></span></span>
+                hace 12 segundos
+              </div>
+            </div>
+            <div class="ctx-card">
+              <div class="ctx-label">Filas consultadas</div>
+              <div class="font-mono text-[12px] text-forest-900 tabular-nums">loans · 7 · collections · 11 · customers · 7</div>
+            </div>
+            <div class="ctx-card">
+              <div class="ctx-label">Tokens usados · hoy</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[16px] font-medium text-forest-900 tabular-nums">12,847</span>
+                <span class="font-mono text-[10px] text-sage-500 tabular-nums">/ 500K mes</span>
+              </div>
+              <div class="mt-1.5 h-1 bg-sage-100 rounded-full overflow-hidden"><div class="h-full bg-forest-500" style="width:2.6%;"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Capabilities -->
+        <div class="px-5 py-4 border-b border-forest-900/10">
+          <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-3">Qué puede hacer</div>
+          <div class="space-y-2 text-[12px] text-sage-700">
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4d8630" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Consultar datos y generar reportes ad-hoc</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4d8630" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Redactar mensajes en español RD con tono ajustable</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4d8630" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Predecir riesgo de mora en próximos 30 días</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4d8630" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Armar rutas optimizadas de cobrador</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4d8630" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Ejecutar acciones tras tu confirmación explícita</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Limitations -->
+        <div class="px-5 py-4">
+          <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-3">Qué NO puede hacer</div>
+          <div class="space-y-2 text-[12px] text-sage-700">
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#cc5e02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <span>Aprobar préstamos o modificar términos sin revisión humana</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#cc5e02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <span>Acceder a datos de otros tenants</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#cc5e02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <span>Enviar mensajes sin tu confirmación final</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#cc5e02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <span>Firmar contratos ni emitir facturas e-CF</span>
+            </div>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+  </div>
+
+  <!-- Dev banner -->
+  <div class="dev-banner">
+    <span class="dev-banner__label">tenant-primary →</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" style="background:#163300;"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" style="background:#3a0e1e;"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" style="background:#0c1e38;"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" style="background:#1a4d3a;"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" style="background:#2d1b4e;"></button>
+    </div>
+  </div>
+
+  <style>@keyframes pulse{0%,100%{opacity:0.4;transform:scale(1);}50%{opacity:0;transform:scale(2);}}</style>
+  <script>
+    function toggleGroup(h){const g=h.closest('.nav-group');if(!g)return;const c=g.dataset.collapsed==='true';g.dataset.collapsed=c?'false':'true';}
+    document.querySelectorAll('.dev-banner__swatch').forEach(btn=>{btn.addEventListener('click',()=>{document.documentElement.style.setProperty('--color-tenant-primary',btn.dataset.color);document.querySelectorAll('.dev-banner__swatch').forEach(s=>s.classList.remove('active'));btn.classList.add('active');});});
+  </script>
+  <script src="_design-notes.js"></script>
+</body>
+</html>

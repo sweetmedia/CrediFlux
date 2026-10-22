@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Nuevo préstamo</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/bundle.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: {
+              50: '#f0f7eb',
+              100: '#dcecd0',
+              500: '#4d8630',
+              700: '#2d5a10',
+              900: '#163300',
+              950: '#0a1a00',
+            },
+            sage: {
+              50: '#f3f6f1',
+              100: '#e4ebe0',
+              200: '#c8d4be',
+              300: '#a8b89c',
+              400: '#8a9d7a',
+              500: '#738566',
+              600: '#5c6d4d',
+              700: '#4a5a3d',
+            },
+            sun: { 100: '#fffbe6', 500: '#ffe026' },
+            flame: { 500: '#ff7503', 600: '#cc5e02' },
+            cream: '#faf8f2',
+            'warm-white': '#f5f3ed',
+            tenant: 'var(--color-tenant-primary)',
+          },
+          letterSpacing: {
+            'widest': '0.14em',
+            'ultra': '0.18em',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    html, body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #faf8f2;
+      color: #163300;
+      font-feature-settings: 'rlig' 1, 'calt' 1;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .paper-bg {
+      background-color: #faf8f2;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(22, 51, 0, 0.035) 1px, transparent 0);
+      background-size: 28px 28px;
+    }
+
+    .sidebar {
+      background: var(--color-tenant-primary, #163300);
+    }
+
+    .nav-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 6px 12px 6px 14px;
+      border-radius: 4px;
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 1.4;
+      text-decoration: none;
+      transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                  background-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav-item:hover {
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .nav-item.active {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      font-weight: 500;
+    }
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: -1px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2px;
+      height: 18px;
+      background: #ffe026;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .nav-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 4px 14px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: rgba(255, 255, 255, 0.32);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav-group-header:hover { color: rgba(255, 255, 255, 0.6); }
+    .nav-group-header.flat { cursor: default; }
+    .nav-group-header.flat:hover { color: rgba(255, 255, 255, 0.32); }
+    .nav-group-chevron {
+      transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+      opacity: 0.7;
+    }
+    .nav-group[data-collapsed="true"] .nav-group-chevron { transform: rotate(-90deg); }
+    .nav-group[data-collapsed="true"] .nav-group-items { display: none; }
+
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 1;
+      color: rgba(255, 255, 255, 0.6);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-bottom-width: 2px;
+      border-radius: 3px;
+    }
+
+    .sidebar-search {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: calc(100% - 24px);
+      margin: 12px 12px 0;
+      padding: 7px 10px 7px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .sidebar-search:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.14);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .scrollbar-dark::-webkit-scrollbar { width: 6px; }
+    .scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-dark::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+    }
+    .scrollbar-dark:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); }
+    .scrollbar-dark { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent; }
+
+    .util-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 32px;
+      padding: 0 8px;
+      border-radius: 4px;
+      color: #5c6d4d;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .util-btn:hover {
+      color: #163300;
+      background: rgba(22, 51, 0, 0.04);
+    }
+    .util-btn--icon { width: 32px; padding: 0; }
+
+    .reminder-dot {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      min-width: 14px;
+      height: 14px;
+      padding: 0 3px;
+      background: #ff7503;
+      color: #ffffff;
+      border-radius: 7px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 14px;
+      text-align: center;
+      border: 2px solid #faf8f2;
+    }
+
+    .dev-banner {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px 10px 16px;
+      background: rgba(22, 51, 0, 0.92);
+      backdrop-filter: blur(8px);
+      color: rgba(255, 255, 255, 0.85);
+      border-radius: 6px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      box-shadow: 0 20px 40px -12px rgba(22, 51, 0, 0.4),
+                  0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    .dev-banner__label { color: rgba(255, 255, 255, 0.45); }
+    .dev-banner__swatches { display: flex; gap: 8px; }
+    .dev-banner__swatch {
+      width: 20px; height: 20px; border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer; padding: 0;
+      transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .dev-banner__swatch:hover { transform: translateY(-2px); }
+    .dev-banner__swatch.active { box-shadow: 0 0 0 2px #ffe026, 0 0 0 3px rgba(22, 51, 0, 0.92); }
+    .dev-banner__swatch::after {
+      content: attr(data-name);
+      position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+      padding: 3px 7px; background: rgba(22, 51, 0, 0.95); color: rgba(255, 255, 255, 0.9);
+      font-size: 9px; border-radius: 3px; white-space: nowrap; opacity: 0; pointer-events: none;
+      transition: opacity 150ms;
+    }
+    .dev-banner__swatch:hover::after { opacity: 1; }
+
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .rule-b { border-bottom: 1px solid rgba(22, 51, 0, 0.08); }
+    .rule-t { border-top: 1px solid rgba(22, 51, 0, 0.08); }
+    .rule-r { border-right: 1px solid rgba(22, 51, 0, 0.08); }
+
+    /* Logo filter for white on dark */
+    .logo-white {
+      filter: brightness(0) invert(1);
+    }
+
+    /* ======================================================================
+     * Customers list page-specific styles
+     * ====================================================================== */
+    .filter-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 12px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: #738566;
+      background: transparent;
+      border: 1px solid rgba(22, 51, 0, 0.1);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 150ms;
+    }
+    .filter-pill:hover {
+      color: #163300;
+      border-color: rgba(22, 51, 0, 0.2);
+      background: rgba(22, 51, 0, 0.02);
+    }
+    .filter-pill.active {
+      color: #163300;
+      background: rgba(22, 51, 0, 0.06);
+      border-color: rgba(22, 51, 0, 0.2);
+      font-weight: 600;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .data-table thead th {
+      padding: 10px 12px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #738566;
+      text-align: left;
+      border-bottom: 1px solid rgba(22, 51, 0, 0.12);
+      white-space: nowrap;
+    }
+    .data-table tbody tr {
+      border-bottom: 1px solid rgba(22, 51, 0, 0.06);
+      transition: background 100ms;
+    }
+    .data-table tbody tr:hover {
+      background: rgba(22, 51, 0, 0.02);
+    }
+    .data-table tbody td {
+      padding: 12px 12px;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    .checkbox-custom {
+      width: 16px;
+      height: 16px;
+      border: 1px solid rgba(22, 51, 0, 0.2);
+      border-radius: 3px;
+      background: white;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 150ms;
+    }
+    .checkbox-custom:checked {
+      background: #163300;
+      border-color: #163300;
+    }
+    .checkbox-custom:checked::after {
+      content: '';
+      display: block;
+      width: 10px;
+      height: 10px;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 10' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 5.5L4 7.5L8 3' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+    .checkbox-custom:hover {
+      border-color: rgba(22, 51, 0, 0.4);
+    }
+
+    .sort-select {
+      appearance: none;
+      -webkit-appearance: none;
+      padding: 5px 28px 5px 10px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: #738566;
+      background: white;
+      border: 1px solid rgba(22, 51, 0, 0.1);
+      border-radius: 4px;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23738566' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      transition: all 150ms;
+    }
+    .sort-select:hover {
+      border-color: rgba(22, 51, 0, 0.2);
+      color: #163300;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border-radius: 3px;
+    }
+    .status-badge--activo {
+      color: #4d8630;
+      background: rgba(77, 134, 48, 0.08);
+    }
+    .status-badge--mora {
+      color: #cc5e02;
+      background: rgba(255, 117, 3, 0.08);
+    }
+    .status-badge--inactivo {
+      color: #738566;
+      background: rgba(115, 133, 102, 0.08);
+    }
+  </style>
+  <style>.cf-table td.cf-mono{white-space:nowrap}</style>
+</head>
+<body class="min-h-screen">
+
+  <!-- ============================================================== -->
+  <!-- Sidebar                                                         -->
+  <!-- ============================================================== -->
+  <aside
+    class="sidebar fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col text-white"
+    aria-label="Navegacion principal"
+  >
+
+    <!-- Editorial masthead: CrediFlux REAL logo + tenant identity -->
+    <div class="px-5 pt-5 pb-4 border-b border-white/[0.08]">
+      <!-- CrediFlux real logo (isotipo + wordmark) — white on dark -->
+      <div class="mb-4">
+        <img
+          src="../branding/logo-full/svg/crediflux-logo.svg"
+          alt="CrediFlux"
+          class="logo-white h-[22px] w-auto"
+        />
+      </div>
+
+      <!-- Tenant masthead -->
+      <div>
+        <div class="font-display text-[14px] font-medium text-white leading-[1.25]">
+          Cooperativa San&nbsp;José
+        </div>
+        <div class="mt-1 flex items-center gap-2 font-mono text-[10px] text-white/40 uppercase tracking-widest">
+          <span>coop-san-jose</span>
+          <span class="text-white/15">·</span>
+          <span>rd</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global search trigger -->
+    <button class="sidebar-search" aria-label="Abrir busqueda global">
+      <span class="flex items-center gap-2">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+        </svg>
+        <span>Buscar</span>
+      </span>
+      <span class="kbd">⌘K</span>
+    </button>
+
+    <!-- Navigation groups -->
+    <nav class="flex-1 overflow-y-auto scrollbar-dark px-3 py-5">
+
+      <!-- Overview -->
+      <div class="mb-6">
+        <div class="nav-group-header flat"><span>Overview</span></div>
+        <div class="mt-1.5 space-y-[1px]">
+          <a href="dashboard.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+            </svg>
+            <span>Dashboard</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/>
+            </svg>
+            <span>Calculadora</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/>
+            </svg>
+            <span>Asistente IA</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Operacion -->
+      <div class="mb-6 nav-group" data-collapsed="false">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="true">
+          <span>Operación</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="loans-list.html" class="nav-item active" aria-current="page">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Préstamos</span>
+          </a>
+          <a href="customers-list.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Clientes</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span>Pagos</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+            <span>Caja</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Cobranza -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Cobranza</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <span>Cobranza</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>Cobrador Móvil</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Facturacion -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Facturación</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Facturas e-CF</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+            <span>Secuencias e-NCF</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Certificados</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="12" x2="8" y2="18"/><line x1="12" y1="8" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="18"/></svg>
+            <span>Reportes DGII</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Contratos -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Contratos</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10.29 10.7l2.29 2.3 4.42-4.42"/></svg>
+            <span>Lista</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span>Plantillas</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Comunicaciones -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Comunicaciones</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>Mensajes</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span>Tareas</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Administracion -->
+      <div>
+        <div class="nav-group-header flat"><span>Administración</span></div>
+        <div class="mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/><path d="M22 15h-6"/></svg>
+            <span>Equipo</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+            <span>Auditoría</span>
+          </a>
+          <a href="settings-roles.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Configuración</span>
+          </a>
+        </div>
+      </div>
+
+    </nav>
+
+    <!-- User profile footer -->
+    <div class="border-t border-white/[0.08] px-3 py-3">
+      <div class="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-white/[0.04] transition-colors cursor-pointer">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-medium text-white tabular-nums" style="background: #738566;">
+          MF
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="truncate font-display text-[13px] font-medium text-white leading-tight">
+            María Fernández
+          </div>
+          <div class="truncate font-mono text-[9px] uppercase tracking-widest text-white/45 mt-0.5">
+            Oficial de Cobranza
+          </div>
+        </div>
+        <button class="p-1.5 text-white/35 hover:text-white/90 transition-colors rounded" aria-label="Cerrar sesion" title="Cerrar sesion">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================== -->
+  <!-- Main layout area                                                -->
+  <!-- ============================================================== -->
+  <div class="ml-[240px]">
+
+    <!-- Sticky header -->
+    <header class="sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div class="flex h-14 items-center gap-3 pl-8 pr-6">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="#" class="text-[12px] text-sage-500 hover:text-forest-900 transition-colors">Inicio</a>
+          <span class="text-sun-500 text-[9px] leading-none">&#9679;</span>
+          <span class="text-[12px] text-sage-500">Operación</span>
+          <span class="text-sun-500 text-[9px] leading-none">●</span>
+          <a href="loans-list.html" class="text-[12px] text-sage-500 hover:text-forest-900 transition-colors">Préstamos</a>
+          <span class="text-sun-500 text-[9px] leading-none">●</span>
+          <span class="font-display text-[13px] font-medium text-forest-900">Nuevo préstamo</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <div class="hidden lg:flex items-center gap-2 pr-3 mr-2 border-r border-forest-900/10">
+            <span class="relative flex h-2 w-2">
+              <span class="absolute inline-flex h-full w-full rounded-full bg-forest-500 opacity-40" style="animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite;"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-forest-500"></span>
+            </span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Actualizado 14:32</span>
+          </div>
+          <button class="util-btn gap-1.5 px-2.5 text-[12px]">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4v18M12 21V11l7-4v14"/></svg>
+            <span class="font-mono text-[10px] uppercase tracking-widest">coop-san-jose</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <button class="util-btn util-btn--icon" aria-label="Busqueda global">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </button>
+          <button class="util-btn util-btn--icon relative" aria-label="Recordatorios pendientes (3)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="reminder-dot">3</span>
+          </button>
+          <button class="flex items-center gap-2 h-8 pl-1 pr-2 ml-1 rounded hover:bg-forest-900/[0.04] transition-colors" aria-label="Menu de usuario">
+            <div class="flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] font-medium text-white tabular-nums" style="background: #738566;">MF</div>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sage-500"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================================== -->
+    <!-- Main content: Customers List                                    -->
+    <!-- ============================================================== -->
+    <main class="paper-bg min-h-[calc(100vh-56px)] px-8 py-8">
+      <div class="max-w-[1400px] mx-auto">
+
+        <a href="loans-list.html" class="inline-flex items-center gap-1.5 text-[12px] text-sage-600 hover:text-forest-900 transition-colors mb-5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+          Préstamos
+        </a>
+
+        <header class="cf-page-header">
+          <div>
+            <div class="cf-page-header__eyebrow">Originación &nbsp;—&nbsp; solicitud nueva · se guarda como borrador</div>
+            <h1 class="cf-page-header__title">Nuevo préstamo</h1>
+            <p class="cf-page-header__desc" id="step-desc">Paso 1 de 6 · elige a quién le vas a prestar.</p>
+          </div>
+          <div class="cf-page-header__actions">
+            <span class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-sage-600 mr-2"><span class="cf-live"></span>Borrador guardado 14:31</span>
+            <a href="loans-list.html" class="cf-btn cf-btn--secondary">Descartar</a>
+          </div>
+        </header>
+
+        <!-- WizardProgress -->
+        <nav class="cf-steps py-6" aria-label="Pasos" id="steps">
+          <button class="cf-step active" data-go="1"><span class="cf-step__dot">1</span><span class="cf-step__label">Cliente</span></button><span class="cf-step__line"></span>
+          <button class="cf-step" data-go="2"><span class="cf-step__dot">2</span><span class="cf-step__label">Préstamo</span></button><span class="cf-step__line"></span>
+          <button class="cf-step" data-go="3"><span class="cf-step__dot">3</span><span class="cf-step__label">Términos</span></button><span class="cf-step__line"></span>
+          <button class="cf-step" data-go="4"><span class="cf-step__dot">4</span><span class="cf-step__label">Garantías</span></button><span class="cf-step__line"></span>
+          <button class="cf-step" data-go="5"><span class="cf-step__dot">5</span><span class="cf-step__label">Garantes</span></button><span class="cf-step__line"></span>
+          <button class="cf-step" data-go="6"><span class="cf-step__dot">6</span><span class="cf-step__label">Revisión</span></button>
+        </nav>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10 rule-t pt-8">
+          <section class="lg:col-span-2 min-w-0">
+
+            <!-- ================= 1 · Cliente ================= -->
+            <div class="step" data-step="1">
+              <div class="cf-sec__head" style="margin-bottom:24px">
+                <div class="cf-sec__eyebrow">Paso 01</div>
+                <h2 class="cf-sec__title">Cliente</h2>
+                <p class="cf-sec__desc">Busca por nombre, cédula, correo o teléfono. Si no existe, regístralo primero con la consulta al padrón.</p>
+              </div>
+              <div class="cf-field">
+                <label class="cf-label" for="q">Buscar cliente</label>
+                <input id="q" class="cf-input" value="Yolanda" autocomplete="off">
+              </div>
+              <div class="mt-4 space-y-2" role="radiogroup" aria-label="Resultados">
+                <label class="opt"><input type="radio" name="cust" checked>
+                  <div class="flex items-center gap-4">
+                    <span class="cf-avatar cf-avatar--md cf-avatar--sage">YR</span>
+                    <div class="flex-1 min-w-0"><div class="opt__title">Yolanda Reyes Almánzar</div><div class="opt__desc cf-mono">402-1188345-2 · 829-555-3307 · C-0362</div></div>
+                    <span class="cf-badge cf-badge--activo">Activa</span>
+                  </div>
+                </label>
+                <label class="opt"><input type="radio" name="cust">
+                  <div class="flex items-center gap-4">
+                    <span class="cf-avatar cf-avatar--md cf-avatar--forest">YP</span>
+                    <div class="flex-1 min-w-0"><div class="opt__title">Yolanda Peña Tavárez</div><div class="opt__desc cf-mono">001-0567712-9 · 809-555-1180 · C-0217</div></div>
+                    <span class="cf-badge cf-badge--mora">Mora 12d</span>
+                  </div>
+                </label>
+                <label class="opt"><input type="radio" name="cust">
+                  <div class="flex items-center gap-4">
+                    <span class="cf-avatar cf-avatar--md">YM</span>
+                    <div class="flex-1 min-w-0"><div class="opt__title">Yolanda Matos</div><div class="opt__desc cf-mono">031-0334190-1 · 849-555-0042 · C-0098</div></div>
+                    <span class="cf-badge cf-badge--inactivo">Inactiva</span>
+                  </div>
+                </label>
+              </div>
+              <a href="customer-new.html" class="inline-flex items-center gap-1.5 mt-4 text-[13px] text-forest-900 underline decoration-forest-900/25 underline-offset-4">Registrar cliente nuevo →</a>
+
+              <div class="mt-8">
+                <div class="rail-h"><span>Yolanda Reyes · perfil de crédito</span><a href="customer-detail.html">Ver perfil</a></div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 border-b border-forest-900/[0.08]">
+                  <div class="py-4 pr-4 cf-rule-r"><div class="cf-eyebrow">Ingreso mensual</div><div class="mt-1.5 font-mono text-[17px] font-medium">RD$ 95,000</div></div>
+                  <div class="py-4 px-4 sm:cf-rule-r"><div class="cf-eyebrow">Score</div><div class="mt-1.5 font-mono text-[17px] font-medium">708 <span class="text-[12px] text-sage-500">/ 850</span></div></div>
+                  <div class="py-4 pr-4 sm:px-4 cf-rule-r"><div class="cf-eyebrow">Préstamos activos</div><div class="mt-1.5 font-mono text-[17px] font-medium">0</div></div>
+                  <div class="py-4 px-4"><div class="cf-eyebrow">Historial</div><div class="mt-1.5 font-mono text-[17px] font-medium">1 saldado</div></div>
+                </div>
+                <p class="mt-3 text-[12px] text-sage-600">Sin alertas: no figura como garante en mora ni en lista negra. Padrón JCE confirmado el 02 · feb · 2026.</p>
+              </div>
+            </div>
+
+            <!-- ================= 2 · Préstamo ================= -->
+            <div class="step" data-step="2" hidden>
+              <div class="cf-sec__head" style="margin-bottom:24px">
+                <div class="cf-sec__eyebrow">Paso 02</div>
+                <h2 class="cf-sec__title">Préstamo</h2>
+                <p class="cf-sec__desc">Tipo, monto y para qué es. El tipo define qué garantías y documentos se piden después.</p>
+              </div>
+              <div class="cf-label" id="lbl-type">Tipo de préstamo</div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1" role="radiogroup" aria-labelledby="lbl-type">
+                <label class="opt"><input type="radio" name="type"><div class="opt__title">Personal</div><div class="opt__desc">Consumo, sin garantía real</div></label>
+                <label class="opt"><input type="radio" name="type"><div class="opt__title">Negocio</div><div class="opt__desc">Capital de trabajo, mercancía</div></label>
+                <label class="opt"><input type="radio" name="type" checked><div class="opt__title">Vehículo</div><div class="opt__desc">Compra o con vehículo en garantía</div></label>
+                <label class="opt"><input type="radio" name="type"><div class="opt__title">Hipotecario</div><div class="opt__desc">Con inmueble en garantía</div></label>
+                <label class="opt"><input type="radio" name="type"><div class="opt__title">Nómina</div><div class="opt__desc">Descuento por empleador</div></label>
+                <label class="opt"><input type="radio" name="type"><div class="opt__title">Estudiantil</div><div class="opt__desc">Matrícula y estudios</div></label>
+              </div>
+
+              <div class="grid sm:grid-cols-2 gap-8 mt-8">
+                <div class="cf-field">
+                  <label class="cf-label" for="amount">Monto</label>
+                  <div class="cf-input-group"><span class="cf-prefix">RD$</span><input id="amount" class="cf-input cf-input--large" value="320,000.00" inputmode="decimal"></div>
+                  <div class="cf-hint">Política para vehículo: hasta RD$ 1,500,000 y 70% del valor tasado.</div>
+                </div>
+                <div class="cf-field">
+                  <label class="cf-label" for="officer">Oficial asignado</label>
+                  <input id="officer" class="cf-input cf-input--readonly" value="María Fernández" readonly>
+                </div>
+              </div>
+              <div class="cf-field mt-8">
+                <label class="cf-label" for="purpose">Propósito</label>
+                <input id="purpose" class="cf-input" value="Compra de Toyota Corolla 2021 usado para trabajo como taxista de plataforma">
+              </div>
+              <div class="cf-field mt-8">
+                <label class="cf-label" for="notes">Notas internas</label>
+                <textarea id="notes" class="cf-input" rows="2" placeholder="Solo las ve tu equipo">Vehículo lo vende un particular; tasación hecha por Autotasa del Cibao.</textarea>
+              </div>
+            </div>
+
+            <!-- ================= 3 · Términos ================= -->
+            <div class="step" data-step="3" hidden>
+              <div class="cf-sec__head" style="margin-bottom:24px">
+                <div class="cf-sec__eyebrow">Paso 03</div>
+                <h2 class="cf-sec__title">Términos</h2>
+                <p class="cf-sec__desc">Tasa, plazo y forma de cobro. La comparación de métodos se recalcula al cambiar cualquier valor.</p>
+              </div>
+
+              <div class="grid sm:grid-cols-2 gap-8">
+                <div class="cf-field">
+                  <label class="cf-label" for="rate">Tasa mensual</label>
+                  <div class="cf-input-group"><input id="rate" class="cf-input cf-input--mono" value="2.2" inputmode="decimal"><span class="cf-prefix" style="padding-left:6px">%</span></div>
+                  <div class="cf-hint"><span class="cf-mono">26.4%</span> nominal anual</div>
+                </div>
+                <div class="cf-field">
+                  <label class="cf-label" for="term">Plazo</label>
+                  <div class="cf-input-group"><input id="term" class="cf-input cf-input--mono" value="36" inputmode="numeric"><span class="cf-prefix" style="padding-left:6px">meses</span></div>
+                </div>
+              </div>
+              <div class="mt-8">
+                <div class="cf-field">
+                  <span class="cf-label" id="lbl-freq">Frecuencia de pago</span>
+                  <div class="cf-tabs" role="radiogroup" aria-labelledby="lbl-freq" id="freq">
+                    <button class="cf-tab" role="radio" aria-checked="false" data-f="daily">Diario</button>
+                    <button class="cf-tab" role="radio" aria-checked="false" data-f="weekly">Semanal</button>
+                    <button class="cf-tab" role="radio" aria-checked="false" data-f="biweekly">Quincenal</button>
+                    <button class="cf-tab active" role="radio" aria-checked="true" data-f="monthly">Mensual</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="cf-label mt-8" id="lbl-method">Método de amortización</div>
+              <div class="grid sm:grid-cols-2 gap-2 mt-1" role="radiogroup" aria-labelledby="lbl-method" id="methods">
+                <label class="opt"><input type="radio" name="method" value="flat">
+                  <div class="flex justify-between gap-3"><span class="opt__title">Flat · interés fijo</span><span class="font-mono text-[15px] font-medium" data-pay="flat"></span></div>
+                  <div class="opt__desc">Interés sobre el monto original. Cuota simple, muy usada en financieras pequeñas.</div>
+                  <div class="mt-2 font-mono text-[11px] text-sage-600">interés total <span data-int="flat"></span></div>
+                </label>
+                <label class="opt"><input type="radio" name="method" value="saldo_insoluto">
+                  <div class="flex justify-between gap-3"><span class="opt__title">Saldo insoluto</span><span class="font-mono text-[15px] font-medium" data-pay="saldo_insoluto"></span></div>
+                  <div class="opt__desc">Interés sobre lo que se debe. La cuota baja con el tiempo.</div>
+                  <div class="mt-2 font-mono text-[11px] text-sage-600">interés total <span data-int="saldo_insoluto"></span></div>
+                </label>
+                <label class="opt"><input type="radio" name="method" value="french" checked>
+                  <div class="flex justify-between gap-3"><span class="opt__title">Francés · cuota fija</span><span class="font-mono text-[15px] font-medium" data-pay="french"></span></div>
+                  <div class="opt__desc">Misma cuota todo el plazo. Al inicio paga más interés, luego más capital.</div>
+                  <div class="mt-2 font-mono text-[11px] text-sage-600">interés total <span data-int="french"></span></div>
+                </label>
+                <label class="opt"><input type="radio" name="method" value="german">
+                  <div class="flex justify-between gap-3"><span class="opt__title">Alemán · capital fijo</span><span class="font-mono text-[15px] font-medium" data-pay="german"></span></div>
+                  <div class="opt__desc">Mismo capital en cada cuota; el pago total va bajando.</div>
+                  <div class="mt-2 font-mono text-[11px] text-sage-600">interés total <span data-int="german"></span></div>
+                </label>
+              </div>
+
+              <div class="grid sm:grid-cols-3 gap-8 mt-8">
+                <div class="cf-field"><label class="cf-label" for="disb">Desembolso</label><input id="disb" class="cf-input cf-input--mono" value="15 · abr · 2026"></div>
+                <div class="cf-field"><label class="cf-label" for="payday">Día de pago</label><input id="payday" class="cf-input cf-input--mono" value="15"></div>
+                <div class="cf-field"><label class="cf-label" for="first">Primer pago</label><input id="first" class="cf-input cf-input--mono cf-input--readonly" value="15 · may · 2026" readonly><div class="cf-hint">Se calcula con el día de pago</div></div>
+              </div>
+
+              <div class="mt-10">
+                <div class="flex items-baseline justify-between mb-2">
+                  <span class="cf-eyebrow">Vista previa de cuotas</span>
+                  <span class="font-mono text-[11px] text-sage-600" id="preview-meta"></span>
+                </div>
+                <table class="cf-table cf-table--dense" id="preview">
+                  <thead><tr>
+                    <th class="cf-num" aria-sort="ascending" data-type="num">#</th>
+                    <th aria-sort="none" data-type="date">Vence</th>
+                    <th class="cf-num" aria-sort="none" data-type="num">Capital</th>
+                    <th class="cf-num" aria-sort="none" data-type="num">Interés</th>
+                    <th class="cf-num" aria-sort="none" data-type="num">Cuota RD$</th>
+                    <th class="cf-num" aria-sort="none" data-type="num">Saldo RD$</th>
+                  </tr></thead>
+                  <tbody></tbody>
+                </table>
+                <p class="mt-2 text-[12px] text-sage-600">Primeras 6 y última cuota. La tabla completa se genera al desembolsar.</p>
+              </div>
+            </div>
+
+            <!-- ================= 4 · Garantías ================= -->
+            <div class="step" data-step="4" hidden>
+              <div class="cf-sec__head" style="margin-bottom:24px">
+                <div class="cf-sec__eyebrow">Paso 04 · opcional</div>
+                <h2 class="cf-sec__title">Garantías</h2>
+                <p class="cf-sec__desc">Bienes que respaldan el préstamo. Para vehículo, la política pide tasación y fotos.</p>
+              </div>
+              <div class="cf-label" id="lbl-col">Tipo de garantía</div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1" role="radiogroup" aria-labelledby="lbl-col">
+                <label class="opt"><input type="radio" name="col"><div class="opt__title">Sin garantía</div></label>
+                <label class="opt"><input type="radio" name="col" checked><div class="opt__title">Vehículo</div></label>
+                <label class="opt"><input type="radio" name="col"><div class="opt__title">Inmueble</div></label>
+                <label class="opt"><input type="radio" name="col"><div class="opt__title">Equipo</div></label>
+                <label class="opt"><input type="radio" name="col"><div class="opt__title">Inventario</div></label>
+                <label class="opt"><input type="radio" name="col"><div class="opt__title">Valores</div></label>
+                <label class="opt"><input type="radio" name="col"><div class="opt__title">Depósito</div></label>
+                <label class="opt"><input type="radio" name="col"><div class="opt__title">Otro</div></label>
+              </div>
+
+              <div class="grid sm:grid-cols-3 gap-x-8 gap-y-6 mt-8">
+                <div class="cf-field"><label class="cf-label" for="brand">Marca</label><select id="brand" class="cf-select-line"><option>Toyota</option><option>Honda</option><option>Hyundai</option><option>Kia</option></select></div>
+                <div class="cf-field"><label class="cf-label" for="model">Modelo</label><select id="model" class="cf-select-line"><option>Corolla</option><option>Camry</option><option>RAV4</option><option>Hilux</option></select></div>
+                <div class="cf-field"><label class="cf-label" for="year">Año</label><select id="year" class="cf-select-line"><option>2021</option><option>2020</option><option>2022</option></select></div>
+                <div class="cf-field"><label class="cf-label" for="plate">Placa</label><input id="plate" class="cf-input cf-input--mono" value="A123456"></div>
+                <div class="cf-field"><label class="cf-label" for="color">Color</label><input id="color" class="cf-input" value="Blanco"></div>
+                <div class="cf-field"><label class="cf-label" for="vin">VIN · chasis</label><input id="vin" class="cf-input cf-input--mono" value="2T1BURHE5MC512748"></div>
+              </div>
+
+              <div class="grid sm:grid-cols-2 gap-8 mt-8">
+                <div class="cf-field">
+                  <label class="cf-label" for="appraisal">Valor tasado</label>
+                  <div class="cf-input-group"><span class="cf-prefix">RD$</span><input id="appraisal" class="cf-input cf-input--mono" value="850,000.00"></div>
+                  <div class="cf-hint">Autotasa del Cibao · 08 · abr · 2026</div>
+                </div>
+                <div>
+                  <div class="cf-eyebrow">Préstamo / valor (LTV)</div>
+                  <div class="mt-2 flex items-baseline justify-between"><span class="font-mono text-[24px] font-medium">37.6%</span><span class="text-[12px] text-sage-600">límite de política <span class="cf-mono">70%</span></span></div>
+                  <div class="relative h-[6px] mt-2 bg-forest-900/[0.06]"><div class="absolute inset-y-0 left-0" style="width:37.6%;background:var(--forest-500)"></div><div class="absolute w-px" style="left:70%;top:-3px;bottom:-3px;background:var(--flame-600)"></div></div>
+                </div>
+              </div>
+
+              <div class="mt-8">
+                <div class="cf-eyebrow mb-2">Fotos del vehículo <span class="normal-case tracking-normal font-sans text-[12px] text-sage-500 ml-1">2 de 4 requeridas</span></div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div class="aspect-[4/3] border border-forest-900/15 bg-sage-100/50 grid place-content-center text-center"><span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Frente<br>✓ subida</span></div>
+                  <div class="aspect-[4/3] border border-forest-900/15 bg-sage-100/50 grid place-content-center text-center"><span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Lateral<br>✓ subida</span></div>
+                  <button class="aspect-[4/3] border border-dashed border-forest-900/25 grid place-content-center text-[12px] text-sage-600 hover:border-forest-900">+ Trasera</button>
+                  <button class="aspect-[4/3] border border-dashed border-forest-900/25 grid place-content-center text-[12px] text-sage-600 hover:border-forest-900">+ Matrícula</button>
+                </div>
+              </div>
+              <button class="cf-btn cf-btn--secondary mt-6">+ Agregar otra garantía</button>
+            </div>
+
+            <!-- ================= 5 · Garantes ================= -->
+            <div class="step" data-step="5" hidden>
+              <div class="cf-sec__head" style="margin-bottom:24px">
+                <div class="cf-sec__eyebrow">Paso 05 · opcional</div>
+                <h2 class="cf-sec__title">Garantes</h2>
+                <p class="cf-sec__desc">Fiadores solidarios. Con la cédula buscamos sus datos en el padrón y avisamos si ya garantizan a otro cliente.</p>
+              </div>
+
+              <div class="rail-h"><span>Garantes agregados · 1</span></div>
+              <div class="flex items-center gap-4 py-4 border-b border-forest-900/[0.06]">
+                <span class="cf-avatar cf-avatar--md cf-avatar--forest">HR</span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[13px] font-medium">Héctor Reyes Almánzar <span class="text-sage-600 font-normal">· cónyuge</span></div>
+                  <div class="font-mono text-[11px] text-sage-600">402-1190227-8 · 829-555-4412 · ingreso RD$ 60,000</div>
+                </div>
+                <span class="cf-badge cf-badge--activo">Validado JCE</span>
+                <button class="cf-btn cf-btn--ghost cf-btn--sm">Quitar</button>
+              </div>
+
+              <div class="mt-8">
+                <div class="rail-h"><span>Agregar garante</span></div>
+                <div class="grid sm:grid-cols-3 gap-x-8 gap-y-6 mt-5">
+                  <div class="cf-field"><label class="cf-label" for="g-doc">Documento</label><select id="g-doc" class="cf-select-line"><option>Cédula</option><option>Pasaporte</option></select></div>
+                  <div class="cf-field"><label class="cf-label" for="g-id">Cédula</label><input id="g-id" class="cf-input cf-input--mono" value="001-1457803-2"><div class="cf-hint">Encontrada en el padrón JCE</div></div>
+                  <div class="cf-field"><label class="cf-label" for="g-rel">Relación</label><select id="g-rel" class="cf-select-line"><option>Hermano/a</option><option>Cónyuge</option><option>Padre/Madre</option><option>Amigo/a</option><option>Socio</option><option>Compañero de trabajo</option><option>Otro</option></select></div>
+                  <div class="cf-field"><label class="cf-label" for="g-fn">Nombre</label><input id="g-fn" class="cf-input cf-input--readonly" value="Marisol" readonly></div>
+                  <div class="cf-field"><label class="cf-label" for="g-ln">Apellidos</label><input id="g-ln" class="cf-input cf-input--readonly" value="Reyes Almánzar" readonly></div>
+                  <div class="cf-field"><label class="cf-label" for="g-ph">Teléfono</label><input id="g-ph" class="cf-input cf-input--mono" placeholder="ej: 809-555-0000"></div>
+                  <div class="cf-field"><label class="cf-label" for="g-emp">Empresa / empleador</label><input id="g-emp" class="cf-input" placeholder="Nombre de la empresa"></div>
+                  <div class="cf-field"><label class="cf-label" for="g-occ">Ocupación</label><input id="g-occ" class="cf-input" placeholder="ej: Contadora"></div>
+                  <div class="cf-field"><label class="cf-label" for="g-inc">Ingreso mensual</label><div class="cf-input-group"><span class="cf-prefix">RD$</span><input id="g-inc" class="cf-input cf-input--mono" placeholder="0.00"></div></div>
+                </div>
+                <div class="record mt-6">
+                  <dl>
+                    <div class="record-row"><dt class="flex items-center gap-2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--flame-700)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Ya es garante</dt><dd>de <span class="font-medium">Luz Castillo</span> · <span class="cf-mono">LN-2025-0112</span> · al día</dd></div>
+                  </dl>
+                </div>
+                <button class="cf-btn cf-btn--secondary mt-6">Agregar garante</button>
+              </div>
+            </div>
+
+            <!-- ================= 6 · Revisión ================= -->
+            <div class="step" data-step="6" hidden>
+              <div class="cf-sec__head" style="margin-bottom:24px">
+                <div class="cf-sec__eyebrow">Paso 06</div>
+                <h2 class="cf-sec__title">Revisión</h2>
+                <p class="cf-sec__desc">Al crearla, la solicitud queda Por aprobar y le llega a Ramón Peña (gerente). Nada se desembolsa todavía.</p>
+              </div>
+
+              <div class="rail-h"><span>Cliente</span><a href="#" data-go="1">Editar</a></div>
+              <dl class="dl"><div><dt>Nombre</dt><dd>Yolanda Reyes Almánzar</dd></div><div><dt>Cédula</dt><dd class="cf-mono">402-1188345-2</dd></div><div><dt>Ingreso · score</dt><dd><span class="cf-mono">RD$ 95,000</span> · <span class="cf-mono">708</span></dd></div></dl>
+
+              <div class="rail-h mt-8"><span>Préstamo y términos</span><a href="#" data-go="3">Editar</a></div>
+              <dl class="dl">
+                <div><dt>Tipo · monto</dt><dd>Vehículo · <span class="cf-mono">RD$ 320,000.00</span></dd></div>
+                <div><dt>Método · tasa</dt><dd><span data-r="method">Francés</span> · <span class="cf-mono" data-r="rate">2.2%</span> mensual</dd></div>
+                <div><dt>Plazo · frecuencia</dt><dd><span class="cf-mono" data-r="n">36</span> cuotas · <span data-r="freq">mensual</span></dd></div>
+                <div><dt>Cuota</dt><dd class="cf-mono font-medium" data-r="pay"></dd></div>
+                <div><dt>Interés total · total a pagar</dt><dd class="cf-mono"><span data-r="int"></span> · <span data-r="tot"></span></dd></div>
+                <div><dt>Desembolso · primer pago</dt><dd class="cf-mono">15 · abr · 2026 · 15 · may · 2026</dd></div>
+              </dl>
+
+              <div class="rail-h mt-8"><span>Respaldo</span><a href="#" data-go="4">Editar</a></div>
+              <dl class="dl"><div><dt>Garantía</dt><dd>Toyota Corolla 2021 · <span class="cf-mono">A123456</span> · tasado <span class="cf-mono">RD$ 850,000</span></dd></div><div><dt>LTV</dt><dd class="cf-mono">37.6%</dd></div><div><dt>Garante</dt><dd>Héctor Reyes Almánzar · cónyuge</dd></div></dl>
+
+              <div class="mt-8">
+                <div class="cf-eyebrow mb-3">Documentos del expediente</div>
+                <div class="grid sm:grid-cols-2 gap-y-2 gap-x-8">
+                  <label class="cf-check-label"><input type="checkbox" class="cf-checkbox" checked> Cédula del cliente</label>
+                  <label class="cf-check-label"><input type="checkbox" class="cf-checkbox" checked> Carta de trabajo / ingresos</label>
+                  <label class="cf-check-label"><input type="checkbox" class="cf-checkbox" checked> Matrícula del vehículo</label>
+                  <label class="cf-check-label"><input type="checkbox" class="cf-checkbox"> Póliza de seguro con endoso</label>
+                </div>
+              </div>
+              <label class="cf-check-label mt-6"><input type="checkbox" class="cf-checkbox" checked> El cliente leyó y acepta los términos y la tabla de amortización.</label>
+            </div>
+
+            <!-- Wizard nav -->
+            <div class="mt-10 pt-6 cf-rule-t flex items-center justify-between">
+              <button class="cf-btn cf-btn--ghost" id="prev">← Atrás</button>
+              <div class="flex items-center gap-2">
+                <button class="cf-btn cf-btn--secondary">Guardar borrador</button>
+                <button class="cf-btn cf-btn--primary cf-btn--lg" id="next">Continuar <span class="cf-kbd cf-kbd--light">↵</span></button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Expediente rail -->
+          <aside class="lg:sticky lg:top-20 self-start space-y-8">
+            <section>
+              <div class="rail-h"><span>Expediente</span><span class="cf-mono" id="pct">17%</span></div>
+              <div class="h-[3px] bg-forest-900/[0.08] mt-3"><div class="h-full" style="background:var(--tenant-primary);width:17%" id="pct-bar"></div></div>
+              <dl class="dl mt-3">
+                <div><dt>Cliente</dt><dd>Yolanda Reyes</dd></div>
+                <div><dt>Monto</dt><dd class="cf-mono">RD$ 320,000.00</dd></div>
+                <div><dt>Cuota estimada</dt><dd class="cf-mono font-medium" data-r="pay"></dd></div>
+                <div><dt>Plazo</dt><dd><span class="cf-mono" data-r="n">36</span> cuotas</dd></div>
+                <div><dt>Cuota / ingreso</dt><dd class="cf-mono" data-r="dti"></dd></div>
+                <div><dt>Garantía</dt><dd data-show="4">Vehículo · LTV 37.6%</dd></div>
+                <div><dt>Garantes</dt><dd data-show="5">1</dd></div>
+              </dl>
+            </section>
+            <section>
+              <div class="rail-h"><span>Política · vehículo</span></div>
+              <ul class="mt-3 space-y-2 text-[12px]">
+                <li class="flex justify-between"><span class="text-sage-600">Cuota / ingreso ≤ 35%</span><span class="cf-mono" style="color:var(--forest-600)" data-r="dti-ok"></span></li>
+                <li class="flex justify-between"><span class="text-sage-600">LTV ≤ 70%</span><span class="cf-mono" style="color:var(--forest-600)">✓ 37.6%</span></li>
+                <li class="flex justify-between"><span class="text-sage-600">Plazo ≤ 48 meses</span><span class="cf-mono" style="color:var(--forest-600)">✓ 36</span></li>
+                <li class="flex justify-between"><span class="text-sage-600">Seguro con endoso</span><span class="cf-mono text-flame-700">Falta</span></li>
+              </ul>
+            </section>
+            <p class="text-[12px] text-sage-600">Se creará como <span class="cf-mono text-forest-900">LN-2026-0164</span> en estado Por aprobar.</p>
+          </aside>
+        </div>
+
+        <div class="mt-16 pt-5 rule-t flex flex-wrap items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-widest text-sage-500">
+          <span>CrediFlux v2.0 · Santiago, RD</span>
+          <span>Datos al 10 abr 2026 14:32 · sesión 2h 14m</span>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Dev-only: tenant theme switcher -->
+  <div class="dev-banner" role="presentation">
+    <span class="dev-banner__label">tenant-primary &rarr;</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" data-name="Forest (default)" style="background: #163300;" aria-label="Forest"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" data-name="Burgundy" style="background: #3a0e1e;" aria-label="Burgundy"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" data-name="Deep Navy" style="background: #0c1e38;" aria-label="Deep Navy"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" data-name="Teal" style="background: #1a4d3a;" aria-label="Teal"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" data-name="Violet" style="background: #2d1b4e;" aria-label="Violet"></button>
+    </div>
+  </div>
+
+  <!-- Pulse keyframe -->
+  <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0; transform: scale(2); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      @keyframes pulse { 0%, 100% { opacity: 0.4; transform: none; } }
+    }
+  </style>
+
+  <script>
+    // Toggle collapsible nav groups
+    function toggleGroup(headerEl) {
+      const group = headerEl.closest('.nav-group');
+      if (!group) return;
+      const collapsed = group.dataset.collapsed === 'true';
+      group.dataset.collapsed = collapsed ? 'false' : 'true';
+      headerEl.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
+    }
+
+    // Filter pills toggle
+    document.querySelectorAll('.filter-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+      });
+    });
+
+    // Select-all checkbox
+    const selectAll = document.getElementById('select-all');
+    const rowChecks = document.querySelectorAll('.row-check');
+    selectAll.addEventListener('change', () => {
+      rowChecks.forEach(cb => { cb.checked = selectAll.checked; });
+    });
+    rowChecks.forEach(cb => {
+      cb.addEventListener('change', () => {
+        const allChecked = Array.from(rowChecks).every(c => c.checked);
+        const someChecked = Array.from(rowChecks).some(c => c.checked);
+        selectAll.checked = allChecked;
+        selectAll.indeterminate = someChecked && !allChecked;
+      });
+    });
+
+    // Tenant theme switcher
+    const swatches = document.querySelectorAll('.dev-banner__swatch');
+    swatches.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const color = btn.dataset.color;
+        document.documentElement.style.setProperty('--color-tenant-primary', color);
+        swatches.forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  </script>
+  <script src="_design-notes.js"></script>
+
+  <script src="ds/datatable.js"></script>
+  <link rel="stylesheet" href="ds/patterns.css">
+  <script>
+  (function () {
+    const DESC = {
+      1: 'Paso 1 de 6 · elige a quién le vas a prestar.',
+      2: 'Paso 2 de 6 · tipo, monto y propósito.',
+      3: 'Paso 3 de 6 · tasa, plazo, frecuencia y método.',
+      4: 'Paso 4 de 6 · bienes que respaldan el préstamo.',
+      5: 'Paso 5 de 6 · fiadores solidarios.',
+      6: 'Paso 6 de 6 · revisa y envía a aprobación.'
+    };
+    const METHOD = { flat: 'Flat', saldo_insoluto: 'Saldo insoluto', french: 'Francés', german: 'Alemán' };
+    const FREQ = { daily: ['diario', 30], weekly: ['semanal', 4], biweekly: ['quincenal', 2], monthly: ['mensual', 1] };
+    const M = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const P = 320000, INCOME = 95000;
+    const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let cur = 1, freq = 'monthly';
+
+    // Same math as frontend/app/loans/new/page.tsx: monthly rate, period = month / divisor.
+    function schedule(method) {
+      const rate = parseFloat(document.getElementById('rate').value) / 100 || 0;
+      const term = parseInt(document.getElementById('term').value, 10) || 1;
+      const div = FREQ[freq][1], n = term * div, r = rate / div;
+      const rows = []; let bal = P;
+      const french = r > 0 ? P * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1) : P / n;
+      for (let k = 1; k <= n; k++) {
+        let cap, int;
+        if (method === 'flat') { int = P * rate * term / n; cap = P / n; }
+        else if (method === 'french') { int = bal * r; cap = french - int; }
+        else { int = bal * r; cap = P / n; }
+        bal = Math.max(0, bal - cap);
+        rows.push({ k, cap, int, pay: cap + int, bal });
+      }
+      return { rows, n, term, rate };
+    }
+    function dueLabel(k) {
+      if (freq !== 'monthly') return `+${k} ${FREQ[freq][0] === 'diario' ? 'd' : freq === 'weekly' ? 'sem' : 'qna'}`;
+      const d = new Date(2026, 3 + k, 15); return `15 · ${M[d.getMonth()]} · ${d.getFullYear()}`;
+    }
+    function recalc() {
+      const sel = document.querySelector('input[name=method]:checked').value;
+      Object.keys(METHOD).forEach(m => {
+        const s = schedule(m), first = s.rows[0].pay, tot = s.rows.reduce((a, r) => a + r.int, 0);
+        document.querySelector(`[data-pay="${m}"]`).textContent = (m === 'french' || m === 'flat' ? '' : 'desde ') + 'RD$ ' + fmt(first);
+        document.querySelector(`[data-int="${m}"]`).textContent = 'RD$ ' + fmt(tot);
+      });
+      const s = schedule(sel), int = s.rows.reduce((a, r) => a + r.int, 0), pay = s.rows[0].pay;
+      const show = s.rows.slice(0, 6).concat(s.rows.length > 6 ? [s.rows[s.rows.length - 1]] : []);
+      document.querySelector('#preview tbody').innerHTML = show.map(r =>
+        `<tr><td class="cf-num cf-mono">${r.k}</td><td class="cf-mono">${dueLabel(r.k)}</td><td class="cf-num cf-mono">${fmt(r.cap)}</td><td class="cf-num cf-mono">${fmt(r.int)}</td><td class="cf-num cf-amount">${fmt(r.pay)}</td><td class="cf-num cf-mono">${fmt(r.bal)}</td></tr>`).join('');
+      document.getElementById('preview-meta').textContent = `${s.n} cuotas · interés RD$ ${fmt(int)} · total RD$ ${fmt(P + int)}`;
+      const monthlyPay = pay * FREQ[freq][1], dti = monthlyPay / INCOME * 100;
+      const set = (k, v) => document.querySelectorAll(`[data-r="${k}"]`).forEach(e => e.textContent = v);
+      set('pay', 'RD$ ' + fmt(pay) + (sel === 'french' || sel === 'flat' ? '' : ' (1ra)'));
+      set('n', s.n); set('rate', (s.rate * 100).toFixed(1) + '%'); set('method', METHOD[sel]); set('freq', FREQ[freq][0]);
+      set('int', 'RD$ ' + fmt(int)); set('tot', 'RD$ ' + fmt(P + int));
+      set('dti', dti.toFixed(1) + '%'); set('dti-ok', (dti <= 35 ? '✓ ' : '✕ ') + dti.toFixed(1) + '%');
+    }
+
+    function go(n) {
+      cur = Math.max(1, Math.min(6, n));
+      document.querySelectorAll('.step').forEach(s => s.hidden = +s.dataset.step !== cur);
+      document.querySelectorAll('#steps .cf-step').forEach(b => {
+        const k = +b.dataset.go;
+        b.className = 'cf-step' + (k < cur ? ' completed' : k === cur ? ' active' : '');
+        b.querySelector('.cf-step__dot').textContent = k < cur ? '✓' : k;
+        if (k === cur) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+      });
+      document.querySelectorAll('#steps .cf-step__line').forEach((l, i) => l.classList.toggle('completed', i + 1 < cur));
+      document.getElementById('step-desc').textContent = DESC[cur];
+      document.getElementById('prev').style.visibility = cur === 1 ? 'hidden' : 'visible';
+      const next = document.getElementById('next');
+      next.className = 'cf-btn cf-btn--lg ' + (cur === 6 ? 'cf-btn--sun' : 'cf-btn--primary');
+      next.innerHTML = cur === 6 ? 'Crear solicitud' : 'Continuar <span class="cf-kbd cf-kbd--light">↵</span>';
+      const pct = Math.round(cur / 6 * 100);
+      document.getElementById('pct').textContent = pct + '%';
+      document.getElementById('pct-bar').style.width = pct + '%';
+      document.querySelectorAll('[data-show]').forEach(e => { if (+e.dataset.show > cur) e.textContent = '—'; else e.textContent = e.dataset.show === '4' ? 'Vehículo · LTV 37.6%' : '1'; });
+      window.scrollTo({ top: 0 });
+    }
+    window.go = go;
+
+    document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); go(+b.dataset.go); }));
+    document.getElementById('next').addEventListener('click', () => go(cur + 1));
+    document.getElementById('prev').addEventListener('click', () => go(cur - 1));
+    document.querySelectorAll('input[name=method]').forEach(r => r.addEventListener('change', recalc));
+    ['rate', 'term'].forEach(id => document.getElementById(id).addEventListener('input', recalc));
+    document.querySelectorAll('#freq .cf-tab').forEach(t => t.addEventListener('click', () => {
+      freq = t.dataset.f;
+      document.querySelectorAll('#freq .cf-tab').forEach(x => { x.classList.toggle('active', x === t); x.setAttribute('aria-checked', x === t); });
+      recalc();
+    }));
+    recalc(); go(1);
+  })();
+  </script>
+
+</body>
+</html>

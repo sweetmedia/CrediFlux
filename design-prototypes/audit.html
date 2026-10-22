@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Auditoría</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',500:'#4d8630',700:'#2d5a10',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 500:'#ffe026' },
+            flame: { 500:'#ff7503',600:'#cc5e02' },
+            cream: '#faf8f2',
+            tenant: 'var(--color-tenant-primary)',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    html,body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#faf8f2;color:#163300;-webkit-font-smoothing:antialiased;}
+    .paper-bg{background-color:#faf8f2;background-image:radial-gradient(circle at 1px 1px,rgba(22,51,0,0.035) 1px,transparent 0);background-size:28px 28px;}
+    .sidebar{background:var(--color-tenant-primary,#163300);}
+    .nav-item{position:relative;display:flex;align-items:center;gap:11px;padding:6px 12px 6px 14px;border-radius:4px;color:rgba(255,255,255,0.55);font-size:13px;font-weight:400;text-decoration:none;transition:color 150ms,background-color 150ms;}
+    .nav-item:hover{color:rgba(255,255,255,0.92);background:rgba(255,255,255,0.04);}
+    .nav-item.active{color:#fff;background:rgba(255,255,255,0.08);font-weight:500;}
+    .nav-item.active::before{content:'';position:absolute;left:-1px;top:50%;transform:translateY(-50%);width:2px;height:18px;background:#ffe026;border-radius:0 2px 2px 0;}
+    .nav-group-header{display:flex;align-items:center;justify-content:space-between;width:100%;padding:4px 14px;font-family:'ABC Whyte',system-ui,sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:rgba(255,255,255,0.32);background:transparent;border:none;cursor:pointer;}
+    .nav-group-header.flat{cursor:default;}
+    .nav-group-chevron{transition:transform 200ms;opacity:0.7;}
+    .nav-group[data-collapsed="true"] .nav-group-chevron{transform:rotate(-90deg);}
+    .nav-group[data-collapsed="true"] .nav-group-items{display:none;}
+    .kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;line-height:1;color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-bottom-width:2px;border-radius:3px;}
+    .sidebar-search{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 24px);margin:12px 12px 0;padding:7px 10px 7px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:4px;font-size:12px;color:rgba(255,255,255,0.5);cursor:pointer;}
+    .util-btn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 8px;border-radius:4px;color:#5c6d4d;background:transparent;border:none;cursor:pointer;}
+    .util-btn:hover{color:#163300;background:rgba(22,51,0,0.04);}
+    .util-btn--icon{width:32px;padding:0;}
+    .dev-banner{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;align-items:center;gap:14px;padding:10px 14px 10px 16px;background:rgba(22,51,0,0.92);backdrop-filter:blur(8px);color:rgba(255,255,255,0.85);border-radius:6px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;}
+    .dev-banner__label{color:rgba(255,255,255,0.45);}.dev-banner__swatches{display:flex;gap:8px;}
+    .dev-banner__swatch{width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;padding:0;}
+    .dev-banner__swatch.active{box-shadow:0 0 0 2px #ffe026,0 0 0 3px rgba(22,51,0,0.92);}
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .rule-b{border-bottom:1px solid rgba(22,51,0,0.08);}.rule-t{border-top:1px solid rgba(22,51,0,0.08);}
+    .logo-white{filter:brightness(0) invert(1);}
+    .no-scrollbar::-webkit-scrollbar{display:none;}.no-scrollbar{scrollbar-width:none;}
+
+    /* Category chips */
+    .cat-chip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border:1px solid rgba(22,51,0,0.12);background:#fff;border-radius:14px;font-size:11px;color:#5c6d4d;cursor:pointer;font-weight:500;white-space:nowrap;}
+    .cat-chip.active{background:#163300;color:#fff;border-color:#163300;}
+    .cat-chip:hover:not(.active){border-color:rgba(22,51,0,0.24);color:#163300;}
+    .cat-dot{width:6px;height:6px;border-radius:50%;}
+
+    /* Severity */
+    .sev-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+    .sev-info{background:#a8b89c;}
+    .sev-notice{background:#4d8630;}
+    .sev-warn{background:#ff7503;}
+    .sev-critical{background:#cc5e02;box-shadow:0 0 0 2px rgba(204,94,2,0.22);}
+
+    /* Event row */
+    .evt{display:grid;grid-template-columns:88px 14px 1fr 140px 120px;gap:16px;padding:14px 12px;border-bottom:1px solid rgba(22,51,0,0.06);align-items:start;}
+    .evt:hover{background:rgba(22,51,0,0.025);}
+    .evt-time{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:11px;color:#4a5a3d;letter-spacing:0.04em;tabular-nums:tabular-nums;padding-top:3px;}
+    .evt-time .ago{display:block;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:#8a9d7a;margin-top:2px;}
+    .evt-sev{display:flex;justify-content:center;padding-top:6px;}
+    .evt-main{font-size:13px;line-height:1.45;}
+    .evt-main .actor{font-weight:500;color:#163300;}
+    .evt-main .action{color:#4a5a3d;}
+    .evt-main .entity{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:11px;color:#2d5a10;background:rgba(77,134,48,0.08);padding:1px 6px;border-radius:3px;letter-spacing:0.02em;}
+    .evt-meta{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;color:#8a9d7a;letter-spacing:0.06em;text-transform:uppercase;margin-top:4px;}
+    .evt-src{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;color:#5c6d4d;padding-top:3px;letter-spacing:0.04em;}
+    .evt-src span{display:block;color:#8a9d7a;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;margin-top:2px;}
+    .evt-cat{padding-top:3px;}
+
+    /* Category pill */
+    .c-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:3px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;}
+    .c-auth{background:rgba(77,134,48,0.1);color:#2d5a10;}
+    .c-perms{background:rgba(22,51,0,0.1);color:#163300;}
+    .c-money{background:rgba(77,134,48,0.14);color:#2d5a10;}
+    .c-contracts{background:rgba(115,133,102,0.16);color:#4a5a3d;}
+    .c-config{background:rgba(255,224,38,0.25);color:#5c4a00;}
+    .c-system{background:rgba(168,184,156,0.2);color:#4a5a3d;}
+    .c-danger{background:rgba(255,117,3,0.14);color:#cc5e02;}
+
+    .day-sep{display:grid;grid-template-columns:88px 14px 1fr;gap:16px;padding:20px 12px 8px;align-items:center;}
+    .day-sep-line{height:1px;background:rgba(22,51,0,0.1);}
+    .day-sep-label{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#163300;}
+
+    .avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-weight:500;flex-shrink:0;font-size:9px;width:20px;height:20px;color:#fff;vertical-align:middle;margin-right:5px;}
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="sidebar fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col text-white">
+    <div class="px-5 pt-5 pb-4 border-b border-white/[0.08]">
+      <div class="mb-4"><img src="../branding/logo-full/svg/crediflux-logo.svg" alt="CrediFlux" class="logo-white h-[22px] w-auto"/></div>
+      <div>
+        <div class="font-display text-[14px] font-medium text-white">Cooperativa San&nbsp;José</div>
+        <div class="mt-1 flex items-center gap-2 font-mono text-[10px] text-white/40 uppercase tracking-widest"><span>coop-san-jose</span><span class="text-white/15">·</span><span>rd</span></div>
+      </div>
+    </div>
+    <button class="sidebar-search"><span class="flex items-center gap-2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar</span></span><span class="kbd">⌘K</span></button>
+    <nav class="flex-1 overflow-y-auto px-3 py-5">
+      <div class="mb-6"><div class="nav-group-header flat"><span>Overview</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="appshell.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/></svg><span>Dashboard</span></a>
+      </div></div>
+      <div class="mb-6 nav-group" data-collapsed="true"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Operación</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]"><a href="loans-list.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>Préstamos</span></a></div></div>
+      <div><div class="nav-group-header flat"><span>Administración</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="team.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span>Equipo</span></a>
+        <a href="audit.html" class="nav-item active" aria-current="page"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg><span>Auditoría</span></a>
+        <a href="settings-general.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></svg><span>Configuración</span></a>
+        <a href="settings-roles.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Roles</span></a>
+      </div></div>
+    </nav>
+    <div class="border-t border-white/[0.08] px-3 py-3">
+      <div class="flex items-center gap-3 px-2 py-1.5">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-[11px] text-white" style="background:#738566;">MF</div>
+        <div class="min-w-0 flex-1"><div class="truncate font-display text-[13px] font-medium text-white">María Fernández</div><div class="truncate font-mono text-[9px] uppercase tracking-widest text-white/45 mt-0.5">Oficial de Cobranza</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="ml-[240px]">
+    <header class="sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div class="flex h-14 items-center gap-3 pl-8 pr-6">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="appshell.html" class="text-[12px] text-sage-500 hover:text-forest-900">Inicio</a>
+          <span class="text-sun-500 text-[9px]">●</span>
+          <span class="font-display text-[13px] font-medium text-forest-900">Auditoría</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button class="util-btn util-btn--icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+          <button class="flex items-center gap-2 h-8 pl-1 pr-2 ml-1 rounded hover:bg-forest-900/[0.04]"><div class="flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] text-white" style="background:#738566;">MF</div></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="paper-bg min-h-[calc(100vh-56px)] px-8 py-8">
+      <div class="max-w-[1440px] mx-auto">
+
+        <!-- Page header -->
+        <div class="pb-6 rule-b">
+          <div class="flex items-end justify-between gap-6">
+            <div>
+              <div class="flex items-center gap-3 mb-3">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Administración</span>
+                <span class="h-px w-6 bg-forest-900/20"></span>
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Log forense</span>
+              </div>
+              <h1 class="font-display text-[38px] font-black text-forest-900 leading-none tracking-tight">Auditoría</h1>
+              <p class="mt-3 text-[13px] text-sage-600 max-w-[580px]">Toda acción sensible queda registrada con quién, cuándo, desde dónde y qué cambió. No se borra nunca — es el respaldo legal ante disputas, fraude interno o requerimientos regulatorios.</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button class="h-9 px-3 inline-flex items-center gap-2 text-[12px] font-medium text-sage-700 border border-forest-900/15 rounded hover:bg-forest-900/[0.04]">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Exportar CSV
+              </button>
+              <button class="h-9 px-3 inline-flex items-center gap-2 text-[12px] font-medium text-sage-700 border border-forest-900/15 rounded hover:bg-forest-900/[0.04]">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+                Reporte rango
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI strip -->
+        <section class="pt-6 pb-6 rule-b">
+          <div class="grid grid-cols-5 divide-x divide-forest-900/10">
+            <div class="pr-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-2">Eventos hoy</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[32px] font-medium text-forest-900 leading-none tracking-tight tabular-nums">248</span>
+                <span class="font-mono text-[11px] text-sage-500 tabular-nums">↑ 12%</span>
+              </div>
+              <div class="mt-2 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">210 usuario · 38 sistema</div>
+            </div>
+            <div class="px-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-2">Críticas 30d</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[32px] font-medium leading-none tracking-tight tabular-nums" style="color:#cc5e02;">3</span>
+              </div>
+              <div class="mt-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">
+                <span class="sev-dot sev-critical"></span><span>Revisar mensualmente</span>
+              </div>
+            </div>
+            <div class="px-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-2">Usuarios activos</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[32px] font-medium text-forest-900 leading-none tracking-tight tabular-nums">9</span>
+                <span class="font-mono text-[11px] text-sage-500 tabular-nums">· de 14</span>
+              </div>
+              <div class="mt-2 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Top · María F · 64</div>
+            </div>
+            <div class="px-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-2">Intentos fallidos</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[32px] font-medium text-forest-900 leading-none tracking-tight tabular-nums">4</span>
+              </div>
+              <div class="mt-2 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Todos · misma IP · bloqueados</div>
+            </div>
+            <div class="pl-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-2">Retención</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[32px] font-medium text-forest-900 leading-none tracking-tight tabular-nums">7</span>
+                <span class="font-mono text-[11px] text-sage-500">años</span>
+              </div>
+              <div class="mt-2 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Según reglamento SIB</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Filter bar -->
+        <section class="pt-5 pb-4">
+          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <button class="cat-chip active">Todas <span class="font-mono tabular-nums opacity-70 text-[9px] ml-1">248</span></button>
+            <button class="cat-chip"><span class="cat-dot" style="background:#4d8630;"></span>Autenticación <span class="font-mono tabular-nums opacity-70 text-[9px] ml-1">42</span></button>
+            <button class="cat-chip"><span class="cat-dot" style="background:#163300;"></span>Permisos <span class="font-mono tabular-nums opacity-70 text-[9px] ml-1">8</span></button>
+            <button class="cat-chip"><span class="cat-dot" style="background:#4d8630;"></span>Dinero <span class="font-mono tabular-nums opacity-70 text-[9px] ml-1">84</span></button>
+            <button class="cat-chip"><span class="cat-dot" style="background:#5c6d4d;"></span>Contratos <span class="font-mono tabular-nums opacity-70 text-[9px] ml-1">19</span></button>
+            <button class="cat-chip"><span class="cat-dot" style="background:#ffe026;"></span>Configuración <span class="font-mono tabular-nums opacity-70 text-[9px] ml-1">6</span></button>
+            <button class="cat-chip"><span class="cat-dot" style="background:#a8b89c;"></span>Sistema <span class="font-mono tabular-nums opacity-70 text-[9px] ml-1">38</span></button>
+            <button class="cat-chip"><span class="cat-dot" style="background:#ff7503;"></span>Alertas <span class="font-mono tabular-nums opacity-70 text-[9px] ml-1">4</span></button>
+            <span class="h-5 w-px bg-forest-900/10 mx-1"></span>
+            <button class="cat-chip">Severidad: Todas</button>
+            <button class="cat-chip">Usuario</button>
+            <button class="cat-chip">Rango · 30 días</button>
+          </div>
+        </section>
+
+        <!-- Legend -->
+        <div class="flex items-center gap-4 pb-4 pt-1 font-mono text-[10px] uppercase tracking-widest text-sage-500">
+          <span class="flex items-center gap-1.5"><span class="sev-dot sev-info"></span>Info</span>
+          <span class="flex items-center gap-1.5"><span class="sev-dot sev-notice"></span>Normal</span>
+          <span class="flex items-center gap-1.5"><span class="sev-dot sev-warn"></span>Advertencia</span>
+          <span class="flex items-center gap-1.5"><span class="sev-dot sev-critical"></span>Crítica</span>
+          <span class="ml-auto tabular-nums">Mostrando 30 de 248 · hoy</span>
+        </div>
+
+        <!-- Event log -->
+        <section>
+
+          <!-- Today -->
+          <div class="day-sep">
+            <div class="day-sep-label">Hoy · 10 · abr · 2026</div>
+            <div></div>
+            <div class="day-sep-line"></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">14:32 <span class="ago">· ahora</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-notice"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#738566;">MF</span><span class="actor">María Fernández</span> <span class="action">registró pago en efectivo por</span> <span class="font-mono tabular-nums text-forest-900">RD$ 5,100</span> <span class="action">para</span> <span class="entity">LN-2026-0156</span></div>
+              <div class="evt-meta">Ref 4512 · cuota 9/24 · ventanilla caja #2</div>
+            </div>
+            <div><span class="c-pill c-money">Dinero</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Mac · sesión 2h</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">13:15 <span class="ago">· 1h 17m</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-notice"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#4d8630;">SYS</span><span class="actor">Sistema</span> <span class="action">envió recordatorio WhatsApp masivo a</span> <span class="font-medium text-forest-900">7 clientes</span> <span class="action">con cuotas vencen hoy</span></div>
+              <div class="evt-meta">Plantilla cuota-hoy · campaña diaria 13:15</div>
+            </div>
+            <div><span class="c-pill c-system">Sistema</span></div>
+            <div class="evt-src">worker-3<span>Cron job · auto</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">12:30 <span class="ago">· 2h</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-warn"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#738566;">MF</span><span class="actor">María Fernández</span> <span class="action">registró gasto menor de</span> <span class="font-mono tabular-nums text-forest-900">RD$ 400</span> <span class="action">desde caja #2</span></div>
+              <div class="evt-meta">Concepto · limpieza + agua purificada · factura A-0892 · sin aprobación previa</div>
+            </div>
+            <div><span class="c-pill c-money">Dinero</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Mac</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">11:48 <span class="ago">· 2h 44m</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-notice"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#cc5e02;">JB</span><span class="actor">Joaquín Bautista</span> <span class="action">(cliente) respondió por WhatsApp en hilo de cobranza</span> <span class="entity">LN-2025-0198</span></div>
+              <div class="evt-meta">"Sí, puedo pagar hoy en la tarde" · marcado como promesa automáticamente</div>
+            </div>
+            <div><span class="c-pill c-system">Sistema</span></div>
+            <div class="evt-src">wa-webhook<span>Inbound · auto</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">10:22 <span class="ago">· 4h 10m</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-notice"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#738566;">MF</span><span class="actor">María Fernández</span> <span class="action">registró pago en efectivo por</span> <span class="font-mono tabular-nums text-forest-900">RD$ 6,200</span> <span class="action">para</span> <span class="entity">LN-2025-0089</span> <span class="action">· promesa cumplida</span></div>
+              <div class="evt-meta">Ref 4511 · cuota 12/18 · cobro directo en ventanilla</div>
+            </div>
+            <div><span class="c-pill c-money">Dinero</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Mac</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">09:15 <span class="ago">· 5h 17m</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-critical"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#a8b89c;">—</span><span class="actor">Usuario desconocido</span> <span class="action">realizó 4 intentos de login fallidos con email</span> <span class="font-mono text-[11px] text-forest-900">admin@coopsanjose.do</span></div>
+              <div class="evt-meta">IP bloqueada por 1h · alerta enviada a José G. · rate-limit activado</div>
+            </div>
+            <div><span class="c-pill c-danger">Alerta seguridad</span></div>
+            <div class="evt-src">201.45.33.119<span>UA desconocido · bot?</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">08:00 <span class="ago">· 6h 32m</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-notice"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#738566;">MF</span><span class="actor">María Fernández</span> <span class="action">abrió caja #2 con fondo inicial de</span> <span class="font-mono tabular-nums text-forest-900">RD$ 15,000</span></div>
+              <div class="evt-meta">Turno AM · autorizado por José Gutiérrez (gerente)</div>
+            </div>
+            <div><span class="c-pill c-money">Dinero</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Mac · login fresh</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">07:48 <span class="ago">· 6h 44m</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-info"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#2d5a10;">CS</span><span class="actor">Carla Suárez</span> <span class="action">inició sesión con 2FA</span></div>
+              <div class="evt-meta">Login exitoso · 1er factor email+password · 2do factor TOTP Authy</div>
+            </div>
+            <div><span class="c-pill c-auth">Autenticación</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Windows</span></div>
+          </div>
+
+          <!-- Ayer -->
+          <div class="day-sep">
+            <div class="day-sep-label">Ayer · 9 · abr · 2026</div>
+            <div></div>
+            <div class="day-sep-line"></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">17:45 <span class="ago">· ayer</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-warn"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#a8b89c;">CR</span><span class="actor">Carla Rodríguez</span> <span class="action">cerró caja #2 turno PM con diferencia de</span> <span class="font-mono tabular-nums" style="color:#cc5e02;">−RD$ 50</span></div>
+              <div class="evt-meta">Faltante menor · justificado como "error de cambio" · aprobado por José G.</div>
+            </div>
+            <div><span class="c-pill c-money">Dinero</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Windows</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">15:20 <span class="ago">· ayer</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-notice"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#738566;">MF</span><span class="actor">María Fernández</span> <span class="action">generó contrato desde plantilla estándar v3.2</span> <span class="entity">CT-2026-0156</span></div>
+              <div class="evt-meta">Datos desde LN-2026-0156 · cliente Rosa Mendoza · 4 páginas</div>
+            </div>
+            <div><span class="c-pill c-contracts">Contratos</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Mac</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">14:45 <span class="ago">· ayer</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-critical"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#2d5a10;">RM</span><span class="actor">Rosa Mendoza</span> <span class="action">(cliente externo) firmó digitalmente</span> <span class="entity">CT-2026-0156</span></div>
+              <div class="evt-meta">OTP SMS + trazo · hash SHA-256 <span class="font-mono">a3f2bc98…6e7f8a9</span> · contrato sellado</div>
+            </div>
+            <div><span class="c-pill c-contracts">Contratos</span></div>
+            <div class="evt-src">190.130.84.22<span>Safari · iPhone · externo</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">11:12 <span class="ago">· ayer</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-warn"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#163300;">JG</span><span class="actor">José Gutiérrez</span> <span class="action">modificó permisos del rol</span> <span class="font-mono text-[11px] text-forest-900">collector</span> <span class="action">· agregó</span> <span class="font-mono text-[11px] text-forest-900">payment.create</span></div>
+              <div class="evt-meta">3 usuarios afectados · Pedro N, Luis P, Juan M</div>
+            </div>
+            <div><span class="c-pill c-perms">Permisos</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Mac</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">10:05 <span class="ago">· ayer</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-notice"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#738566;">MF</span><span class="actor">María Fernández</span> <span class="action">realizó depósito al banco por</span> <span class="font-mono tabular-nums text-forest-900">RD$ 3,000</span> <span class="action">· Banco Popular cta. 960-000142-8</span></div>
+              <div class="evt-meta">Mantener tope de caja · boleta D-2810</div>
+            </div>
+            <div><span class="c-pill c-money">Dinero</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Mac</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">09:30 <span class="ago">· ayer</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-warn"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#163300;">JG</span><span class="actor">José Gutiérrez</span> <span class="action">invitó a</span> <span class="font-mono text-[11px] text-forest-900">laura.hernandez@gmail.com</span> <span class="action">con rol</span> <span class="font-mono text-[11px] text-forest-900">cashier</span></div>
+              <div class="evt-meta">Correo con enlace mágico · expira en 7 días</div>
+            </div>
+            <div><span class="c-pill c-perms">Permisos</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Mac</span></div>
+          </div>
+
+          <!-- 8 abr -->
+          <div class="day-sep">
+            <div class="day-sep-label">8 · abr · 2026</div>
+            <div></div>
+            <div class="day-sep-line"></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">16:20 <span class="ago">· 2d</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-notice"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#2d5a10;">CS</span><span class="actor">Carla Suárez</span> <span class="action">aprobó aumento de línea de crédito para</span> <span class="entity">LN-2026-0142</span> <span class="action">· Miguel A. Santos · +</span><span class="font-mono tabular-nums text-forest-900">RD$ 100,000</span></div>
+              <div class="evt-meta">Requirió escalamiento a manager · monto sobre límite oficial</div>
+            </div>
+            <div><span class="c-pill c-money">Dinero</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Windows</span></div>
+          </div>
+
+          <div class="evt">
+            <div class="evt-time">14:22 <span class="ago">· 2d</span></div>
+            <div class="evt-sev"><span class="sev-dot sev-warn"></span></div>
+            <div>
+              <div class="evt-main"><span class="avatar" style="background:#163300;">JG</span><span class="actor">José Gutiérrez</span> <span class="action">modificó configuración de mora · día de gracia de</span> <span class="font-mono tabular-nums">3 → 5 días</span></div>
+              <div class="evt-meta">Política global · afecta nuevas cuotas · cambio justificado en ticket #84</div>
+            </div>
+            <div><span class="c-pill c-config">Configuración</span></div>
+            <div class="evt-src">190.130.84.22<span>Chrome · Mac</span></div>
+          </div>
+
+        </section>
+
+        <!-- Footer -->
+        <div class="mt-8 flex items-center justify-between">
+          <button class="text-[12px] text-sage-600 hover:text-forest-900 font-mono uppercase tracking-widest underline decoration-dotted underline-offset-2">Cargar 30 eventos más</button>
+          <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Integridad · hash chained · <span class="text-forest-500">verificado ✓</span></div>
+        </div>
+
+        <!-- Colophon -->
+        <div class="mt-14 pt-4 border-t border-forest-900/[0.08] flex items-center justify-between text-[10px]">
+          <div class="flex items-center gap-4 font-mono uppercase tracking-widest text-sage-400">
+            <span class="tabular-nums">CrediFlux · v2.0</span><span class="text-sage-300">·</span>
+            <span>Santiago de los Caballeros</span>
+          </div>
+          <div class="font-mono uppercase tracking-widest text-sage-400 tabular-nums">Sesión · 2h 14m</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Dev banner -->
+  <div class="dev-banner">
+    <span class="dev-banner__label">tenant-primary →</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" style="background:#163300;"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" style="background:#3a0e1e;"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" style="background:#0c1e38;"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" style="background:#1a4d3a;"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" style="background:#2d1b4e;"></button>
+    </div>
+  </div>
+
+  <script>
+    function toggleGroup(h){const g=h.closest('.nav-group');if(!g)return;const c=g.dataset.collapsed==='true';g.dataset.collapsed=c?'false':'true';}
+    document.querySelectorAll('.dev-banner__swatch').forEach(btn=>{btn.addEventListener('click',()=>{document.documentElement.style.setProperty('--color-tenant-primary',btn.dataset.color);document.querySelectorAll('.dev-banner__swatch').forEach(s=>s.classList.remove('active'));btn.classList.add('active');});});
+  </script>
+  <script src="_design-notes.js"></script>
+</body>
+</html>

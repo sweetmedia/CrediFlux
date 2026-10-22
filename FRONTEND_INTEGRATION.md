@@ -321,8 +321,8 @@ createTeamMember({
 ### Frontend (`.env.local`)
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_APP_NAME=CrediFlux
+VITE_API_URL=http://localhost:8000
+VITE_APP_NAME=CrediFlux
 ```
 
 ### Backend (`.env`)

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Tabla de amortización</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/print.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap">
+</head>
+<body class="print-desk">
+<div class="desk">
+  <div class="desk__bar"><div><div class="desk__meta">Impresos · Préstamos</div><div class="desk__title">Tabla de amortización</div></div><div class="desk__meta">Carta · se entrega al desembolsar</div></div>
+  <div class="page page--letter">
+    <div class="lh">
+      <div class="lh__brand"><div class="lh__logo">CSJ</div><div><div class="lh__name">Cooperativa de Ahorro y Crédito San José, Inc.</div><div class="lh__sub">RNC 1-31-24587-3 · Calle del Sol #85, Santiago de los Caballeros · 809-582-4410</div></div></div>
+      <div class="lh__doc"><div class="lh__type">Tabla de pagos</div><div class="lh__num">LN-2025-0118</div><div class="lh__date">Emitida 15 ago 2025</div></div>
+    </div>
+
+    <div class="grid2 blk">
+      <dl class="kv" style="margin:0">
+        <dt>Cliente</dt><dd>Ana María Ramírez Guzmán</dd>
+        <dt>Cédula</dt><dd class="mono">001-5678901-4</dd>
+        <dt>Garante</dt><dd>Carmen Ramírez · <span class="mono">001-2345111-0</span></dd>
+      </dl>
+      <dl class="kv" style="margin:0">
+        <dt>Monto</dt><dd class="mono">RD$ 75,000.00</dd>
+        <dt>Método · tasa</dt><dd>Flat · <span class="mono">2.5%</span> mensual</dd>
+        <dt>Plazo</dt><dd><span class="mono">24</span> cuotas · día <span class="mono">15</span> de cada mes</dd>
+      </dl>
+    </div>
+
+    <table class="pt blk" id="t">
+      <thead><tr><th class="r">#</th><th>Vence</th><th class="r">Capital</th><th class="r">Interés</th><th class="r">Cuota</th><th class="r">Saldo capital</th><th>Pagado · fecha</th></tr></thead>
+      <tbody class="mono"></tbody>
+      <tfoot class="mono"><tr><td colspan="2" style="font-family:var(--font-body)">Totales</td><td class="r">75,000.00</td><td class="r">45,000.00</td><td class="r">120,000.00</td><td></td><td></td></tr></tfoot>
+    </table>
+
+    <p class="note blk">La cuota vence el día indicado. Después de 5 días se cobra una mora de RD$ 500.00 por cuota atrasada. Puede pagar en la oficina, con el cobrador asignado o por transferencia a la cuenta Popular 812-345678-9 indicando el número de préstamo. Pagos adelantados se aplican a las cuotas más próximas.</p>
+
+    <div class="sigs sigs--2" style="margin-top:22px">
+      <div class="sig"><div class="sig__drawn">Ana Ramírez</div><div class="sig__line">Ana María Ramírez Guzmán</div><div class="sig__role">Recibí conforme · cliente</div></div>
+      <div class="sig"><div class="sig__drawn">M. Fernández</div><div class="sig__line">María Fernández</div><div class="sig__role">Oficial de crédito</div></div>
+    </div>
+    <div class="pf"><div>Columna “Pagado” para anotar a mano o reimprimir actualizada · CrediFlux v2.0</div><div style="display:flex;gap:10px;align-items:flex-end"><span>Página 1 de 1</span><div class="qr"></div></div></div>
+  </div>
+</div>
+<script>
+  const M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const f=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  let h='';
+  for(let n=1;n<=24;n++){const d=new Date(2025,7+n,15);h+=`<tr><td class="r">${n}</td><td>15 ${M[d.getMonth()]} ${d.getFullYear()}</td><td class="r">3,125.00</td><td class="r">1,875.00</td><td class="r">5,000.00</td><td class="r">${f(75000-3125*n)}</td><td style="border-bottom:1px solid #16330040"></td></tr>`;}
+  document.querySelector('#t tbody').innerHTML=h;
+</script>
+</body>
+</html>

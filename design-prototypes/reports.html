@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Reportes DGII</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',500:'#4d8630',700:'#2d5a10',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 500:'#ffe026' },
+            flame: { 500:'#ff7503',600:'#cc5e02' },
+            cream: '#faf8f2',
+            tenant: 'var(--color-tenant-primary)',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    html,body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#faf8f2;color:#163300;-webkit-font-smoothing:antialiased;}
+    .paper-bg{background-color:#faf8f2;background-image:radial-gradient(circle at 1px 1px,rgba(22,51,0,0.035) 1px,transparent 0);background-size:28px 28px;}
+    .sidebar{background:var(--color-tenant-primary,#163300);}
+    .nav-item{position:relative;display:flex;align-items:center;gap:11px;padding:6px 12px 6px 14px;border-radius:4px;color:rgba(255,255,255,0.55);font-size:13px;font-weight:400;text-decoration:none;transition:color 150ms,background-color 150ms;}
+    .nav-item:hover{color:rgba(255,255,255,0.92);background:rgba(255,255,255,0.04);}
+    .nav-item.active{color:#fff;background:rgba(255,255,255,0.08);font-weight:500;}
+    .nav-item.active::before{content:'';position:absolute;left:-1px;top:50%;transform:translateY(-50%);width:2px;height:18px;background:#ffe026;border-radius:0 2px 2px 0;}
+    .nav-group-header{display:flex;align-items:center;justify-content:space-between;width:100%;padding:4px 14px;font-family:'ABC Whyte',system-ui,sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:rgba(255,255,255,0.32);background:transparent;border:none;cursor:pointer;}
+    .nav-group-header.flat{cursor:default;}
+    .nav-group-chevron{transition:transform 200ms;opacity:0.7;}
+    .nav-group[data-collapsed="true"] .nav-group-chevron{transform:rotate(-90deg);}
+    .nav-group[data-collapsed="true"] .nav-group-items{display:none;}
+    .kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;line-height:1;color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-bottom-width:2px;border-radius:3px;}
+    .sidebar-search{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 24px);margin:12px 12px 0;padding:7px 10px 7px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:4px;font-size:12px;color:rgba(255,255,255,0.5);cursor:pointer;}
+    .util-btn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 8px;border-radius:4px;color:#5c6d4d;background:transparent;border:none;cursor:pointer;}
+    .util-btn:hover{color:#163300;background:rgba(22,51,0,0.04);}
+    .util-btn--icon{width:32px;padding:0;}
+    .dev-banner{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;align-items:center;gap:14px;padding:10px 14px 10px 16px;background:rgba(22,51,0,0.92);backdrop-filter:blur(8px);color:rgba(255,255,255,0.85);border-radius:6px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;}
+    .dev-banner__label{color:rgba(255,255,255,0.45);}.dev-banner__swatches{display:flex;gap:8px;}
+    .dev-banner__swatch{width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;padding:0;}
+    .dev-banner__swatch.active{box-shadow:0 0 0 2px #ffe026,0 0 0 3px rgba(22,51,0,0.92);}
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .rule-b{border-bottom:1px solid rgba(22,51,0,0.08);}.rule-t{border-top:1px solid rgba(22,51,0,0.08);}.rule-r{border-right:1px solid rgba(22,51,0,0.08);}
+    .logo-white{filter:brightness(0) invert(1);}
+    .no-scrollbar::-webkit-scrollbar{display:none;}.no-scrollbar{scrollbar-width:none;}
+
+    /* Pills */
+    .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:3px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;line-height:1.6;white-space:nowrap;}
+    .pill--ok{background:rgba(77,134,48,0.14);color:#2d5a10;}
+    .pill--due{background:rgba(255,224,38,0.3);color:#5c4a00;border:1px solid rgba(255,224,38,0.6);}
+    .pill--late{background:rgba(255,117,3,0.14);color:#cc5e02;}
+    .pill--draft{background:rgba(168,184,156,0.18);color:#4a5a3d;border:1px dashed rgba(115,133,102,0.4);}
+
+    /* Report hero cards */
+    .rpt-card{border:1px solid rgba(22,51,0,0.1);background:#fff;border-radius:6px;padding:24px;display:flex;flex-direction:column;}
+    .rpt-num{font-family:'ABC Whyte',system-ui,sans-serif;font-size:52px;font-weight:900;color:#163300;letter-spacing:-0.04em;line-height:1;}
+    .rpt-title{font-family:'ABC Whyte',system-ui,sans-serif;font-size:18px;font-weight:700;color:#163300;margin-bottom:4px;}
+    .rpt-desc{font-size:12px;color:#5c6d4d;line-height:1.5;}
+
+    /* TXT preview */
+    .txt-box{background:#f0ece0;border:1px solid rgba(22,51,0,0.1);border-radius:4px;padding:14px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:11px;line-height:1.6;color:#163300;overflow-x:auto;white-space:pre;}
+    .txt-box .sep{color:#8a6a00;}
+    .txt-box .num{color:#2d5a10;}
+    .txt-box .rnc{color:#163300;font-weight:500;}
+    .txt-box .hdr{color:#cc5e02;}
+
+    .table{width:100%;border-collapse:collapse;}
+    .table thead th{border-bottom:1px solid rgba(22,51,0,0.1);padding:10px 12px;text-align:left;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.14em;color:#738566;}
+    .table tbody td{padding:14px 12px;border-bottom:1px solid rgba(22,51,0,0.06);font-size:13px;color:#163300;vertical-align:middle;}
+    .ico-act{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:4px;color:#8a9d7a;background:transparent;border:none;cursor:pointer;}
+    .ico-act:hover{color:#163300;background:rgba(22,51,0,0.06);}
+
+    /* Countdown */
+    .due-ring{position:relative;width:80px;height:80px;}
+    .due-ring svg{transform:rotate(-90deg);}
+    .due-ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="sidebar fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col text-white">
+    <div class="px-5 pt-5 pb-4 border-b border-white/[0.08]">
+      <div class="mb-4"><img src="../branding/logo-full/svg/crediflux-logo.svg" alt="CrediFlux" class="logo-white h-[22px] w-auto"/></div>
+      <div>
+        <div class="font-display text-[14px] font-medium text-white">Cooperativa San&nbsp;José</div>
+        <div class="mt-1 flex items-center gap-2 font-mono text-[10px] text-white/40 uppercase tracking-widest"><span>coop-san-jose</span><span class="text-white/15">·</span><span>rd</span></div>
+      </div>
+    </div>
+    <button class="sidebar-search"><span class="flex items-center gap-2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar</span></span><span class="kbd">⌘K</span></button>
+    <nav class="flex-1 overflow-y-auto px-3 py-5">
+      <div class="mb-6"><div class="nav-group-header flat"><span>Overview</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="appshell.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/></svg><span>Dashboard</span></a>
+      </div></div>
+      <div class="mb-6 nav-group" data-collapsed="false"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Facturación</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]">
+        <a href="billing-list.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>Facturas e-CF</span></a>
+        <a href="reports.html" class="nav-item active" aria-current="page"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="12" x2="8" y2="18"/><line x1="12" y1="8" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="18"/></svg><span>Reportes DGII</span></a>
+      </div></div>
+      <div><div class="nav-group-header flat"><span>Administración</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="settings-general.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></svg><span>Configuración</span></a>
+      </div></div>
+    </nav>
+    <div class="border-t border-white/[0.08] px-3 py-3">
+      <div class="flex items-center gap-3 px-2 py-1.5">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-[11px] text-white" style="background:#738566;">MF</div>
+        <div class="min-w-0 flex-1"><div class="truncate font-display text-[13px] font-medium text-white">María Fernández</div><div class="truncate font-mono text-[9px] uppercase tracking-widest text-white/45 mt-0.5">Oficial de Cobranza</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="ml-[240px]">
+    <header class="sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div class="flex h-14 items-center gap-3 pl-8 pr-6">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="appshell.html" class="text-[12px] text-sage-500 hover:text-forest-900">Inicio</a>
+          <span class="text-sun-500 text-[9px]">●</span>
+          <span class="font-display text-[13px] font-medium text-forest-900">Reportes DGII</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button class="util-btn util-btn--icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+          <button class="flex items-center gap-2 h-8 pl-1 pr-2 ml-1 rounded hover:bg-forest-900/[0.04]"><div class="flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] text-white" style="background:#738566;">MF</div></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="paper-bg min-h-[calc(100vh-56px)] px-8 py-8">
+      <div class="max-w-[1280px] mx-auto">
+
+        <!-- Page header -->
+        <div class="pb-6 rule-b">
+          <div class="flex items-end justify-between gap-6">
+            <div>
+              <div class="flex items-center gap-3 mb-3">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Facturación</span>
+                <span class="h-px w-6 bg-forest-900/20"></span>
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Reportes fiscales · DGII</span>
+              </div>
+              <h1 class="font-display text-[38px] font-black text-forest-900 leading-none tracking-tight">Reportes 606 · 607</h1>
+              <p class="mt-3 text-[13px] text-sage-600 max-w-[580px]">Reporte mensual obligatorio a la DGII antes del día 20 del mes siguiente. El sistema genera el TXT en formato oficial, valida contra el catálogo y ofrece envío directo vía API.</p>
+            </div>
+            <!-- Due countdown -->
+            <div class="flex items-center gap-5 pr-2">
+              <div class="due-ring">
+                <svg width="80" height="80" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(22,51,0,0.08)" stroke-width="6"/>
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="#ffe026" stroke-width="6" stroke-dasharray="214" stroke-dashoffset="64" stroke-linecap="round"/>
+                </svg>
+                <div class="due-ring-center">
+                  <div class="font-mono text-[20px] font-medium text-forest-900 tabular-nums leading-none">10</div>
+                  <div class="font-mono text-[8px] uppercase tracking-widest text-sage-500 tabular-nums mt-1">días</div>
+                </div>
+              </div>
+              <div>
+                <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Próximo envío</div>
+                <div class="font-display text-[16px] font-semibold text-forest-900 tabular-nums">20 · abr · 2026</div>
+                <div class="font-mono text-[11px] text-sage-500 tabular-nums mt-0.5">Reporte · marzo 2026</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 607 + 606 hero cards -->
+        <section class="pt-8 grid grid-cols-2 gap-5">
+
+          <!-- 607 Ventas -->
+          <div class="rpt-card">
+            <div class="flex items-start justify-between mb-4">
+              <div class="rpt-num">607</div>
+              <span class="pill pill--due">Pendiente generar</span>
+            </div>
+            <div class="rpt-title">Reporte de Ventas</div>
+            <div class="rpt-desc mb-5">Todos los comprobantes fiscales emitidos durante el mes (NCF 31, 32, 34, 44, 45). Campos: tipo NCF, RNC/cédula, fecha, monto gravado, ITBIS, retención.</div>
+
+            <div class="border-t border-forest-900/10 pt-4 mb-4">
+              <div class="grid grid-cols-2 gap-y-3 gap-x-6 text-[12px]">
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Período</div>
+                  <div class="font-mono text-forest-900 tabular-nums">Marzo 2026</div>
+                </div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Registros</div>
+                  <div class="font-mono text-forest-900 tabular-nums">256 comprobantes</div>
+                </div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Monto facturado</div>
+                  <div class="font-mono text-forest-900 tabular-nums">RD$ 1,652,300.00</div>
+                </div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">ITBIS</div>
+                  <div class="font-mono text-forest-900 tabular-nums">RD$ 251,904.00</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 mt-auto">
+              <button class="flex-1 h-10 px-4 inline-flex items-center justify-center gap-2 text-[12px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Generar 607
+              </button>
+              <button class="h-10 px-3 text-[12px] font-medium text-sage-700 border border-forest-900/15 rounded hover:bg-forest-50">Preview</button>
+            </div>
+          </div>
+
+          <!-- 606 Compras -->
+          <div class="rpt-card">
+            <div class="flex items-start justify-between mb-4">
+              <div class="rpt-num">606</div>
+              <span class="pill pill--draft">Borrador</span>
+            </div>
+            <div class="rpt-title">Reporte de Compras</div>
+            <div class="rpt-desc mb-5">Comprobantes recibidos de proveedores (NCF 41, 43, 44, 46). Sirve para declaración de ITBIS deducible. Se llena manualmente o importando desde contabilidad.</div>
+
+            <div class="border-t border-forest-900/10 pt-4 mb-4">
+              <div class="grid grid-cols-2 gap-y-3 gap-x-6 text-[12px]">
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Período</div>
+                  <div class="font-mono text-forest-900 tabular-nums">Marzo 2026</div>
+                </div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Registros</div>
+                  <div class="font-mono text-forest-900 tabular-nums">18 comprobantes</div>
+                </div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Monto compras</div>
+                  <div class="font-mono text-forest-900 tabular-nums">RD$ 42,800.00</div>
+                </div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">ITBIS deducible</div>
+                  <div class="font-mono text-forest-900 tabular-nums">RD$ 6,528.00</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 mt-auto">
+              <button class="flex-1 h-10 px-4 inline-flex items-center justify-center gap-2 text-[12px] font-medium text-forest-900 border border-forest-900/20 bg-white rounded hover:bg-forest-50">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Agregar compra
+              </button>
+              <button class="h-10 px-3 text-[12px] font-medium text-sage-700 border border-forest-900/15 rounded hover:bg-forest-50">Importar</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Preview + workflow -->
+        <section class="pt-12 mt-6 rule-t grid grid-cols-12 gap-8">
+
+          <!-- TXT preview (left 7/12) -->
+          <div class="col-span-7">
+            <div class="flex items-end justify-between mb-5">
+              <div>
+                <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-2">Vista previa</div>
+                <h2 class="font-display text-[22px] font-bold text-forest-900 tracking-tight">TXT oficial · 607 marzo</h2>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">256 líneas · 42.3 KB</span>
+                <button class="h-8 px-3 text-[11px] font-medium text-forest-900 border border-forest-900/15 bg-white rounded hover:bg-forest-50">Descargar .txt</button>
+              </div>
+            </div>
+
+            <div class="txt-box">
+<span class="hdr">607|130987654|2026|3|256|1652300.00|251904.00|0.00</span>
+<span class="num">32</span><span class="sep">|</span><span class="num">4023456789</span><span class="sep">|</span><span class="num">03</span><span class="sep">|</span><span class="num">E320000000286</span><span class="sep">|</span><span class="num">10032026</span><span class="sep">|</span><span class="num">2480.00</span><span class="sep">|</span><span class="num">446.40</span>
+<span class="num">31</span><span class="sep">|</span><span class="rnc">132456789</span><span class="sep">|</span><span class="num">01</span><span class="sep">|</span><span class="num">E310000000042</span><span class="sep">|</span><span class="num">10032026</span><span class="sep">|</span><span class="num">840.00</span><span class="sep">|</span><span class="num">151.20</span>
+<span class="num">32</span><span class="sep">|</span><span class="num">4023456789</span><span class="sep">|</span><span class="num">03</span><span class="sep">|</span><span class="num">E320000000287</span><span class="sep">|</span><span class="num">10032026</span><span class="sep">|</span><span class="num">1875.00</span><span class="sep">|</span><span class="num">337.50</span>
+<span class="num">32</span><span class="sep">|</span><span class="num">0012345678</span><span class="sep">|</span><span class="num">03</span><span class="sep">|</span><span class="num">E320000000285</span><span class="sep">|</span><span class="num">09032026</span><span class="sep">|</span><span class="num">380.00</span><span class="sep">|</span><span class="num">68.40</span>
+<span class="num">34</span><span class="sep">|</span><span class="num">4021234567</span><span class="sep">|</span><span class="num">03</span><span class="sep">|</span><span class="num">E340000000018</span><span class="sep">|</span><span class="num">08032026</span><span class="sep">|</span><span class="num">-540.00</span><span class="sep">|</span><span class="num">-97.20</span>
+<span class="num">32</span><span class="sep">|</span><span class="num">0013334445</span><span class="sep">|</span><span class="num">03</span><span class="sep">|</span><span class="num">E320000000283</span><span class="sep">|</span><span class="num">08032026</span><span class="sep">|</span><span class="num">3320.00</span><span class="sep">|</span><span class="num">597.60</span>
+<span class="num">32</span><span class="sep">|</span><span class="num">4029990001</span><span class="sep">|</span><span class="num">03</span><span class="sep">|</span><span class="num">E320000000284</span><span class="sep">|</span><span class="num">09032026</span><span class="sep">|</span><span class="num">1650.00</span><span class="sep">|</span><span class="num">297.00</span>
+<span class="hdr">... 249 líneas más ...</span>
+            </div>
+
+            <div class="mt-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">
+              <span class="flex items-center gap-1.5" style="color:#2d5a10;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Validación sintáctica OK
+              </span>
+              <span class="text-sage-300">·</span>
+              <span class="flex items-center gap-1.5" style="color:#2d5a10;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                256 e-NCF consistentes
+              </span>
+              <span class="text-sage-300">·</span>
+              <span class="flex items-center gap-1.5" style="color:#2d5a10;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Totales cuadran
+              </span>
+            </div>
+          </div>
+
+          <!-- Workflow rail (right 5/12) -->
+          <aside class="col-span-5">
+            <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-2">Flujo</div>
+            <h2 class="font-display text-[22px] font-bold text-forest-900 tracking-tight mb-5">Envío a DGII</h2>
+
+            <ol class="space-y-0">
+              <li class="flex gap-4 pb-5 relative">
+                <div class="flex h-7 w-7 items-center justify-center rounded-full bg-forest-500 text-white font-mono text-[11px] font-medium flex-shrink-0 relative z-10">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div class="absolute left-[14px] top-7 bottom-0 w-px bg-forest-900/15"></div>
+                <div class="flex-1 pt-0.5">
+                  <div class="font-display text-[13px] font-semibold text-forest-900">Generar archivo</div>
+                  <div class="text-[12px] text-sage-600 mt-1 leading-snug">Sistema exporta el TXT con formato oficial DGII. Incluye encabezado con totales y 256 líneas de detalle.</div>
+                </div>
+              </li>
+              <li class="flex gap-4 pb-5 relative">
+                <div class="flex h-7 w-7 items-center justify-center rounded-full bg-sun-500 text-forest-900 font-mono text-[11px] font-bold flex-shrink-0 relative z-10 border-2 border-sun-500" style="box-shadow:0 0 0 3px rgba(255,224,38,0.25);">2</div>
+                <div class="absolute left-[14px] top-7 bottom-0 w-px bg-forest-900/15"></div>
+                <div class="flex-1 pt-0.5">
+                  <div class="font-display text-[13px] font-semibold text-forest-900">Validar ante DGII</div>
+                  <div class="text-[12px] text-sage-600 mt-1 leading-snug">Pre-validación vía API DGII para detectar errores antes del envío oficial. Cada línea se verifica contra el catálogo de RNC/cédulas.</div>
+                  <button class="mt-2 h-8 px-3 text-[11px] font-medium text-forest-900 bg-sun-500 rounded hover:brightness-105">Ejecutar validación</button>
+                </div>
+              </li>
+              <li class="flex gap-4 pb-5 relative">
+                <div class="flex h-7 w-7 items-center justify-center rounded-full bg-white border border-forest-900/20 text-sage-500 font-mono text-[11px] font-medium flex-shrink-0 relative z-10">3</div>
+                <div class="absolute left-[14px] top-7 bottom-0 w-px bg-forest-900/15"></div>
+                <div class="flex-1 pt-0.5">
+                  <div class="font-display text-[13px] font-semibold text-forest-900">Firmar digitalmente</div>
+                  <div class="text-[12px] text-sage-600 mt-1 leading-snug">Se aplica certificado digital del tenant al TXT y se genera el payload XML con firma.</div>
+                </div>
+              </li>
+              <li class="flex gap-4 pb-5 relative">
+                <div class="flex h-7 w-7 items-center justify-center rounded-full bg-white border border-forest-900/20 text-sage-500 font-mono text-[11px] font-medium flex-shrink-0 relative z-10">4</div>
+                <div class="absolute left-[14px] top-7 bottom-0 w-px bg-forest-900/15"></div>
+                <div class="flex-1 pt-0.5">
+                  <div class="font-display text-[13px] font-semibold text-forest-900">Envío oficial a DGII</div>
+                  <div class="text-[12px] text-sage-600 mt-1 leading-snug">Upload al portal OFV de DGII. También puede descargarse para envío manual por la plataforma oficial.</div>
+                </div>
+              </li>
+              <li class="flex gap-4">
+                <div class="flex h-7 w-7 items-center justify-center rounded-full bg-white border border-forest-900/20 text-sage-500 font-mono text-[11px] font-medium flex-shrink-0 relative z-10">5</div>
+                <div class="flex-1 pt-0.5">
+                  <div class="font-display text-[13px] font-semibold text-forest-900">Acuse de recibo</div>
+                  <div class="text-[12px] text-sage-600 mt-1 leading-snug">DGII emite número de acuse que queda archivado como comprobante legal del cumplimiento.</div>
+                </div>
+              </li>
+            </ol>
+          </aside>
+        </section>
+
+        <!-- Histórico -->
+        <section class="pt-12 mt-6 rule-t">
+          <div class="flex items-end justify-between mb-5">
+            <div>
+              <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-2">Histórico</div>
+              <h2 class="font-display text-[22px] font-bold text-forest-900 tracking-tight">Reportes enviados</h2>
+            </div>
+            <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">12 períodos · año 2026</div>
+          </div>
+
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Período</th>
+                <th>Tipo</th>
+                <th class="text-right">Registros</th>
+                <th class="text-right">Monto</th>
+                <th>Enviado</th>
+                <th>Acuse DGII</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="font-mono text-[12px] text-forest-900 tabular-nums">Marzo 2026</div></td>
+                <td><span class="pill pill--draft">607 · borrador</span></td>
+                <td class="text-right font-mono tabular-nums">256</td>
+                <td class="text-right font-mono tabular-nums">RD$ 1,652,300</td>
+                <td class="font-mono text-[11px] text-sage-500">—</td>
+                <td class="font-mono text-[11px] text-sage-500">—</td>
+                <td><span class="pill pill--due">Vence en 10d</span></td>
+                <td class="text-right"><button class="ico-act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><div class="font-mono text-[12px] text-forest-900 tabular-nums">Febrero 2026</div></td>
+                <td>
+                  <div class="flex items-center gap-1">
+                    <span class="pill pill--ok">607</span>
+                    <span class="pill pill--ok">606</span>
+                  </div>
+                </td>
+                <td class="text-right font-mono tabular-nums">242</td>
+                <td class="text-right font-mono tabular-nums">RD$ 1,548,200</td>
+                <td><div class="font-mono text-[11px] text-forest-900 tabular-nums">18·mar·2026</div><div class="font-mono text-[10px] text-sage-500">María F. · 11:42</div></td>
+                <td><div class="font-mono text-[11px] text-forest-700 tabular-nums">DGII-607-026a8f12</div></td>
+                <td><span class="pill pill--ok">Aceptado</span></td>
+                <td class="text-right">
+                  <div class="flex items-center gap-0.5 justify-end">
+                    <button class="ico-act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg></button>
+                    <button class="ico-act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><div class="font-mono text-[12px] text-forest-900 tabular-nums">Enero 2026</div></td>
+                <td>
+                  <div class="flex items-center gap-1">
+                    <span class="pill pill--ok">607</span>
+                    <span class="pill pill--ok">606</span>
+                  </div>
+                </td>
+                <td class="text-right font-mono tabular-nums">228</td>
+                <td class="text-right font-mono tabular-nums">RD$ 1,442,500</td>
+                <td><div class="font-mono text-[11px] text-forest-900 tabular-nums">19·feb·2026</div><div class="font-mono text-[10px] text-sage-500">Andrea R. · 16:18</div></td>
+                <td><div class="font-mono text-[11px] text-forest-700 tabular-nums">DGII-607-a74c2d39</div></td>
+                <td><span class="pill pill--ok">Aceptado</span></td>
+                <td class="text-right">
+                  <div class="flex items-center gap-0.5 justify-end">
+                    <button class="ico-act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg></button>
+                    <button class="ico-act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><div class="font-mono text-[12px] text-forest-900 tabular-nums">Diciembre 2025</div></td>
+                <td>
+                  <div class="flex items-center gap-1">
+                    <span class="pill pill--ok">607</span>
+                    <span class="pill pill--ok">606</span>
+                  </div>
+                </td>
+                <td class="text-right font-mono tabular-nums">318</td>
+                <td class="text-right font-mono tabular-nums">RD$ 2,118,400</td>
+                <td><div class="font-mono text-[11px] text-forest-900 tabular-nums">21·ene·2026</div><div class="font-mono text-[10px] text-sage-500">Andrea R. · 09:55</div></td>
+                <td><div class="font-mono text-[11px] text-forest-700 tabular-nums">DGII-607-f18e394b</div></td>
+                <td><span class="pill pill--late">Enviado tarde · 1d</span></td>
+                <td class="text-right">
+                  <div class="flex items-center gap-0.5 justify-end">
+                    <button class="ico-act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg></button>
+                    <button class="ico-act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><div class="font-mono text-[12px] text-forest-900 tabular-nums">Noviembre 2025</div></td>
+                <td>
+                  <div class="flex items-center gap-1">
+                    <span class="pill pill--ok">607</span>
+                    <span class="pill pill--ok">606</span>
+                  </div>
+                </td>
+                <td class="text-right font-mono tabular-nums">268</td>
+                <td class="text-right font-mono tabular-nums">RD$ 1,724,100</td>
+                <td><div class="font-mono text-[11px] text-forest-900 tabular-nums">19·dic·2025</div><div class="font-mono text-[10px] text-sage-500">Andrea R. · 14:02</div></td>
+                <td><div class="font-mono text-[11px] text-forest-700 tabular-nums">DGII-607-5c2b81de</div></td>
+                <td><span class="pill pill--ok">Aceptado</span></td>
+                <td class="text-right">
+                  <div class="flex items-center gap-0.5 justify-end">
+                    <button class="ico-act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg></button>
+                    <button class="ico-act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Colophon -->
+        <div class="mt-14 pt-4 border-t border-forest-900/[0.08] flex items-center justify-between text-[10px]">
+          <div class="flex items-center gap-4 font-mono uppercase tracking-widest text-sage-400">
+            <span class="tabular-nums">CrediFlux · v2.0</span><span class="text-sage-300">·</span>
+            <span>Santiago de los Caballeros</span>
+          </div>
+          <div class="font-mono uppercase tracking-widest text-sage-400 tabular-nums">Sesión · 2h 14m</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Dev banner -->
+  <div class="dev-banner">
+    <span class="dev-banner__label">tenant-primary →</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" style="background:#163300;"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" style="background:#3a0e1e;"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" style="background:#0c1e38;"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" style="background:#1a4d3a;"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" style="background:#2d1b4e;"></button>
+    </div>
+  </div>
+
+  <script>
+    function toggleGroup(h){const g=h.closest('.nav-group');if(!g)return;const c=g.dataset.collapsed==='true';g.dataset.collapsed=c?'false':'true';}
+    document.querySelectorAll('.dev-banner__swatch').forEach(btn=>{btn.addEventListener('click',()=>{document.documentElement.style.setProperty('--color-tenant-primary',btn.dataset.color);document.querySelectorAll('.dev-banner__swatch').forEach(s=>s.classList.remove('active'));btn.classList.add('active');});});
+  </script>
+  <script src="_design-notes.js"></script>
+</body>
+</html>

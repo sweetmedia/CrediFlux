@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Prototipos F3 · Índice</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',500:'#4d8630',700:'#2d5a10',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 500:'#ffe026' },
+            flame: { 500:'#ff7503',600:'#cc5e02' },
+            cream: '#faf8f2',
+            tenant: 'var(--color-tenant-primary)',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    html,body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#faf8f2;color:#163300;-webkit-font-smoothing:antialiased;margin:0;}
+    .paper-bg{background-color:#faf8f2;background-image:radial-gradient(circle at 1px 1px,rgba(22,51,0,0.035) 1px,transparent 0);background-size:28px 28px;}
+    .rule-b{border-bottom:1px solid rgba(22,51,0,0.08);}
+    .rule-r{border-right:1px solid rgba(22,51,0,0.08);}
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .logo-dark{color:#163300;}
+
+    /* Section eyebrow */
+    .eyebrow{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#738566;}
+    .module-title{font-family:'ABC Whyte',system-ui,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.01em;color:#163300;}
+
+    /* Page entry */
+    .entry{display:flex;align-items:flex-start;gap:18px;padding:16px 0;border-bottom:1px solid rgba(22,51,0,0.06);text-decoration:none;color:inherit;transition:background 120ms;}
+    .entry:hover{background:rgba(22,51,0,0.02);padding-left:4px;padding-right:4px;margin-left:-4px;margin-right:-4px;}
+    .entry-arrow{opacity:0;color:#163300;transition:all 150ms;flex-shrink:0;}
+    .entry:hover .entry-arrow{opacity:1;transform:translateX(2px);}
+    .entry-status{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:7px;}
+    .entry-status--ready{background:#4d8630;}
+    .entry-status--pending{background:transparent;border:1.5px dashed #8a9d7a;}
+    .entry-status--new{background:#ffe026;box-shadow:0 0 0 2px rgba(255,224,38,0.3);}
+    .entry-file{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:11px;letter-spacing:0.04em;color:#4d8630;min-width:200px;flex-shrink:0;}
+    .entry-title{font-family:'ABC Whyte',system-ui,sans-serif;font-size:14px;font-weight:600;color:#163300;margin-bottom:2px;}
+    .entry-desc{font-size:12px;color:#5c6d4d;line-height:1.45;}
+    .entry-meta{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:#8a9d7a;margin-top:4px;}
+    .entry-date{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.06em;color:#8a9d7a;min-width:70px;text-align:right;flex-shrink:0;tabular-nums:tabular-nums;margin-top:6px;}
+
+    /* Variant chips for shell variants */
+    .var-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border:1px solid rgba(22,51,0,0.12);border-radius:3px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#163300;background:#fff;text-decoration:none;transition:all 120ms;}
+    .var-chip:hover{border-color:#163300;background:#f3f6f1;}
+    .var-chip--active{border-color:#163300;background:#163300;color:#fff;}
+    .var-dot{width:6px;height:6px;border-radius:50%;}
+
+    /* Stat card */
+    .stat{padding:14px 16px;border-right:1px solid rgba(22,51,0,0.08);}
+    .stat:last-child{border-right:none;}
+    .stat-label{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#738566;margin-bottom:4px;}
+    .stat-value{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:22px;font-weight:500;color:#163300;letter-spacing:-0.01em;line-height:1;}
+  </style>
+</head>
+<body class="paper-bg min-h-screen">
+
+  <!-- Top bar -->
+  <header class="border-b border-forest-900/10 bg-cream/90 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-[1280px] mx-auto px-10 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="../branding/logo-full/svg/crediflux-logo.svg" alt="CrediFlux" class="h-[20px] w-auto logo-dark"/>
+        <span class="h-4 w-px bg-forest-900/15"></span>
+        <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Prototipos F3 · Índice</span>
+      </div>
+      <div class="flex items-center gap-4 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">
+        <span>Última actualización · 14 · abr · 2026</span>
+        <span class="text-sage-300">·</span>
+        <a href="CONCEPT.md" class="hover:text-forest-900 underline decoration-dotted underline-offset-2">CONCEPT.md</a>
+        <a href="README.md" class="hover:text-forest-900 underline decoration-dotted underline-offset-2">README</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1280px] mx-auto px-10 py-14">
+
+    <!-- Page header -->
+    <div class="pb-10 border-b border-forest-900/10">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="eyebrow">F3 · Design</span>
+        <span class="h-px w-8 bg-forest-900/20"></span>
+        <span class="eyebrow">Dashboard high-traffic pages</span>
+        <span class="h-px w-8 bg-forest-900/20"></span>
+        <span class="eyebrow">V1 · Editorial Operational</span>
+      </div>
+      <h1 class="font-display text-[52px] font-black text-forest-900 leading-[0.95] tracking-tight">
+        Galería de prototipos
+      </h1>
+      <p class="mt-5 text-[14px] text-sage-700 max-w-[640px] leading-relaxed">
+        HTML estáticos standalone con el ADN V1 aplicado. Son <em>fotografías de producto</em>, no implementación real. Se usan para alinear con stakeholders antes de migrar al Next.js en F3 real.
+        Cada página importa <code class="font-mono text-[12px] bg-forest-50 px-1.5 py-0.5 rounded">../branding/tokens.css</code> y respeta los no-negociables del <a href="CONCEPT.md" class="underline decoration-dotted underline-offset-2">CONCEPT.md</a>.
+      </p>
+    </div>
+
+    <!-- Stats strip -->
+    <section class="mt-10 border border-forest-900/10 rounded-md bg-white flex items-stretch">
+      <div class="stat flex-1">
+        <div class="stat-label">Páginas construidas</div>
+        <div class="stat-value tabular-nums">23</div>
+      </div>
+      <div class="stat flex-1">
+        <div class="stat-label">Pendientes</div>
+        <div class="stat-value tabular-nums text-forest-500">0</div>
+      </div>
+      <div class="stat flex-1">
+        <div class="stat-label">Variantes de shell</div>
+        <div class="stat-value tabular-nums">3</div>
+      </div>
+      <div class="stat flex-1">
+        <div class="stat-label">Módulos cubiertos</div>
+        <div class="stat-value tabular-nums">9 / 12</div>
+      </div>
+      <div class="stat flex-1">
+        <div class="stat-label">Fase</div>
+        <div class="stat-value text-forest-500">F3 · diseño</div>
+      </div>
+    </section>
+
+    <!-- Access -->
+    <section class="mt-14">
+      <div class="pb-5 border-b border-forest-900/10">
+        <div class="eyebrow mb-2">Acceso</div>
+        <h2 class="module-title">Entrada y alta</h2>
+      </div>
+      <a href="login.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">login.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Iniciar sesión</div>
+          <div class="entry-desc">Split 5/7: masthead tenant-colored con identidad de la financiera, subdominio y estado del servicio en mono; formulario hairline. Estados normal, error con intentos restantes, 2FA de 6 dígitos y bloqueo temporal.</div>
+          <div class="entry-meta">4 estados · swatches tenant</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="register.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">register.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Crear cuenta · alta de financiera</div>
+          <div class="entry-desc">Wizard 4 pasos (Empresa con lookup DGII y subdominio en vivo · Administrador con validación JCE y fuerza de contraseña · Plan en columnas hairline · Confirmar con selector de apariencia V1/V4) + pantalla de cuenta creada. Masthead con pasos y ficha que se llena.</div>
+          <div class="entry-meta">5 pantallas · mismos campos que /register</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Shell variants -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Shell</div>
+          <h2 class="module-title">Variantes de AppShell</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <a href="appshell.html" class="var-chip var-chip--active"><span class="var-dot bg-sun-500"></span>V1 · Default</a>
+          <a href="appshell-v4-calido.html" class="var-chip"><span class="var-dot" style="background:#f8f4e9;border:1px solid #c8d4be;"></span>V4 · Cálido</a>
+          <a href="appshell-v5-banca-lat.html" class="var-chip"><span class="var-dot" style="background:#163300;"></span>V5 · Banca</a>
+          <a href="appshell-mobile.html" class="var-chip">Mobile</a>
+        </div>
+      </div>
+      <a href="appshell.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">appshell.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Dashboard ejecutivo · V1 Editorial Operational Instrument</div>
+          <div class="entry-desc">Referencia de ADN: mono en todos los datos, hairline rules en vez de cards, display Whyte Black 38px, sun-500 como puntuación narrativa, paper texture 3%. Es la fuente de verdad del sistema visual V1.</div>
+          <div class="entry-meta">Bloomberg × FT × Muji</div>
+        </div>
+        <div class="entry-date">11 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="dashboard.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">dashboard.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Dashboard completo</div>
+          <div class="entry-desc">Evolución de appshell.html con todo lo que muestra el dashboard real: 5 KPIs, franja "requiere atención" (aprobaciones, vencidas, caja, cert DGII), rendimiento 12 meses desembolsado vs recaudado con tooltip, composición de cartera por antigüedad y por tipo, por cobrar hoy, actividad, pendientes de aprobación y cobradores en ruta. Cifras cuadradas entre sí.</div>
+          <div class="entry-meta">Selector de período · Personalizar KPIs</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Clientes -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Operación</div>
+          <h2 class="module-title">Clientes</h2>
+        </div>
+        <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">3 páginas</div>
+      </div>
+      <a href="customers-list.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">customers-list.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Listado de clientes</div>
+          <div class="entry-desc">347 clientes con filtros, stats strip, búsqueda por cédula/nombre/apodo. Incluye apodos, préstamos activos, estado de cartera.</div>
+        </div>
+        <div class="entry-date">13 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="customer-detail.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">customer-detail.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Perfil de cliente completo</div>
+          <div class="entry-desc">Reemplaza a customer-profile.html. Cubre todo lo del perfil real: exposición, pagado acumulado, próxima cuota, puntualidad, score; tabs Préstamos (cuotas 24 celdas + próximas), Pagos, Documentos con verificación, Contratos, Actividad (Timeline), Notas; rail con datos, capacidad cuota/ingreso, garante de otros, referencias y lista negra. Componentes y tablas ordenables del Design System.</div>
+          <div class="entry-meta">ds/bundle.css · ds/datatable.js</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="customer-profile.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">customer-profile.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Perfil de cliente · Ana Ramírez</div>
+          <div class="entry-desc">4 tabs (Préstamos / Pagos / Documentos / Actividad). Sección "Garante de otros clientes" visible cuando aplica. Campo apodo "Anita".</div>
+        </div>
+        <div class="entry-date">13 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="customer-new.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">customer-new.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Nuevo cliente · Wizard 5 pasos</div>
+          <div class="entry-desc">Lookup JCE con las 8 columnas del padrón, alerta si la persona es garante existente. Campo apodo, supervisor inmediato (nombre + teléfono), referencias.</div>
+        </div>
+        <div class="entry-date">13 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Préstamos -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Operación</div>
+          <h2 class="module-title">Préstamos</h2>
+        </div>
+        <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">3 páginas</div>
+      </div>
+      <a href="loans-list.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">loans-list.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Listado de préstamos</div>
+          <div class="entry-desc">412 préstamos con filtros por estado, búsqueda por código/cliente, stats strip con cartera activa.</div>
+        </div>
+        <div class="entry-date">13 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="loan-detail.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">loan-detail.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Detalle de préstamo · LN-2026-0156</div>
+          <div class="entry-desc">Rosa Mendoza · 4 tabs (Resumen / Amortización / Pagos / Documentos). Timeline de eventos, acciones rápidas.</div>
+        </div>
+        <div class="entry-date">13 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="loan-new.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">loan-new.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Nuevo préstamo · wizard de 6 pasos</div>
+          <div class="entry-desc">Reemplaza a loan-new-wizard.html. Mismos pasos que el real: Cliente, Préstamo, Términos, Garantías, Garantes, Revisión. Calculadora en vivo de los 4 métodos (flat, saldo insoluto, francés, alemán) con la fórmula de frontend/app/loans/new; rail de expediente con chequeo de política (cuota/ingreso, LTV, plazo, seguro). DS + tablas ordenables.</div>
+          <div class="entry-meta">go(1…6) para saltar de paso</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="loan-new-wizard.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">loan-new-wizard.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Nuevo préstamo · Wizard 5 pasos</div>
+          <div class="entry-desc">Cliente → condiciones (calc preview) → <strong>garantías</strong> con dropdowns de marcas/modelos de vehículo (39/300+) sincronizados con el frontend real, fotos. Garante con relación "Otro" solicita tipo.</div>
+        </div>
+        <div class="entry-date">13 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Pagos y Caja -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Operación</div>
+          <h2 class="module-title">Pagos · Caja</h2>
+        </div>
+        <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">2 páginas</div>
+      </div>
+      <a href="loans-overdue.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">loans-overdue.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Préstamos en mora</div>
+          <div class="entry-desc">Por antigüedad (31–60 / 61–90 / +90) y con promesa, cuadrado con el dashboard (18 préstamos, RD$ 284,600). Última gestión, promesa, cobrador, acciones WhatsApp/llamar/cobrar y barra de acciones en lote. Tabla ordenable.</div>
+          <div class="entry-meta">DS · reemplaza /loans/overdue</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="calculator.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">calculator.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Calculadora de préstamos</div>
+          <div class="entry-desc">Mismos campos que la real (monto, tasa mensual, cuotas, frecuencia, método, gastos legales deducidos o financiados, fecha) + comparación de 4 métodos, gráfico capital/interés por cuota, amortización ordenable y botón para crear el préstamo con esos términos.</div>
+          <div class="entry-meta">Cálculo idéntico al wizard</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="payments-new.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">payments-new.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Registrar pago</div>
+          <div class="entry-desc">Single-page form 3 secciones: buscar préstamo, detalle del pago, resumen con desglose capital/interés.</div>
+        </div>
+        <div class="entry-date">13 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="cashbox.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">cashbox.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Caja · apertura/operación/cierre</div>
+          <div class="entry-desc">Caja #2 turno AM con pill live "abierta" animada. Quick actions, tx log 10 movimientos color-coded, arqueo por denominación (10 billetes RD$) con bars de distribución, preview cierre con reconciliation, histórico de cierres.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Cobranza -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Cobranza</div>
+          <h2 class="module-title">Cobranza</h2>
+        </div>
+        <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">2 páginas</div>
+      </div>
+      <a href="collections.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">collections.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Mesa de cobranza · desk</div>
+          <div class="entry-desc">5 KPIs (vencido/hoy/7d/recuperado/promesas), tabs de estado color-coded con dots, tabla densa con inline actions (WA / llamada / pago), bulk action bar, 3 cards de promesas de hoy, feed de actividad.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="collection-contacts.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">collection-contacts.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Gestiones · bitácora de cobranza</div>
+          <div class="entry-desc">Contactos con canal, resultado (mismos 11 resultados del real), promesa con estado cumplida/incumplida/pendiente, gestor y próximo contacto. Tabs por resultado y filtros por canal. Tabla ordenable.</div>
+          <div class="entry-meta">DS · /collections/contacts</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="collection-contact-new.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">collection-contact-new.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Registrar gestión</div>
+          <div class="entry-desc">Caso con vencido/mora/atraso, canal, resultado agrupado (contacto · compromiso · problema), compromiso de pago condicional, próximo contacto, escalación; rail con resumen, siguiente paso según resultado e historial.</div>
+          <div class="entry-meta">DS · /collections/contacts/new</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="collection-reminders.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">collection-reminders.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Recordatorios</div>
+          <div class="entry-desc">Bandeja por estado (pendiente/enviado/fallido/cancelado) con motivo de fallo y reintento, reglas automáticas con los 8 tipos del real y composer con vista previa tipo WhatsApp.</div>
+          <div class="entry-meta">DS · /collections/reminders</div>
+        </div>
+        <div class="entry-date">21 oct</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="collector-mobile.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">collector-mobile.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Cobrador móvil · vista de campo</div>
+          <div class="entry-desc">Dos phone-frames 390×844: jornada del cobrador (progress 8/10, stack de visit cards con estados done/pendiente/promesa/mora, FAB "Cerrar jornada") + flujo registrar cobro en campo con desglose cap+int+mora.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Contratos -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Administración</div>
+          <h2 class="module-title">Contratos</h2>
+        </div>
+        <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">2 páginas</div>
+      </div>
+      <a href="contracts-list.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">contracts-list.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Listado de contratos</div>
+          <div class="entry-desc">335 contratos con tabs color-coded (activos/pendientes/borrador/por vencer), sig-bar mini de progreso de firmas por fila, sección "Plantillas activas" con 4 variantes.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="contract-detail.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">contract-detail.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Detalle de contrato · CT-2026-0156</div>
+          <div class="entry-desc">Doc preview con 2 páginas en <strong>EB Garamond serif</strong> (cláusulas numeradas, firma cursiva simulada), rail derecho con firmantes (2), timeline auditoría (11 eventos), adjuntos (3 archivos). Hash SHA-256 verificado.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Comunicaciones -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Comunicaciones</div>
+          <h2 class="module-title">Mensajes · Tareas</h2>
+        </div>
+        <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">2 páginas</div>
+      </div>
+      <a href="communications.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">communications.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Bandeja · conversaciones 2-vías</div>
+          <div class="entry-desc">3 columnas (bandeja 340px / conversación / contexto 280px). Message bubbles estilo WhatsApp con doble-check leído, day separators, composer con template chips, callout IA para marcar promesas. Sección de campañas automáticas abajo.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="tasks-kanban.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">tasks-kanban.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Tareas · kanban</div>
+          <div class="entry-desc">4 columnas (pendientes / progreso / revisión / completadas) con 14 task cards hairline: prio dot, TK-####, entity chips color-coded, due dates overdue/today, assignees, meta comments/adjuntos. View toggle kanban/lista/calendario.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Facturación e-CF -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Facturación</div>
+          <h2 class="module-title">Facturas e-CF · DGII</h2>
+        </div>
+        <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">2 páginas</div>
+      </div>
+      <a href="billing-list.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">billing-list.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Listado de facturas e-CF</div>
+          <div class="entry-desc">287 e-CF emitidas en abril con tabs (aceptadas/enviadas/rechazadas/borrador/anuladas), tabla con e-NCF + track ID + tipo NCF (31/32/34), monto+ITBIS, estado DGII color-coded. Rail derecho con alerta certificado (47d), 4 secuencias con seq-bar y rango E-números, estado conexión DGII en vivo, CTA reportes 606/607.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="billing-new.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">billing-new.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Nueva factura e-CF</div>
+          <div class="entry-desc">Form en 5 secciones: tipo comprobante (4 cards NCF 31/32/33/34), cliente con lookup JCE-validado, items editables con ITBIS 18% auto, totales box, firma y envío con checkboxes (firmar/email/WA/marcar cobrada). Incluye preview XML sintax-highlighted. Rail con resumen fiscal, próximo e-NCF, estado certificado DGII, warning de irreversibilidad.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="reports.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">reports.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Reportes DGII · 606/607</div>
+          <div class="entry-desc">Due-ring countdown al próximo envío (día 20, 10 días). Cards hero 607/606 con number Whyte Black 52px, período, registros, monto, ITBIS. Grid 7+5: TXT preview sintax-highlighted con formato pipe-delimited oficial DGII; workflow rail con 5 pasos (generar/validar/firmar/enviar/acuse) con timeline vertical, checks verdes en completados y sun-500 halo en paso actual. Histórico de 5 períodos con pill estado (aceptado/enviado tarde) y acuse DGII mono.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Asistente IA -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Producto</div>
+          <h2 class="module-title">Asistente IA</h2>
+        </div>
+        <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">1 página</div>
+      </div>
+      <a href="ai-assistant.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">ai-assistant.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Chat con asistente tenant-aware</div>
+          <div class="entry-desc">Layout 3 columnas (280/flex/300): rail conversaciones con historial agrupado por día, chat center con message blocks (avatar + msg-body), tablas embebidas inline estilo data-grid con resultados (7 morosos con columnas), action chips de seguimiento (armar ruta/enviar WA/crear tareas), mensaje follow-up con ruta optimizada + draft WhatsApp en cuadro forest-100, feedback buttons. Rail derecho con scope toggles (6 fuentes de datos), data freshness (pulsante "hace 12s"), tokens usados, capacidades y limitaciones explícitas.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- Administración / Config -->
+    <section class="mt-14">
+      <div class="flex items-end justify-between pb-5 border-b border-forest-900/10">
+        <div>
+          <div class="eyebrow mb-2">Administración</div>
+          <h2 class="module-title">Equipo · Auditoría · Configuración</h2>
+        </div>
+        <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">4 páginas</div>
+      </div>
+      <a href="team.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">team.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Equipo · miembros y roles asignados</div>
+          <div class="entry-desc">14 miembros con avatares + dot de estado en vivo (online/offline/en caja/en campo), role pills color-coded (admin/manager/officer/cobrador/supervisor/contador/cajera/viewer). Distribución de roles con bar multi-color. KPI de sin-2FA, invitaciones pendientes con expiración.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="audit.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">audit.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Auditoría · log forense</div>
+          <div class="entry-desc">17 eventos agrupados por día con severity dots (info/normal/advertencia/crítica). Cada evento: timestamp + actor + acción + entity chip + categoría + IP/device. Incluye caso crítico (4 intentos login fallidos) y cambio de permisos. Retención 7 años (SIB). Hash chained verificado.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="settings-general.html" class="entry">
+        <div class="entry-status entry-status--new"></div>
+        <div class="entry-file">settings-general.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Configuración general · tenant</div>
+          <div class="entry-desc">Sticky left-nav con 8 secciones (negocio/apariencia/módulos/políticas/integraciones/notificaciones/seguridad/danger). 3 theme preset cards con mini-previews V1/V4/V5, 9 módulos con toggles, 5 integraciones (WA/Twilio/SES/DGII/bank), matriz notificaciones 4-canales, zona peligrosa con 3 acciones destructivas. Sticky save bar con 3 cambios sin guardar.</div>
+        </div>
+        <div class="entry-date">14 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="settings-roles.html" class="entry">
+        <div class="entry-status entry-status--ready"></div>
+        <div class="entry-file">settings-roles.html</div>
+        <div class="flex-1 min-w-0">
+          <div class="entry-title">Roles y permisos</div>
+          <div class="entry-desc">Sistema de 8 roles hardcoded + custom roles. 11 módulos de permisos (~60 granulares). Aproximación A+B: templates editables por el tenant owner, CRUD de roles custom, bloqueo de eliminación con usuarios.</div>
+        </div>
+        <div class="entry-date">13 abr</div>
+        <svg class="entry-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </section>
+
+    <!-- F3 complete -->
+    <section class="mt-14 p-8 rounded-md border-2 border-forest-500/30" style="background:rgba(77,134,48,0.05);">
+      <div class="flex items-center gap-4">
+        <div class="h-12 w-12 rounded-full flex items-center justify-center bg-forest-500 text-white flex-shrink-0">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="eyebrow mb-1" style="color:#2d5a10;">Milestone</div>
+          <h2 class="font-display text-[22px] font-bold text-forest-900 tracking-tight">Diseño visual F3 completo</h2>
+          <p class="text-[13px] text-sage-700 mt-1">23 páginas V1 listas. Próximo paso: revisión con stakeholders, decidir si construir V4 como alternativa, y arrancar migración al Next.js real según plan F2+F3 en <code class="font-mono text-[12px] bg-forest-50 px-1.5 py-0.5 rounded">typed-dazzling-torvalds.md</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Legend -->
+    <section class="mt-16 pt-8 border-t border-forest-900/10">
+      <div class="flex items-center gap-6 flex-wrap font-mono text-[10px] uppercase tracking-widest text-sage-500">
+        <div class="flex items-center gap-2">
+          <span class="entry-status entry-status--ready" style="margin-top:0;"></span>
+          <span>Lista · revisada</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="entry-status entry-status--new" style="margin-top:0;"></span>
+          <span>Nueva · sin revisar</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="entry-status entry-status--pending" style="margin-top:0;"></span>
+          <span>Pendiente</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="mt-16 pt-5 border-t border-forest-900/[0.08] flex items-center justify-between text-[10px]">
+      <div class="flex items-center gap-4 font-mono uppercase tracking-widest text-sage-400">
+        <span class="tabular-nums">CrediFlux · v2.0</span>
+        <span class="text-sage-300">·</span>
+        <span>Santiago de los Caballeros</span>
+        <span class="text-sage-300">·</span>
+        <span>Rep. Dominicana</span>
+      </div>
+      <div class="font-mono uppercase tracking-widest text-sage-400 tabular-nums">Prototipos F3 · 14 abr 2026</div>
+    </footer>
+  </main>
+</body>
+</html>

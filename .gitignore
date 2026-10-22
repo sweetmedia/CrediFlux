@@ -65,3 +65,8 @@ build/
 # Cloudflare Tunnel
 .cloudflare/
 *.json.bak
+# Frontend tests
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/

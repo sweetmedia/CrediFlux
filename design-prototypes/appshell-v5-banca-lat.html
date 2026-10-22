@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — AppShell · Variante 5 (Banca Latinoamericana Moderna)</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',200:'#b5d4a0',300:'#8ab670',500:'#4d8630',600:'#3d7020',700:'#2d5a10',800:'#1e4400',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 100:'#fffbe6',500:'#ffe026' },
+            flame: { 100:'#ffedd6',500:'#ff7503',600:'#cc5e02' },
+            tenant: 'var(--color-tenant-primary)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* ============================================================
+     * V5 — BANCA LATINOAMERICANA MODERNA
+     * Inspirado en Banco Popular Dominicano + BHD León +
+     * Banreservas. Institucional, confiable, formal pero amable.
+     * "Si Coop. San José fuera cliente del BHD, esto vería"
+     * ============================================================ */
+    html, body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #fafaf9;
+      color: #163300;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ── Sidebar — deep forest, institutional ── */
+    .sidebar {
+      background: #163300;
+      color: #ffffff;
+      position: relative;
+    }
+    /* Subtle texture: very faint diagonal lines for institutional gravitas */
+    .sidebar::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(135deg, rgba(255,255,255,0.015) 0 1px, transparent 1px 14px);
+      pointer-events: none;
+    }
+    .sidebar > * { position: relative; z-index: 1; }
+
+    /* CrediFlux logo turned white via filter — works on any colored SVG */
+    .logo-white {
+      filter: brightness(0) invert(1);
+      width: 150px;
+      height: auto;
+      display: block;
+    }
+
+    .sidebar-section {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #8ab670;
+      padding: 22px 24px 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 11px 24px;
+      color: #c8d4be;
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 150ms ease;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover {
+      background: rgba(255,255,255,0.04);
+      color: #ffffff;
+    }
+    .nav-item.active {
+      background: rgba(255,255,255,0.08);
+      color: #ffffff;
+      font-weight: 600;
+      border-left-color: #ffe026;
+    }
+    .nav-item.active svg { color: #ffe026; }
+    .nav-item .nav-tag {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      background: rgba(255,255,255,0.08);
+      color: #b5d4a0;
+      border-radius: 4px;
+    }
+    .nav-item.active .nav-tag {
+      background: rgba(255,224,38,0.18);
+      color: #ffe026;
+    }
+
+    /* User footer in sidebar */
+    .sidebar-user {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding: 16px 24px;
+    }
+
+    /* ── Header — generous, white, hairline border ── */
+    .app-header {
+      background: #ffffff;
+      border-bottom: 1px solid #e7e5e4;
+      height: 72px;
+    }
+
+    /* ── Hero strip — institutional gradient band ── */
+    .hero-strip {
+      background: linear-gradient(135deg, #163300 0%, #2d5a10 50%, #5c6d4d 100%);
+      color: #ffffff;
+      padding: 28px 40px 32px;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-strip::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(255,224,38,0.08) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero-strip > * { position: relative; }
+
+    /* ── KPI cards — horizontal, lateral icon, border-left tenant ── */
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-left: 3px solid var(--color-tenant-primary, #163300);
+      border-radius: 8px;
+      padding: 22px 22px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      transition: all 200ms ease;
+    }
+    .kpi-card:hover {
+      box-shadow: 0 4px 12px rgba(22,51,0,0.06);
+      transform: translateY(-1px);
+    }
+    .kpi-card.danger {
+      border-left-color: #ff7503;
+    }
+    .kpi-icon-circle {
+      flex-shrink: 0;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f0f7eb;
+      color: #2d5a10;
+    }
+    .kpi-icon-circle.warn {
+      background: #fff5ec;
+      color: #cc5e02;
+    }
+    .kpi-icon-circle.info {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .kpi-icon-circle.violet {
+      background: #f5f3ff;
+      color: #6d28d9;
+    }
+    .kpi-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #57534e;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .kpi-figure {
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 26px;
+      line-height: 1.1;
+      color: #163300;
+      font-feature-settings: 'tnum' 1;
+      margin-top: 4px;
+      letter-spacing: -0.01em;
+    }
+    .kpi-figure.danger { color: #cc5e02; }
+    .kpi-delta {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+    .kpi-delta.up { color: #2d6a2e; }
+    .kpi-delta.warn { color: #cc5e02; }
+
+    /* ── Card — institutional bank table ── */
+    .card {
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 8px;
+    }
+    .card-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid #f5f5f4;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-title {
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #163300;
+      letter-spacing: -0.005em;
+    }
+    .card-subtitle {
+      font-size: 12px;
+      color: #78716c;
+      margin-top: 2px;
+    }
+
+    /* Activity table */
+    .activity-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .activity-table thead th {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #a8a29e;
+      text-align: left;
+      padding: 12px 24px;
+      background: #fafaf9;
+      border-bottom: 1px solid #e7e5e4;
+    }
+    .activity-table thead th.right { text-align: right; }
+    .activity-table tbody tr {
+      transition: background 120ms ease;
+      border-bottom: 1px solid #f5f5f4;
+    }
+    .activity-table tbody tr:nth-child(even) { background: #fafaf9; }
+    .activity-table tbody tr:hover { background: #f0f7eb; }
+    .activity-table tbody tr:last-child { border-bottom: none; }
+    .activity-table td {
+      padding: 16px 24px;
+      vertical-align: middle;
+      font-size: 13px;
+    }
+    .activity-table td.right { text-align: right; }
+    .activity-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pill-good { background: #ecfdf5; color: #047857; }
+    .pill-info { background: #eff6ff; color: #1d4ed8; }
+    .pill-warn { background: #fff5ec; color: #cc5e02; }
+    .pill-neutral { background: #f5f5f4; color: #57534e; }
+
+    .mono { font-family: 'ABC Whyte Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; }
+
+    /* ── Por cobrar lateral card ── */
+    .col-card-header {
+      background: #163300;
+      color: #ffffff;
+      padding: 20px 24px;
+      border-radius: 8px 8px 0 0;
+    }
+    .col-row {
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #f5f5f4;
+      transition: background 120ms ease;
+    }
+    .col-row:hover { background: #fafaf9; }
+    .col-row.mora { background: #fff8f0; }
+    .col-row.mora:hover { background: #fff5ec; }
+    .col-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #f5f1e4;
+      color: #2d5a10;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .col-avatar.mora {
+      background: #ffedd6;
+      color: #cc5e02;
+    }
+    .col-total {
+      padding: 18px 24px;
+      background: #fafaf9;
+      border-top: 2px solid #163300;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      padding: 0 20px;
+      background: var(--color-tenant-primary, #163300);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      transition: all 150ms ease;
+    }
+    .btn-primary:hover { background: #2d5a10; box-shadow: 0 4px 12px rgba(22,51,0,0.16); }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      padding: 0 20px;
+      background: #ffffff;
+      color: #163300;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1.5px solid #163300;
+      border-radius: 6px;
+      transition: all 150ms ease;
+    }
+    .btn-outline:hover { background: #f0f7eb; }
+
+    .btn-block {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      height: 44px;
+      background: var(--color-tenant-primary, #163300);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 0 0 8px 8px;
+      transition: all 150ms ease;
+    }
+    .btn-block:hover { background: #2d5a10; }
+
+    /* ── Header bits ── */
+    .header-icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      color: #57534e;
+      transition: all 150ms ease;
+      position: relative;
+    }
+    .header-icon-btn:hover { background: #f5f5f4; color: #163300; }
+    .header-icon-btn .badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      background: #ff7503;
+      color: #ffffff;
+      font-size: 9px;
+      font-weight: 700;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #ffffff;
+    }
+
+    .tenant-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 12px;
+      background: #fafaf9;
+      border: 1px solid #e7e5e4;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #163300;
+      transition: all 150ms ease;
+    }
+    .tenant-pill:hover { background: #ffffff; border-color: #2d5a10; }
+
+    /* Institutional footer */
+    .inst-footer {
+      border-top: 1px solid #e7e5e4;
+      margin-top: 60px;
+      padding: 28px 0;
+      text-align: center;
+    }
+    .inst-footer .text {
+      font-size: 11px;
+      color: #78716c;
+      letter-spacing: 0.02em;
+    }
+    .inst-footer .sep {
+      color: #d6d3d1;
+      padding: 0 10px;
+    }
+
+    /* Tenant theme switcher */
+    .dev-banner {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(22,51,0,0.10);
+      z-index: 50;
+    }
+    .dev-banner__label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #57534e;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .dev-banner__swatches { display: flex; gap: 6px; }
+    .dev-banner__swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .dev-banner__swatch:hover { transform: scale(1.1); }
+    .dev-banner__swatch.active {
+      border-color: #163300;
+      box-shadow: 0 0 0 2px #ffffff inset;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- =================== SIDEBAR =================== -->
+  <aside class="sidebar fixed inset-y-0 left-0 w-[272px] flex flex-col">
+
+    <!-- Brand block — real CrediFlux logo, white via filter -->
+    <div class="px-6 pt-7 pb-6 border-b" style="border-color:rgba(255,255,255,0.08);">
+      <img src="../branding/wordmark/svg/crediflux-wordmark.svg" alt="CrediFlux" class="logo-white">
+      <div class="mt-5 pt-4" style="border-top:1px solid rgba(255,255,255,0.06);">
+        <div class="text-[10px] font-semibold uppercase tracking-widest" style="color:#8ab670;">Tu institución</div>
+        <div class="text-[14px] font-bold mt-1.5">Cooperativa San José</div>
+        <div class="text-[11px] mt-1" style="color:#a8b89c;">Sucursal Santiago</div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 overflow-y-auto pb-3">
+      <div class="sidebar-section">General</div>
+      <a href="#" class="nav-item active">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+        </svg>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <span>Clientes</span>
+        <span class="nav-tag">347</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+        <span>Préstamos</span>
+        <span class="nav-tag">412</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+        <span>Pagos</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span>Contratos</span>
+      </a>
+
+      <div class="sidebar-section">Operación</div>
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span>Comunicaciones</span>
+        <span class="nav-tag">3</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/>
+        </svg>
+        <span>Reportes</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span>Cobranza</span>
+      </a>
+
+      <div class="sidebar-section">Sistema</div>
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Configuración</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span>Ayuda</span>
+      </a>
+    </nav>
+
+    <!-- User footer -->
+    <div class="sidebar-user flex items-center gap-3">
+      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white font-semibold text-[12px]" style="background:#738566;">MF</div>
+      <div class="min-w-0 flex-1">
+        <div class="truncate text-[13px] font-bold">María Fernández</div>
+        <div class="truncate text-[11px]" style="color:#a8b89c;">Oficial de Cobranza</div>
+      </div>
+      <button class="text-sage-300 hover:text-white" aria-label="Cerrar sesión">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- =================== MAIN =================== -->
+  <div class="ml-[272px]">
+
+    <!-- Header — institutional, generous -->
+    <header class="app-header sticky top-0 z-30">
+      <div class="flex h-full items-center gap-5 px-10">
+        <!-- Greeting + tenant inline -->
+        <div>
+          <div class="text-[12px] text-stone-500 font-medium">Miércoles, 10 de abril de 2026</div>
+          <div class="text-[15px] font-bold text-forest-900 leading-tight mt-0.5">
+            Hola, María — <span class="font-medium text-stone-600">Cooperativa San José</span>
+          </div>
+        </div>
+
+        <div class="flex-1"></div>
+
+        <!-- Tenant switcher pill -->
+        <button class="tenant-pill">
+          <span class="h-2.5 w-2.5 rounded-full" style="background:var(--color-tenant-primary,#163300);"></span>
+          <span>coop-san-jose</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+
+        <button class="header-icon-btn" onclick="openSearch()" aria-label="Buscar (⌘K)">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+        </button>
+
+        <button class="header-icon-btn" aria-label="Notificaciones">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="badge">3</span>
+        </button>
+
+        <div class="h-8 w-px bg-stone-200"></div>
+
+        <button class="flex items-center gap-2.5 h-10 pl-1 pr-3 rounded-lg hover:bg-stone-50 transition-colors">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full text-white font-semibold text-[11px]" style="background:#738566;">MF</div>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-400"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero strip institutional -->
+    <section class="hero-strip">
+      <div class="max-w-[1320px] mx-auto flex items-end justify-between gap-8">
+        <div>
+          <div class="text-[11px] font-bold uppercase tracking-widest" style="color:#ffe026;">Resumen del día</div>
+          <h1 class="text-[32px] font-bold mt-2 leading-tight" style="font-family:'ABC Whyte',sans-serif;letter-spacing:-0.01em;">Recaudo de abril al <span class="mono">94 %</span> de la meta</h1>
+          <p class="text-[14px] mt-2" style="color:#dcecd0;max-width:560px;">
+            <span class="mono font-semibold text-white">RD$ 1,840,500</span> recaudados de <span class="mono">RD$ 1,950,000</span>. Quedan
+            <span class="mono font-semibold text-white">7 cuotas</span> programadas para hoy y
+            <span class="mono font-semibold" style="color:#ffe026;">18 morosos</span> que requieren contacto antes del cierre.
+          </p>
+        </div>
+        <div class="flex items-center gap-3 shrink-0">
+          <button class="btn-outline" style="background:transparent;color:#ffffff;border-color:#ffffff;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar
+          </button>
+          <button class="btn-primary" style="background:#ffffff;color:#163300;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo Préstamo
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main content -->
+    <main class="px-10 py-10">
+      <div class="max-w-[1320px] mx-auto">
+
+        <!-- KPI cards horizontales -->
+        <div class="grid grid-cols-4 gap-4 mb-10">
+          <div class="kpi-card">
+            <div class="kpi-icon-circle">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="kpi-label">Cartera activa</div>
+              <div class="kpi-figure mono">RD$ 12.45M</div>
+              <div class="kpi-delta up">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+                4.2 % vs marzo
+              </div>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon-circle info">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="kpi-label">Recaudado abril</div>
+              <div class="kpi-figure mono">RD$ 1.84M</div>
+              <div class="kpi-delta up">
+                <span class="font-bold">94 %</span> de la meta
+              </div>
+            </div>
+          </div>
+
+          <div class="kpi-card danger">
+            <div class="kpi-icon-circle warn">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="kpi-label">Balance vencido</div>
+              <div class="kpi-figure mono danger">RD$ 284.6K</div>
+              <div class="kpi-delta warn">18 morosos</div>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon-circle violet">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="kpi-label">Clientes activos</div>
+              <div class="kpi-figure mono">347 <span class="text-stone-400 text-[18px] font-semibold">/ 412</span></div>
+              <div class="kpi-delta up">+12 esta semana</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Two-column layout -->
+        <div class="grid grid-cols-3 gap-6">
+
+          <!-- Activity table (col-span-2) -->
+          <div class="card col-span-2">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title">Movimientos del día</h2>
+                <p class="card-subtitle">Últimas operaciones registradas en su sucursal</p>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="h-8 px-3 text-[12px] font-semibold text-white rounded-md" style="background:#163300;">Hoy</button>
+                <button class="h-8 px-3 text-[12px] font-medium text-stone-500 hover:bg-stone-100 rounded-md">Semana</button>
+                <button class="h-8 px-3 text-[12px] font-medium text-stone-500 hover:bg-stone-100 rounded-md">Mes</button>
+              </div>
+            </div>
+            <table class="activity-table">
+              <thead>
+                <tr>
+                  <th style="width:48px;"></th>
+                  <th>Operación</th>
+                  <th>Cliente / Referencia</th>
+                  <th class="right">Monto</th>
+                  <th class="right">Hora</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div class="activity-icon" style="background:#ecfdf5;color:#047857;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="font-semibold text-forest-900">Pago registrado</div>
+                    <div class="text-[11px] text-stone-500 mt-0.5"><span class="pill pill-good">Efectivo</span></div>
+                  </td>
+                  <td>
+                    <div class="text-stone-700">Juan Pérez</div>
+                    <div class="text-[11px] text-stone-500 mono mt-0.5">LN-2026-0142 · cuota 4/24</div>
+                  </td>
+                  <td class="right">
+                    <div class="font-bold text-forest-900 mono">+RD$ 4,500</div>
+                  </td>
+                  <td class="right text-[12px] text-stone-500 mono">12 min</td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <div class="activity-icon" style="background:#eff6ff;color:#1d4ed8;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="font-semibold text-forest-900">Préstamo aprobado</div>
+                    <div class="text-[11px] text-stone-500 mt-0.5"><span class="pill pill-info">24 cuotas · 2.5 %</span></div>
+                  </td>
+                  <td>
+                    <div class="text-stone-700">Rosa Mendoza</div>
+                    <div class="text-[11px] text-stone-500 mono mt-0.5">LN-2026-0156</div>
+                  </td>
+                  <td class="right">
+                    <div class="font-bold text-forest-900 mono">RD$ 75,000</div>
+                  </td>
+                  <td class="right text-[12px] text-stone-500 mono">34 min</td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <div class="activity-icon" style="background:#fff5ec;color:#cc5e02;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="font-semibold text-forest-900">Recordatorio enviado</div>
+                    <div class="text-[11px] text-stone-500 mt-0.5"><span class="pill pill-warn">WhatsApp · vencido 5 d</span></div>
+                  </td>
+                  <td>
+                    <div class="text-stone-700">Carlos Díaz</div>
+                    <div class="text-[11px] text-stone-500 mono mt-0.5">LN-2026-0098</div>
+                  </td>
+                  <td class="right">
+                    <div class="font-bold mono" style="color:#cc5e02;">RD$ 3,200</div>
+                  </td>
+                  <td class="right text-[12px] text-stone-500 mono">1 h</td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <div class="activity-icon" style="background:#ecfdf5;color:#047857;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="font-semibold text-forest-900">Cliente registrado</div>
+                    <div class="text-[11px] text-stone-500 mt-0.5"><span class="pill pill-info">Padrón JCE</span></div>
+                  </td>
+                  <td>
+                    <div class="text-stone-700">Ana Ramírez</div>
+                    <div class="text-[11px] text-stone-500 mono mt-0.5">CL-2026-0347</div>
+                  </td>
+                  <td class="right">
+                    <div class="text-stone-400 text-[12px]">—</div>
+                  </td>
+                  <td class="right text-[12px] text-stone-500 mono">2 h</td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <div class="activity-icon" style="background:#f3f6f1;color:#5c6d4d;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="font-semibold text-forest-900">Visita de cobrador</div>
+                    <div class="text-[11px] text-stone-500 mt-0.5"><span class="pill pill-neutral">Zona Norte · 8/10</span></div>
+                  </td>
+                  <td>
+                    <div class="text-stone-700">Pedro Núñez</div>
+                    <div class="text-[11px] text-stone-500 mono mt-0.5">RT-zona-norte</div>
+                  </td>
+                  <td class="right">
+                    <div class="font-bold text-forest-900 mono">RD$ 12,800</div>
+                  </td>
+                  <td class="right text-[12px] text-stone-500 mono">3 h</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="px-6 py-4 border-t" style="border-color:#f5f5f4;">
+              <a href="#" class="text-[13px] font-semibold text-forest-700 hover:text-forest-900">Ver toda la actividad →</a>
+            </div>
+          </div>
+
+          <!-- Por cobrar lateral -->
+          <div class="card overflow-hidden flex flex-col">
+            <div class="col-card-header">
+              <div class="text-[10px] font-bold uppercase tracking-widest" style="color:#ffe026;">Agenda</div>
+              <div class="text-[16px] font-bold mt-1">Por cobrar hoy</div>
+              <div class="text-[11px] mt-0.5" style="color:#dcecd0;">7 cuotas programadas</div>
+            </div>
+            <ul class="flex-1">
+              <li class="col-row">
+                <div class="col-avatar">MS</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[13px] font-semibold text-forest-900">Miguel A. Santos</div>
+                  <div class="text-[11px] text-stone-500 mono">09:00 · LN-142</div>
+                </div>
+                <div class="text-[13px] font-bold text-forest-900 mono">4,500</div>
+              </li>
+              <li class="col-row">
+                <div class="col-avatar">LC</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[13px] font-semibold text-forest-900">Luz Castillo</div>
+                  <div class="text-[11px] text-stone-500 mono">10:30 · LN-089</div>
+                </div>
+                <div class="text-[13px] font-bold text-forest-900 mono">6,200</div>
+              </li>
+              <li class="col-row mora">
+                <div class="col-avatar mora">FU</div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <div class="text-[13px] font-semibold text-forest-900">Francisco Ureña</div>
+                    <span class="pill pill-warn">Mora</span>
+                  </div>
+                  <div class="text-[11px] text-stone-500 mono">11:15 · LN-201</div>
+                </div>
+                <div class="text-[13px] font-bold mono" style="color:#cc5e02;">3,800</div>
+              </li>
+              <li class="col-row">
+                <div class="col-avatar">EM</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[13px] font-semibold text-forest-900">Elena Martínez</div>
+                  <div class="text-[11px] text-stone-500 mono">14:00 · LN-178</div>
+                </div>
+                <div class="text-[13px] font-bold text-forest-900 mono">5,100</div>
+              </li>
+              <li class="col-row">
+                <div class="col-avatar">RT</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[13px] font-semibold text-forest-900">Ramón Torres</div>
+                  <div class="text-[11px] text-stone-500 mono">16:30 · LN-067</div>
+                </div>
+                <div class="text-[13px] font-bold text-forest-900 mono">8,800</div>
+              </li>
+            </ul>
+            <div class="col-total">
+              <div>
+                <div class="text-[10px] font-bold uppercase tracking-wider text-stone-500">Total del día</div>
+                <div class="text-[22px] font-bold text-forest-900 mono mt-0.5">RD$ 28,400</div>
+              </div>
+              <div class="text-right">
+                <div class="text-[10px] text-stone-500">Restantes</div>
+                <div class="text-[13px] font-semibold text-stone-700">+ 2 más</div>
+              </div>
+            </div>
+            <button class="btn-block">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Registrar pago
+            </button>
+          </div>
+        </div>
+
+        <!-- Institutional footer -->
+        <footer class="inst-footer">
+          <div class="text">
+            Cooperativa San José
+            <span class="sep">·</span>
+            Regulado por la Superintendencia de Bancos de la República Dominicana
+            <span class="sep">·</span>
+            Plataforma <span class="font-semibold text-forest-700">CrediFlux v2.0</span>
+            <span class="sep">·</span>
+            <a href="#" class="hover:text-forest-700">Términos</a>
+            <span class="sep">·</span>
+            <a href="#" class="hover:text-forest-700">Privacidad</a>
+            <span class="sep">·</span>
+            <a href="#" class="hover:text-forest-700">Soporte</a>
+          </div>
+        </footer>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Tenant theme switcher -->
+  <div class="dev-banner" role="presentation">
+    <span class="dev-banner__label">Tenant →</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" style="background:#163300;" aria-label="Forest"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" style="background:#3a0e1e;" aria-label="Burgundy"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" style="background:#0c1e38;" aria-label="Navy"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" style="background:#1a4d3a;" aria-label="Teal"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" style="background:#2d1b4e;" aria-label="Violet"></button>
+    </div>
+  </div>
+
+  <script>
+    function openSearch() {}
+    document.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); }
+    });
+    const swatches = document.querySelectorAll('.dev-banner__swatch');
+    swatches.forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.documentElement.style.setProperty('--color-tenant-primary', btn.dataset.color);
+        swatches.forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  </script>
+  <script src="_design-notes.js"></script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Cobrador móvil</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/bundle.css">
+  <link rel="stylesheet" href="ds/patterns.css">
+  <style>
+    body{margin:0}
+    .sheet{max-width:1400px;margin:0 auto;padding:40px 32px 48px}
+    .phones{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;margin-top:36px}
+    .cap{width:390px}
+    .cap h2{margin:18px 0 4px;font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--forest-900)}
+    .cap p{margin:0;font-size:13px;color:var(--sage-600);line-height:1.5}
+    .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+    .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-bottom:1px solid #1633000f;font-size:13px}
+    .row dt{color:var(--sage-600)}.row dd{margin:0}
+    .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+    .seg label{display:flex;align-items:center;justify-content:center;height:40px;border:1px solid var(--hairline-control);border-radius:10px;font-size:13px;font-weight:500;background:#fff;cursor:pointer}
+    .seg input{position:absolute;opacity:0}
+    .seg label:has(input:checked){border-color:var(--forest-900);box-shadow:inset 0 0 0 1px var(--forest-900)}
+    .bigamt{font-family:var(--font-mono);font-size:34px;font-weight:500;letter-spacing:-.02em;color:var(--forest-900)}
+    .chip-row{display:flex;gap:6px;padding:12px 16px 0;overflow-x:auto}
+    .sticky-foot{position:absolute;left:0;right:0;bottom:0;padding:12px 16px 30px;background:var(--cream);border-top:1px solid var(--hairline)}
+    .note-sm{font-size:11px;color:var(--sage-600)}
+  </style>
+</head>
+<body class="cf-page cf-paper">
+<div class="sheet">
+  <header class="cf-page-header">
+    <div>
+      <div class="cf-page-header__eyebrow">Cobranza &nbsp;—&nbsp; app del cobrador en campo · funciona sin señal y sincroniza al volver</div>
+      <h1 class="cf-page-header__title">Cobrador móvil</h1>
+      <p class="cf-page-header__desc">La jornada de Pedro Núñez el miércoles 10 de abril: lo que ve al salir, cómo registra un cobro y cómo cierra el día. Mismos datos que la Mesa de cobranza.</p>
+    </div>
+    <div class="cf-page-header__actions"><a href="collections.html" class="cf-btn cf-btn--secondary">Mesa de cobranza</a></div>
+  </header>
+
+  <div class="phones">
+
+    <!-- 1 · Jornada -->
+    <div class="cap">
+      <div class="cf-phone">
+        <div class="cf-phone__viewport">
+          <div class="cf-phone__top">
+            <div class="cf-phone__greet">Mié 10 abr · Ruta Santiago norte</div>
+            <div class="cf-phone__title">Buenas tardes, Pedro</div>
+            <div style="display:flex;justify-content:space-between;margin-top:10px;font-family:var(--font-mono);font-size:11px;color:#ffffffb3"><span>8 de 10 visitas</span><span>RD$ 12,800 cobrado</span></div>
+            <div class="cf-phone__progress"><i style="width:80%"></i></div>
+          </div>
+          <div class="chip-row"><button class="cf-chip active">Pendientes <span class="cf-chip__count">2</span></button><button class="cf-chip">Mora <span class="cf-chip__count">1</span></button><button class="cf-chip">Promesas <span class="cf-chip__count">1</span></button><button class="cf-chip">Hechas <span class="cf-chip__count">8</span></button></div>
+          <div class="cf-phone__body">
+            <div class="cf-visit cf-visit--mora">
+              <div class="cf-visit__head"><div class="cf-visit__who"><span class="cf-avatar-wrap"><span class="cf-avatar cf-avatar--lg cf-avatar--flame">FU</span><span class="cf-avatar__badge">9</span></span><div style="min-width:0"><div class="cf-visit__name">Francisco Ureña</div><div class="cf-visit__ref">LN-2026-0045 · cuotas 2–3</div></div></div><div><div class="cf-visit__time">14:30</div><span class="cf-pill cf-pill--heavy-mora" style="margin-top:4px">40d · escalado</span></div></div>
+              <div class="cf-visit__mid"><div class="cf-visit__addr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>C/ 16 #22, Cienfuegos · 1.2 km</span></div><div class="cf-visit__amt"><small>RD$</small>15,488.89</div></div>
+              <div class="cf-visit__actions"><button class="cf-ic-btn cf-ic-btn--wa" aria-label="WhatsApp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 21l2-5.2A8.4 8.4 0 1 1 21 11.5z"/></svg></button><button class="cf-ic-btn cf-ic-btn--call" aria-label="Llamar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></button><button class="cf-act cf-act--primary">Registrar cobro</button><button class="cf-act cf-act--warn">No estaba</button></div>
+            </div>
+            <div class="cf-visit cf-visit--promise">
+              <div class="cf-visit__head"><div class="cf-visit__who"><span class="cf-avatar-wrap"><span class="cf-avatar cf-avatar--lg cf-avatar--sage">IR</span><span class="cf-avatar__badge">10</span></span><div style="min-width:0"><div class="cf-visit__name">Isabel Reyes</div><div class="cf-visit__ref">LN-2025-0222 · cuota 8/24</div></div></div><div><div class="cf-visit__time">16:00</div><span class="cf-pill cf-pill--promise" style="margin-top:4px">Promesa hoy</span></div></div>
+              <div class="cf-visit__mid"><div class="cf-visit__addr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Colmado Reyes, Av. Hispanoamericana</span></div><div class="cf-visit__amt"><small>RD$</small>4,400</div></div>
+              <div class="cf-visit__actions"><button class="cf-ic-btn cf-ic-btn--wa" aria-label="WhatsApp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 21l2-5.2A8.4 8.4 0 1 1 21 11.5z"/></svg></button><button class="cf-ic-btn cf-ic-btn--call" aria-label="Llamar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></button><button class="cf-act cf-act--primary">Registrar cobro</button><button class="cf-act cf-act--outline">Reprogramar</button></div>
+            </div>
+            <div class="cf-visit cf-visit--done">
+              <div class="cf-visit__head"><div class="cf-visit__who"><span class="cf-avatar cf-avatar--lg">AR</span><div style="min-width:0"><div class="cf-visit__name">Ana Ramírez</div><div class="cf-visit__ref">LN-2025-0118 · visita de cortesía</div></div></div><div><div class="cf-visit__time">13:10</div><span class="cf-pill cf-pill--today" style="margin-top:4px">Al día</span></div></div>
+            </div>
+            <div class="cf-visit cf-visit--done">
+              <div class="cf-visit__head"><div class="cf-visit__who"><span class="cf-avatar cf-avatar--lg">CD</span><div style="min-width:0"><div class="cf-visit__name">Carlos Díaz</div><div class="cf-visit__ref">LN-2025-0089 · promesa 17 abr</div></div></div><div><div class="cf-visit__time">11:40</div><span class="cf-pill cf-pill--promise" style="margin-top:4px">Promete</span></div></div>
+            </div>
+          </div>
+          <button class="cf-fab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>Cerrar jornada</button>
+          <nav class="cf-bottom-nav"><button class="cf-bottom-nav__item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Hoy<span class="cf-bottom-nav__dot"></span></button><button class="cf-bottom-nav__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Cartera<span class="cf-bottom-nav__dot"></span></button><button class="cf-bottom-nav__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>Mapa<span class="cf-bottom-nav__dot"></span></button><button class="cf-bottom-nav__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Perfil<span class="cf-bottom-nav__dot"></span></button></nav>
+        </div>
+      </div>
+      <h2>1 · Jornada</h2>
+      <p>Visitas en orden de ruta. Mora con filete flame, promesa con filete sun; las hechas se apagan. Una acción primaria por tarjeta.</p>
+    </div>
+
+    <!-- 2 · Registrar cobro -->
+    <div class="cap">
+      <div class="cf-phone">
+        <div class="cf-phone__viewport">
+          <div class="cf-phone__top" style="padding-bottom:16px">
+            <div class="cf-phone__greet">← Visita 10 · Isabel Reyes</div>
+            <div class="cf-phone__title">Registrar cobro</div>
+          </div>
+          <div class="cf-phone__body" style="padding-bottom:120px">
+            <div style="font-size:12px;color:var(--sage-600)">LN-2025-0222 · cuota 8/24 · 7 días de atraso</div>
+            <div class="cf-eyebrow" style="margin-top:14px">Monto sugerido</div>
+            <dl style="margin:6px 0 0">
+              <div class="row"><dt>Cuota 8</dt><dd class="num">3,900.00</dd></div>
+              <div class="row"><dt>Mora (venció hace 7 días)</dt><dd class="num">500.00</dd></div>
+              <div class="row" style="border-bottom:1px solid var(--hairline-strong)"><dt style="color:var(--forest-900);font-weight:500">Total</dt><dd class="num" style="font-weight:600">RD$ 4,400.00</dd></div>
+            </dl>
+            <div class="cf-field" style="margin-top:16px"><label class="cf-label" for="m-amt">Monto recibido</label><div class="cf-input-group"><span class="cf-prefix">RD$</span><input id="m-amt" class="cf-input cf-input--large" value="4,400.00" inputmode="decimal"></div></div>
+            <div class="cf-eyebrow" style="margin-top:16px;margin-bottom:6px">Método</div>
+            <div class="seg"><label><input type="radio" name="mm" checked>Efectivo</label><label><input type="radio" name="mm">Transfer.</label><label><input type="radio" name="mm">Pago móvil</label></div>
+            <div style="display:flex;gap:10px;margin-top:16px">
+              <button class="cf-act cf-act--outline" style="flex:1">Foto del recibo</button>
+              <button class="cf-act cf-act--outline" style="flex:1">Firma</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:14px" class="note-sm"><span class="cf-live"></span>Ubicación tomada · 19.4551, −70.6890 · precisión 8 m</div>
+            <label class="cf-check-label" style="margin-top:10px"><input type="checkbox" class="cf-checkbox" checked> Enviar recibo por WhatsApp</label>
+          </div>
+          <div class="sticky-foot">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px"><span class="note-sm">Sin señal · se guarda y sincroniza</span><span class="num note-sm">RC-campo-0412</span></div>
+            <button class="cf-btn cf-btn--sun cf-btn--lg" style="width:100%;height:48px;border-radius:12px">Cobrar RD$ 4,400.00</button>
+          </div>
+        </div>
+      </div>
+      <h2>2 · Registrar cobro</h2>
+      <p>El monto sugerido trae la mora desglosada con la misma regla del sistema (RD$ 500 tras 5 días). Guarda foto, firma y GPS; si no hay señal, queda en cola.</p>
+    </div>
+
+    <!-- 3 · Cerrar jornada -->
+    <div class="cap">
+      <div class="cf-phone">
+        <div class="cf-phone__viewport">
+          <div class="cf-phone__top" style="padding-bottom:16px">
+            <div class="cf-phone__greet">Mié 10 abr · 17:40</div>
+            <div class="cf-phone__title">Cerrar jornada</div>
+          </div>
+          <div class="cf-phone__body" style="padding-bottom:120px">
+            <div class="cf-eyebrow">Cobrado hoy</div>
+            <div class="bigamt"><span style="font-size:16px;color:var(--sage-600)">RD$ </span>12,800.00</div>
+            <dl style="margin:8px 0 0">
+              <div class="row"><dt>Efectivo · 6 cobros</dt><dd class="num">11,200.00</dd></div>
+              <div class="row"><dt>Transferencia · 1</dt><dd class="num">1,600.00</dd></div>
+              <div class="row"><dt>Visitas</dt><dd class="num">10 / 10</dd></div>
+              <div class="row"><dt>Promesas nuevas</dt><dd class="num">2 · RD$ 17,944</dd></div>
+              <div class="row"><dt>No estaba</dt><dd class="num">1</dd></div>
+            </dl>
+            <div style="margin-top:16px;padding:14px;border-radius:10px;background:#fff;border:1px solid var(--hairline-control)">
+              <div class="cf-eyebrow">Entregar en Caja #2</div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px"><span style="font-size:13px">Efectivo a entregar</span><span class="num" style="font-size:20px;font-weight:600">RD$ 11,200.00</span></div>
+              <div class="note-sm" style="margin-top:6px">La cajera confirma el conteo; cualquier diferencia queda en la bitácora.</div>
+            </div>
+            <div class="cf-field" style="margin-top:16px"><label class="cf-label" for="obs">Observaciones</label><textarea id="obs" class="cf-input" rows="2">Francisco Ureña: estuvo hospitalizado, promete el lunes 14.</textarea></div>
+          </div>
+          <div class="sticky-foot">
+            <button class="cf-btn cf-btn--primary cf-btn--lg" style="width:100%;height:48px;border-radius:12px">Cerrar y enviar a supervisión</button>
+          </div>
+        </div>
+      </div>
+      <h2>3 · Cerrar jornada</h2>
+      <p>Cuadre del día por método. El efectivo se entrega en caja y se compara con lo registrado en campo; el supervisor ve el cierre en la Mesa.</p>
+    </div>
+  </div>
+
+  <div class="mt-16" style="margin-top:56px;padding-top:20px;border-top:1px solid var(--hairline);display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--sage-500)">
+    <span>CrediFlux v2.0 · Santiago, RD</span><span>App cobrador · 390 × 844</span>
+  </div>
+</div>
+</body>
+</html>

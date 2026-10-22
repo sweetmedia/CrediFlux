@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Comunicaciones</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',500:'#4d8630',700:'#2d5a10',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 100:'#fffbe6',500:'#ffe026' },
+            flame: { 500:'#ff7503',600:'#cc5e02' },
+            cream: '#faf8f2', 'warm-white':'#f5f3ed',
+            tenant: 'var(--color-tenant-primary)',
+          },
+          letterSpacing: { widest:'0.14em', ultra:'0.18em' },
+        }
+      }
+    }
+  </script>
+  <style>
+    html,body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#faf8f2;color:#163300;-webkit-font-smoothing:antialiased;}
+    .paper-bg{background-color:#faf8f2;background-image:radial-gradient(circle at 1px 1px,rgba(22,51,0,0.035) 1px,transparent 0);background-size:28px 28px;}
+    .sidebar{background:var(--color-tenant-primary,#163300);}
+    .nav-item{position:relative;display:flex;align-items:center;gap:11px;padding:6px 12px 6px 14px;border-radius:4px;color:rgba(255,255,255,0.55);font-size:13px;font-weight:400;text-decoration:none;transition:color 150ms,background-color 150ms;}
+    .nav-item:hover{color:rgba(255,255,255,0.92);background:rgba(255,255,255,0.04);}
+    .nav-item.active{color:#fff;background:rgba(255,255,255,0.08);font-weight:500;}
+    .nav-item.active::before{content:'';position:absolute;left:-1px;top:50%;transform:translateY(-50%);width:2px;height:18px;background:#ffe026;border-radius:0 2px 2px 0;}
+    .nav-group-header{display:flex;align-items:center;justify-content:space-between;width:100%;padding:4px 14px;font-family:'ABC Whyte',system-ui,sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:rgba(255,255,255,0.32);background:transparent;border:none;cursor:pointer;}
+    .nav-group-header.flat{cursor:default;}
+    .nav-group-chevron{transition:transform 200ms;opacity:0.7;}
+    .nav-group[data-collapsed="true"] .nav-group-chevron{transform:rotate(-90deg);}
+    .nav-group[data-collapsed="true"] .nav-group-items{display:none;}
+    .kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;line-height:1;color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-bottom-width:2px;border-radius:3px;}
+    .sidebar-search{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 24px);margin:12px 12px 0;padding:7px 10px 7px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:4px;font-size:12px;color:rgba(255,255,255,0.5);cursor:pointer;}
+    .util-btn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 8px;border-radius:4px;color:#5c6d4d;background:transparent;border:none;cursor:pointer;}
+    .util-btn:hover{color:#163300;background:rgba(22,51,0,0.04);}
+    .util-btn--icon{width:32px;padding:0;}
+    .reminder-dot{position:absolute;top:3px;right:3px;min-width:14px;height:14px;padding:0 3px;background:#ff7503;color:#fff;border-radius:7px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;font-weight:700;line-height:14px;text-align:center;border:2px solid #faf8f2;}
+    .dev-banner{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;align-items:center;gap:14px;padding:10px 14px 10px 16px;background:rgba(22,51,0,0.92);backdrop-filter:blur(8px);color:rgba(255,255,255,0.85);border-radius:6px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;}
+    .dev-banner__label{color:rgba(255,255,255,0.45);}.dev-banner__swatches{display:flex;gap:8px;}
+    .dev-banner__swatch{width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;padding:0;}
+    .dev-banner__swatch.active{box-shadow:0 0 0 2px #ffe026,0 0 0 3px rgba(22,51,0,0.92);}
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .rule-b{border-bottom:1px solid rgba(22,51,0,0.08);}.rule-t{border-top:1px solid rgba(22,51,0,0.08);}.rule-r{border-right:1px solid rgba(22,51,0,0.08);}
+    .logo-white{filter:brightness(0) invert(1);}
+    .no-scrollbar::-webkit-scrollbar{display:none;}.no-scrollbar{scrollbar-width:none;}
+
+    /* Pills */
+    .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:3px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;line-height:1.6;white-space:nowrap;}
+    .pill--wa{background:rgba(18,140,126,0.12);color:#0e6b60;}
+    .pill--sms{background:rgba(77,134,48,0.14);color:#2d5a10;}
+    .pill--email{background:rgba(115,133,102,0.16);color:#4a5a3d;}
+    .pill--voice{background:rgba(255,224,38,0.3);color:#5c4a00;}
+    .pill--unread{background:#ff7503;color:#fff;}
+
+    /* Channel dots */
+    .ch-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block;}
+    .ch-dot--wa{background:#128c7e;}
+    .ch-dot--sms{background:#4d8630;}
+    .ch-dot--email{background:#738566;}
+    .ch-dot--voice{background:#ffe026;box-shadow:0 0 0 1.5px rgba(255,224,38,0.4);}
+
+    /* Thread list */
+    .thread{position:relative;display:flex;gap:11px;padding:14px 16px;cursor:pointer;border-bottom:1px solid rgba(22,51,0,0.05);transition:background 120ms;}
+    .thread:hover{background:rgba(22,51,0,0.025);}
+    .thread.active{background:#fff;border-left:2px solid #ffe026;padding-left:14px;}
+    .thread.unread .thread-name{font-weight:600;}
+    .thread-name{font-family:'ABC Whyte',system-ui,sans-serif;font-size:13px;color:#163300;}
+    .thread-time{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;color:#738566;letter-spacing:0.08em;flex-shrink:0;}
+    .thread-preview{font-size:12px;color:#5c6d4d;line-height:1.35;margin-top:2px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}
+    .avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-weight:500;flex-shrink:0;}
+
+    /* Message bubbles */
+    .msg-row{display:flex;margin-bottom:10px;}
+    .msg-row.out{justify-content:flex-end;}
+    .msg-bubble{max-width:68%;padding:9px 13px;border-radius:10px;font-size:13px;line-height:1.45;}
+    .msg-row.in .msg-bubble{background:#fff;border:1px solid rgba(22,51,0,0.08);border-top-left-radius:2px;color:#163300;}
+    .msg-row.out .msg-bubble{background:#dcecd0;border:1px solid rgba(77,134,48,0.2);border-top-right-radius:2px;color:#163300;}
+    .msg-meta{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;letter-spacing:0.1em;color:#8a9d7a;text-transform:uppercase;margin-top:4px;display:flex;align-items:center;gap:4px;}
+    .msg-row.out .msg-meta{justify-content:flex-end;}
+
+    /* Day separator */
+    .day-sep{text-align:center;margin:18px 0 14px;position:relative;}
+    .day-sep::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(22,51,0,0.08);}
+    .day-sep span{position:relative;display:inline-block;padding:3px 10px;background:#faf8f2;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:#8a9d7a;}
+
+    /* Composer */
+    .composer{border-top:1px solid rgba(22,51,0,0.1);background:#fff;padding:12px 16px;}
+    .composer-input{width:100%;border:1px solid rgba(22,51,0,0.15);background:#faf8f2;border-radius:8px;padding:11px 14px;font-size:13px;color:#163300;resize:none;min-height:46px;max-height:140px;font-family:'Plus Jakarta Sans',sans-serif;}
+    .composer-input:focus{border-color:#163300;background:#fff;}
+
+    /* Filter chips */
+    .ch-chip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border:1px solid rgba(22,51,0,0.12);background:#fff;border-radius:14px;font-size:11px;color:#5c6d4d;cursor:pointer;font-weight:500;white-space:nowrap;}
+    .ch-chip:hover{border-color:rgba(22,51,0,0.24);color:#163300;}
+    .ch-chip.active{background:#163300;color:#fff;border-color:#163300;}
+    .ch-chip .ch-count{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;opacity:0.7;}
+    .ch-chip.active .ch-count{opacity:0.85;}
+
+    /* Template chip */
+    .tpl-chip{display:flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid rgba(22,51,0,0.12);background:#fff;border-radius:6px;font-size:11px;color:#163300;cursor:pointer;}
+    .tpl-chip:hover{border-color:#163300;background:#f3f6f1;}
+    .tpl-chip-icon{width:6px;height:6px;border-radius:50%;}
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="sidebar fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col text-white">
+    <div class="px-5 pt-5 pb-4 border-b border-white/[0.08]">
+      <div class="mb-4"><img src="../branding/logo-full/svg/crediflux-logo.svg" alt="CrediFlux" class="logo-white h-[22px] w-auto"/></div>
+      <div>
+        <div class="font-display text-[14px] font-medium text-white">Cooperativa San&nbsp;José</div>
+        <div class="mt-1 flex items-center gap-2 font-mono text-[10px] text-white/40 uppercase tracking-widest"><span>coop-san-jose</span><span class="text-white/15">·</span><span>rd</span></div>
+      </div>
+    </div>
+    <button class="sidebar-search"><span class="flex items-center gap-2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar</span></span><span class="kbd">⌘K</span></button>
+    <nav class="flex-1 overflow-y-auto px-3 py-5">
+      <div class="mb-6"><div class="nav-group-header flat"><span>Overview</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="appshell.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Dashboard</span></a>
+      </div></div>
+      <div class="mb-6 nav-group" data-collapsed="true"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Operación</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]"><a href="loans-list.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>Préstamos</span></a><a href="customers-list.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span>Clientes</span></a></div></div>
+      <div class="mb-6 nav-group" data-collapsed="true"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Cobranza</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]"><a href="collections.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span>Cobranza</span></a></div></div>
+      <div class="mb-6 nav-group" data-collapsed="true"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Contratos</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]"><a href="contracts-list.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>Lista</span></a></div></div>
+      <div class="mb-6 nav-group" data-collapsed="false"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Comunicaciones</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]">
+        <a href="communications.html" class="nav-item active" aria-current="page"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Mensajes</span><span class="ml-auto font-mono text-[9px] bg-sun-500 text-forest-900 px-1.5 py-0.5 rounded-full font-bold">3</span></a>
+        <a href="tasks-kanban.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Tareas</span></a>
+        <a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/></svg><span>Plantillas</span></a>
+        <a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/><circle cx="12" cy="12" r="4"/></svg><span>Campañas</span></a>
+      </div></div>
+      <div><div class="nav-group-header flat"><span>Administración</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="settings-roles.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></svg><span>Configuración</span></a>
+      </div></div>
+    </nav>
+    <div class="border-t border-white/[0.08] px-3 py-3">
+      <div class="flex items-center gap-3 px-2 py-1.5">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-[11px] text-white" style="background:#738566;">MF</div>
+        <div class="min-w-0 flex-1"><div class="truncate font-display text-[13px] font-medium text-white">María Fernández</div><div class="truncate font-mono text-[9px] uppercase tracking-widest text-white/45 mt-0.5">Oficial de Cobranza</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="ml-[240px]">
+    <header class="sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div class="flex h-14 items-center gap-3 pl-8 pr-6">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="appshell.html" class="text-[12px] text-sage-500 hover:text-forest-900">Inicio</a>
+          <span class="text-sun-500 text-[9px]">●</span>
+          <span class="font-display text-[13px] font-medium text-forest-900">Comunicaciones</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button class="util-btn util-btn--icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+          <button class="util-btn util-btn--icon relative"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="reminder-dot">3</span></button>
+          <button class="flex items-center gap-2 h-8 pl-1 pr-2 ml-1 rounded hover:bg-forest-900/[0.04]"><div class="flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] text-white" style="background:#738566;">MF</div></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="paper-bg min-h-[calc(100vh-56px)] px-8 py-8">
+      <div class="max-w-[1440px] mx-auto">
+
+        <!-- Page header -->
+        <div class="pb-6 rule-b">
+          <div class="flex items-end justify-between gap-6">
+            <div>
+              <div class="flex items-center gap-3 mb-3">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Comunicaciones</span>
+                <span class="h-px w-6 bg-forest-900/20"></span>
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Bandeja y campañas</span>
+              </div>
+              <h1 class="font-display text-[38px] font-black text-forest-900 leading-none tracking-tight">Mensajes</h1>
+              <p class="mt-3 text-[13px] text-sage-600 max-w-[560px]">Conversaciones 2-vías con clientes por WhatsApp, SMS, email y voz. Plantillas reutilizables, envíos masivos programados, audit trail por canal.</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button class="h-9 px-3 inline-flex items-center gap-2 text-[12px] font-medium text-sage-700 border border-forest-900/15 rounded hover:bg-forest-900/[0.04]">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/></svg>
+                Plantillas
+              </button>
+              <button class="h-9 pl-3 pr-4 inline-flex items-center gap-2 text-[12px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/><circle cx="12" cy="12" r="4"/></svg>
+                Nueva campaña
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI compact -->
+        <section class="pt-5 pb-5 rule-b">
+          <div class="grid grid-cols-5 divide-x divide-forest-900/10">
+            <div class="pr-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1.5">Enviados hoy</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[26px] font-medium text-forest-900 leading-none tracking-tight tabular-nums">142</span>
+                <span class="font-mono text-[11px] text-forest-500 tabular-nums">↑ 18%</span>
+              </div>
+              <div class="mt-1.5 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">88 WA · 34 SMS · 20 email</div>
+            </div>
+            <div class="px-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1.5">Tasa entrega</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[26px] font-medium text-forest-900 leading-none tracking-tight tabular-nums">97.2%</span>
+              </div>
+              <div class="mt-1.5 flex items-center gap-2">
+                <div class="h-1 flex-1 bg-sage-100 rounded-full overflow-hidden"><div class="h-full bg-forest-500" style="width:97%;"></div></div>
+                <span class="font-mono text-[9px] uppercase tracking-widest text-sage-500 tabular-nums">138/142</span>
+              </div>
+            </div>
+            <div class="px-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1.5">Tasa respuesta</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[26px] font-medium text-forest-900 leading-none tracking-tight tabular-nums">42%</span>
+                <span class="font-mono text-[11px] text-sage-500 tabular-nums">/ 7d</span>
+              </div>
+              <div class="mt-1.5 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Solo WA+SMS</div>
+            </div>
+            <div class="px-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1.5">Sin responder</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[26px] font-medium leading-none tracking-tight tabular-nums" style="color:#cc5e02;">7</span>
+                <span class="font-mono text-[11px] text-sage-500 tabular-nums">· 3 asignados a ti</span>
+              </div>
+              <div class="mt-1.5 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Más antiguo · 2h</div>
+            </div>
+            <div class="pl-6">
+              <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1.5">Costo mes</div>
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-[11px] text-sage-400 tabular-nums">RD$</span>
+                <span class="font-mono text-[26px] font-medium text-forest-900 leading-none tracking-tight tabular-nums">1,842</span>
+              </div>
+              <div class="mt-1.5 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Ahorro vs manual · 76%</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Channel filter chips -->
+        <section class="pt-5 pb-4">
+          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <button class="ch-chip active">Todos <span class="ch-count tabular-nums">24</span></button>
+            <button class="ch-chip"><span class="ch-dot ch-dot--wa"></span>WhatsApp <span class="ch-count tabular-nums">15</span></button>
+            <button class="ch-chip"><span class="ch-dot ch-dot--sms"></span>SMS <span class="ch-count tabular-nums">5</span></button>
+            <button class="ch-chip"><span class="ch-dot ch-dot--email"></span>Email <span class="ch-count tabular-nums">3</span></button>
+            <button class="ch-chip"><span class="ch-dot ch-dot--voice"></span>Voz <span class="ch-count tabular-nums">1</span></button>
+            <span class="h-5 w-px bg-forest-900/10 mx-1"></span>
+            <button class="ch-chip">No leídos <span class="ch-count tabular-nums">3</span></button>
+            <button class="ch-chip">Asignadas a ti <span class="ch-count tabular-nums">8</span></button>
+            <button class="ch-chip">Con promesa</button>
+            <button class="ch-chip">Mora 30+</button>
+            <div class="ml-auto">
+              <button class="ch-chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Actividad en vivo
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Inbox layout: threads + conversation -->
+        <section class="border border-forest-900/10 rounded-md bg-warm-white overflow-hidden" style="min-height:680px;">
+          <div class="grid" style="grid-template-columns:340px 1fr 280px;">
+
+            <!-- Thread list -->
+            <div class="rule-r bg-cream/60 flex flex-col">
+              <div class="sticky top-0 bg-cream/95 backdrop-blur border-b border-forest-900/10 px-4 py-3 flex items-center justify-between">
+                <div>
+                  <div class="font-display text-[13px] font-semibold text-forest-900">Bandeja</div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 tabular-nums mt-0.5">24 conversaciones · 3 no leídas</div>
+                </div>
+                <button class="util-btn util-btn--icon" title="Ordenar"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="11" y1="5" x2="21" y2="5"/><line x1="11" y1="9" x2="17" y2="9"/><line x1="11" y1="13" x2="13" y2="13"/><path d="M7 20L3 16l4-4"/><line x1="3" y1="16" x2="11" y2="16"/></svg></button>
+              </div>
+
+              <div class="flex-1 overflow-y-auto">
+                <!-- Thread: active -->
+                <div class="thread active unread">
+                  <div class="relative">
+                    <div class="avatar h-10 w-10 text-[11px] text-white" style="background:#cc5e02;">JB</div>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center" style="box-shadow:0 0 0 1px rgba(22,51,0,0.1);"><span class="ch-dot ch-dot--wa" style="width:6px;height:6px;"></span></span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="thread-name truncate">Joaquín Bautista</span>
+                      <span class="thread-time shrink-0">12:03</span>
+                    </div>
+                    <div class="thread-preview">Sí, puedo pagar hoy en la tarde. Le mando foto del comprobante...</div>
+                    <div class="mt-1.5 flex items-center gap-1.5">
+                      <span class="pill pill--unread">Nuevo</span>
+                      <span class="font-mono text-[9px] uppercase tracking-widest text-sage-500 tabular-nums">LN-2025-0198 · 23d mora</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Thread -->
+                <div class="thread unread">
+                  <div class="relative">
+                    <div class="avatar h-10 w-10 text-[11px] text-white" style="background:#ff7503;">FU</div>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center" style="box-shadow:0 0 0 1px rgba(22,51,0,0.1);"><span class="ch-dot ch-dot--wa" style="width:6px;height:6px;"></span></span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="thread-name truncate">Francisco Ureña</span>
+                      <span class="thread-time shrink-0">11:47</span>
+                    </div>
+                    <div class="thread-preview">Necesito hablar con alguien de cobranza, el cobrador...</div>
+                    <div class="mt-1.5 flex items-center gap-1.5">
+                      <span class="pill pill--unread">Nuevo</span>
+                      <span class="font-mono text-[9px] uppercase tracking-widest text-sage-500 tabular-nums">LN-2025-0201 · 12d mora</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Thread -->
+                <div class="thread unread">
+                  <div class="relative">
+                    <div class="avatar h-10 w-10 text-[11px] text-white" style="background:#738566;">AR</div>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center" style="box-shadow:0 0 0 1px rgba(22,51,0,0.1);"><span class="ch-dot ch-dot--email" style="width:6px;height:6px;"></span></span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="thread-name truncate">Ana Ramírez</span>
+                      <span class="thread-time shrink-0">10:22</span>
+                    </div>
+                    <div class="thread-preview">Revisé el contrato CT-2026-0158, tengo una pregunta sobre la cláusula...</div>
+                    <div class="mt-1.5 flex items-center gap-1.5">
+                      <span class="pill pill--unread">Nuevo</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Thread -->
+                <div class="thread">
+                  <div class="relative">
+                    <div class="avatar h-10 w-10 text-[11px] text-white" style="background:#2d5a10;">LC</div>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center" style="box-shadow:0 0 0 1px rgba(22,51,0,0.1);"><span class="ch-dot ch-dot--wa" style="width:6px;height:6px;"></span></span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="thread-name truncate">Luz Castillo</span>
+                      <span class="thread-time shrink-0">09:40</span>
+                    </div>
+                    <div class="thread-preview">Ok, gracias. Voy para allá a las 10:30 con el efectivo.</div>
+                    <div class="mt-1.5 flex items-center gap-1.5">
+                      <span class="pill pill--wa">Promesa</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Thread -->
+                <div class="thread">
+                  <div class="relative">
+                    <div class="avatar h-10 w-10 text-[11px] text-white" style="background:#4d8630;">MS</div>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center" style="box-shadow:0 0 0 1px rgba(22,51,0,0.1);"><span class="ch-dot ch-dot--wa" style="width:6px;height:6px;"></span></span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="thread-name truncate">Miguel A. Santos</span>
+                      <span class="thread-time shrink-0">Ayer</span>
+                    </div>
+                    <div class="thread-preview">Gracias, ya pagué. Recibí el comprobante de cuota 4.</div>
+                  </div>
+                </div>
+
+                <!-- Thread -->
+                <div class="thread">
+                  <div class="relative">
+                    <div class="avatar h-10 w-10 text-[11px] text-white" style="background:#5c6d4d;">PJ</div>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center" style="box-shadow:0 0 0 1px rgba(22,51,0,0.1);"><span class="ch-dot ch-dot--sms" style="width:6px;height:6px;"></span></span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="thread-name truncate">Pedro Jiménez</span>
+                      <span class="thread-time shrink-0">Ayer</span>
+                    </div>
+                    <div class="thread-preview">Tú: Recordatorio — contrato CT-2026-0157 pendiente firma...</div>
+                    <div class="mt-1.5 flex items-center gap-1.5">
+                      <span class="font-mono text-[9px] uppercase tracking-widest text-sage-500 tabular-nums">3 recordatorios · sin respuesta</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Thread -->
+                <div class="thread">
+                  <div class="relative">
+                    <div class="avatar h-10 w-10 text-[11px] text-white" style="background:#4a5a3d;">RT</div>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center" style="box-shadow:0 0 0 1px rgba(22,51,0,0.1);"><span class="ch-dot ch-dot--voice" style="width:6px;height:6px;"></span></span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="thread-name truncate">Ramón Torres</span>
+                      <span class="thread-time shrink-0">Ayer</span>
+                    </div>
+                    <div class="thread-preview">Llamada · 2:14 · transcripción disponible</div>
+                  </div>
+                </div>
+
+                <!-- Thread -->
+                <div class="thread">
+                  <div class="relative">
+                    <div class="avatar h-10 w-10 text-[11px] text-white" style="background:#738566;">EM</div>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center" style="box-shadow:0 0 0 1px rgba(22,51,0,0.1);"><span class="ch-dot ch-dot--wa" style="width:6px;height:6px;"></span></span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="thread-name truncate">Elena Martínez</span>
+                      <span class="thread-time shrink-0">2 abr</span>
+                    </div>
+                    <div class="thread-preview">Muchas gracias por la atención.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Conversation -->
+            <div class="flex flex-col bg-warm-white">
+
+              <!-- Thread header -->
+              <div class="sticky top-0 bg-warm-white border-b border-forest-900/10 px-6 py-3 flex items-center gap-3">
+                <div class="relative">
+                  <div class="avatar h-10 w-10 text-[11px] text-white" style="background:#cc5e02;">JB</div>
+                  <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-warm-white flex items-center justify-center" style="box-shadow:0 0 0 1px rgba(22,51,0,0.1);"><span class="ch-dot ch-dot--wa" style="width:6px;height:6px;"></span></span>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <a href="customer-profile.html" class="font-display text-[15px] font-semibold text-forest-900 hover:text-forest-500">Joaquín Bautista</a>
+                    <span class="font-mono text-[10px] text-sage-500 tabular-nums">402-5556667-7</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-[11px] text-sage-600">
+                    <span class="pill pill--wa">WhatsApp</span>
+                    <span>+1 809-555-0198</span>
+                    <span class="text-sage-300">·</span>
+                    <a href="loan-detail.html" class="font-mono tabular-nums underline decoration-dotted underline-offset-2">LN-2025-0198</a>
+                    <span class="text-sage-300">·</span>
+                    <span style="color:#cc5e02;" class="font-mono tabular-nums uppercase tracking-widest text-[10px]">23d mora · RD$ 4,200</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <button class="util-btn util-btn--icon" title="Llamar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
+                  <button class="util-btn util-btn--icon" title="Asignar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></button>
+                  <button class="util-btn util-btn--icon" title="Marcar promesa"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></button>
+                  <button class="util-btn util-btn--icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                </div>
+              </div>
+
+              <!-- Messages -->
+              <div class="flex-1 overflow-y-auto px-8 py-4" style="background:linear-gradient(180deg,#f5f3ed 0%,#faf8f2 100%);">
+
+                <div class="day-sep"><span>Viernes 5 · abr · 2026</span></div>
+
+                <!-- Outgoing: automated reminder -->
+                <div class="msg-row out">
+                  <div>
+                    <div class="msg-bubble">
+                      <div class="font-mono text-[9px] uppercase tracking-widest text-forest-500 mb-1">Plantilla · mora 15d</div>
+                      Sr. Joaquín, le recordamos que su cuota 6 de LN-2025-0198 está vencida hace 15 días por RD$ 4,200. Por favor comuníquese con nosotros o pase por la oficina. — Cooperativa San José
+                    </div>
+                    <div class="msg-meta">
+                      <span>Enviado 09:00</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2d5a10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2d5a10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:-8px;"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span>Leído 09:04</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="day-sep"><span>Lunes 8 · abr · 2026</span></div>
+
+                <!-- Outgoing: follow up -->
+                <div class="msg-row out">
+                  <div>
+                    <div class="msg-bubble">
+                      <div class="font-mono text-[9px] uppercase tracking-widest text-forest-500 mb-1">Plantilla · mora 18d</div>
+                      Hola Sr. Joaquín, aún no hemos recibido su pago. ¿Podemos coordinar una fecha esta semana? Estamos aquí para ayudarle.
+                    </div>
+                    <div class="msg-meta"><span>Enviado ayer 14:20</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2d5a10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2d5a10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:-8px;"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="day-sep"><span>Hoy · miércoles 10 · abr · 2026</span></div>
+
+                <!-- Incoming -->
+                <div class="msg-row in">
+                  <div>
+                    <div class="msg-bubble">Buenos días. Disculpe la tardanza, tuve un problema con un cliente que me debía.</div>
+                    <div class="msg-meta"><span>11:48</span></div>
+                  </div>
+                </div>
+
+                <div class="msg-row in">
+                  <div>
+                    <div class="msg-bubble">Sí, puedo pagar hoy en la tarde. Le mando foto del comprobante cuando haga la transferencia. ¿Puedo hacerlo antes de las 5?</div>
+                    <div class="msg-meta"><span>12:03</span></div>
+                  </div>
+                </div>
+
+                <!-- Pending quick action suggestion -->
+                <div class="mx-auto max-w-[420px] my-4 p-3 rounded-md border border-sun-500/50 bg-sun-100/60">
+                  <div class="flex items-center gap-2 mb-2">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a6a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/></svg>
+                    <span class="font-display text-[12px] font-semibold" style="color:#8a6a00;">Sugerencia IA</span>
+                  </div>
+                  <div class="text-[12px] text-forest-900 leading-snug mb-3">Joaquín está ofreciendo pagar hoy antes de las 5 PM. Marca como <strong>promesa de pago</strong> para que quede en seguimiento y se genere la tarea automática.</div>
+                  <div class="flex items-center gap-2">
+                    <button class="h-8 px-3 text-[11px] font-medium text-forest-900 bg-sun-500 rounded hover:brightness-105">
+                      Marcar promesa · hoy 5PM
+                    </button>
+                    <button class="h-8 px-3 text-[11px] font-medium text-sage-700 hover:text-forest-900">
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Composer -->
+              <div class="composer">
+                <div class="flex items-center gap-2 mb-2 overflow-x-auto no-scrollbar">
+                  <button class="tpl-chip"><span class="tpl-chip-icon bg-forest-500"></span>Confirmar promesa</button>
+                  <button class="tpl-chip"><span class="tpl-chip-icon bg-sun-500"></span>Plan de pago</button>
+                  <button class="tpl-chip"><span class="tpl-chip-icon" style="background:#cc5e02;"></span>Visita cobrador</button>
+                  <button class="tpl-chip"><span class="tpl-chip-icon bg-sage-400"></span>Cuenta bancaria</button>
+                  <button class="tpl-chip text-sage-500"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Ver todas</button>
+                </div>
+                <div class="flex items-end gap-2">
+                  <button class="util-btn util-btn--icon" title="Adjuntar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+                  <textarea class="composer-input" placeholder="Responder a Joaquín — escribe o usa una plantilla..." rows="1">Perfecto Sr. Joaquín. Puede hacer la transferencia a la cuenta No. 960-000142-8 de Cooperativa San José. Enviaré recordatorio a las 4:30 PM. Gracias por</textarea>
+                  <button class="h-10 w-10 rounded-full bg-forest-900 text-white flex items-center justify-center hover:bg-forest-950 shrink-0">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </button>
+                </div>
+                <div class="mt-2 flex items-center justify-between text-[10px]">
+                  <div class="flex items-center gap-3 font-mono uppercase tracking-widest text-sage-500">
+                    <span class="flex items-center gap-1"><span class="ch-dot ch-dot--wa"></span>WhatsApp · +1 809-555-0198</span>
+                    <span class="tabular-nums">128 / 1600 caracteres</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-sage-500">
+                    <button class="hover:text-forest-900">Programar envío</button>
+                    <span class="text-sage-300">·</span>
+                    <span class="font-mono text-sage-400">⌘ ⏎ enviar</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: context rail -->
+            <aside class="rule-r-0 border-l border-forest-900/10 bg-cream/60 overflow-y-auto">
+              <div class="px-5 py-4 border-b border-forest-900/10">
+                <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-1">Contexto del cliente</div>
+                <div class="font-display text-[14px] font-semibold text-forest-900">Joaquín Bautista</div>
+                <div class="font-mono text-[10px] text-sage-500 tabular-nums mt-0.5">402-5556667-7</div>
+              </div>
+
+              <!-- Loan summary -->
+              <div class="px-5 py-4 rule-b">
+                <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-2">Préstamo activo</div>
+                <a href="loan-detail.html" class="font-mono text-[13px] font-medium text-forest-900 tabular-nums hover:text-forest-500">LN-2025-0198</a>
+                <div class="grid grid-cols-2 gap-2 mt-3 text-[11px]">
+                  <div>
+                    <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500">Balance</div>
+                    <div class="font-mono text-forest-900 tabular-nums">RD$ 14,280</div>
+                  </div>
+                  <div>
+                    <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500">Mora</div>
+                    <div class="font-mono tabular-nums" style="color:#cc5e02;">RD$ 4,580</div>
+                  </div>
+                  <div>
+                    <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500">Cuota</div>
+                    <div class="font-mono text-forest-900 tabular-nums">#6 / 18</div>
+                  </div>
+                  <div>
+                    <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500">Vence</div>
+                    <div class="font-mono tabular-nums" style="color:#cc5e02;">18·mar·2026</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recent activity -->
+              <div class="px-5 py-4 rule-b">
+                <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-3">Actividad reciente</div>
+                <div class="space-y-2.5 text-[11px]">
+                  <div class="flex items-start gap-2">
+                    <div class="h-4 w-4 rounded-full bg-sun-500/30 flex items-center justify-center shrink-0 mt-0.5"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#8a6a00" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div class="flex-1"><span class="text-forest-900">Promesa registrada</span> · hoy pm · RD$ 4,200
+                      <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mt-0.5">Luis Peña · hace 2d</div>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <div class="h-4 w-4 rounded-full bg-flame-500/20 flex items-center justify-center shrink-0 mt-0.5"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#cc5e02" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2"/></svg></div>
+                    <div class="flex-1"><span class="text-forest-900">Llamada · no contestó</span>
+                      <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mt-0.5">Pedro N. · hace 4d</div>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <div class="h-4 w-4 rounded-full bg-sage-200 flex items-center justify-center shrink-0 mt-0.5"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#4a5a3d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/></svg></div>
+                    <div class="flex-1"><span class="text-forest-900">Visita campo · no ubicado</span>
+                      <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mt-0.5">Luis P. · hace 5d</div>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <div class="h-4 w-4 rounded-full flex items-center justify-center shrink-0 mt-0.5" style="background:rgba(77,134,48,0.14);"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#2d5a10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div class="flex-1"><span class="text-forest-900">Pago recibido · cuota 5</span>
+                      <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mt-0.5">RD$ 4,200 · hace 1 mes</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Channels -->
+              <div class="px-5 py-4 rule-b">
+                <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-3">Canales</div>
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between text-[11px]">
+                    <div class="flex items-center gap-2">
+                      <span class="ch-dot ch-dot--wa"></span>
+                      <span class="text-forest-900">+1 809-555-0198</span>
+                    </div>
+                    <span class="font-mono text-[9px] uppercase tracking-widest text-forest-500 tabular-nums">Preferido</span>
+                  </div>
+                  <div class="flex items-center justify-between text-[11px]">
+                    <div class="flex items-center gap-2">
+                      <span class="ch-dot ch-dot--sms"></span>
+                      <span class="text-forest-900">+1 809-555-0198</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between text-[11px]">
+                    <div class="flex items-center gap-2">
+                      <span class="ch-dot ch-dot--email"></span>
+                      <span class="text-sage-500">Sin email</span>
+                    </div>
+                    <button class="text-[10px] font-mono uppercase tracking-widest text-sage-600 underline decoration-dotted underline-offset-2">+ Agregar</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick actions -->
+              <div class="px-5 py-4">
+                <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-3">Acciones rápidas</div>
+                <div class="space-y-1.5">
+                  <button class="w-full text-left px-3 py-2 rounded border border-forest-900/10 hover:bg-white text-[12px] text-forest-900 font-medium flex items-center gap-2">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    Registrar pago
+                  </button>
+                  <button class="w-full text-left px-3 py-2 rounded border border-forest-900/10 hover:bg-white text-[12px] text-forest-900 font-medium flex items-center gap-2">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    Marcar promesa
+                  </button>
+                  <button class="w-full text-left px-3 py-2 rounded border border-forest-900/10 hover:bg-white text-[12px] text-forest-900 font-medium flex items-center gap-2">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Asignar visita
+                  </button>
+                  <button class="w-full text-left px-3 py-2 rounded border border-forest-900/10 hover:bg-white text-[12px] text-forest-900 font-medium flex items-center gap-2">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    Ver préstamo
+                  </button>
+                </div>
+              </div>
+            </aside>
+
+          </div>
+        </section>
+
+        <!-- Campaigns glance -->
+        <section class="pt-12 mt-6 rule-t">
+          <div class="flex items-end justify-between mb-5">
+            <div>
+              <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-2">Automáticas</div>
+              <h2 class="font-display text-[22px] font-bold text-forest-900 tracking-tight">Campañas activas</h2>
+            </div>
+            <a href="#" class="text-[12px] text-sage-600 hover:text-forest-900 underline decoration-dotted underline-offset-2">Gestionar campañas</a>
+          </div>
+
+          <div class="grid grid-cols-3 gap-0 border-t border-forest-900/10">
+            <div class="pt-5 pr-6 pb-5 rule-r">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="ch-dot ch-dot--wa"></span>
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">WhatsApp · diaria 09:00</span>
+              </div>
+              <div class="font-display text-[15px] font-semibold text-forest-900 mb-1">Recordatorio cuota hoy</div>
+              <div class="text-[12px] text-sage-600 leading-snug mb-3">Envío automático 9 AM a clientes con cuota vence hoy.</div>
+              <div class="flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">
+                <span>7 enviados · hoy</span><span class="text-sage-300">·</span><span>tasa 94%</span>
+              </div>
+            </div>
+            <div class="pt-5 px-6 pb-5 rule-r">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="ch-dot ch-dot--sms"></span>
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">SMS · escalable mora</span>
+              </div>
+              <div class="font-display text-[15px] font-semibold text-forest-900 mb-1">Secuencia de mora</div>
+              <div class="text-[12px] text-sage-600 leading-snug mb-3">WA día 3, SMS día 7, llamada día 14, visita día 21.</div>
+              <div class="flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">
+                <span>18 clientes activos</span><span class="text-sage-300">·</span><span>8% recuperación</span>
+              </div>
+            </div>
+            <div class="pt-5 pl-6 pb-5">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="ch-dot ch-dot--email"></span>
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Email · mensual</span>
+              </div>
+              <div class="font-display text-[15px] font-semibold text-forest-900 mb-1">Estado de cuenta mensual</div>
+              <div class="text-[12px] text-sage-600 leading-snug mb-3">PDF con balance, próxima cuota e historial últimos 3 meses.</div>
+              <div class="flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">
+                <span>Próximo · 1 may</span><span class="text-sage-300">·</span><span>318 destinatarios</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Colophon -->
+        <div class="mt-14 pt-4 border-t border-forest-900/[0.08] flex items-center justify-between text-[10px]">
+          <div class="flex items-center gap-4 font-mono uppercase tracking-widest text-sage-400">
+            <span class="tabular-nums">CrediFlux · v2.0</span><span class="text-sage-300">·</span>
+            <span>Santiago de los Caballeros</span>
+          </div>
+          <div class="font-mono uppercase tracking-widest text-sage-400 tabular-nums">Sesión · 2h 14m</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Dev banner -->
+  <div class="dev-banner">
+    <span class="dev-banner__label">tenant-primary →</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" style="background:#163300;"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" style="background:#3a0e1e;"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" style="background:#0c1e38;"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" style="background:#1a4d3a;"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" style="background:#2d1b4e;"></button>
+    </div>
+  </div>
+
+  <script>
+    function toggleGroup(h){const g=h.closest('.nav-group');if(!g)return;const c=g.dataset.collapsed==='true';g.dataset.collapsed=c?'false':'true';}
+    document.querySelectorAll('.dev-banner__swatch').forEach(btn=>{btn.addEventListener('click',()=>{document.documentElement.style.setProperty('--color-tenant-primary',btn.dataset.color);document.querySelectorAll('.dev-banner__swatch').forEach(s=>s.classList.remove('active'));btn.classList.add('active');});});
+  </script>
+  <script src="_design-notes.js"></script>
+</body>
+</html>

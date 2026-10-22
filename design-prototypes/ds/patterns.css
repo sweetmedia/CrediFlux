@@ -1,0 +1,48 @@
+/* Patrones de página V1 que se repiten entre pantallas (no son componentes del DS).
+   Todo valor sale de ds/tokens.css. */
+.text-flame-700{color:var(--flame-700)}
+.cf-table td.cf-mono{white-space:nowrap}
+
+/* Tabs → panel */
+.panel{display:none;padding-top:24px}
+.panel.active{display:block}
+
+/* Rail derecho: cabecera + lista de definición */
+.rail-h{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:8px;border-bottom:1px solid var(--hairline-strong);font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--sage-600)}
+.rail-h a{font-family:var(--font-body);text-transform:none;letter-spacing:0;font-size:12px;color:var(--sage-600)}
+.rail-h a:hover{color:var(--forest-900)}
+.dl > div{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #1633000f;font-size:13px}
+.dl dt{color:var(--sage-600);flex-shrink:0}
+.dl dd{margin:0;color:var(--forest-900);text-align:right;min-width:0}
+
+/* Barra de cuotas: una celda por cuota */
+.cuotas{display:grid;gap:3px}
+.c{height:10px;background:#16330012}
+.c--paid{background:var(--forest-500)}
+.c--late{background:var(--flame-500)}
+.c--next{background:var(--forest-900);box-shadow:inset 0 -3px 0 var(--sun-500)}
+
+/* Mini progreso n/N dentro de una celda de tabla */
+.mini{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.mini__bar{width:48px;height:3px;background:#16330014}
+.mini__bar span{display:block;height:100%;background:var(--forest-500)}
+
+/* Fila de documento / archivo */
+.doc{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #1633000f}
+.doc-ico{width:34px;height:40px;border:1px solid var(--hairline-input);display:grid;place-content:center;font-family:var(--font-mono);font-size:9px;color:var(--sage-600);background:var(--white);flex-shrink:0}
+
+/* Tarjeta seleccionable (radio) para opciones comparables: método, tipo de garantía */
+.opt{position:relative;display:block;padding:14px 16px;border:1px solid var(--hairline-control);border-radius:var(--radius-sm);background:#ffffff8c;cursor:pointer;transition:border-color var(--duration-fast)}
+.opt:hover{border-color:#16330059}
+.opt input{position:absolute;opacity:0;pointer-events:none}
+.opt:has(input:checked){border-color:var(--forest-900);box-shadow:inset 0 0 0 1px var(--forest-900);background:var(--white)}
+.opt:has(input:focus-visible){outline:2px solid var(--forest-900);outline-offset:2px}
+.opt__title{font-family:var(--font-display);font-size:13px;font-weight:500;color:var(--forest-900)}
+.opt__desc{font-size:12px;color:var(--sage-600);margin-top:2px;line-height:1.45}
+
+/* Callout verificado (JCE / DGII) */
+.record{border-left:2px solid var(--forest-500);background:#4d86300d;padding:12px 16px}
+.record-row{display:flex;justify-content:space-between;gap:16px;padding:4px 0;font-size:13px}
+.record-row dt{color:var(--sage-600)}
+.record-row dd{margin:0;text-align:right}
+.cf-table .cf-table__sub,.cf-table td:has(> .cf-table__sub){white-space:nowrap}

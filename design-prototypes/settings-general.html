@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Configuración general</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',500:'#4d8630',700:'#2d5a10',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 500:'#ffe026' },
+            flame: { 500:'#ff7503',600:'#cc5e02' },
+            cream: '#faf8f2',
+            tenant: 'var(--color-tenant-primary)',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    html,body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#faf8f2;color:#163300;-webkit-font-smoothing:antialiased;scroll-behavior:smooth;}
+    .paper-bg{background-color:#faf8f2;background-image:radial-gradient(circle at 1px 1px,rgba(22,51,0,0.035) 1px,transparent 0);background-size:28px 28px;}
+    .sidebar{background:var(--color-tenant-primary,#163300);}
+    .nav-item{position:relative;display:flex;align-items:center;gap:11px;padding:6px 12px 6px 14px;border-radius:4px;color:rgba(255,255,255,0.55);font-size:13px;font-weight:400;text-decoration:none;transition:color 150ms,background-color 150ms;}
+    .nav-item:hover{color:rgba(255,255,255,0.92);background:rgba(255,255,255,0.04);}
+    .nav-item.active{color:#fff;background:rgba(255,255,255,0.08);font-weight:500;}
+    .nav-item.active::before{content:'';position:absolute;left:-1px;top:50%;transform:translateY(-50%);width:2px;height:18px;background:#ffe026;border-radius:0 2px 2px 0;}
+    .nav-group-header{display:flex;align-items:center;justify-content:space-between;width:100%;padding:4px 14px;font-family:'ABC Whyte',system-ui,sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:rgba(255,255,255,0.32);background:transparent;border:none;cursor:pointer;}
+    .nav-group-header.flat{cursor:default;}
+    .nav-group-chevron{transition:transform 200ms;opacity:0.7;}
+    .nav-group[data-collapsed="true"] .nav-group-chevron{transform:rotate(-90deg);}
+    .nav-group[data-collapsed="true"] .nav-group-items{display:none;}
+    .kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;line-height:1;color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-bottom-width:2px;border-radius:3px;}
+    .sidebar-search{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 24px);margin:12px 12px 0;padding:7px 10px 7px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:4px;font-size:12px;color:rgba(255,255,255,0.5);cursor:pointer;}
+    .util-btn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 8px;border-radius:4px;color:#5c6d4d;background:transparent;border:none;cursor:pointer;}
+    .util-btn:hover{color:#163300;background:rgba(22,51,0,0.04);}
+    .util-btn--icon{width:32px;padding:0;}
+    .dev-banner{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;align-items:center;gap:14px;padding:10px 14px 10px 16px;background:rgba(22,51,0,0.92);backdrop-filter:blur(8px);color:rgba(255,255,255,0.85);border-radius:6px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;}
+    .dev-banner__label{color:rgba(255,255,255,0.45);}.dev-banner__swatches{display:flex;gap:8px;}
+    .dev-banner__swatch{width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;padding:0;}
+    .dev-banner__swatch.active{box-shadow:0 0 0 2px #ffe026,0 0 0 3px rgba(22,51,0,0.92);}
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .rule-b{border-bottom:1px solid rgba(22,51,0,0.08);}.rule-t{border-top:1px solid rgba(22,51,0,0.08);}.rule-r{border-right:1px solid rgba(22,51,0,0.08);}
+    .logo-white{filter:brightness(0) invert(1);}
+
+    /* Settings nav */
+    .set-nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-left:2px solid transparent;color:#5c6d4d;text-decoration:none;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;}
+    .set-nav-item:hover{color:#163300;}
+    .set-nav-item.active{color:#163300;font-weight:600;border-left-color:#ffe026;background:rgba(22,51,0,0.03);}
+
+    /* Section */
+    .sec{padding-top:40px;padding-bottom:40px;border-bottom:1px solid rgba(22,51,0,0.08);}
+    .sec-head{margin-bottom:24px;}
+    .sec-eyebrow{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#738566;margin-bottom:6px;}
+    .sec-title{font-family:'ABC Whyte',system-ui,sans-serif;font-size:22px;font-weight:700;color:#163300;letter-spacing:-0.01em;}
+    .sec-desc{font-size:13px;color:#5c6d4d;margin-top:6px;line-height:1.5;max-width:540px;}
+
+    /* Field */
+    .field-grid{display:grid;grid-template-columns:220px 1fr;gap:16px 32px;padding:16px 0;border-bottom:1px solid rgba(22,51,0,0.06);}
+    .field-grid:last-child{border-bottom:none;}
+    .field-label{font-family:'ABC Whyte',system-ui,sans-serif;font-size:13px;font-weight:500;color:#163300;}
+    .field-hint{font-size:12px;color:#738566;margin-top:4px;line-height:1.45;}
+    .field-input{display:block;width:100%;max-width:440px;padding:9px 12px;border:1px solid rgba(22,51,0,0.14);background:#fff;border-radius:4px;font-size:13px;color:#163300;font-family:'Plus Jakarta Sans',sans-serif;}
+    .field-input:focus{border-color:#163300;}
+    .field-input--mono{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:12px;letter-spacing:0.02em;}
+
+    /* Toggle */
+    .toggle{position:relative;display:inline-flex;align-items:center;cursor:pointer;}
+    .toggle input{opacity:0;width:0;height:0;position:absolute;}
+    .toggle-track{display:inline-block;width:34px;height:18px;background:rgba(22,51,0,0.15);border-radius:9px;position:relative;transition:background 150ms;}
+    .toggle-track::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform 150ms;box-shadow:0 1px 2px rgba(0,0,0,0.15);}
+    .toggle input:checked + .toggle-track{background:#163300;}
+    .toggle input:checked + .toggle-track::after{transform:translateX(16px);}
+
+    /* Theme preset cards */
+    .theme-card{position:relative;border:1.5px solid rgba(22,51,0,0.12);border-radius:6px;overflow:hidden;cursor:pointer;transition:border-color 150ms;background:#fff;}
+    .theme-card:hover{border-color:rgba(22,51,0,0.3);}
+    .theme-card.active{border-color:#163300;}
+    .theme-card.active::after{content:'';position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:#163300;z-index:2;}
+    .theme-card.active::before{content:'✓';position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;z-index:3;color:#ffe026;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+    .theme-preview{height:96px;display:flex;position:relative;overflow:hidden;}
+    .theme-body{padding:12px 14px;border-top:1px solid rgba(22,51,0,0.08);}
+
+    /* Module card */
+    .mod-card{padding:16px;border:1px solid rgba(22,51,0,0.1);border-radius:6px;background:#fff;transition:border-color 150ms;}
+    .mod-card:hover{border-color:rgba(22,51,0,0.24);}
+    .mod-card.on{border-color:#2d5a10;background:rgba(77,134,48,0.03);}
+    .mod-ico{width:36px;height:36px;border-radius:8px;background:rgba(22,51,0,0.06);display:flex;align-items:center;justify-content:center;color:#5c6d4d;flex-shrink:0;}
+    .mod-card.on .mod-ico{background:rgba(77,134,48,0.12);color:#2d5a10;}
+
+    /* Integration row */
+    .intg{display:grid;grid-template-columns:48px 1fr auto auto;gap:16px;align-items:center;padding:16px 0;border-bottom:1px solid rgba(22,51,0,0.06);}
+    .intg:last-child{border-bottom:none;}
+    .intg-logo{width:40px;height:40px;border-radius:8px;background:#fff;border:1px solid rgba(22,51,0,0.1);display:flex;align-items:center;justify-content:center;color:#163300;}
+    .intg-status{display:inline-flex;align-items:center;gap:5px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;}
+    .intg-status-dot{width:7px;height:7px;border-radius:50%;}
+
+    /* Sticky save bar */
+    .save-bar{position:sticky;bottom:0;background:rgba(22,51,0,0.96);backdrop-filter:blur(8px);color:#fff;padding:12px 24px;margin:0 -32px;border-top:1px solid rgba(255,224,38,0.4);display:flex;align-items:center;justify-content:space-between;box-shadow:0 -12px 40px -8px rgba(22,51,0,0.25);}
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="sidebar fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col text-white">
+    <div class="px-5 pt-5 pb-4 border-b border-white/[0.08]">
+      <div class="mb-4"><img src="../branding/logo-full/svg/crediflux-logo.svg" alt="CrediFlux" class="logo-white h-[22px] w-auto"/></div>
+      <div>
+        <div class="font-display text-[14px] font-medium text-white">Cooperativa San&nbsp;José</div>
+        <div class="mt-1 flex items-center gap-2 font-mono text-[10px] text-white/40 uppercase tracking-widest"><span>coop-san-jose</span><span class="text-white/15">·</span><span>rd</span></div>
+      </div>
+    </div>
+    <button class="sidebar-search"><span class="flex items-center gap-2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar</span></span><span class="kbd">⌘K</span></button>
+    <nav class="flex-1 overflow-y-auto px-3 py-5">
+      <div class="mb-6"><div class="nav-group-header flat"><span>Overview</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="appshell.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/></svg><span>Dashboard</span></a>
+      </div></div>
+      <div><div class="nav-group-header flat"><span>Administración</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="team.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span>Equipo</span></a>
+        <a href="audit.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/></svg><span>Auditoría</span></a>
+        <a href="settings-general.html" class="nav-item active" aria-current="page"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9"/></svg><span>Configuración</span></a>
+        <a href="settings-roles.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Roles y permisos</span></a>
+      </div></div>
+    </nav>
+    <div class="border-t border-white/[0.08] px-3 py-3">
+      <div class="flex items-center gap-3 px-2 py-1.5">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-[11px] text-white" style="background:#738566;">MF</div>
+        <div class="min-w-0 flex-1"><div class="truncate font-display text-[13px] font-medium text-white">María Fernández</div><div class="truncate font-mono text-[9px] uppercase tracking-widest text-white/45 mt-0.5">Oficial de Cobranza</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="ml-[240px]">
+    <header class="sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div class="flex h-14 items-center gap-3 pl-8 pr-6">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="appshell.html" class="text-[12px] text-sage-500 hover:text-forest-900">Inicio</a>
+          <span class="text-sun-500 text-[9px]">●</span>
+          <span class="font-display text-[13px] font-medium text-forest-900">Configuración general</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button class="util-btn util-btn--icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+          <button class="flex items-center gap-2 h-8 pl-1 pr-2 ml-1 rounded hover:bg-forest-900/[0.04]"><div class="flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] text-white" style="background:#738566;">MF</div></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="paper-bg min-h-[calc(100vh-56px)] px-8 py-8">
+      <div class="max-w-[1280px] mx-auto">
+
+        <!-- Page header -->
+        <div class="pb-6 rule-b">
+          <div class="flex items-end justify-between gap-6">
+            <div>
+              <div class="flex items-center gap-3 mb-3">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Administración</span>
+                <span class="h-px w-6 bg-forest-900/20"></span>
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Tenant · coop-san-jose</span>
+              </div>
+              <h1 class="font-display text-[38px] font-black text-forest-900 leading-none tracking-tight">Configuración</h1>
+              <p class="mt-3 text-[13px] text-sage-600 max-w-[560px]">Datos del negocio, apariencia, módulos contratados, políticas financieras, integraciones y seguridad del tenant. Todo cambio queda registrado en <a href="audit.html" class="underline decoration-dotted underline-offset-2 hover:text-forest-900">Auditoría</a>.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2-col layout: nav + content -->
+        <div class="grid grid-cols-12 gap-10 pt-8">
+
+          <!-- Settings nav -->
+          <nav class="col-span-3">
+            <div class="sticky top-[76px]">
+              <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 mb-3 px-3">Secciones</div>
+              <a href="#negocio" class="set-nav-item active"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4v18M12 21V11l7-4v14"/></svg>Negocio</a>
+              <a href="#apariencia" class="set-nav-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="8"/></svg>Apariencia</a>
+              <a href="#modulos" class="set-nav-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Módulos contratados</a>
+              <a href="#politicas" class="set-nav-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Políticas financieras</a>
+              <a href="#integraciones" class="set-nav-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Integraciones</a>
+              <a href="#notificaciones" class="set-nav-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Notificaciones</a>
+              <a href="#seguridad" class="set-nav-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Seguridad</a>
+              <a href="#danger" class="set-nav-item" style="color:#cc5e02;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Zona peligrosa</a>
+
+              <div class="mt-6 pt-5 border-t border-forest-900/10 px-3">
+                <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Último cambio</div>
+                <div class="text-[11px] text-forest-900">Política mora · día gracia</div>
+                <div class="font-mono text-[10px] text-sage-500 tabular-nums mt-0.5">José G · hace 2d</div>
+              </div>
+            </div>
+          </nav>
+
+          <!-- Content -->
+          <div class="col-span-9">
+
+            <!-- Negocio -->
+            <section id="negocio" class="sec" style="padding-top:0;">
+              <div class="sec-head">
+                <div class="sec-eyebrow">Identidad</div>
+                <div class="sec-title">Datos del negocio</div>
+                <div class="sec-desc">Información que aparece en contratos, facturas electrónicas y comunicaciones al cliente.</div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Razón social</div>
+                  <div class="field-hint">Nombre legal registrado ante SIB y DGII.</div>
+                </div>
+                <input class="field-input" value="Cooperativa de Ahorros y Créditos San José, Inc."/>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Nombre comercial</div>
+                  <div class="field-hint">Como aparece en la app y comunicaciones.</div>
+                </div>
+                <input class="field-input" value="Cooperativa San José"/>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">RNC</div>
+                  <div class="field-hint">Registro Nacional de Contribuyentes · validado ante DGII.</div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input class="field-input field-input--mono" style="max-width:200px;" value="1-30-98765-4"/>
+                  <span class="text-[11px] font-mono uppercase tracking-widest flex items-center gap-1.5" style="color:#2d5a10;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Verificado</span>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Dirección</div>
+                </div>
+                <div>
+                  <input class="field-input mb-2" value="Av. 27 de Febrero #101"/>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input class="field-input" value="Santiago de los Caballeros"/>
+                    <input class="field-input" value="Santiago"/>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Teléfono · email</div>
+                  <div class="field-hint">Canales visibles al cliente final.</div>
+                </div>
+                <div class="grid grid-cols-2 gap-2" style="max-width:440px;">
+                  <input class="field-input field-input--mono" value="+1 809-555-2100"/>
+                  <input class="field-input" value="info@coopsanjose.do"/>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Logo</div>
+                  <div class="field-hint">SVG o PNG mínimo 512px, fondo transparente preferible.</div>
+                </div>
+                <div class="flex items-center gap-4">
+                  <div class="h-16 w-16 rounded border border-forest-900/15 bg-white flex items-center justify-center">
+                    <img src="../branding/logo-full/svg/crediflux-logo.svg" alt="" class="h-8 w-auto opacity-80"/>
+                  </div>
+                  <div>
+                    <button class="h-8 px-3 text-[11px] font-medium text-forest-900 border border-forest-900/15 bg-white rounded hover:bg-forest-50">Reemplazar</button>
+                    <div class="font-mono text-[10px] text-sage-500 mt-1 tabular-nums">logo-coopsanjose.svg · 42 KB</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Apariencia -->
+            <section id="apariencia" class="sec">
+              <div class="sec-head">
+                <div class="sec-eyebrow">Branding</div>
+                <div class="sec-title">Apariencia · tema visual</div>
+                <div class="sec-desc">Cada tenant elige su estética. Afecta el dashboard, contratos, emails y PDFs generados.</div>
+              </div>
+
+              <div class="field-grid" style="grid-template-columns:1fr;">
+                <div class="grid grid-cols-3 gap-4">
+                  <div class="theme-card active">
+                    <div class="theme-preview" style="background:#faf8f2;">
+                      <div style="width:40%;background:#163300;"></div>
+                      <div class="flex-1 p-3 flex flex-col gap-2">
+                        <div class="h-2 w-20" style="background:#163300;"></div>
+                        <div class="h-1 w-16" style="background:rgba(22,51,0,0.2);"></div>
+                        <div class="h-1 w-14" style="background:rgba(22,51,0,0.2);"></div>
+                        <div class="h-px w-full" style="background:rgba(22,51,0,0.15);"></div>
+                        <div class="h-1 w-12" style="background:#ffe026;"></div>
+                      </div>
+                    </div>
+                    <div class="theme-body">
+                      <div class="font-display text-[13px] font-semibold text-forest-900 mb-1">V1 · Editorial Operational</div>
+                      <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Bloomberg × FT × Muji</div>
+                    </div>
+                  </div>
+
+                  <div class="theme-card">
+                    <div class="theme-preview" style="background:#f8f4e9;">
+                      <div style="width:40%;background:#f5f1e4;border-right:1px solid rgba(168,184,156,0.4);" class="flex items-center justify-center"><div class="h-3 w-14" style="background:radial-gradient(circle,#ffe026,#ff7503);border-radius:2px;"></div></div>
+                      <div class="flex-1 p-3 flex flex-col gap-2">
+                        <div class="h-2 w-20" style="background:#163300;"></div>
+                        <div class="h-1 w-16" style="background:#ffe026;"></div>
+                        <div class="h-1 w-14" style="background:rgba(22,51,0,0.2);"></div>
+                      </div>
+                    </div>
+                    <div class="theme-body">
+                      <div class="font-display text-[13px] font-semibold text-forest-900 mb-1">V4 · Editorial Cálido</div>
+                      <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500">FT Weekend × Kinfolk</div>
+                    </div>
+                  </div>
+
+                  <div class="theme-card">
+                    <div class="theme-preview" style="background:#fafaf9;">
+                      <div style="width:32%;background:#163300;"></div>
+                      <div class="flex-1 flex flex-col">
+                        <div class="h-6" style="background:linear-gradient(90deg,#163300,#5c6d4d);"></div>
+                        <div class="flex-1 p-3 flex flex-col gap-2">
+                          <div class="h-3 border-l-2 border-sun-500 pl-1"><div class="h-full w-16" style="background:#fff;border:1px solid rgba(22,51,0,0.12);"></div></div>
+                          <div class="h-3 w-full" style="background:#fff;border:1px solid rgba(22,51,0,0.08);"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="theme-body">
+                      <div class="font-display text-[13px] font-semibold text-forest-900 mb-1">V5 · Banca Latinoamericana</div>
+                      <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Popular × BHD × Banreservas</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Color primario del tenant</div>
+                  <div class="field-hint">Acento principal en sidebar y CTAs. Todos los temas lo respetan.</div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button class="h-9 w-9 rounded border-2 border-forest-900 relative" style="background:#163300;"><span class="absolute -bottom-5 left-1/2 -translate-x-1/2 font-mono text-[9px] uppercase tracking-widest text-forest-900">Forest</span></button>
+                  <button class="h-9 w-9 rounded border border-forest-900/15" style="background:#3a0e1e;"></button>
+                  <button class="h-9 w-9 rounded border border-forest-900/15" style="background:#0c1e38;"></button>
+                  <button class="h-9 w-9 rounded border border-forest-900/15" style="background:#1a4d3a;"></button>
+                  <button class="h-9 w-9 rounded border border-forest-900/15" style="background:#2d1b4e;"></button>
+                  <input class="field-input field-input--mono ml-4" style="max-width:120px;" value="#163300"/>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Idioma · zona horaria</div>
+                </div>
+                <div class="grid grid-cols-2 gap-2" style="max-width:440px;">
+                  <select class="field-input"><option>Español · República Dominicana</option><option>English · US</option></select>
+                  <select class="field-input"><option>America/Santo_Domingo (UTC−4)</option></select>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Moneda</div>
+                  <div class="field-hint">La app muestra todos los montos en esta moneda. Cambios futuros requieren migración.</div>
+                </div>
+                <select class="field-input" style="max-width:280px;"><option>RD$ · Peso Dominicano</option><option>US$ · Dólar estadounidense</option></select>
+              </div>
+            </section>
+
+            <!-- Modulos -->
+            <section id="modulos" class="sec">
+              <div class="sec-head">
+                <div class="sec-eyebrow">Producto</div>
+                <div class="sec-title">Módulos contratados <span class="font-mono text-[14px] font-medium text-sage-500 tabular-nums ml-2">6 / 9</span></div>
+                <div class="sec-desc">Cada módulo habilita funcionalidad y se refleja en factura mensual. Contactar ventas para activar módulos adicionales.</div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-4">
+                <div class="mod-card on">
+                  <div class="flex items-start gap-3">
+                    <div class="mod-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div>
+                    <div class="flex-1">
+                      <div class="font-display text-[13px] font-semibold text-forest-900">Préstamos · core</div>
+                      <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-0.5">Siempre activo</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked disabled/><span class="toggle-track"></span></label>
+                  </div>
+                </div>
+
+                <div class="mod-card on">
+                  <div class="flex items-start gap-3">
+                    <div class="mod-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2"/></svg></div>
+                    <div class="flex-1">
+                      <div class="font-display text-[13px] font-semibold text-forest-900">Cobranza · campo</div>
+                      <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-0.5">3 cobradores · incluido</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label>
+                  </div>
+                </div>
+
+                <div class="mod-card on">
+                  <div class="flex items-start gap-3">
+                    <div class="mod-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg></div>
+                    <div class="flex-1">
+                      <div class="font-display text-[13px] font-semibold text-forest-900">Caja · arqueo</div>
+                      <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-0.5">Hasta 3 cajas</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label>
+                  </div>
+                </div>
+
+                <div class="mod-card on">
+                  <div class="flex items-start gap-3">
+                    <div class="mod-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14"/></svg></div>
+                    <div class="flex-1">
+                      <div class="font-display text-[13px] font-semibold text-forest-900">Comunicaciones</div>
+                      <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-0.5">WA + SMS + email · +RD$ 800/mes</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label>
+                  </div>
+                </div>
+
+                <div class="mod-card on">
+                  <div class="flex items-start gap-3">
+                    <div class="mod-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M10.29 10.7l2.29 2.3 4.42-4.42"/></svg></div>
+                    <div class="flex-1">
+                      <div class="font-display text-[13px] font-semibold text-forest-900">Contratos · e-firma</div>
+                      <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-0.5">SMS OTP · +RD$ 500/mes</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label>
+                  </div>
+                </div>
+
+                <div class="mod-card on">
+                  <div class="flex items-start gap-3">
+                    <div class="mod-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="12" x2="8" y2="18"/><line x1="12" y1="8" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="18"/></svg></div>
+                    <div class="flex-1">
+                      <div class="font-display text-[13px] font-semibold text-forest-900">Facturación e-CF</div>
+                      <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-0.5">DGII · +RD$ 1,200/mes</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label>
+                  </div>
+                </div>
+
+                <div class="mod-card">
+                  <div class="flex items-start gap-3">
+                    <div class="mod-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/></svg></div>
+                    <div class="flex-1">
+                      <div class="font-display text-[13px] font-semibold text-forest-900">Asistente IA</div>
+                      <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-0.5">Claude · +RD$ 2,500/mes</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label>
+                  </div>
+                </div>
+
+                <div class="mod-card">
+                  <div class="flex items-start gap-3">
+                    <div class="mod-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-7m7 5h-7m7 5h-7M4 7h3M4 12h3M4 17h3"/></svg></div>
+                    <div class="flex-1">
+                      <div class="font-display text-[13px] font-semibold text-forest-900">Contabilidad</div>
+                      <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-0.5">En beta · preciar</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label>
+                  </div>
+                </div>
+
+                <div class="mod-card">
+                  <div class="flex items-start gap-3">
+                    <div class="mod-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg></div>
+                    <div class="flex-1">
+                      <div class="font-display text-[13px] font-semibold text-forest-900">Inventario · garantías</div>
+                      <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-0.5">Próximamente</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" disabled/><span class="toggle-track" style="opacity:0.4;"></span></label>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Políticas financieras -->
+            <section id="politicas" class="sec">
+              <div class="sec-head">
+                <div class="sec-eyebrow">Políticas</div>
+                <div class="sec-title">Parámetros financieros</div>
+                <div class="sec-desc">Reglas que aplican a todos los préstamos nuevos. Cambiar aquí no modifica préstamos existentes — esos conservan sus términos originales.</div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Tasa de interés por defecto</div>
+                  <div class="field-hint">Se usa como sugerencia al crear préstamos nuevos. Editable por préstamo.</div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input class="field-input field-input--mono" style="max-width:120px;text-align:right;" value="2.50"/>
+                  <span class="font-mono text-[11px] uppercase tracking-widest text-sage-500">% mensual</span>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Mora sobre cuotas vencidas</div>
+                  <div class="field-hint">Porcentaje aplicado a saldo vencido por cada mes de atraso.</div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input class="field-input field-input--mono" style="max-width:120px;text-align:right;" value="2.00"/>
+                  <span class="font-mono text-[11px] uppercase tracking-widest text-sage-500">% mensual</span>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Días de gracia</div>
+                  <div class="field-hint">Días después del vencimiento antes de aplicar mora.</div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input class="field-input field-input--mono" style="max-width:120px;text-align:right;" value="5"/>
+                  <span class="font-mono text-[11px] uppercase tracking-widest text-sage-500">días</span>
+                  <span class="ml-2 font-mono text-[10px] uppercase tracking-widest" style="color:#8a6a00;">Cambiado hace 2d · de 3 a 5</span>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Redondeo de cuota</div>
+                </div>
+                <select class="field-input" style="max-width:280px;">
+                  <option>Al peso superior (redondeo conservador)</option>
+                  <option>Al peso más cercano</option>
+                  <option>Centavos exactos (sin redondeo)</option>
+                </select>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Fondo tope de caja</div>
+                  <div class="field-hint">Sobre este monto, el sistema sugiere depósito al banco al cierre.</div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="font-mono text-[11px] text-sage-400">RD$</span>
+                  <input class="field-input field-input--mono" style="max-width:180px;text-align:right;" value="15,000.00"/>
+                </div>
+              </div>
+            </section>
+
+            <!-- Integraciones -->
+            <section id="integraciones" class="sec">
+              <div class="sec-head">
+                <div class="sec-eyebrow">Conexiones externas</div>
+                <div class="sec-title">Integraciones</div>
+                <div class="sec-desc">Proveedores externos que la app usa. Cada uno se configura con credenciales independientes.</div>
+              </div>
+
+              <div class="intg">
+                <div class="intg-logo" style="background:rgba(18,140,126,0.1);color:#0e6b60;">
+                  <svg width="22" height="22" viewBox="0 0 24 24"><path fill="currentColor" d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                </div>
+                <div>
+                  <div class="font-display text-[14px] font-semibold text-forest-900">WhatsApp Business</div>
+                  <div class="text-[12px] text-sage-600 mt-0.5">Envío de recordatorios, campañas y conversaciones 2-vías.</div>
+                  <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-1 tabular-nums">+1 809-555-2100 · META business · verificado</div>
+                </div>
+                <div class="intg-status" style="color:#2d5a10;"><span class="intg-status-dot" style="background:#4d8630;"></span>Conectado</div>
+                <button class="h-8 px-3 text-[11px] font-medium text-forest-900 border border-forest-900/15 bg-white rounded hover:bg-forest-50">Configurar</button>
+              </div>
+
+              <div class="intg">
+                <div class="intg-logo" style="background:rgba(77,134,48,0.1);color:#2d5a10;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <div>
+                  <div class="font-display text-[14px] font-semibold text-forest-900">Twilio SMS</div>
+                  <div class="text-[12px] text-sage-600 mt-0.5">SMS transaccionales y OTP para e-firma.</div>
+                  <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-1 tabular-nums">API key · twilio.com/…/AC9a3f…</div>
+                </div>
+                <div class="intg-status" style="color:#2d5a10;"><span class="intg-status-dot" style="background:#4d8630;"></span>Conectado</div>
+                <button class="h-8 px-3 text-[11px] font-medium text-forest-900 border border-forest-900/15 bg-white rounded hover:bg-forest-50">Configurar</button>
+              </div>
+
+              <div class="intg">
+                <div class="intg-logo" style="background:rgba(115,133,102,0.12);color:#4a5a3d;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                </div>
+                <div>
+                  <div class="font-display text-[14px] font-semibold text-forest-900">Amazon SES</div>
+                  <div class="text-[12px] text-sage-600 mt-0.5">Correos transaccionales (estados de cuenta, recordatorios).</div>
+                  <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-1 tabular-nums">no-reply@coopsanjose.do · DKIM firmado</div>
+                </div>
+                <div class="intg-status" style="color:#2d5a10;"><span class="intg-status-dot" style="background:#4d8630;"></span>Conectado</div>
+                <button class="h-8 px-3 text-[11px] font-medium text-forest-900 border border-forest-900/15 bg-white rounded hover:bg-forest-50">Configurar</button>
+              </div>
+
+              <div class="intg">
+                <div class="intg-logo" style="background:rgba(22,51,0,0.08);color:#163300;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <div>
+                  <div class="font-display text-[14px] font-semibold text-forest-900">DGII · e-CF</div>
+                  <div class="text-[12px] text-sage-600 mt-0.5">Firma digital y envío de facturas electrónicas.</div>
+                  <div class="font-mono text-[10px] uppercase tracking-widest mt-1 tabular-nums" style="color:#8a6a00;">Certificado expira en 47 días · renovar</div>
+                </div>
+                <div class="intg-status" style="color:#8a6a00;"><span class="intg-status-dot" style="background:#ffe026;"></span>Advertencia</div>
+                <button class="h-8 px-3 text-[11px] font-medium text-forest-900 border border-forest-900/15 bg-white rounded hover:bg-forest-50">Configurar</button>
+              </div>
+
+              <div class="intg">
+                <div class="intg-logo" style="background:rgba(204,94,2,0.08);color:#cc5e02;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4v18M12 21V11l7-4v14"/></svg>
+                </div>
+                <div>
+                  <div class="font-display text-[14px] font-semibold text-forest-900">Banco Popular · sync</div>
+                  <div class="text-[12px] text-sage-600 mt-0.5">Conciliación automática de depósitos y transferencias.</div>
+                  <div class="font-mono text-[10px] text-sage-500 uppercase tracking-widest mt-1 tabular-nums">No conectado · próxima integración</div>
+                </div>
+                <div class="intg-status" style="color:#8a9d7a;"><span class="intg-status-dot" style="background:#a8b89c;"></span>Sin configurar</div>
+                <button class="h-8 px-3 text-[11px] font-medium text-forest-900 border border-forest-900/15 bg-white rounded hover:bg-forest-50">Conectar</button>
+              </div>
+            </section>
+
+            <!-- Notificaciones -->
+            <section id="notificaciones" class="sec">
+              <div class="sec-head">
+                <div class="sec-eyebrow">Alertas</div>
+                <div class="sec-title">Notificaciones</div>
+                <div class="sec-desc">Qué eventos generan alertas y por cuáles canales.</div>
+              </div>
+
+              <div class="grid grid-cols-[1fr_80px_80px_80px_80px] gap-4 pb-2 border-b border-forest-900/10">
+                <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Evento</div>
+                <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 text-center">Dashboard</div>
+                <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 text-center">Email</div>
+                <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 text-center">SMS</div>
+                <div class="font-mono text-[10px] uppercase tracking-widest text-sage-500 text-center">WA</div>
+              </div>
+
+              <div class="grid grid-cols-[1fr_80px_80px_80px_80px] gap-4 py-3 items-center border-b border-forest-900/[0.06]">
+                <div class="text-[13px] text-forest-900">Cierre de caja con diferencia</div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label></div>
+              </div>
+              <div class="grid grid-cols-[1fr_80px_80px_80px_80px] gap-4 py-3 items-center border-b border-forest-900/[0.06]">
+                <div class="text-[13px] text-forest-900">Cliente cae en mora 30+ días</div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label></div>
+              </div>
+              <div class="grid grid-cols-[1fr_80px_80px_80px_80px] gap-4 py-3 items-center border-b border-forest-900/[0.06]">
+                <div class="text-[13px] text-forest-900">Contrato firmado por cliente</div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label></div>
+              </div>
+              <div class="grid grid-cols-[1fr_80px_80px_80px_80px] gap-4 py-3 items-center border-b border-forest-900/[0.06]">
+                <div class="text-[13px] text-forest-900">Cambio de permisos</div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label></div>
+              </div>
+              <div class="grid grid-cols-[1fr_80px_80px_80px_80px] gap-4 py-3 items-center">
+                <div class="text-[13px] text-forest-900">Intentos de login fallidos</div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label></div>
+                <div class="flex justify-center"><label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label></div>
+              </div>
+            </section>
+
+            <!-- Seguridad -->
+            <section id="seguridad" class="sec">
+              <div class="sec-head">
+                <div class="sec-eyebrow">Protección</div>
+                <div class="sec-title">Seguridad</div>
+                <div class="sec-desc">Reglas que aplican a todos los usuarios del tenant.</div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">2FA obligatorio</div>
+                  <div class="field-hint">Todos los usuarios deben configurar segundo factor al siguiente login. 3 usuarios aún sin 2FA.</div>
+                </div>
+                <label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Timeout de sesión</div>
+                  <div class="field-hint">Cierra sesión automáticamente tras inactividad.</div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input class="field-input field-input--mono" style="max-width:120px;text-align:right;" value="60"/>
+                  <span class="font-mono text-[11px] uppercase tracking-widest text-sage-500">minutos</span>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Lista blanca de IPs</div>
+                  <div class="field-hint">Solo permitir login desde estas IPs/rangos. Afuera · rechazo incluso con credenciales válidas.</div>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="font-mono text-[11px] text-forest-900 tabular-nums px-2 py-1 bg-forest-50 border border-forest-900/10 rounded flex items-center gap-2">
+                      190.130.84.22/32 · oficina
+                      <button class="text-sage-500 hover:text-forest-900">×</button>
+                    </span>
+                    <span class="font-mono text-[11px] text-forest-900 tabular-nums px-2 py-1 bg-forest-50 border border-forest-900/10 rounded flex items-center gap-2">
+                      186.45.12.0/24 · móviles RD
+                      <button class="text-sage-500 hover:text-forest-900">×</button>
+                    </span>
+                  </div>
+                  <button class="h-8 px-3 text-[11px] font-medium text-forest-900 border border-forest-900/15 bg-white rounded hover:bg-forest-50">+ Agregar IP/rango</button>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div>
+                  <div class="field-label">Política de contraseñas</div>
+                </div>
+                <div class="space-y-2 text-[12px] text-sage-700">
+                  <label class="flex items-center gap-2"><input type="checkbox" checked/> Mínimo 12 caracteres</label>
+                  <label class="flex items-center gap-2"><input type="checkbox" checked/> Al menos una mayúscula y un número</label>
+                  <label class="flex items-center gap-2"><input type="checkbox" checked/> Al menos un símbolo especial</label>
+                  <label class="flex items-center gap-2"><input type="checkbox"/> Rotación cada 90 días</label>
+                  <label class="flex items-center gap-2"><input type="checkbox" checked/> No permitir contraseñas filtradas (haveibeenpwned)</label>
+                </div>
+              </div>
+            </section>
+
+            <!-- Zona peligrosa -->
+            <section id="danger" class="sec" style="border-bottom:none;">
+              <div class="sec-head">
+                <div class="sec-eyebrow" style="color:#cc5e02;">Irreversible</div>
+                <div class="sec-title">Zona peligrosa</div>
+                <div class="sec-desc">Acciones destructivas. Requieren confirmación por email del admin principal y quedan en auditoría permanente.</div>
+              </div>
+
+              <div class="border border-flame-500/30 rounded-md bg-flame-50/40 p-5 space-y-4">
+                <div class="flex items-center justify-between pb-4 border-b border-flame-500/20">
+                  <div>
+                    <div class="font-display text-[14px] font-semibold text-forest-900">Exportar todos los datos</div>
+                    <div class="text-[12px] text-sage-700 mt-1">Dump completo de clientes, préstamos, pagos, contratos. Formato CSV + archivos adjuntos en ZIP. Toma ~30 min.</div>
+                  </div>
+                  <button class="h-9 px-4 text-[12px] font-medium border border-flame-500/40 rounded bg-white" style="color:#cc5e02;">Exportar</button>
+                </div>
+                <div class="flex items-center justify-between pb-4 border-b border-flame-500/20">
+                  <div>
+                    <div class="font-display text-[14px] font-semibold text-forest-900">Transferir propiedad del tenant</div>
+                    <div class="text-[12px] text-sage-700 mt-1">Cambia el admin principal a otro usuario existente. El admin saliente mantiene su rol previo.</div>
+                  </div>
+                  <button class="h-9 px-4 text-[12px] font-medium border border-flame-500/40 rounded bg-white" style="color:#cc5e02;">Transferir</button>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-display text-[14px] font-semibold" style="color:#cc5e02;">Eliminar tenant</div>
+                    <div class="text-[12px] text-sage-700 mt-1">Borrado lógico por 30 días, luego hard delete. Se notifica a todos los usuarios y se exporta el backup automáticamente.</div>
+                  </div>
+                  <button class="h-9 px-4 text-[12px] font-medium text-white rounded" style="background:#cc5e02;">Iniciar eliminación</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- Save bar (sticky footer) -->
+            <div class="save-bar">
+              <div class="flex items-center gap-3">
+                <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-sun-500 opacity-60"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-sun-500"></span></span>
+                <span class="font-mono text-[11px] uppercase tracking-widest text-white/70 tabular-nums">3 cambios sin guardar · política mora, tema, notificaciones</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button class="h-9 px-4 text-[12px] font-medium text-white/70 hover:text-white">Descartar</button>
+                <button class="h-9 px-4 text-[12px] font-medium text-forest-900 bg-sun-500 rounded hover:brightness-105">Guardar cambios</button>
+              </div>
+            </div>
+
+            <!-- Colophon -->
+            <div class="mt-10 pt-4 border-t border-forest-900/[0.08] flex items-center justify-between text-[10px]">
+              <div class="flex items-center gap-4 font-mono uppercase tracking-widest text-sage-400">
+                <span class="tabular-nums">CrediFlux · v2.0</span><span class="text-sage-300">·</span>
+                <span>Santiago de los Caballeros</span>
+              </div>
+              <div class="font-mono uppercase tracking-widest text-sage-400 tabular-nums">Sesión · 2h 14m</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Dev banner -->
+  <div class="dev-banner">
+    <span class="dev-banner__label">tenant-primary →</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" style="background:#163300;"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" style="background:#3a0e1e;"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" style="background:#0c1e38;"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" style="background:#1a4d3a;"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" style="background:#2d1b4e;"></button>
+    </div>
+  </div>
+
+  <script>
+    function toggleGroup(h){const g=h.closest('.nav-group');if(!g)return;const c=g.dataset.collapsed==='true';g.dataset.collapsed=c?'false':'true';}
+    document.querySelectorAll('.dev-banner__swatch').forEach(btn=>{btn.addEventListener('click',()=>{document.documentElement.style.setProperty('--color-tenant-primary',btn.dataset.color);document.querySelectorAll('.dev-banner__swatch').forEach(s=>s.classList.remove('active'));btn.classList.add('active');});});
+    // Highlight active nav on scroll
+    const navLinks=document.querySelectorAll('.set-nav-item[href^="#"]');
+    const sections=[...navLinks].map(a=>document.querySelector(a.getAttribute('href')));
+    function onScroll(){const y=window.scrollY+140;let idx=0;sections.forEach((s,i)=>{if(s&&s.offsetTop<=y)idx=i;});navLinks.forEach((a,i)=>a.classList.toggle('active',i===idx));}
+    window.addEventListener('scroll',onScroll,{passive:true});
+  </script>
+  <script src="_design-notes.js"></script>
+</body>
+</html>
