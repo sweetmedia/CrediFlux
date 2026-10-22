@@ -128,7 +128,7 @@ class CollectorVisitViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='my-visits')
     def my_visits(self, request):
         """Get current user's visits for today."""
-        today = timezone.now().date()
+        today = timezone.localdate()
         visits = self.get_queryset().filter(
             collector=request.user,
             checked_in_at__date=today,
@@ -138,7 +138,7 @@ class CollectorVisitViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='today')
     def today_visits(self, request):
         """Get all visits for today (admin view)."""
-        today = timezone.now().date()
+        today = timezone.localdate()
         visits = self.get_queryset().filter(checked_in_at__date=today)
         return Response(CollectorVisitSerializer(visits, many=True).data)
 
@@ -221,7 +221,7 @@ class CollectorLocationViewSet(viewsets.ReadOnlyModelViewSet):
     def collector_route(self, request):
         """Get GPS route for a collector on a specific date."""
         collector_id = request.query_params.get('collector')
-        date_str = request.query_params.get('date', timezone.now().date().isoformat())
+        date_str = request.query_params.get('date', timezone.localdate().isoformat())
 
         if not collector_id:
             return Response({'error': 'collector parameter required'}, status=status.HTTP_400_BAD_REQUEST)

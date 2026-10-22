@@ -81,6 +81,7 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',
+    'apps.tenants.middleware.TenantTimezoneMiddleware',  # "hoy" = fecha del tenant
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -161,7 +162,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'es-es'
-TIME_ZONE = 'America/New_York'
+TIME_ZONE = 'America/New_York'  # zona por defecto; cada tenant elige la suya (Tenant.timezone)
 USE_I18N = True
 USE_TZ = True
 

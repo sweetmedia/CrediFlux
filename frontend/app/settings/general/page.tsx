@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { tenantsAPI, Tenant, TenantUpdateData } from '@/lib/api/tenants';
 import { authAPI } from '@/lib/api/auth';
 import { getApiUrl } from '@/lib/api/client';
+import { DEFAULT_TIMEZONE, timezoneOptions } from '@/lib/timezones';
 import { ProfileUpdateData, PasswordChangeData } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,6 +51,7 @@ import {
   Shield,
   AlertTriangle,
   KeyRound,
+  Clock,
 } from 'lucide-react';
 import { TwoFactorSetup, BackupCodesDisplay } from '@/components/auth';
 
@@ -66,6 +68,7 @@ const tenantSettingsSchema = z.object({
   primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color debe ser formato hexadecimal (ej: #6366f1)').optional(),
   default_currency: z.enum(['USD', 'DOP', 'EUR', 'GBP']).optional(),
   currency_symbol: z.string().max(10, 'Símbolo de moneda debe tener máximo 10 caracteres').optional(),
+  timezone: z.string().min(1, 'Zona horaria requerida').optional(),
   enable_whatsapp_reminders: z.boolean().optional(),
   whatsapp_phone_id: z.string().optional(),
   whatsapp_token: z.string().optional(),
@@ -211,6 +214,7 @@ export default function TenantSettingsPage() {
       setValue('primary_color', data.primary_color || '#6366f1');
       setValue('default_currency', (data.default_currency as 'USD' | 'DOP' | 'EUR' | 'GBP' | undefined) || 'USD');
       setValue('currency_symbol', data.currency_symbol || '$');
+      setValue('timezone', data.timezone || DEFAULT_TIMEZONE);
       setValue('enable_whatsapp_reminders', data.enable_whatsapp_reminders || false);
       setValue('whatsapp_phone_id', data.whatsapp_phone_id || '');
       setValue('whatsapp_token', data.whatsapp_token || '');
@@ -264,6 +268,7 @@ export default function TenantSettingsPage() {
         primary_color: data.primary_color || undefined,
         default_currency: data.default_currency || undefined,
         currency_symbol: data.currency_symbol || undefined,
+        timezone: data.timezone || undefined,
         enable_whatsapp_reminders: data.enable_whatsapp_reminders,
         whatsapp_phone_id: data.whatsapp_phone_id || undefined,
         whatsapp_token: data.whatsapp_token || undefined,
@@ -1467,6 +1472,36 @@ export default function TenantSettingsPage() {
                           Ej: $, RD$, €, £
                         </p>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Timezone */}
+                  <div className="pt-4 border-t">
+                    <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-[#166534]" />
+                      Zona Horaria
+                    </h3>
+                    <div className="space-y-2 md:max-w-md">
+                      <Label htmlFor="timezone">Zona horaria de la financiera</Label>
+                      <select
+                        id="timezone"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        {...register('timezone')}
+                        disabled={isSaving}
+                      >
+                        {timezoneOptions(tenant?.timezone).map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.timezone && (
+                        <p className="text-sm text-red-500">{errors.timezone.message}</p>
+                      )}
+                      <p className="text-xs text-slate-500">
+                        Define qué día es &quot;hoy&quot; para pagos, días de atraso y mora, y la hora local
+                        a la que salen los recordatorios (09:00) y se calcula la mora (00:30).
+                      </p>
                     </div>
                   </div>
                 </CardContent>

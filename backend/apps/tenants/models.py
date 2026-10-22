@@ -5,6 +5,17 @@ from django.db import models
 from django_tenants.models import TenantMixin, DomainMixin
 from djmoney.models.fields import MoneyField
 from decimal import Decimal
+from zoneinfo import available_timezones
+
+from django.core.exceptions import ValidationError
+
+DEFAULT_TENANT_TIMEZONE = 'America/New_York'
+
+
+def validate_timezone(value):
+    """Zona horaria IANA válida (p. ej. America/Santo_Domingo)."""
+    if value not in available_timezones():
+        raise ValidationError(f'Zona horaria desconocida: {value}')
 
 
 class Tenant(TenantMixin):
@@ -45,6 +56,15 @@ class Tenant(TenantMixin):
     # Logo and branding
     logo = models.ImageField(upload_to='tenants/logos/', blank=True, null=True)
     primary_color = models.CharField(max_length=7, default='#163300')
+
+    # Zona horaria de la financiera: define "hoy" (fechas por defecto, días de
+    # atraso, recordatorios) y la hora local a la que corren las tareas diarias.
+    timezone = models.CharField(
+        max_length=64,
+        default=DEFAULT_TENANT_TIMEZONE,
+        validators=[validate_timezone],
+        help_text='Zona horaria IANA (ej: America/New_York, America/Santo_Domingo)'
+    )
 
     # ============================================================
     # LATE FEE CONFIGURATION (Configuración de Mora)

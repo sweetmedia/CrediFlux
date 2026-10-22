@@ -70,9 +70,9 @@ class TaskViewSet(viewsets.ModelViewSet):
         # Filter overdue tasks
         overdue = self.request.query_params.get('overdue')
         if overdue == 'true':
-            from datetime import date
+            from django.utils import timezone
             queryset = queryset.filter(
-                due_date__lt=date.today()
+                due_date__lt=timezone.localdate()
             ).exclude(status='done')
 
         return queryset
@@ -321,8 +321,8 @@ class TaskViewSet(viewsets.ModelViewSet):
         """
         Get task statistics for dashboard.
         """
-        from datetime import date
         from django.db.models import Count
+        from django.utils import timezone
 
         queryset = self.get_queryset()
 
@@ -338,7 +338,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 
         # Count overdue
         overdue_count = queryset.filter(
-            due_date__lt=date.today()
+            due_date__lt=timezone.localdate()
         ).exclude(status='done').count()
 
         return Response({

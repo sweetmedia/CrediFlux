@@ -13,21 +13,35 @@ from django.utils import timezone
 from django_tenants.utils import schema_context
 
 from apps.tenants.models import Tenant
+from apps.tenants.timezones import tenant_now, use_tenant_timezone
 from .models import LoanSchedule, Loan
 from .utils_whatsapp import get_whatsapp_service
 
 logger = logging.getLogger(__name__)
 
 
+# Hora LOCAL de cada tenant a la que corre cada tarea diaria. Beat dispara las
+# tareas cada hora y cada tenant se procesa cuando en su zona es esta hora.
+LATE_FEES_LOCAL_HOUR = 0         # mora: 00:30 local
+REMINDERS_LOCAL_HOUR = 9         # recordatorios: 09:00 local
+OVERDUE_NOTICE_LOCAL_HOUR = 9    # avisos de mora: 09:30 local
+
+
+def _is_local_hour(tenant, hour):
+    return tenant_now(tenant).hour == hour
+
+
 @shared_task(name='loans.calculate_late_fees')
-def calculate_late_fees():
+def calculate_late_fees(force=False):
     """
-    Tarea diaria: recalcula la mora de las cuotas vencidas en cada tenant
-    (comando `calculate_late_fees`; reglas en apps.loans.late_fees).
-    Un tenant que falla no detiene a los demás.
+    Recalcula la mora de las cuotas vencidas (comando `calculate_late_fees`;
+    reglas en apps.loans.late_fees) en los tenants donde ahora es medianoche
+    local, o en todos con `force=True`. Un tenant que falla no detiene a los demás.
     """
     processed, failed = [], []
     for tenant in Tenant.objects.exclude(schema_name='public'):
+        if not force and not _is_local_hour(tenant, LATE_FEES_LOCAL_HOUR):
+            continue
         try:
             call_command('calculate_late_fees', tenant=tenant.schema_name)
             processed.append(tenant.schema_name)
@@ -59,10 +73,11 @@ def _sent_key(kind, tenant, schedule, today):
 
 
 @shared_task(name='loans.send_payment_reminders')
-def send_payment_reminders():
+def send_payment_reminders(force=False):
     """
     Daily task to send payment reminders for upcoming and overdue payments.
-    Runs for all tenants that have WhatsApp reminders enabled.
+    Runs for tenants with WhatsApp reminders enabled where it is now 09:xx
+    local time (or all of them with force=True).
     """
     logger.info("Starting payment reminders task")
 
@@ -73,10 +88,12 @@ def send_payment_reminders():
     total_failed = 0
 
     for tenant in tenants:
+        if not force and not _is_local_hour(tenant, REMINDERS_LOCAL_HOUR):
+            continue
         logger.info(f"Processing payment reminders for tenant: {tenant.name}")
 
         try:
-            with schema_context(tenant.schema_name):
+            with schema_context(tenant.schema_name), use_tenant_timezone(tenant):
                 sent, failed = send_tenant_payment_reminders(tenant)
                 total_sent += sent
                 total_failed += failed
@@ -236,22 +253,25 @@ def send_payment_confirmation(payment_id: str, tenant_schema: str):
 
 
 @shared_task(name='loans.send_overdue_notice')
-def send_overdue_notice():
+def send_overdue_notice(force=False):
     """
     Daily task to send overdue notices for significantly past-due payments.
     More urgent than reminders — sent for 15, 30, 60, 90 days overdue.
+    Runs where it is now 09:xx local time (or everywhere with force=True).
     """
     logger.info("Starting overdue notices task")
 
     tenants = _whatsapp_tenants()
 
     total_sent = 0
-    today = timezone.localdate()
     overdue_thresholds = [15, 30, 60, 90]
 
     for tenant in tenants:
+        if not force and not _is_local_hour(tenant, OVERDUE_NOTICE_LOCAL_HOUR):
+            continue
         try:
-            with schema_context(tenant.schema_name):
+            with schema_context(tenant.schema_name), use_tenant_timezone(tenant):
+                today = timezone.localdate()
                 whatsapp_service = get_whatsapp_service(tenant)
                 if not whatsapp_service.is_configured():
                     continue

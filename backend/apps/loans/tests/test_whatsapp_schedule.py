@@ -52,7 +52,7 @@ def _due_in(loan, installment, days, status="pending"):
 def _run(task_name):
     from apps.loans import tasks
 
-    return getattr(tasks, task_name).delay().get()
+    return getattr(tasks, task_name).delay(force=True).get()
 
 
 def test_recordatorio_antes_del_vencimiento_usa_los_dias_del_tenant(wa, active_loan):
@@ -97,20 +97,3 @@ def test_tenant_sin_whatsapp_habilitado_no_envia(tenant, active_loan):
     with mock.patch("apps.loans.tasks.get_whatsapp_service") as factory:
         assert _run("send_payment_reminders")["total_sent"] == 0
     factory.assert_not_called()
-
-
-def test_setup_periodic_tasks_programa_whatsapp_en_horario_laboral(public_schema):
-    from django_celery_beat.models import PeriodicTask
-
-    call_command("setup_periodic_tasks", stdout=mock.MagicMock())
-    call_command("setup_periodic_tasks", stdout=mock.MagicMock())
-
-    expected = {
-        "loans.send_payment_reminders": ("0", "9"),
-        "loans.send_overdue_notice": ("30", "9"),
-    }
-    for task_name, (minute, hour) in expected.items():
-        task = PeriodicTask.objects.get(task=task_name)
-        assert task.enabled
-        assert (task.crontab.minute, task.crontab.hour, task.crontab.day_of_week) == (minute, hour, "*")
-        assert str(task.crontab.timezone) == "America/Santo_Domingo"

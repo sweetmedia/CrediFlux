@@ -115,7 +115,7 @@ def analizar_riesgo_cliente(customer_id: str) -> str:
     # Factor 2: Estabilidad laboral
     employment_score = 0
     if customer.employment_start_date:
-        months_employed = (timezone.now().date() - customer.employment_start_date).days / 30
+        months_employed = (timezone.localdate() - customer.employment_start_date).days / 30
         if months_employed >= 24:
             employment_score = 100
         elif months_employed >= 12:
@@ -183,7 +183,7 @@ def dashboard_resumen() -> str:
     """Obtiene el resumen ejecutivo del dashboard: cartera total, préstamos activos, mora, cobros del día."""
     from apps.loans.models import Loan, LoanSchedule, Payment
 
-    today = timezone.now().date()
+    today = timezone.localdate()
 
     total_loans = Loan.objects.count()
     active_loans = Loan.objects.filter(status='active').count()
@@ -235,7 +235,7 @@ def clientes_en_mora() -> str:
     """Lista los clientes con cuotas vencidas, ordenados por días de atraso (más críticos primero)."""
     from apps.loans.models import LoanSchedule
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     overdue = LoanSchedule.objects.filter(
         due_date__lt=today,
         status__in=['pending', 'partial', 'overdue']
@@ -328,7 +328,7 @@ def proyeccion_cobros(dias: int = 7) -> str:
     """
     from apps.loans.models import LoanSchedule
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     upcoming = LoanSchedule.objects.filter(
         due_date__gte=today,
         due_date__lte=today + timedelta(days=dias),

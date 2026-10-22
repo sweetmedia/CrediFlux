@@ -91,7 +91,7 @@ def test_la_tarea_de_mora_corre_el_comando_por_tenant(public_schema, tenant):
     from apps.loans.tasks import calculate_late_fees
 
     with mock.patch("apps.loans.tasks.call_command") as command:
-        calculate_late_fees.delay()
+        calculate_late_fees.delay(force=True)
 
     tenants = [call.kwargs["tenant"] for call in command.call_args_list]
     assert tenant.schema_name in tenants
@@ -103,18 +103,6 @@ def test_un_tenant_que_falla_no_frena_a_los_demas(public_schema, tenant):
     from apps.loans.tasks import calculate_late_fees
 
     with mock.patch("apps.loans.tasks.call_command", side_effect=RuntimeError("boom")):
-        result = calculate_late_fees.delay().get()
+        result = calculate_late_fees.delay(force=True).get()
 
     assert tenant.schema_name in result["failed"]
-
-
-def test_setup_periodic_tasks_programa_la_mora_a_diario(public_schema):
-    from django_celery_beat.models import PeriodicTask
-
-    call_command("setup_periodic_tasks", stdout=mock.MagicMock())
-    call_command("setup_periodic_tasks", stdout=mock.MagicMock())  # idempotente
-
-    task = PeriodicTask.objects.get(task="loans.calculate_late_fees")
-    assert task.enabled
-    assert (task.crontab.minute, task.crontab.hour, task.crontab.day_of_week) == ("30", "0", "*")
-    assert str(task.crontab.timezone) == "America/Santo_Domingo"

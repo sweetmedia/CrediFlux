@@ -84,8 +84,8 @@ def generate_payment_invoice(payment_id):
             payment=payment,
             customer=customer,
             ecf_type='31',  # Crédito fiscal por defecto
-            issue_date=timezone.now().date(),
-            due_date=timezone.now().date(),
+            issue_date=timezone.localdate(),
+            due_date=timezone.localdate(),
             payment_method='02',  # Transferencia
             comprador_rnc=customer.tax_id or '',
             comprador_razon_social=f'{customer.first_name} {customer.last_name}',

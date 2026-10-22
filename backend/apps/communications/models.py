@@ -509,7 +509,7 @@ class Task(models.Model):
     @property
     def is_overdue(self):
         """Check if task is overdue"""
-        from datetime import date
+        from django.utils import timezone
         if self.due_date and self.status != 'done':
-            return self.due_date < date.today()
+            return self.due_date < timezone.localdate()
         return False
