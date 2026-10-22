@@ -83,6 +83,37 @@ class Command(BaseCommand):
             )
         )
 
+        # WhatsApp: recordatorios de pago (09:00) y avisos de mora (09:30), Santo Domingo.
+        # Sólo envían en tenants con enable_whatsapp_reminders y WhatsApp configurado.
+        for task_name, label, minute, hour, description in [
+            ('loans.send_payment_reminders', 'WhatsApp payment reminders', '0', '9',
+             'Recordatorios de cuota por WhatsApp (antes, el día y después del vencimiento)'),
+            ('loans.send_overdue_notice', 'WhatsApp overdue notices', '30', '9',
+             'Avisos de mora por WhatsApp a los 15, 30, 60 y 90 días de atraso'),
+        ]:
+            wa_schedule, _ = CrontabSchedule.objects.get_or_create(
+                minute=minute,
+                hour=hour,
+                day_of_week='*',
+                day_of_month='*',
+                month_of_year='*',
+                timezone='America/Santo_Domingo'
+            )
+            wa_task, created = PeriodicTask.objects.update_or_create(
+                name=label,
+                defaults={
+                    'task': task_name,
+                    'crontab': wa_schedule,
+                    'enabled': True,
+                    'description': description,
+                }
+            )
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'✓ {"Created" if created else "Updated"} periodic task: {wa_task.name} (daily {hour}:{minute.zfill(2)})'
+                )
+            )
+
         # Show summary
         self.stdout.write('\n' + '='*60)
         self.stdout.write('Periodic Tasks Summary:')
