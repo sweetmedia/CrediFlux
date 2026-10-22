@@ -1,7 +1,5 @@
-'use client';
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/navigation';
 import { authAPI } from '@/lib/api/auth';
 import { User, Tenant, LoginCredentials, TenantLoginResponse, TwoFactorLoginRequired } from '@/types';
 

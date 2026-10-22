@@ -1,8 +1,6 @@
-'use client';
-
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter } from '@/lib/navigation';
+import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI } from '@/lib/api/loans';
@@ -14,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { NativeSelect as Select } from '@/components/ui/native-select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { Money } from '@/components/ui/money';
 import {
   Loader2,
   Plus,
@@ -22,7 +21,6 @@ import {
   FileText,
   AlertCircle,
   CheckCircle,
-  TrendingUp,
   X,
 } from 'lucide-react';
 
@@ -151,13 +149,6 @@ export default function LoansListPage() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return `RD$ ${amount.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
@@ -207,20 +198,16 @@ export default function LoansListPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <Card className="border-border shadow-none">
           <CardContent className="p-5">
             <div className="flex items-start justify-between mb-3">
               <div className="h-9 w-9 rounded-lg bg-[#e8eddf] flex items-center justify-center">
                 <FileText className="h-4.5 w-4.5 text-primary" style={{ height: 18, width: 18 }} />
               </div>
-              <div className="flex items-center gap-1 text-xs text-green-600">
-                <TrendingUp className="h-3 w-3" />
-                +8.2%
-              </div>
             </div>
             <p className="text-xs text-muted-foreground mb-1">Total Préstamos</p>
-            <p className="text-2xl font-semibold text-foreground">{totalCount}</p>
+            <p className="font-mono text-[28px] font-medium tracking-tight tabular-nums text-foreground">{totalCount}</p>
           </CardContent>
         </Card>
 
@@ -230,7 +217,7 @@ export default function LoansListPage() {
               <CheckCircle className="h-4.5 w-4.5 text-green-600" style={{ height: 18, width: 18 }} />
             </div>
             <p className="text-xs text-muted-foreground mb-1">Activos</p>
-            <p className="text-2xl font-semibold text-foreground">{statistics.active_loans}</p>
+            <p className="font-mono text-[28px] font-medium tracking-tight tabular-nums text-foreground">{statistics.active_loans}</p>
           </CardContent>
         </Card>
 
@@ -240,7 +227,7 @@ export default function LoansListPage() {
               <AlertCircle className="h-4.5 w-4.5 text-yellow-600" style={{ height: 18, width: 18 }} />
             </div>
             <p className="text-xs text-muted-foreground mb-1">Pendientes</p>
-            <p className="text-2xl font-semibold text-foreground">{statistics.pending_loans}</p>
+            <p className="font-mono text-[28px] font-medium tracking-tight tabular-nums text-foreground">{statistics.pending_loans}</p>
           </CardContent>
         </Card>
 
@@ -250,7 +237,7 @@ export default function LoansListPage() {
               <AlertCircle className="h-4.5 w-4.5 text-red-600" style={{ height: 18, width: 18 }} />
             </div>
             <p className="text-xs text-muted-foreground mb-1">Morosos</p>
-            <p className="text-2xl font-semibold text-foreground">{statistics.overdue_loans}</p>
+            <p className="font-mono text-[28px] font-medium tracking-tight tabular-nums text-foreground">{statistics.overdue_loans}</p>
           </CardContent>
         </Card>
       </div>
@@ -330,26 +317,33 @@ export default function LoansListPage() {
                   ? 'Intenta ajustar los filtros de búsqueda'
                   : 'Comienza creando tu primer préstamo'}
               </p>
-              <Link href="/loans/new">
-                <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-none mt-1">
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Crear Primer Préstamo
+              {hasFilters ? (
+                <Button size="sm" variant="outline" className="shadow-none mt-1" onClick={clearFilters}>
+                  <X className="mr-1.5 h-3.5 w-3.5" />
+                  Limpiar filtros
                 </Button>
-              </Link>
+              ) : (
+                <Link href="/loans/new">
+                  <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-none mt-1">
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    Crear primer préstamo
+                  </Button>
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>
       ) : (
         <Card className="border-border shadow-none">
-          <CardContent className="p-0">
-            <table className="w-full">
+          <CardContent className="p-0 overflow-x-auto">
+            <table className="w-full min-w-[860px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-2.5 px-5 text-xs font-medium text-muted-foreground">Cliente</th>
                   <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Préstamo</th>
-                  <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Monto</th>
-                  <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Pagado</th>
-                  <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Balance</th>
+                  <th className="text-right py-2.5 px-4 text-xs font-medium text-muted-foreground">Monto</th>
+                  <th className="text-right py-2.5 px-4 text-xs font-medium text-muted-foreground">Pagado</th>
+                  <th className="text-right py-2.5 px-4 text-xs font-medium text-muted-foreground">Balance</th>
                   <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Estado</th>
                   <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground">Acciones</th>
                 </tr>
@@ -358,35 +352,39 @@ export default function LoansListPage() {
                 {loans.map((loan) => (
                   <tr
                     key={loan.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors cursor-pointer"
-                    onClick={() => router.push(`/loans/${loan.id}`)}
+                    className="relative border-b border-border last:border-0 hover:bg-muted/40 transition-colors has-[a:focus-visible]:bg-muted/40 has-[a:focus-visible]:outline has-[a:focus-visible]:outline-2 has-[a:focus-visible]:-outline-offset-2 has-[a:focus-visible]:outline-focus"
                   >
                     <td className="py-3 px-5">
-                      <p className="text-sm font-medium text-foreground">{loan.customer_name}</p>
+                      <Link
+                        href={`/loans/${loan.id}`}
+                        className="text-sm font-medium text-foreground after:absolute after:inset-0 focus-visible:outline-none"
+                      >
+                        {loan.customer_name}
+                      </Link>
                       <p className="text-xs text-muted-foreground">{formatDate(loan.disbursement_date)}</p>
                     </td>
                     <td className="py-3 px-4">
-                      <p className="text-sm font-medium text-foreground">{loan.loan_number}</p>
+                      <p className="font-mono text-sm font-medium text-foreground">{loan.loan_number}</p>
                       <p className="text-xs text-muted-foreground">{getLoanTypeLabel(loan.loan_type)}</p>
                     </td>
-                    <td className="py-3 px-4">
-                      <p className="text-sm font-medium text-foreground">{formatCurrency(loan.principal_amount)}</p>
-                      <p className="text-xs text-muted-foreground">{loan.interest_rate}% interés</p>
+                    <td className="py-3 px-4 text-right">
+                      <Money value={loan.principal_amount} className="block text-sm font-medium text-foreground" />
+                      <p className="font-mono text-xs text-muted-foreground">{loan.interest_rate}% interés</p>
                     </td>
-                    <td className="py-3 px-4">
-                      <p className="text-sm font-medium text-green-600">{formatCurrency(loan.total_paid || 0)}</p>
+                    <td className="py-3 px-4 text-right">
+                      <Money value={loan.total_paid || 0} className="block text-sm font-medium text-success-fg" />
                     </td>
-                    <td className="py-3 px-4">
-                      <p className="text-sm font-medium text-foreground">{formatCurrency(loan.outstanding_balance)}</p>
+                    <td className="py-3 px-4 text-right">
+                      <Money value={loan.outstanding_balance} className="block text-sm font-medium text-foreground" />
                       {loan.days_overdue > 0 && (
-                        <p className="text-xs text-red-500 font-medium">{loan.days_overdue}d mora</p>
+                        <p className="font-mono text-xs text-danger-fg font-medium">{loan.days_overdue}d mora</p>
                       )}
                     </td>
                     <td className="py-3 px-4">
                       <StatusBadge status={loan.status} />
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="relative z-10 flex gap-2">
                         {loan.status === 'pending' && canApproveLoan && (
                           <Button
                             size="sm"

@@ -10,6 +10,7 @@ export interface ContractTemplate {
   loan_types: string[];
   header_image?: string;
   footer_text: string;
+  includes_signatures: boolean;
   created_by?: string;
   created_by_name?: string;
   created_at: string;

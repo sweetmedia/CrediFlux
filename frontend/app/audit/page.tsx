@@ -1,7 +1,5 @@
-'use client';
-
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { auditAPI, AuditLog, AuditLogFilters, AuditLogStats } from '@/lib/api/audit';
 import { Button } from '@/components/ui/button';

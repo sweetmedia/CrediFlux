@@ -1,0 +1,98 @@
+/* ============================================================
+   theme-default.css — Layer 1: reference palette
+   ------------------------------------------------------------
+   Raw color scales for the default CrediFlux brand.
+   Components NEVER reference these directly.
+   Layer 2 (globals.css :root) maps semantic tokens to these.
+   To rebrand: copy this file, swap the values, point Layer 2 at it.
+   ============================================================ */
+
+:root {
+  /* ----- Brand: deep forest green (anchor: #163300) ----- */
+  --ref-brand-50:  100 30% 96%;
+  --ref-brand-100: 100 25% 92%;
+  --ref-brand-200: 100 20% 85%;
+  --ref-brand-300: 100 18% 72%;
+  --ref-brand-400: 100 18% 55%;
+  --ref-brand-500: 100 25% 38%;
+  --ref-brand-600: 100 35% 26%;
+  --ref-brand-700: 100 50% 18%;
+  --ref-brand-800: 100 70% 13%;
+  --ref-brand-900: 100 100% 10%;  /* #163300 */
+  --ref-brand-950: 100 100% 6%;
+
+  /* ----- Accent: golden yellow (anchor: #FFE026) ----- */
+  --ref-accent-50:  52 100% 96%;
+  --ref-accent-100: 52 100% 90%;
+  --ref-accent-200: 52 100% 80%;
+  --ref-accent-300: 52 100% 70%;
+  --ref-accent-400: 52 100% 63%;
+  --ref-accent-500: 52 100% 57%;  /* #FFE026 */
+  --ref-accent-600: 50 90% 48%;
+  --ref-accent-700: 48 85% 38%;
+  --ref-accent-800: 45 80% 30%;
+  --ref-accent-900: 42 75% 22%;
+
+  /* ----- Neutral: warm gray-green ----- */
+  --ref-neutral-0:    0 0% 100%;
+  --ref-neutral-50:  100 12% 98%;
+  --ref-neutral-100: 100 10% 96%;
+  --ref-neutral-200: 100 8%  92%;
+  --ref-neutral-300: 100 8%  86%;
+  --ref-neutral-400: 100 6%  70%;
+  --ref-neutral-500: 100 6%  55%;
+  --ref-neutral-600: 100 8%  40%;
+  --ref-neutral-700: 100 12% 28%;
+  --ref-neutral-800: 100 18% 16%;
+  --ref-neutral-900: 100 25% 10%;
+  --ref-neutral-950: 100 30% 6%;
+  --ref-neutral-1000: 0 0% 0%;
+
+  /* ----- Status: success (true green, distinct from brand) ----- */
+  --ref-success-50:  145 50% 96%;
+  --ref-success-100: 145 50% 90%;
+  --ref-success-200: 145 45% 80%;
+  --ref-success-300: 145 45% 65%;
+  --ref-success-400: 145 50% 48%;
+  --ref-success-500: 145 60% 38%;
+  --ref-success-600: 145 65% 30%;
+  --ref-success-700: 145 70% 22%;
+  --ref-success-800: 145 75% 16%;
+  --ref-success-900: 145 80% 10%;
+
+  /* ----- Status: warning (orange, V1's #FF7503) ----- */
+  --ref-warn-50:  28 100% 96%;
+  --ref-warn-100: 28 100% 90%;
+  --ref-warn-200: 28 100% 80%;
+  --ref-warn-300: 28 100% 68%;
+  --ref-warn-400: 26 100% 58%;
+  --ref-warn-500: 25 100% 51%;  /* #FF7503 */
+  --ref-warn-600: 24 95%  44%;
+  --ref-warn-700: 22 90%  35%;
+  --ref-warn-800: 20 85%  26%;
+  --ref-warn-900: 18 80%  18%;
+
+  /* ----- Status: danger (true red) ----- */
+  --ref-danger-50:  0 80% 97%;
+  --ref-danger-100: 0 80% 93%;
+  --ref-danger-200: 0 78% 85%;
+  --ref-danger-300: 0 75% 72%;
+  --ref-danger-400: 0 75% 60%;
+  --ref-danger-500: 0 75% 50%;  /* ~#DC2626 */
+  --ref-danger-600: 0 78% 42%;
+  --ref-danger-700: 0 80% 34%;
+  --ref-danger-800: 0 82% 26%;
+  --ref-danger-900: 0 85% 18%;
+
+  /* ----- Status: info (blue) ----- */
+  --ref-info-50:  210 90% 97%;
+  --ref-info-100: 210 90% 93%;
+  --ref-info-200: 210 85% 85%;
+  --ref-info-300: 210 85% 72%;
+  --ref-info-400: 210 85% 58%;
+  --ref-info-500: 210 80% 48%;
+  --ref-info-600: 210 80% 40%;
+  --ref-info-700: 210 80% 32%;
+  --ref-info-800: 210 80% 24%;
+  --ref-info-900: 210 80% 16%;
+}

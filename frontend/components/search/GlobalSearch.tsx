@@ -1,7 +1,5 @@
-'use client';
-
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/navigation';
 import { searchAPI, SearchResult } from '@/lib/api/search';
 import {
   Dialog,

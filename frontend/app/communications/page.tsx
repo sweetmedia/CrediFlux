@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { whatsappAPI, WhatsAppConversation, WhatsAppMessage as WAMessage } from '@/lib/api/whatsapp';

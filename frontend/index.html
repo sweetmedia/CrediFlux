@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CrediFlux - Loan Management System</title>
+    <meta name="description" content="Multi-module SaaS platform for financial institutions" />
+    <meta name="application-name" content="CrediFlux" />
+    <meta name="keywords" content="loan management, financial management, lending platform, SaaS" />
+    <meta name="author" content="CrediFlux Team" />
+    <meta name="creator" content="CrediFlux" />
+    <meta name="publisher" content="CrediFlux" />
+    <meta name="format-detection" content="telephone=no, address=no, email=no" />
+
+    <meta property="og:title" content="CrediFlux - Loan Management System" />
+    <meta property="og:description" content="Multi-module SaaS platform for financial institutions" />
+    <meta property="og:site_name" content="CrediFlux" />
+    <meta property="og:locale" content="es_ES" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="%VITE_APP_URL%/opengraph-image.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="CrediFlux - Loan Management System" />
+    <meta name="twitter:description" content="Multi-module SaaS platform for financial institutions" />
+
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!--
+      Apariencia antes del primer paint (sin flash blanco en modo oscuro).
+      Misma lógica que AppearanceProvider; la clave es 'cf-appearance'.
+    -->
+    <script>
+      (function () {
+        try {
+          var k = 'cf-appearance';
+          var m = localStorage.getItem(k);
+          if (m !== 'light' && m !== 'dark' && m !== 'system') m = 'system';
+          var d = m === 'dark' || (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          var r = document.documentElement;
+          if (d) r.classList.add('dark');
+          else r.classList.remove('dark');
+          r.style.colorScheme = d ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="font-sans">
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

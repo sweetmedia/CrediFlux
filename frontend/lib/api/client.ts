@@ -9,7 +9,7 @@ import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 export function getApiUrl(): string {
   // Server-side: use env variable
   if (typeof window === 'undefined') {
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    return import.meta.env.VITE_API_URL || 'http://localhost:8000';
   }
 
   // Client-side: detect from browser
@@ -35,14 +35,14 @@ export function getApiUrl(): string {
   }
 
   // Default to localhost:8000 for regular localhost access
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000';
 }
 
 // Log initial configuration
 if (typeof window !== 'undefined') {
   console.log('🔧 API Client Configuration:');
   console.log('  - Hostname:', window.location.hostname);
-  console.log('  - NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+  console.log('  - VITE_API_URL:', import.meta.env.VITE_API_URL);
   console.log('  - API_URL (dynamic):', getApiUrl());
 }
 

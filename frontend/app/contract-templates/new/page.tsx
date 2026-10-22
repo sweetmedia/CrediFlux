@@ -1,8 +1,6 @@
-'use client';
-
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter } from '@/lib/navigation';
+import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { contractTemplatesAPI, ContractVariable } from '@/lib/api/contracts';
 import { Button } from '@/components/ui/button';
@@ -46,6 +44,7 @@ export default function NewContractTemplatePage() {
     footer_text: '',
     is_active: true,
     is_default: false,
+    includes_signatures: false,
   });
 
   // Redirect if not authenticated
@@ -149,6 +148,7 @@ export default function NewContractTemplatePage() {
         footer_text: formData.footer_text,
         is_active: formData.is_active,
         is_default: formData.is_default,
+        includes_signatures: formData.includes_signatures,
       };
 
       // TODO: Handle header image upload
@@ -344,6 +344,23 @@ export default function NewContractTemplatePage() {
                       checked={formData.is_default}
                       onCheckedChange={(checked) =>
                         handleSwitchChange('is_default', checked)
+                      }
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium text-slate-700">
+                        Trae sus propias firmas
+                      </Label>
+                      <p className="text-xs text-slate-600">
+                        El PDF omite el bloque genérico de firmas (ej. pagaré notarial)
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.includes_signatures}
+                      onCheckedChange={(checked) =>
+                        handleSwitchChange('includes_signatures', checked)
                       }
                     />
                   </div>
