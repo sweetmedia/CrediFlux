@@ -289,11 +289,17 @@ class Loan(UUIDModel, AuditModel):
         max_digits=5,
         decimal_places=2,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
-        help_text="Annual interest rate in percentage"
+        help_text="Tasa de interés MENSUAL en porcentaje (5 = 5 % mensual). "
+                  "Por período: diario /30, semanal /4, quincenal /2, trimestral ×3."
     )
 
     # Interest Type
     INTEREST_TYPE_CHOICES = [
+        ('flat', 'Interés plano'),
+        ('saldo_insoluto', 'Saldo insoluto'),
+        ('french', 'Francés (cuota fija)'),
+        ('german', 'Alemán (capital fijo)'),
+        # Valores heredados (fixed ≈ flat, variable ≈ saldo_insoluto)
         ('fixed', 'Fixed Interest Rate'),
         ('variable', 'Variable Interest Rate'),
         ('variable_rd', 'Variable (RD) - Direct Rate per Period'),
@@ -302,7 +308,7 @@ class Loan(UUIDModel, AuditModel):
         max_length=20,
         choices=INTEREST_TYPE_CHOICES,
         default='fixed',
-        help_text="Type of interest rate (fixed, variable, or variable_rd)"
+        help_text="Método de amortización (ver apps.loans.amortization)"
     )
 
     term_months = models.IntegerField(
@@ -633,6 +639,7 @@ class LoanPayment(UUIDModel, AuditModel):
         ('pending', 'Pending'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
         ('reversed', 'Reversed'),
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')

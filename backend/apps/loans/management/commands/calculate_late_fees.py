@@ -1,12 +1,15 @@
 """
 Management command to calculate and update late fees for overdue schedules.
+
+La regla de mora (y cómo conviven la configuración del Tenant con la Constance
+LATE_PAYMENT_FEE / LATE_PAYMENT_GRACE_DAYS) está documentada en apps.loans.late_fees.
 """
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django_tenants.utils import schema_context
-from decimal import Decimal
 from apps.tenants.models import Tenant
 from apps.loans.models import LoanSchedule
+from apps.loans.late_fees import calculate_late_fee, policy_for
 
 
 class Command(BaseCommand):
@@ -55,35 +58,32 @@ class Command(BaseCommand):
     def _calculate_late_fees_for_tenant(self, tenant):
         """Calculate late fees for all overdue schedules in a tenant"""
         today = timezone.now().date()
+        policy = policy_for(tenant)
 
-        # Get all overdue schedules that haven't been paid
+        # Cuotas vencidas sin saldar (las parciales también generan mora)
         overdue_schedules = LoanSchedule.objects.filter(
-            status__in=['pending', 'overdue'],
+            status__in=['pending', 'partial', 'overdue'],
             due_date__lt=today
         ).select_related('loan')
 
         updated_count = 0
 
         for schedule in overdue_schedules:
-            # Calculate days overdue
             days_overdue = (today - schedule.due_date).days
-
             if days_overdue <= 0:
                 continue
 
-            # Calculate late fee based on tenant configuration
-            late_fee = self._calculate_late_fee(
-                schedule.balance,
-                days_overdue,
-                tenant
-            )
+            late_fee = calculate_late_fee(schedule.balance, days_overdue, policy)
 
-            # Update the schedule if late fee has changed
-            if late_fee != schedule.late_fee_amount:
+            if (
+                late_fee != schedule.late_fee_amount
+                or schedule.days_overdue != days_overdue
+                or schedule.status != 'overdue'
+            ):
                 schedule.late_fee_amount = late_fee
                 schedule.days_overdue = days_overdue
                 schedule.status = 'overdue'
-                schedule.save(update_fields=['late_fee_amount', 'days_overdue', 'status'])
+                schedule.save(update_fields=['late_fee_amount', 'days_overdue', 'status', 'updated_at'])
                 updated_count += 1
 
                 self.stdout.write(
@@ -95,67 +95,5 @@ class Command(BaseCommand):
         return updated_count
 
     def _calculate_late_fee(self, balance, days_overdue, tenant):
-        """Calculate late fee based on tenant configuration"""
-        from djmoney.money import Money
-
-        if days_overdue <= tenant.grace_period_days:
-            return Money(0, 'USD')
-
-        # Adjust days for grace period
-        effective_days = days_overdue - tenant.grace_period_days
-
-        if tenant.late_fee_type == 'percentage':
-            # Calculate based on percentage and frequency
-            if tenant.late_fee_frequency == 'per_day':
-                periods = effective_days
-            elif tenant.late_fee_frequency == 'per_week':
-                periods = effective_days // 7
-            elif tenant.late_fee_frequency == 'monthly':
-                periods = effective_days // 30
-            else:  # one_time
-                periods = 1 if effective_days > 0 else 0
-
-            # Calculate fee: balance * percentage * periods / 100
-            fee_amount = balance.amount * (tenant.late_fee_percentage / Decimal('100')) * Decimal(periods)
-            return Money(fee_amount, balance.currency.code)
-
-        elif tenant.late_fee_type == 'fixed':
-            # Fixed amount based on frequency
-            if tenant.late_fee_frequency == 'per_day':
-                periods = effective_days
-            elif tenant.late_fee_frequency == 'per_week':
-                periods = effective_days // 7
-            elif tenant.late_fee_frequency == 'monthly':
-                periods = effective_days // 30
-            else:  # one_time
-                periods = 1 if effective_days > 0 else 0
-
-            return tenant.late_fee_fixed_amount * Decimal(periods)
-
-        elif tenant.late_fee_type == 'hybrid':
-            # Combine percentage and fixed
-            percentage_fee = self._calculate_late_fee(balance, days_overdue,
-                                                       self._create_percentage_tenant(tenant))
-            fixed_fee = self._calculate_late_fee(balance, days_overdue,
-                                                 self._create_fixed_tenant(tenant))
-            return Money(percentage_fee.amount + fixed_fee.amount, balance.currency.code)
-
-        return Money(0, 'USD')
-
-    def _create_percentage_tenant(self, tenant):
-        """Helper to create a virtual tenant with only percentage config"""
-        class PercentageTenant:
-            late_fee_type = 'percentage'
-            late_fee_percentage = tenant.late_fee_percentage
-            late_fee_frequency = tenant.late_fee_frequency
-            grace_period_days = tenant.grace_period_days
-        return PercentageTenant()
-
-    def _create_fixed_tenant(self, tenant):
-        """Helper to create a virtual tenant with only fixed config"""
-        class FixedTenant:
-            late_fee_type = 'fixed'
-            late_fee_fixed_amount = tenant.late_fee_fixed_amount
-            late_fee_frequency = tenant.late_fee_frequency
-            grace_period_days = tenant.grace_period_days
-        return FixedTenant()
+        """Mora para un saldo según la configuración del tenant (ver apps.loans.late_fees)."""
+        return calculate_late_fee(balance, days_overdue, policy_for(tenant))
