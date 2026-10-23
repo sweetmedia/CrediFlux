@@ -1477,6 +1477,16 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         contract = self.get_object()
 
+        if (
+            contract.customer_signed_at
+            or contract.officer_signed_at
+            or contract.status in ('signed', 'active', 'completed', 'cancelled')
+        ):
+            return Response(
+                {'error': 'No se puede regenerar un contrato firmado.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if not contract.template:
             return Response(
                 {'error': 'No se puede regenerar un contrato sin plantilla'},

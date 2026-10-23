@@ -317,3 +317,47 @@ def test_payment_generic_writes_stay_closed(officer_client, active_loan, officer
     assert officer_client.patch(url, {"amount": "1.00"}, format="json").status_code == 405
     assert officer_client.delete(url).status_code == 405
     assert LoanPayment.objects.filter(pk=payment.pk).exists()
+
+
+def test_regenerate_refuses_signed_contract(officer_client, contract):
+    from apps.loans.models_contracts import Contract
+
+    Contract.objects.filter(pk=contract.pk).update(customer_signed_at=timezone.now())
+
+    response = officer_client.post(f"/api/loans/contracts/{contract.id}/regenerate/")
+
+    assert response.status_code == 400, response.content
+    assert Contract.objects.get(pk=contract.pk).content == "Contenido original"
+
+
+def test_officer_patch_cannot_move_contract_loan_or_template(officer_client, contract, loan_factory):
+    from apps.loans.models_contracts import Contract, ContractTemplate
+
+    other_template = ContractTemplate.objects.create(name="Otra", content="Otro texto", is_active=True)
+    other_loan = loan_factory()
+
+    response = officer_client.patch(
+        f"/api/loans/contracts/{contract.id}/",
+        {"template": str(other_template.id), "loan": str(other_loan.id)},
+        format="json",
+    )
+
+    assert response.status_code == 200, response.content
+    stored = Contract.objects.get(pk=contract.pk)
+    assert stored.template_id == contract.template_id
+    assert stored.loan_id == contract.loan_id
+
+
+def test_collections_gate_on_customer_phones(viewer_client, user_factory, customer_factory):
+    from apps.loans.models_contacts import CustomerPhone
+
+    customer = customer_factory()
+    body = {"customer": str(customer.id), "phone": "+18095557777", "phone_type": "mobile"}
+
+    response = viewer_client.post("/api/loans/customer-phones/", body, format="json")
+    assert response.status_code == 403, response.content
+    assert not CustomerPhone.objects.filter(customer=customer).exists()
+
+    collector_client = _client_for(user_factory(role="collector"))
+    response = collector_client.post("/api/loans/customer-phones/", body, format="json")
+    assert response.status_code == 201, response.content

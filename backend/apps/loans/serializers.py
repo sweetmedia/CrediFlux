@@ -910,6 +910,8 @@ class ContractSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'contract_number', 'generated_by', 'generated_at',
             'updated_at', 'is_fully_signed',
+            # Préstamo y plantilla se fijan al crear (ContractCreateSerializer).
+            'loan', 'template',
             # Contenido, estado y firmas sólo cambian por las acciones del contrato.
             'content', 'status', 'customer_signed_at', 'customer_signature',
             'officer_signed_at', 'officer_signature', 'witness_signature', 'witness_signed_at',
