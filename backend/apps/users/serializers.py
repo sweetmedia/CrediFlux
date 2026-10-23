@@ -38,18 +38,14 @@ class TenantAwareLoginSerializer(BaseLoginSerializer):
         """
         Validate credentials and ensure user belongs to current tenant.
         """
-        # Límite de intentos por cuenta y por IP antes de validar credenciales
+        # Cuenta el intento y aplica el límite por cuenta y por IP antes de validar credenciales
         request = self.context.get('request')
         login_id = attrs.get('email') or attrs.get('username') or ''
         lockout.check_and_count(login_id, request)
 
         # First, validate credentials using parent class
-        try:
-            attrs = super().validate(attrs)
-        except serializers.ValidationError:
-            lockout.register_failure(login_id, request)
-            raise
-        lockout.reset(login_id)
+        attrs = super().validate(attrs)
+        lockout.reset(login_id, request)
 
         # Get authenticated user
         user = attrs.get('user')

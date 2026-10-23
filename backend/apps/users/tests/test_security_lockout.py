@@ -63,12 +63,25 @@ def test_per_email_counter_applies_across_ips(api_client, user_factory):
     assert LOCKOUT_MSG in _errors(response)
 
 
+def test_per_ip_limit_is_higher_than_per_account(api_client, user_factory):
+    user = user_factory(email="oficina@crediflux.test")
+    for i in range(lockout.LOGIN_FAIL_LIMIT + 1):
+        _login(api_client, f"colega{i}@crediflux.test", "incorrecta-xyz", ip="10.0.3.1")
+    assert _login(api_client, user.email, PASSWORD, ip="10.0.3.1").status_code == 200
+
+
 def test_per_ip_counter_applies_across_emails(api_client, user_factory):
     user = user_factory(email="spray@crediflux.test")
-    for i in range(lockout.LOGIN_FAIL_LIMIT):
-        _login(api_client, f"otro{i}@crediflux.test", "incorrecta-xyz", ip="10.0.3.1")
-    response = _login(api_client, user.email, PASSWORD, ip="10.0.3.1")
+    for i in range(lockout.LOGIN_FAIL_IP_LIMIT):
+        _login(api_client, f"otro{i}@crediflux.test", "incorrecta-xyz", ip="10.0.3.2")
+    response = _login(api_client, user.email, PASSWORD, ip="10.0.3.2")
     assert LOCKOUT_MSG in _errors(response)
+
+
+def test_successful_logins_do_not_consume_the_ip_budget(api_client, user_factory):
+    user = user_factory(email="frecuente@crediflux.test")
+    for _ in range(lockout.LOGIN_FAIL_IP_LIMIT + 1):
+        assert _login(api_client, user.email, PASSWORD, ip="10.0.3.3").status_code == 200
 
 
 def test_login_succeeds_after_reset(api_client, user_factory):
@@ -78,8 +91,7 @@ def test_login_succeeds_after_reset(api_client, user_factory):
     assert LOCKOUT_MSG in _errors(_login(api_client, user.email, PASSWORD))
 
     lockout.reset(user.email)
-    # El contador por IP es independiente y caduca con la ventana; otra IP aísla el de la cuenta.
-    response = _login(api_client, user.email, PASSWORD, ip="10.0.9.9")
+    response = _login(api_client, user.email, PASSWORD)
     assert response.status_code == 200, response.content
 
 
@@ -175,3 +187,20 @@ def test_admin_login_is_rate_limited(tenant_schema):
     for _ in range(5):
         assert client.post("/admin/login/", data).status_code == 200
     assert client.post("/admin/login/", data).status_code == 403
+
+
+def test_admin_login_limit_ignores_username_case(tenant_schema):
+    client = Client(HTTP_HOST="tenant.test.localhost")
+    for _ in range(5):
+        client.post("/admin/login/", {"username": "x@y.test", "password": "mala"}, REMOTE_ADDR="10.1.0.1")
+    response = client.post("/admin/login/", {"username": "X@y.test", "password": "mala"}, REMOTE_ADDR="10.1.0.2")
+    assert response.status_code == 403
+
+
+def test_admin_login_is_rate_limited_per_ip(tenant_schema):
+    client = Client(HTTP_HOST="tenant.test.localhost")
+    for i in range(20):
+        data = {"username": f"u{i}@y.test", "password": "mala"}
+        assert client.post("/admin/login/", data, REMOTE_ADDR="10.1.1.1").status_code == 200
+    data = {"username": "nuevo@y.test", "password": "mala"}
+    assert client.post("/admin/login/", data, REMOTE_ADDR="10.1.1.1").status_code == 403

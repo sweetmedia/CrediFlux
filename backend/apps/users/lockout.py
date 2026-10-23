@@ -2,19 +2,20 @@
 Límite de intentos de login por cuenta y por IP, y validación de fortaleza de contraseñas.
 
 Flujo en los serializers de login:
-    check_and_count(email, request)   # antes de authenticate(): lanza si ya se alcanzó el límite
-    register_failure(email, request)  # tras un authenticate() fallido
-    reset(email)                      # tras un authenticate() exitoso
+    check_and_count(email, request)   # antes de authenticate(): cuenta el intento y lanza
+                                      # si la cuenta o la IP superan su límite (atómico: incr)
+    reset(email, request)             # tras un authenticate() exitoso
 
-El contador por IP no se reinicia con un login exitoso (si no, una cuenta propia
-válida serviría para seguir probando contraseñas ajenas); caduca con la ventana.
+`reset` borra el contador de la cuenta y descuenta el intento exitoso del contador de
+la IP: así la IP sólo acumula fallos, y un login correcto no borra fallos ajenos.
 """
 from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-LOGIN_FAIL_LIMIT = 5
+LOGIN_FAIL_LIMIT = 5  # por cuenta
+LOGIN_FAIL_IP_LIMIT = 20  # por IP (varias personas detrás de un mismo NAT)
 LOGIN_FAIL_WINDOW = 300  # segundos
 
 LOCKOUT_MESSAGE = 'Demasiados intentos. Intenta de nuevo en unos minutos.'
@@ -29,34 +30,35 @@ def _ip_key(request):
     return f'login_fail_ip:{ip}'
 
 
-def _keys(email, request):
-    return (_email_key(email), _ip_key(request))
+def _increment(key):
+    cache.add(key, 0, LOGIN_FAIL_WINDOW)
+    try:
+        return cache.incr(key)
+    except ValueError:
+        # La clave caducó entre add e incr: arranca de nuevo la ventana.
+        cache.set(key, 1, LOGIN_FAIL_WINDOW)
+        return 1
 
 
 def check_and_count(email, request):
-    """Lanza ValidationError si la cuenta o la IP ya alcanzaron el límite de fallos.
+    """Cuenta el intento y lanza ValidationError si la cuenta o la IP superan su límite.
 
     El mensaje es el mismo exista o no la cuenta.
     """
-    counts = cache.get_many(_keys(email, request))
-    if any((value or 0) >= LOGIN_FAIL_LIMIT for value in counts.values()):
+    email_count = _increment(_email_key(email))
+    ip_count = _increment(_ip_key(request))
+    if email_count > LOGIN_FAIL_LIMIT or ip_count > LOGIN_FAIL_IP_LIMIT:
         raise serializers.ValidationError(LOCKOUT_MESSAGE)
 
 
-def register_failure(email, request):
-    """Suma un fallo a los contadores de la cuenta y de la IP (ventana de LOGIN_FAIL_WINDOW)."""
-    for key in _keys(email, request):
-        cache.add(key, 0, LOGIN_FAIL_WINDOW)
-        try:
-            cache.incr(key)
-        except ValueError:
-            # La clave caducó entre add e incr: arranca de nuevo la ventana.
-            cache.set(key, 1, LOGIN_FAIL_WINDOW)
-
-
-def reset(email):
-    """Borra el contador de fallos de la cuenta (tras un login correcto)."""
+def reset(email, request=None):
+    """Tras un login correcto: borra el contador de la cuenta y descuenta el intento de la IP."""
     cache.delete(_email_key(email))
+    if request is not None:
+        try:
+            cache.decr(_ip_key(request))
+        except ValueError:
+            pass  # la clave ya caducó
 
 
 def validate_strength(password, user=None):
@@ -67,8 +69,13 @@ def validate_strength(password, user=None):
         raise serializers.ValidationError(list(exc.messages))
 
 
+def _admin_username_key(group, request):
+    """Usuario normalizado: allauth autentica sin distinguir mayúsculas en el correo."""
+    return (request.POST.get('username') or '').strip().lower()
+
+
 def ratelimit_admin_login():
-    """Envuelve `admin.site.login` con django-ratelimit (5 POST por usuario cada 5 min).
+    """Envuelve `admin.site.login` con django-ratelimit: 5 POST por usuario y 20 por IP cada 5 min.
 
     Idempotente: lo llaman `config/urls.py` y `config/urls_public.py` antes de incluir
     `admin.site.urls`. Al bloquear lanza `Ratelimited` (PermissionDenied) → 403.
@@ -78,6 +85,8 @@ def ratelimit_admin_login():
 
     if getattr(admin.site.login, '_crediflux_ratelimited', False):
         return
-    limited = ratelimit(key='post:username', rate='5/5m', method='POST', block=True)(admin.site.login)
+    by_user = ratelimit(key=_admin_username_key, rate='5/5m', method='POST', block=True)
+    by_ip = ratelimit(key='ip', rate='20/5m', method='POST', block=True)
+    limited = by_ip(by_user(admin.site.login))
     limited._crediflux_ratelimited = True
     admin.site.login = limited

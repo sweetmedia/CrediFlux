@@ -618,7 +618,7 @@ class TenantLoginSerializer(serializers.Serializer):
         if not email or not password:
             raise serializers.ValidationError("Email and password are required.")
 
-        # Límite de intentos por cuenta y por IP (antes de tocar las credenciales)
+        # Cuenta el intento y aplica el límite por cuenta y por IP (antes de authenticate)
         request = self.context.get('request')
         lockout.check_and_count(email, request)
 
@@ -626,10 +626,9 @@ class TenantLoginSerializer(serializers.Serializer):
         user = authenticate(username=email, password=password)
 
         if not user:
-            lockout.register_failure(email, request)
             raise serializers.ValidationError("Invalid email or password.")
 
-        lockout.reset(email)
+        lockout.reset(email, request)
 
         # Check if user is active
         if not user.is_active:
