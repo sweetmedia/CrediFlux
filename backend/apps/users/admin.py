@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.hashers import make_password
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from django.utils.crypto import get_random_string
@@ -14,6 +15,13 @@ from allauth.account.models import EmailAddress
 from allauth.account.utils import send_email_confirmation
 from .models import User
 from .tokens import revoke_user_credentials
+
+# Campos que sólo el superusuario de plataforma (tenant=None) puede ver o editar.
+PRIVILEGE_FIELDS = ('is_superuser', 'is_staff', 'groups', 'user_permissions', 'tenant', 'is_tenant_owner')
+
+
+def _is_platform_admin(user):
+    return user.is_superuser and user.tenant_id is None
 
 
 @admin.register(User)
@@ -158,6 +166,9 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             messages.error(request, 'Usuario no encontrado.')
             return redirect(reverse('admin:users_user_changelist'))
 
+        if not self._can_reset(request, user):
+            raise PermissionDenied
+
         if request.method == 'POST':
             new_password = request.POST.get('new_password', '').strip()
             confirm_password = request.POST.get('confirm_password', '').strip()
@@ -205,6 +216,19 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     # Actions
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _can_reset(request, target):
+        """Superusuario de plataforma, o gestor de usuarios del mismo tenant sobre un no-superusuario."""
+        actor = request.user
+        if _is_platform_admin(actor):
+            return True
+        return (
+            actor.can_manage_users()
+            and actor.tenant_id is not None
+            and target.tenant_id == actor.tenant_id
+            and not target.is_superuser
+        )
+
     @action(description="🔑 Resetear contraseña", permissions=['change'])
     def reset_password_action(self, request, queryset):
         """
@@ -220,6 +244,9 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         # Multiple users: generate random passwords
         results = []
         for user in queryset:
+            if not self._can_reset(request, user):
+                messages.error(request, f'No tienes permiso para resetear la contraseña de {user.email}.')
+                continue
             new_password = get_random_string(12, 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$%')
             user.set_password(new_password)
             user.save()
@@ -380,17 +407,46 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         return request.user.is_superuser or request.user.can_manage_users()
 
     def has_change_permission(self, request, obj=None):
-        if request.user.is_superuser and request.user.tenant is None:
+        if _is_platform_admin(request.user):
             return True
         if obj and request.user.tenant:
-            return obj.tenant == request.user.tenant and request.user.can_manage_users()
+            return (
+                obj.tenant_id == request.user.tenant_id
+                and not obj.is_superuser
+                and request.user.can_manage_users()
+            )
         return request.user.can_manage_users()
 
     def has_delete_permission(self, request, obj=None):
-        if request.user.is_superuser and request.user.tenant is None:
+        if _is_platform_admin(request.user):
             return True
         if obj and request.user.tenant:
-            if obj.is_tenant_owner:
-                return False
-            return obj.tenant == request.user.tenant and request.user.can_manage_users()
+            return self.has_change_permission(request, obj) and not obj.is_tenant_owner
         return False
+
+    # ------------------------------------------------------------------
+    # Privilege fields: only the platform superuser sees or edits them
+    # ------------------------------------------------------------------
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = super().get_fieldsets(request, obj)
+        if _is_platform_admin(request.user):
+            return fieldsets
+        stripped = []
+        for name, options in fieldsets:
+            fields = tuple(f for f in options['fields'] if f not in PRIVILEGE_FIELDS)
+            if fields:
+                stripped.append((name, {**options, 'fields': fields}))
+        return stripped
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if not _is_platform_admin(request.user):
+            readonly += [f for f in PRIVILEGE_FIELDS if f not in readonly]
+        return readonly
+
+    def save_model(self, request, obj, form, change):
+        # `tenant` es read-only para el admin de tenant: los usuarios que crea quedan en su tenant.
+        if not change and not _is_platform_admin(request.user):
+            obj.tenant_id = request.user.tenant_id
+        super().save_model(request, obj, form, change)

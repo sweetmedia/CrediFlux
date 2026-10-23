@@ -7,22 +7,23 @@ from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from django.utils.html import format_html
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.db import connection
 from unfold.admin import ModelAdmin
 from unfold.decorators import display, action
 from .models import Tenant, Domain
-from .widgets import EditableSchemaNameWidget
+
+
+def _is_platform_admin(user):
+    return user.is_superuser and user.tenant_id is None
 
 
 class TenantAdminForm(forms.ModelForm):
-    """Custom form for Tenant admin with editable schema_name widget"""
+    """Tenant admin form. `schema_name` is read-only: renaming it orphans the Postgres schema."""
 
     class Meta:
         model = Tenant
         fields = '__all__'
-        widgets = {
-            'schema_name': EditableSchemaNameWidget(),
-        }
 
 
 @admin.register(Tenant)
@@ -44,7 +45,7 @@ class TenantAdmin(ModelAdmin):
     ]
     list_filter = ['is_active', 'subscription_plan', 'created_on']
     search_fields = ['name', 'business_name', 'email', 'tax_id']
-    readonly_fields = ['created_on', 'updated_on']  # Removed schema_name
+    readonly_fields = ['schema_name', 'created_on', 'updated_on']
     list_per_page = 25
     save_on_top = True
     actions = ['generate_demo_data_action']
@@ -86,6 +87,14 @@ class TenantAdmin(ModelAdmin):
         """Action to generate demo data for selected tenants"""
         from django.core.management import call_command
         from apps.loans.models import Loan
+
+        if not _is_platform_admin(request.user):
+            self.message_user(
+                request,
+                'Solo un superusuario de plataforma puede generar datos demo.',
+                level=messages.ERROR
+            )
+            return
 
         success_count = 0
         error_count = 0
@@ -148,6 +157,9 @@ class TenantAdmin(ModelAdmin):
         """View to generate demo data with tenant selection"""
         from django.core.management import call_command
         from apps.loans.models import Loan
+
+        if not _is_platform_admin(request.user):
+            raise PermissionDenied
 
         tenant_id = request.GET.get('tenant_id')
 
