@@ -70,3 +70,6 @@ frontend/coverage/
 frontend/test-results/
 frontend/playwright-report/
 frontend/playwright/.cache/
+
+# Scratch de superpowers (ledgers, briefs)
+.superpowers/
