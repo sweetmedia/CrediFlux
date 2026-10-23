@@ -2,6 +2,8 @@
 DRF Serializers for the Billing app.
 """
 from rest_framework import serializers
+
+from apps.core.media import SignedFilesModelSerializer
 from .models import (
     DigitalCertificate, FiscalSequence, Invoice, InvoiceItem, ECFSubmission
 )
@@ -21,7 +23,7 @@ class DigitalCertificateSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
-class DigitalCertificateUploadSerializer(serializers.ModelSerializer):
+class DigitalCertificateUploadSerializer(SignedFilesModelSerializer):
     """Serializer para subir certificado con password."""
     class Meta:
         model = DigitalCertificate

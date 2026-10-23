@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.db import connection, transaction
 from django.utils import timezone
 from django_tenants.utils import schema_exists
+from apps.core.media import PUBLIC_SCHEMA, SignedImageField, signed_media_url
 from apps.users import lockout
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
@@ -302,7 +303,7 @@ class TenantRegistrationSerializer(serializers.Serializer):
 
 class TenantSerializer(serializers.ModelSerializer):
     """Basic tenant serializer for read operations"""
-    logo = serializers.ImageField(read_only=True)
+    logo = SignedImageField(read_only=True, schema=PUBLIC_SCHEMA)
     has_ai_api_key = serializers.SerializerMethodField()
     has_whatsapp_token = serializers.SerializerMethodField()
     has_whatsapp_verify_token = serializers.SerializerMethodField()
@@ -391,7 +392,7 @@ class TenantSerializer(serializers.ModelSerializer):
 
 class TenantUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating tenant settings"""
-    logo = serializers.ImageField(required=False, allow_null=True)
+    logo = SignedImageField(required=False, allow_null=True, schema=PUBLIC_SCHEMA)
 
     class Meta:
         model = Tenant
@@ -619,7 +620,7 @@ class TenantLoginSerializer(serializers.Serializer):
                 'subscription_plan': tenant.subscription_plan,
                 'is_active': tenant.is_active,
                 'domain': domain_name,
-                'logo': tenant.logo.url if tenant.logo else None,
+                'logo': signed_media_url(tenant.logo.name, PUBLIC_SCHEMA) if tenant.logo else None,
                 'primary_color': tenant.primary_color,
             }
         return None

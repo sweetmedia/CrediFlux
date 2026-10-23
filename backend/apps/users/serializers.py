@@ -13,6 +13,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 
+from apps.core.media import SignedFilesModelSerializer
 from apps.core.permissions import user_matches_tenant
 from . import lockout
 from .authentication import token_revoked
@@ -74,7 +75,7 @@ class TenantAwareLoginSerializer(BaseLoginSerializer):
         return attrs
 
 
-class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(SignedFilesModelSerializer):
     """Basic user serializer for displaying user information"""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     tenant_name = serializers.CharField(read_only=True)
@@ -451,7 +452,7 @@ class LogoutSerializer(serializers.Serializer):
 # PROFILE MANAGEMENT
 # ============================================================================
 
-class ProfileUpdateSerializer(serializers.ModelSerializer):
+class ProfileUpdateSerializer(SignedFilesModelSerializer):
     """Serializer to update user profile"""
 
     class Meta:

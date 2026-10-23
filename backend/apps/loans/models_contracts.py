@@ -6,6 +6,7 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
+from apps.core.storage import tenant_upload_to
 
 
 class ContractTemplate(models.Model):
@@ -80,7 +81,8 @@ class ContractTemplate(models.Model):
 
     # Template header/footer (optional)
     header_image = models.ImageField(
-        upload_to='contract_templates/headers/',
+        upload_to=tenant_upload_to('contract_templates/headers'),
+        max_length=255,
         blank=True,
         null=True,
         validators=[FileExtensionValidator(['jpg', 'jpeg', 'png'])],
@@ -169,7 +171,8 @@ class Contract(models.Model):
 
     # PDF version
     pdf_file = models.FileField(
-        upload_to='contracts/pdfs/',
+        upload_to=tenant_upload_to('contracts/pdfs'),
+        max_length=255,
         blank=True,
         null=True,
         validators=[FileExtensionValidator(['pdf'])],
@@ -190,7 +193,8 @@ class Contract(models.Model):
         help_text="When customer signed the contract"
     )
     customer_signature = models.ImageField(
-        upload_to='contracts/signatures/customers/',
+        upload_to=tenant_upload_to('contracts/signatures/customers'),
+        max_length=255,
         blank=True,
         null=True,
         validators=[FileExtensionValidator(['jpg', 'jpeg', 'png'])],
@@ -203,7 +207,8 @@ class Contract(models.Model):
         help_text="When loan officer signed the contract"
     )
     officer_signature = models.ImageField(
-        upload_to='contracts/signatures/officers/',
+        upload_to=tenant_upload_to('contracts/signatures/officers'),
+        max_length=255,
         blank=True,
         null=True,
         validators=[FileExtensionValidator(['jpg', 'jpeg', 'png'])],
@@ -214,7 +219,8 @@ class Contract(models.Model):
     witness_name = models.CharField(max_length=200, blank=True)
     witness_id = models.CharField(max_length=50, blank=True)
     witness_signature = models.ImageField(
-        upload_to='contracts/signatures/witnesses/',
+        upload_to=tenant_upload_to('contracts/signatures/witnesses'),
+        max_length=255,
         blank=True,
         null=True,
         validators=[FileExtensionValidator(['jpg', 'jpeg', 'png'])]

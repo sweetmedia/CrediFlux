@@ -5,6 +5,7 @@ Tracks collector visits, check-ins, and GPS routes.
 from django.db import models
 from django.conf import settings
 from apps.core.models import UUIDModel, TimeStampedModel
+from apps.core.storage import tenant_upload_to
 
 
 class CollectorVisit(UUIDModel, TimeStampedModel):
@@ -84,7 +85,8 @@ class CollectorVisit(UUIDModel, TimeStampedModel):
 
     # Photo evidence (optional)
     photo = models.ImageField(
-        upload_to='collector_visits/photos/',
+        upload_to=tenant_upload_to('collector_visits/photos'),
+        max_length=255,
         null=True, blank=True,
         help_text='Photo evidence of visit',
     )

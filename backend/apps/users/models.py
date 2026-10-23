@@ -10,6 +10,7 @@ from django.utils import timezone
 from phonenumber_field.modelfields import PhoneNumberField
 from djmoney.models.fields import MoneyField
 from decimal import Decimal
+from apps.core.storage import tenant_upload_to
 
 
 class User(AbstractUser):
@@ -39,7 +40,7 @@ class User(AbstractUser):
     )
 
     # Profile information
-    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    avatar = models.ImageField(upload_to=tenant_upload_to('avatars'), max_length=255, blank=True, null=True)
     bio = models.TextField(blank=True, null=True)
     job_title = models.CharField(max_length=100, blank=True, null=True)
     department = models.CharField(max_length=100, blank=True, null=True)

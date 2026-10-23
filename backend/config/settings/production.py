@@ -30,10 +30,13 @@ if USE_S3:
         'CacheControl': 'max-age=86400',
     }
     AWS_LOCATION = 'static'
-    AWS_DEFAULT_ACL = 'public-read'
+    # Objetos privados; las URLs del storage van prefirmadas. Los archivos de
+    # usuario se entregan sólo por /media/s/<firma>/ (apps.core.media_views).
+    AWS_DEFAULT_ACL = 'private'
+    AWS_QUERYSTRING_AUTH = True
 
     # Static and media files
-    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    STATICFILES_STORAGE = 'apps.core.storage_s3.PublicStaticS3Storage'
     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
 

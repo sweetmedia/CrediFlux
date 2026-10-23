@@ -7,6 +7,7 @@ from django.db import models, transaction
 from django.core.validators import MinValueValidator
 from djmoney.models.fields import MoneyField
 from apps.core.models import UUIDModel, AuditModel, TimeStampedModel
+from apps.core.storage import tenant_upload_to
 from .constants import (
     ECF_TYPE_CHOICES, DGII_ENV_CHOICES, INVOICE_STATUS_CHOICES,
     ITBIS_RATE_CHOICES, PAYMENT_METHOD_CHOICES,
@@ -23,7 +24,8 @@ class DigitalCertificate(UUIDModel, TimeStampedModel):
         help_text='Nombre descriptivo del certificado'
     )
     certificate_file = models.FileField(
-        upload_to='billing/certificates/',
+        upload_to=tenant_upload_to('billing/certificates'),
+        max_length=255,
         help_text='Archivo del certificado digital (.p12 / .pfx)'
     )
     # Password encriptado — en producción usar django-encrypted-model-fields

@@ -185,6 +185,7 @@ def dashboard_callback(request, context):
     from django.db import connection
     from django.contrib.auth import get_user_model
     from django.templatetags.static import static
+    from apps.core.media import PUBLIC_SCHEMA, signed_media_url
 
     User = get_user_model()
 
@@ -200,7 +201,9 @@ def dashboard_callback(request, context):
             from apps.tenants.models import Tenant
             tenant = Tenant.objects.get(schema_name=schema_name)
             tenant_name = tenant.business_name
-            tenant_logo = tenant.logo.url if tenant.logo else None
+            tenant_logo = (
+                signed_media_url(tenant.logo.name, PUBLIC_SCHEMA) if tenant.logo else None
+            )
         except Exception:
             tenant_name = schema_name.title()
 

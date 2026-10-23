@@ -6,6 +6,7 @@ from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment,
 from .models_collections import CollectionReminder, CollectionContact
 from .models_contracts import ContractTemplate, Contract
 from .models_guarantors import Guarantor
+from apps.core.media import SignedFilesModelSerializer
 from .fields import TenantUserField
 from .policy import validate_origination
 
@@ -21,7 +22,7 @@ class MoneyAmountField(serializers.DecimalField):
         return super().to_representation(value)
 
 
-class CustomerDocumentSerializer(serializers.ModelSerializer):
+class CustomerDocumentSerializer(SignedFilesModelSerializer):
     """Serializer for CustomerDocument model"""
     verified_by_name = serializers.CharField(source='verified_by.get_full_name', read_only=True, allow_null=True)
     is_expired = serializers.BooleanField(read_only=True)
@@ -83,7 +84,7 @@ class CustomerDocumentSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class CustomerDocumentListSerializer(serializers.ModelSerializer):
+class CustomerDocumentListSerializer(SignedFilesModelSerializer):
     """Lightweight serializer for document list"""
     document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
     verification_status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
@@ -98,7 +99,7 @@ class CustomerDocumentListSerializer(serializers.ModelSerializer):
         ]
 
 
-class CustomerSerializer(serializers.ModelSerializer):
+class CustomerSerializer(SignedFilesModelSerializer):
     """Serializer for Customer model"""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     total_loans = serializers.SerializerMethodField()
@@ -131,7 +132,7 @@ class CustomerSerializer(serializers.ModelSerializer):
         return float(obj.monthly_income.amount) if obj.monthly_income else None
 
 
-class PublicContractCustomerSerializer(serializers.ModelSerializer):
+class PublicContractCustomerSerializer(SignedFilesModelSerializer):
     """Minimal customer data for public contract views"""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
 
@@ -140,7 +141,7 @@ class PublicContractCustomerSerializer(serializers.ModelSerializer):
         fields = ['full_name']
 
 
-class PublicContractSerializer(serializers.ModelSerializer):
+class PublicContractSerializer(SignedFilesModelSerializer):
     """Minimal contract payload safe for tokenized public access"""
     customer = PublicContractCustomerSerializer(source='loan.customer', read_only=True)
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
@@ -153,7 +154,7 @@ class PublicContractSerializer(serializers.ModelSerializer):
         ]
 
 
-class CustomerListSerializer(serializers.ModelSerializer):
+class CustomerListSerializer(SignedFilesModelSerializer):
     """Lightweight serializer for customer list"""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     total_loans = serializers.SerializerMethodField()
@@ -199,7 +200,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
         return float(total) if total else 0
 
 
-class CollateralSerializer(serializers.ModelSerializer):
+class CollateralSerializer(SignedFilesModelSerializer):
     """Serializer for Collateral model"""
     estimated_value = MoneyAmountField(max_digits=14, decimal_places=2)
     appraisal_value = MoneyAmountField(max_digits=14, decimal_places=2, allow_null=True, required=False)
@@ -287,7 +288,7 @@ class CollateralSerializer(serializers.ModelSerializer):
         return collateral
 
 
-class LoanScheduleSerializer(serializers.ModelSerializer):
+class LoanScheduleSerializer(SignedFilesModelSerializer):
     """Serializer for LoanSchedule model"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
@@ -317,7 +318,7 @@ class LoanScheduleSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'loan_number', 'customer_name', 'customer_phone', 'customer_address', 'customer_id', 'days_overdue', 'created_at', 'updated_at']
 
 
-class LoanPaymentSerializer(serializers.ModelSerializer):
+class LoanPaymentSerializer(SignedFilesModelSerializer):
     """Serializer for LoanPayment model (read-only)"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
@@ -371,7 +372,7 @@ def _paid_on_schedule(schedule, field):
     )
 
 
-class LoanPaymentCreateSerializer(serializers.ModelSerializer):
+class LoanPaymentCreateSerializer(SignedFilesModelSerializer):
     """Serializer for creating LoanPayment (write-only)"""
 
     class Meta:
@@ -516,7 +517,7 @@ class LoanPaymentCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class LoanSerializer(serializers.ModelSerializer):
+class LoanSerializer(SignedFilesModelSerializer):
     """Full serializer for Loan model"""
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     customer_details = CustomerListSerializer(source='customer', read_only=True)
@@ -621,7 +622,7 @@ class LoanSerializer(serializers.ModelSerializer):
         return bool(contract and contract.customer_signed_at)
 
 
-class LoanListSerializer(serializers.ModelSerializer):
+class LoanListSerializer(SignedFilesModelSerializer):
     """Lightweight serializer for loan list"""
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
@@ -712,7 +713,7 @@ class LoanListSerializer(serializers.ModelSerializer):
         return bool(contract and contract.customer_signed_at)
 
 
-class LoanCreateSerializer(serializers.ModelSerializer):
+class LoanCreateSerializer(SignedFilesModelSerializer):
     """Serializer for creating loans"""
 
     interest_type = serializers.ChoiceField(
@@ -768,7 +769,7 @@ class LoanCreateSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class CollectionReminderSerializer(serializers.ModelSerializer):
+class CollectionReminderSerializer(SignedFilesModelSerializer):
     """Serializer for CollectionReminder model"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
@@ -796,7 +797,7 @@ class CollectionReminderSerializer(serializers.ModelSerializer):
         return value
 
 
-class CollectionReminderCreateSerializer(serializers.ModelSerializer):
+class CollectionReminderCreateSerializer(SignedFilesModelSerializer):
     """Serializer for creating collection reminders"""
 
     class Meta:
@@ -821,7 +822,7 @@ class CollectionReminderCreateSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class CollectionContactSerializer(serializers.ModelSerializer):
+class CollectionContactSerializer(SignedFilesModelSerializer):
     """Serializer for CollectionContact model"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
@@ -843,7 +844,7 @@ class CollectionContactSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'contacted_by', 'created_at', 'updated_at']
 
 
-class CollectionContactCreateSerializer(serializers.ModelSerializer):
+class CollectionContactCreateSerializer(SignedFilesModelSerializer):
     """Serializer for creating collection contacts"""
 
     class Meta:
@@ -882,7 +883,7 @@ class CollectionContactCreateSerializer(serializers.ModelSerializer):
 # CONTRACT SERIALIZERS
 # ============================================================================
 
-class ContractTemplateSerializer(serializers.ModelSerializer):
+class ContractTemplateSerializer(SignedFilesModelSerializer):
     """Serializer for ContractTemplate model"""
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
 
@@ -896,7 +897,7 @@ class ContractTemplateSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
 
 
-class ContractTemplateListSerializer(serializers.ModelSerializer):
+class ContractTemplateListSerializer(SignedFilesModelSerializer):
     """Lightweight serializer for contract template list"""
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
 
@@ -909,7 +910,7 @@ class ContractTemplateListSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class ContractSerializer(serializers.ModelSerializer):
+class ContractSerializer(SignedFilesModelSerializer):
     """Serializer for Contract model"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
@@ -938,7 +939,7 @@ class ContractSerializer(serializers.ModelSerializer):
         ]
 
 
-class ContractListSerializer(serializers.ModelSerializer):
+class ContractListSerializer(SignedFilesModelSerializer):
     """Lightweight serializer for contract list"""
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
     customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
@@ -1007,7 +1008,7 @@ class LoanCalculatorResultSerializer(serializers.Serializer):
     schedule = LoanCalculatorScheduleItemSerializer(many=True)
 
 
-class ContractCreateSerializer(serializers.ModelSerializer):
+class ContractCreateSerializer(SignedFilesModelSerializer):
     """Serializer for creating a new contract"""
 
     class Meta:
@@ -1030,7 +1031,7 @@ class ContractCreateSerializer(serializers.ModelSerializer):
         return value
 
 
-class GuarantorSerializer(serializers.ModelSerializer):
+class GuarantorSerializer(SignedFilesModelSerializer):
     """Full serializer for Guarantor CRUD"""
     full_name = serializers.SerializerMethodField()
     monthly_income = serializers.SerializerMethodField()
@@ -1112,7 +1113,7 @@ class GuarantorSerializer(serializers.ModelSerializer):
         return float(obj.monthly_income.amount) if obj.monthly_income else None
 
 
-class GuarantorListSerializer(serializers.ModelSerializer):
+class GuarantorListSerializer(SignedFilesModelSerializer):
     """Compact serializer for guarantor list views"""
     full_name = serializers.SerializerMethodField()
     relationship_display = serializers.CharField(source='get_relationship_display', read_only=True)
@@ -1135,7 +1136,7 @@ class GuarantorListSerializer(serializers.ModelSerializer):
 from .models_contacts import CustomerPhone, CustomerEmail
 
 
-class CustomerPhoneSerializer(serializers.ModelSerializer):
+class CustomerPhoneSerializer(SignedFilesModelSerializer):
     phone_type_display = serializers.CharField(source='get_phone_type_display', read_only=True)
 
     class Meta:
@@ -1147,7 +1148,7 @@ class CustomerPhoneSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
-class CustomerEmailSerializer(serializers.ModelSerializer):
+class CustomerEmailSerializer(SignedFilesModelSerializer):
     email_type_display = serializers.CharField(source='get_email_type_display', read_only=True)
 
     class Meta:

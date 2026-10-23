@@ -13,6 +13,7 @@ from rest_framework import serializers as drf_serializers
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 
+from apps.core.media import SignedFilesModelSerializer
 from .models_geolocation import CollectorVisit, CollectorLocation
 from .permissions import CanManageCollections
 
@@ -31,7 +32,7 @@ def _scope_to_collector(queryset, user):
 
 # === Serializers ===
 
-class CollectorVisitSerializer(drf_serializers.ModelSerializer):
+class CollectorVisitSerializer(SignedFilesModelSerializer):
     collector_name = drf_serializers.CharField(source='collector.get_full_name', read_only=True)
     customer_name = drf_serializers.CharField(source='customer.get_full_name', read_only=True)
     loan_number = drf_serializers.CharField(source='loan.loan_number', read_only=True, default='')
@@ -56,7 +57,7 @@ class CollectorVisitSerializer(drf_serializers.ModelSerializer):
         read_only_fields = ['id', 'collector', 'collector_name', 'created_at']
 
 
-class CollectorVisitCreateSerializer(drf_serializers.ModelSerializer):
+class CollectorVisitCreateSerializer(SignedFilesModelSerializer):
     class Meta:
         model = CollectorVisit
         fields = [

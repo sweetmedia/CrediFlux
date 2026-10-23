@@ -16,6 +16,7 @@ from rest_framework_simplejwt.views import TokenVerifyView
 from apps.billing.webhooks import NexConnectWebhookView
 from apps.communications.webhooks.views import WhatsAppWebhookView
 from apps.users.lockout import ratelimit_admin_login
+from apps.core.media_views import SignedMediaView
 from apps.users.views import CustomConfirmEmailView, TenantAwareTokenRefreshView
 
 # Swagger/OpenAPI configuration
@@ -69,13 +70,15 @@ urlpatterns = [
     path('api/cashbox/', include('apps.cashbox.urls')),
     path('api/ai/', include('apps.ai.urls')),
 
+    # Archivos privados: sólo por URL firmada (no se sirve MEDIA_ROOT)
+    path('media/s/<str:signed>/', SignedMediaView.as_view(), name='signed-media'),
+
     # Webhooks (public, no authentication)
     path('api/webhooks/whatsapp/', WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
     path('api/webhooks/nexconnect/<slug:schema_name>/', NexConnectWebhookView.as_view(),
          name='nexconnect-webhook'),
 ]
 
-# Serve media files in development
+# Static en desarrollo. MEDIA_ROOT nunca se sirve: los archivos van por /media/s/<firma>/
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

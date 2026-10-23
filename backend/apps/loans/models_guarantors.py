@@ -5,6 +5,7 @@ from django.db import models
 from djmoney.models.fields import MoneyField
 from phonenumber_field.modelfields import PhoneNumberField
 from apps.core.models import UUIDModel, AuditModel
+from apps.core.storage import tenant_upload_to
 
 
 class Guarantor(UUIDModel, AuditModel):
@@ -70,12 +71,14 @@ class Guarantor(UUIDModel, AuditModel):
 
     # Documents
     id_document = models.FileField(
-        upload_to='guarantor_documents/ids/',
+        upload_to=tenant_upload_to('guarantor_documents/ids'),
+        max_length=255,
         blank=True,
         null=True
     )
     proof_of_income = models.FileField(
-        upload_to='guarantor_documents/income/',
+        upload_to=tenant_upload_to('guarantor_documents/income'),
+        max_length=255,
         blank=True,
         null=True
     )

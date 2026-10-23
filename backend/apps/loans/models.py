@@ -7,6 +7,7 @@ from django.utils import timezone
 from djmoney.models.fields import MoneyField
 from phonenumber_field.modelfields import PhoneNumberField
 from apps.core.models import TimeStampedModel, UUIDModel, AuditModel
+from apps.core.storage import tenant_upload_to
 from decimal import Decimal
 import uuid
 
@@ -54,7 +55,7 @@ class Customer(UUIDModel, AuditModel):
     )
     id_number = models.CharField(max_length=50, unique=True)
     id_expiry_date = models.DateField(blank=True, null=True)
-    id_document = models.FileField(upload_to='customer_documents/ids/', blank=True, null=True)
+    id_document = models.FileField(upload_to=tenant_upload_to('customer_documents/ids'), max_length=255, blank=True, null=True)
 
     # Employment Information
     employment_status = models.CharField(
@@ -98,7 +99,7 @@ class Customer(UUIDModel, AuditModel):
     notes = models.TextField(blank=True, null=True)
 
     # Profile Photo
-    photo = models.ImageField(upload_to='customer_photos/', blank=True, null=True)
+    photo = models.ImageField(upload_to=tenant_upload_to('customer_photos'), max_length=255, blank=True, null=True)
 
     class Meta:
         db_table = 'customers'
@@ -159,7 +160,8 @@ class CustomerDocument(UUIDModel, AuditModel):
     )
     description = models.TextField(blank=True, null=True)
     document_file = models.FileField(
-        upload_to='customer_documents/%Y/%m/',
+        upload_to=tenant_upload_to('customer_documents'),
+        max_length=255,
         help_text="Upload document file (PDF, JPG, PNG, etc.)"
     )
 
@@ -414,7 +416,8 @@ class Loan(UUIDModel, AuditModel):
     notes = models.TextField(blank=True, null=True)
     terms_accepted = models.BooleanField(default=False)
     contract_document = models.FileField(
-        upload_to='loan_contracts/',
+        upload_to=tenant_upload_to('loan_contracts'),
+        max_length=255,
         blank=True,
         null=True
     )
@@ -656,7 +659,7 @@ class LoanPayment(UUIDModel, AuditModel):
     reversal_reason = models.TextField(blank=True, default='')
 
     notes = models.TextField(blank=True, null=True)
-    receipt = models.FileField(upload_to='payment_receipts/', blank=True, null=True)
+    receipt = models.FileField(upload_to=tenant_upload_to('payment_receipts'), max_length=255, blank=True, null=True)
 
     class Meta:
         db_table = 'loan_payments'
@@ -731,12 +734,14 @@ class Collateral(UUIDModel, AuditModel):
 
     # Documentation
     documents = models.FileField(
-        upload_to='collateral_documents/',
+        upload_to=tenant_upload_to('collateral_documents'),
+        max_length=255,
         blank=True,
         null=True
     )
     photos = models.ImageField(
-        upload_to='collateral_photos/',
+        upload_to=tenant_upload_to('collateral_photos'),
+        max_length=255,
         blank=True,
         null=True
     )

@@ -5,6 +5,7 @@ from django.db import models
 from django_tenants.models import TenantMixin, DomainMixin
 from djmoney.models.fields import MoneyField
 from decimal import Decimal
+from apps.core.storage import tenant_upload_to
 
 
 class Tenant(TenantMixin):
@@ -43,7 +44,7 @@ class Tenant(TenantMixin):
     )
 
     # Logo and branding
-    logo = models.ImageField(upload_to='tenants/logos/', blank=True, null=True)
+    logo = models.ImageField(upload_to=tenant_upload_to('tenant_logos', schema='public'), max_length=255, blank=True, null=True)
     primary_color = models.CharField(max_length=7, default='#163300')
 
     # ============================================================
