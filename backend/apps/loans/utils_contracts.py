@@ -325,6 +325,9 @@ def regenerate_latest_loan_contract(loan, tenant=None):
     contract = loan.contracts.filter(is_archived=False).order_by('-generated_at').first()
     if not contract or not contract.template:
         return None
+    # Un contrato firmado no se reescribe: el texto firmado es el que vale.
+    if contract.customer_signed_at or contract.officer_signed_at:
+        return None
 
     contract.content = replace_contract_variables(contract.template.content, loan, tenant)
     contract.save(update_fields=['content', 'updated_at'])

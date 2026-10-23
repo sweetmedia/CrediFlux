@@ -28,7 +28,7 @@ from .serializers import (
     LoanCalculatorInputSerializer, LoanCalculatorResultSerializer,
     GuarantorSerializer, GuarantorListSerializer,
 )
-from .permissions import CanApproveLoan, CanManageLoans, CanRegisterPayments
+from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, CanRegisterPayments
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -36,7 +36,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     ViewSet for managing customers
     """
     queryset = Customer.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLoans]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'employment_status', 'id_type']
     ordering_fields = ['created_at', 'first_name', 'last_name']
@@ -140,7 +140,7 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
     ViewSet for managing customer documents
     """
     queryset = CustomerDocument.objects.select_related('customer', 'verified_by').all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLoans]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['customer', 'document_type', 'verification_status', 'is_primary']
     search_fields = ['title', 'description', 'customer__customer_id', 'customer__first_name', 'customer__last_name']
@@ -264,7 +264,7 @@ class LoanViewSet(viewsets.ModelViewSet):
     ).prefetch_related(
         'payment_schedules', 'payments', 'collaterals'
     ).all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLoans]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'loan_type', 'customer']
     ordering_fields = ['created_at', 'disbursement_date', 'principal_amount']
@@ -1096,7 +1096,7 @@ class CollateralViewSet(viewsets.ModelViewSet):
     """
     queryset = Collateral.objects.select_related('loan').all()
     serializer_class = CollateralSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLoans]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['collateral_type', 'status', 'loan']
@@ -1140,7 +1140,7 @@ class CollectionReminderViewSet(viewsets.ModelViewSet):
     queryset = CollectionReminder.objects.select_related(
         'loan', 'customer', 'loan_schedule', 'sent_by'
     ).all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageCollections]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'reminder_type', 'channel', 'loan', 'customer']
     search_fields = [
@@ -1230,7 +1230,7 @@ class CollectionContactViewSet(viewsets.ModelViewSet):
     queryset = CollectionContact.objects.select_related(
         'loan', 'customer', 'contacted_by'
     ).all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageCollections]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = [
         'contact_type', 'outcome', 'loan', 'customer',
@@ -1348,7 +1348,7 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
     from .serializers import ContractTemplateSerializer, ContractTemplateListSerializer
 
     queryset = ContractTemplate.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLoans]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'is_default']
     search_fields = ['name', 'description']
@@ -1415,7 +1415,7 @@ class ContractViewSet(viewsets.ModelViewSet):
     queryset = Contract.objects.select_related(
         'loan', 'loan__customer', 'template', 'generated_by'
     ).all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLoans]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'loan', 'is_archived']
     search_fields = ['contract_number', 'loan__loan_number', 'loan__customer__first_name', 'loan__customer__last_name']
@@ -1497,7 +1497,7 @@ class ContractViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(contract)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def sign_customer(self, request, pk=None):
         """Mark contract as signed by customer"""
         contract = self.get_object()
@@ -1623,6 +1623,8 @@ class ContractViewSet(viewsets.ModelViewSet):
         contract.status = 'cancelled'
         contract.notes = f"{contract.notes}\n\nCancelado el {timezone.now().strftime('%Y-%m-%d %H:%M')} por {request.user.get_full_name()}"
         contract.save()
+        # Los enlaces públicos de firma pendientes dejan de servir.
+        contract.signature_tokens.filter(used_at__isnull=True).update(used_at=timezone.now())
 
         return Response({'message': 'Contrato cancelado'})
 
@@ -1902,6 +1904,12 @@ def public_contract_view(request, token):
 
         contract = signature_token.contract
 
+        if contract.status != 'pending_signature' or contract.is_archived:
+            return Response(
+                {'error': 'Este contrato ya no está disponible para firma'},
+                status=status.HTTP_410_GONE
+            )
+
         # Return contract details with token info
         serializer = PublicContractSerializer(contract)
         return Response({
@@ -1951,6 +1959,12 @@ def public_contract_sign(request, token):
                 )
 
         contract = signature_token.contract
+
+        if contract.status != 'pending_signature' or contract.is_archived:
+            return Response(
+                {'error': 'Este contrato ya no está disponible para firma'},
+                status=status.HTTP_410_GONE
+            )
 
         # Get signature data
         signature_data = request.data.get('signature_data')
@@ -2106,7 +2120,7 @@ class GuarantorViewSet(viewsets.ModelViewSet):
     ViewSet for managing loan guarantors (garantes/fiadores)
     """
     queryset = Guarantor.objects.select_related('loan', 'loan__customer').all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLoans]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['loan', 'status', 'relationship', 'id_type']
     search_fields = ['first_name', 'last_name', 'id_number', 'phone', 'email']
@@ -2135,7 +2149,7 @@ class CustomerPhoneViewSet(viewsets.ModelViewSet):
     """CRUD for customer phone numbers."""
     queryset = CustomerPhone.objects.all()
     serializer_class = CustomerPhoneSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageCollections]
     filterset_fields = ['customer', 'phone_type', 'is_primary']
 
 
@@ -2143,5 +2157,5 @@ class CustomerEmailViewSet(viewsets.ModelViewSet):
     """CRUD for customer email addresses."""
     queryset = CustomerEmail.objects.all()
     serializer_class = CustomerEmailSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageCollections]
     filterset_fields = ['customer', 'email_type', 'is_primary']

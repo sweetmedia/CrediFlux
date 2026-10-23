@@ -6,6 +6,7 @@ from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment,
 from .models_collections import CollectionReminder, CollectionContact
 from .models_contracts import ContractTemplate, Contract
 from .models_guarantors import Guarantor
+from .fields import TenantUserField
 
 
 class MoneyAmountField(serializers.DecimalField):
@@ -39,6 +40,7 @@ class CustomerDocumentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'file_size', 'file_type', 'verified_by', 'verified_at',
+            'verification_status', 'rejection_reason',
             'created_at', 'updated_at'
         ]
 
@@ -517,6 +519,7 @@ class LoanSerializer(serializers.ModelSerializer):
     """Full serializer for Loan model"""
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     customer_details = CustomerListSerializer(source='customer', read_only=True)
+    loan_officer = TenantUserField(required=False, allow_null=True)
     loan_officer_name = serializers.CharField(source='loan_officer.get_full_name', read_only=True)
     approved_by_name = serializers.CharField(source='approved_by.get_full_name', read_only=True, allow_null=True)
     rejected_by_name = serializers.CharField(source='rejected_by.get_full_name', read_only=True, allow_null=True)
@@ -558,7 +561,10 @@ class LoanSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'loan_number', 'outstanding_balance', 'total_paid',
-            'total_interest_paid', 'created_at', 'updated_at'
+            'total_interest_paid', 'created_at', 'updated_at',
+            # Estado y aprobación sólo cambian por las acciones approve/reject/disburse.
+            'status', 'approval_date', 'rejection_date', 'disbursement_date',
+            'maturity_date', 'approved_by', 'rejected_by', 'approval_notes',
         ]
 
     def get_days_overdue(self, obj):
@@ -694,6 +700,7 @@ class LoanCreateSerializer(serializers.ModelSerializer):
     interest_type = serializers.ChoiceField(
         choices=['flat', 'saldo_insoluto', 'french', 'german', 'fixed', 'variable', 'variable_rd']
     )
+    loan_officer = TenantUserField(required=False, allow_null=True)
 
     class Meta:
         model = Loan
@@ -902,7 +909,10 @@ class ContractSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'contract_number', 'generated_by', 'generated_at',
-            'updated_at', 'is_fully_signed'
+            'updated_at', 'is_fully_signed',
+            # Contenido, estado y firmas sólo cambian por las acciones del contrato.
+            'content', 'status', 'customer_signed_at', 'customer_signature',
+            'officer_signed_at', 'officer_signature', 'witness_signature', 'witness_signed_at',
         ]
 
 
