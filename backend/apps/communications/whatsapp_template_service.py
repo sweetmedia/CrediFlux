@@ -26,6 +26,11 @@ from .whatsapp_templates import CATALOG, NAME_PREFIX, TEMPLATE_LANGUAGE, create_
 logger = logging.getLogger(__name__)
 
 
+def _reason(value) -> str:
+    """Meta manda 'NONE' cuando no hay motivo de rechazo."""
+    return '' if not value or value == 'NONE' else str(value)
+
+
 def format_whatsapp_phone(phone) -> str:
     """Sólo dígitos; un número dominicano de 10 dígitos lleva el 1 delante."""
     cleaned = ''.join(filter(str.isdigit, str(phone)))
@@ -73,7 +78,7 @@ def sync_tenant_templates(tenant) -> dict:
         if found:
             local.status = found.get('status', local.status)
             local.meta_template_id = found.get('id', local.meta_template_id)
-            local.rejected_reason = found.get('rejected_reason') or ''
+            local.rejected_reason = _reason(found.get('rejected_reason'))
             summary['updated'].append(spec.name)
         else:
             base_url = signature_base_url(tenant) if spec.button_text else ''
@@ -114,8 +119,7 @@ def apply_status_update(event: dict) -> bool:
     if template is None:
         return False
     template.status = event.get('event') or template.status
-    reason = event.get('reason') or ''
-    template.rejected_reason = '' if reason in ('', 'NONE') else reason
+    template.rejected_reason = _reason(event.get('reason'))
     if template_id:
         template.meta_template_id = template_id
     template.synced_at = timezone.now()

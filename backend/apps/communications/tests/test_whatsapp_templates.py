@@ -122,13 +122,16 @@ def test_sincronizar_otra_vez_no_duplica(wa_tenant):
     from apps.communications.whatsapp_template_service import sync_tenant_templates
 
     responses.get(TEMPLATES_URL, json={'data': [
-        {'id': str(900 + i), 'name': s.name, 'language': 'es', 'status': 'PENDING'}
+        {'id': str(900 + i), 'name': s.name, 'language': 'es', 'status': 'PENDING', 'rejected_reason': 'NONE'}
         for i, s in enumerate(CATALOG.values())
     ]})
 
     summary = sync_tenant_templates(wa_tenant)
 
     assert summary['created'] == []
+    from apps.communications.models import WhatsAppTemplate
+
+    assert set(WhatsAppTemplate.objects.values_list('rejected_reason', flat=True)) == {''}  # 'NONE' no es motivo
     assert not [c for c in responses.calls if c.request.method == 'POST']
 
 
