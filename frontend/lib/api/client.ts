@@ -18,9 +18,16 @@ export function getApiUrl(): string {
   const backendPort = '8600'; // Backend mapped port (direct access)
 
   // If accessing via subdomain (e.g., democompany.localhost, caproinsa.localhost)
-  // use the same subdomain for API calls
+  // use the same subdomain for API calls, on the port VITE_API_URL points at
+  // (8100 for the V2 Docker stack; 8000 is V1/other projects).
   if (hostname.includes('.localhost')) {
-    return `http://${hostname}:8000`;
+    let apiPort = '8000';
+    try {
+      apiPort = new URL(import.meta.env.VITE_API_URL || 'http://localhost:8000').port || '8000';
+    } catch {
+      // keep default
+    }
+    return `http://${hostname}:${apiPort}`;
   }
 
   // If accessing via a proper domain (e.g., app.crediflux.com.do, demo.crediflux.com.do)
