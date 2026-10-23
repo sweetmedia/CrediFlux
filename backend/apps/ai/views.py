@@ -64,24 +64,50 @@ def get_ai_config():
     }
 
 
+# Proveedor del tenant (Tenant.ai_provider) → proveedor de litellm. 'custom' es
+# compatible con OpenAI (no hay base_url propia en el modelo Tenant).
+TENANT_LITELLM_PROVIDERS = {
+    'groq': 'groq',
+    'gemini': 'gemini',
+    'openai': 'openai',
+    'anthropic': 'anthropic',
+    'custom': 'openai',
+}
+
+# Modelo por defecto cuando el tenant trae clave propia pero no indica modelo:
+# siempre del proveedor del tenant, para que su clave nunca vaya a otro proveedor.
+TENANT_DEFAULT_MODELS = {
+    'groq': 'groq/llama-3.3-70b-versatile',
+    'gemini': 'gemini/gemini-2.0-flash',
+    'openai': 'openai/gpt-4o-mini',
+    'anthropic': 'anthropic/claude-opus-5-5',
+}
+
+
 def build_tenant_agent(agent_class, ai_config):
     """
     Instancia el agente con la configuración AI efectiva.
 
     Si el tenant tiene clave propia, se pasa por instancia en un ``ProviderConfig``
     (llega a litellm como ``api_key`` sólo en esta request); nunca se escribe en
-    ``os.environ``, que es global al proceso y compartido entre tenants.
+    ``os.environ``, que es global al proceso y compartido entre tenants. El
+    proveedor y el modelo se fijan al proveedor del tenant para que su clave no
+    se envíe nunca al proveedor global de la plataforma.
     """
     if not ai_config or ai_config['source'] != 'tenant':
         return agent_class()
 
-    provider = ai_config['provider']
-    model = ai_config.get('model') or ''
-    agent = agent_class(provider_config=ProviderConfig(
-        name=provider, api_key=ai_config['api_key'], default_model=model,
-    ))
-    if model:
-        agent.model = model
+    provider = TENANT_LITELLM_PROVIDERS.get(ai_config['provider'])
+    if provider is None:
+        raise ValueError(f"Proveedor AI no soportado: {ai_config['provider']}")
+
+    model = ai_config.get('model') or TENANT_DEFAULT_MODELS[provider]
+    if '/' not in model:
+        model = f'{provider}/{model}'
+
+    agent = agent_class(provider_config=ProviderConfig(name=provider, api_key=ai_config['api_key']))
+    agent.provider = provider
+    agent.model = model
     return agent
 
 
@@ -136,7 +162,10 @@ class ChatView(APIView):
                 )
 
         agent_class = self.AGENTS.get(agent_type, CrediFluxAssistant)
-        agent = build_tenant_agent(agent_class, ai_config)
+        try:
+            agent = build_tenant_agent(agent_class, ai_config)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         if conversation_id:
             agent = agent.with_conversation(conversation_id)

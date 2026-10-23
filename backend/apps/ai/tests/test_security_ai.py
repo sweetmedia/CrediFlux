@@ -126,6 +126,27 @@ def test_tenant_key_is_passed_per_request_not_via_environ(
     assert completion_mock.call_args.kwargs["model"] == "groq/llama-test"
 
 
+@pytest.mark.parametrize(
+    "model, expected_model",
+    [("", "openai/gpt-4o-mini"), ("gpt-4o-mini", "openai/gpt-4o-mini"), ("gpt-4.1", "openai/gpt-4.1")],
+)
+def test_tenant_key_only_goes_to_tenant_provider(
+    user_factory, ai_enabled, tenant_schema, completion_mock, model, expected_model
+):
+    """La clave OpenAI del tenant nunca se enruta al proveedor global (groq)."""
+    Tenant.objects.filter(pk=tenant_schema.pk).update(
+        enable_ai_assistant=True, ai_provider="openai", ai_model=model, ai_api_key=TENANT_KEY
+    )
+    client = _client(user_factory(role="loan_officer"))
+
+    response = _chat(client)
+
+    assert response.status_code == 200, response.data
+    completion_mock.assert_called_once()
+    assert completion_mock.call_args.kwargs["model"] == expected_model
+    assert completion_mock.call_args.kwargs["api_key"] == TENANT_KEY
+
+
 def test_viewer_cannot_put_ai_config(user_factory, tenant_schema):
     client = _client(user_factory(role="viewer", is_staff=True))
 
