@@ -2,11 +2,25 @@
 Middleware for tenant access control.
 Ensures users can only access tenants they have permission to access.
 """
+from functools import lru_cache
+
+from django.conf import settings
 from django.http import HttpResponseForbidden, JsonResponse
+from django.utils.module_loading import import_string
 from rest_framework.exceptions import AuthenticationFailed
-from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from apps.core.permissions import TenantMatches, user_matches_tenant
+
+ADMIN_AUTH_PATHS = ('/admin/login/', '/admin/logout/')
+
+
+@lru_cache(maxsize=1)
+def _jwt_authentication_class():
+    """Primera clase JWT de DEFAULT_AUTHENTICATION_CLASSES (la que usa DRF)."""
+    for path in settings.REST_FRAMEWORK.get('DEFAULT_AUTHENTICATION_CLASSES', []):
+        if 'JWT' in path.rsplit('.', 1)[-1]:
+            return import_string(path)
+    return None
 
 
 def _bearer_user(request):
@@ -16,8 +30,11 @@ def _bearer_user(request):
     """
     if not request.META.get('HTTP_AUTHORIZATION'):
         return None
+    auth_class = _jwt_authentication_class()
+    if auth_class is None:
+        return None
     try:
-        result = JWTAuthentication().authenticate(request)
+        result = auth_class().authenticate(request)
     except AuthenticationFailed:
         return None
     return result[0] if result else None
@@ -28,9 +45,11 @@ class TenantAccessControlMiddleware:
     Middleware to control tenant access based on user permissions.
 
     Rules:
-    - An authenticated credential (session or JWT bearer) is only valid on the
-      host of the user's own tenant; platform superusers with tenant=None are
-      valid on any host. The JWT check lives here, and not only in the DRF
+    - Every authenticated credential on the request (session and/or JWT
+      bearer) must belong to the host's tenant; platform superusers with
+      tenant=None are valid on any host. Both are checked because DRF prefers
+      the bearer over the session, so a matching session must not cover a
+      foreign token. The JWT check lives here, and not only in the DRF
       `TenantMatches` default permission, because many views declare their own
       `permission_classes` and would skip the default.
     - Only staff users can access /admin/.
@@ -41,18 +60,18 @@ class TenantAccessControlMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # Skip login/logout
-        if '/admin/login/' in request.path or '/admin/logout/' in request.path:
+        if request.path in ADMIN_AUTH_PATHS:
             return self.get_response(request)
 
+        principals = []
         if request.user.is_authenticated:
-            user = request.user
-        else:
-            user = _bearer_user(request)
-            if user is None:
-                return self.get_response(request)
+            principals.append(request.user)
+        bearer_user = _bearer_user(request)
+        if bearer_user is not None:
+            principals.append(bearer_user)
 
-        if not user_matches_tenant(user, getattr(request, 'tenant', None)):
+        tenant = getattr(request, 'tenant', None)
+        if any(not user_matches_tenant(user, tenant) for user in principals):
             if request.path.startswith('/api/'):
                 return JsonResponse({'detail': TenantMatches.message}, status=403)
             return HttpResponseForbidden(TenantMatches.message)

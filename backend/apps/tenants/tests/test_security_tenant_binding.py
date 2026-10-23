@@ -43,6 +43,14 @@ def test_team_detail_requires_a_tenant(tenant_schema, user_factory, public_clien
     viewer = user_factory(role="viewer", tenant=None)
     assert public_client.get(f"/api/users/team/{su.pk}/", **bearer(viewer)).status_code == 403
 
+def test_own_host_session_does_not_cover_a_foreign_bearer(tenant_schema, user_factory, other_tenant):
+    own = user_factory(role="viewer")
+    foreign_admin = user_factory(role="admin", tenant=other_tenant)
+    client = APIClient(HTTP_HOST=TENANT)
+    client.force_login(own)
+    assert client.get("/api/users/profile/", **bearer(foreign_admin)).status_code == 403
+    assert client.get("/api/users/profile/").status_code == 200
+
 def test_session_user_is_rejected_on_other_host(tenant_schema, user_factory, other_tenant):
     user = user_factory(role="admin")
     client = APIClient(HTTP_HOST=OTHER)
