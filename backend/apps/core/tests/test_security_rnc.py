@@ -166,3 +166,49 @@ def test_collector_can_query_cedula(api_client, user_factory):
     api_client.force_authenticate(user=user_factory(role="collector"))
     response = api_client.get(CEDULA_URL, {"cedula": "123"})
     assert response.status_code == 400  # pasa el permiso y llega a la validación
+
+
+# --- Fix round 1: claves sin relleno y TTL de registros > TTL del meta ---------
+
+def _record(name):
+    return {"razon_social": name, "actividad_economica": "", "fecha_inicio": "",
+            "estado": "ACTIVO", "regimen_pago": "NORMAL"}
+
+
+def test_nine_digit_rnc_and_padded_cedula_do_not_collide():
+    store_rnc_records(
+        {"101234567": _record("EMPRESA SRL"), "00101234567": _record("JUAN PEREZ")},
+        source="test",
+    )
+    assert validate_rnc("101234567", allow_scrape=False)["data"]["razon_social"] == "EMPRESA SRL"
+    assert validate_rnc("00101234567", allow_scrape=False)["data"]["razon_social"] == "JUAN PEREZ"
+    assert validate_rnc("1-01-23456-7", allow_scrape=False)["data"]["razon_social"] == "EMPRESA SRL"
+    assert cache.get("dgii_rnc_database_meta")["count"] == 2
+
+
+def test_meta_count_is_number_of_distinct_keys():
+    # "101-234567" y "101234567" son la misma clave tras quitar guiones.
+    store_rnc_records(
+        {"101-234567": _record("A"), "101234567": _record("B"), "00101234567": _record("C")},
+        source="test",
+    )
+    assert cache.get("dgii_rnc_database_meta")["count"] == 2
+
+
+def test_scraped_nine_digit_rnc_is_cached_under_unpadded_key(loaded_registry):
+    scraped = {"rnc": "00130000001", "razon_social": "NUEVA SRL", "estado": "ACTIVO",
+               "is_active": True}
+    with mock.patch(SCRAPER, return_value=scraped):
+        validate_rnc("130000001", allow_scrape=True)
+    assert cache.get("dgii_rnc:130000001")["razon_social"] == "NUEVA SRL"
+    assert cache.get("dgii_rnc:00130000001") is None
+
+
+def test_records_outlive_meta():
+    with mock.patch.object(cache, "set_many", wraps=cache.set_many) as set_many, \
+            mock.patch.object(cache, "set", wraps=cache.set) as set_:
+        store_rnc_records(fake_registry(10), source="test", timeout=7 * 24 * 3600)
+    record_timeouts = {c.kwargs["timeout"] for c in set_many.call_args_list}
+    meta_timeout = next(c.kwargs["timeout"] for c in set_.call_args_list
+                        if c.args[0] == "dgii_rnc_database_meta")
+    assert record_timeouts and all(t > meta_timeout for t in record_timeouts)

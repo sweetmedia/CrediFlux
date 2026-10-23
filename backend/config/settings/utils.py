@@ -366,11 +366,12 @@ def dashboard_callback(request, context):
             connection.set_schema('public')
 
             # Check RNC database status
-            rnc_cache_meta = cache.get('dgii_rnc_database_meta')
+            from apps.core.services.rnc_lookup import RNCLookupService
+            rnc_cache_meta = RNCLookupService.get_database_stats()
             rnc_status = {
                 'enabled': constance_config.DGII_RNC_ENABLED,
-                'total_records': rnc_cache_meta.get('total_records', 0) if rnc_cache_meta else 0,
-                'last_updated': rnc_cache_meta.get('last_updated', 'Never') if rnc_cache_meta else 'Never',
+                'total_records': rnc_cache_meta.get('count', 0) if rnc_cache_meta else 0,
+                'last_updated': rnc_cache_meta.get('loaded_at', 'Never') if rnc_cache_meta else 'Never',
             }
 
             context.update({

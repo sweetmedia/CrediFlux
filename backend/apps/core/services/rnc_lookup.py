@@ -27,11 +27,16 @@ META_KEY = 'dgii_rnc_database_meta'
 # Formato anterior: todo el padrón en una sola clave JSON. Nunca se lee.
 LEGACY_CACHE_KEY = 'dgii_rnc_database'
 BATCH_SIZE = 5000
+# Los registros viven más que el meta: si el meta existe, sus registros también.
+RECORD_TTL_MARGIN = 3600
 
 
 def record_key(rnc: str) -> str:
-    """Cache key for an RNC; normalized like lookups (11 digits, zero-padded)."""
-    return f'{RECORD_KEY_PREFIX}{RNCLookupService._normalize_rnc(rnc)}'
+    """
+    Cache key for an RNC: its digits without padding (9 for RNC, 11 for cédula).
+    Padding would make RNC 1XXXXXXXX and cédula 001XXXXXXXX share a key.
+    """
+    return f'{RECORD_KEY_PREFIX}{RNCLookupService._digits(rnc)}'
 
 
 def store_rnc_records(rnc_data: Dict[str, Dict], *, source: str, timeout=None) -> int:
@@ -40,17 +45,19 @@ def store_rnc_records(rnc_data: Dict[str, Dict], *, source: str, timeout=None) -
     The meta key is written last, so the registry only counts as loaded once
     every record is in place. Shared by the management command and the Celery task.
     """
-    count = 0
+    record_timeout = None if timeout is None else timeout + RECORD_TTL_MARGIN
+    stored_keys = set()
     batch = {}
     for rnc, record in rnc_data.items():
-        batch[record_key(rnc)] = record
+        key = record_key(rnc)
+        batch[key] = record
+        stored_keys.add(key)
         if len(batch) >= BATCH_SIZE:
-            cache.set_many(batch, timeout=timeout)
-            count += len(batch)
+            cache.set_many(batch, timeout=record_timeout)
             batch = {}
     if batch:
-        cache.set_many(batch, timeout=timeout)
-        count += len(batch)
+        cache.set_many(batch, timeout=record_timeout)
+    count = len(stored_keys)
 
     cache.set(
         META_KEY,
@@ -85,7 +92,7 @@ class RNCLookupService:
         if not rnc_or_cedula or not cls._is_valid_format(rnc_or_cedula):
             return None
 
-        rnc_clean = cls._normalize_rnc(rnc_or_cedula)
+        rnc_clean = cls._digits(rnc_or_cedula)
         record = cache.get(record_key(rnc_clean))
         if not isinstance(record, dict):
             return None
@@ -178,7 +185,7 @@ class RNCLookupService:
                 logger.info(f'RNC Validation Layer 3: Successfully scraped {rnc_or_cedula} from DGII')
 
                 # Cache the scraped result for future lookups
-                cls._cache_scraped_result(scraped_data)
+                cls._cache_scraped_result(scraped_data, rnc=cls._digits(rnc_or_cedula))
 
                 return {
                     'is_valid': True,
@@ -234,12 +241,13 @@ class RNCLookupService:
         return None
 
     @classmethod
-    def _cache_scraped_result(cls, scraped_data: Dict) -> None:
+    def _cache_scraped_result(cls, scraped_data: Dict, rnc: Optional[str] = None) -> None:
         """
         Cache a scraped result under its own key so future lookups hit Layer 2.
+        ``rnc`` is the caller's input digits (the scraper receives a padded form).
         """
         try:
-            rnc = scraped_data.get('rnc')
+            rnc = rnc or scraped_data.get('rnc')
             if not rnc:
                 logger.warning('Cannot cache scraped result: no RNC in data')
                 return
@@ -262,9 +270,15 @@ class RNCLookupService:
             logger.error(f'Error caching scraped result: {str(e)}', exc_info=True)
 
     @staticmethod
+    def _digits(rnc: str) -> str:
+        """Strip spaces and dashes, no padding: the cache-key form."""
+        return re.sub(r'[\s\-]', '', rnc)
+
+    @staticmethod
     def _normalize_rnc(rnc: str) -> str:
         """
         Normalize RNC/Cedula by removing spaces, dashes, and padding with zeros
+        (only for the DGII scraper; cache keys use ``_digits``)
 
         Examples:
             '1-23-45678-9' -> '00102345678'
