@@ -41,7 +41,8 @@ def make_tenant(**overrides):
 
 
 def make_user(**overrides):
-    fields = dict(is_authenticated=True, is_superuser=False, is_tenant_owner=False, role='loan_officer')
+    # Contador: rol de facturación (CanManageBilling) sin ser dueño ni admin.
+    fields = dict(is_authenticated=True, is_superuser=False, is_tenant_owner=False, role='accountant')
     fields.update(overrides)
     return SimpleNamespace(**fields)
 

@@ -325,7 +325,9 @@ class CancelEndpointTests(SimpleTestCase):
 
     def call(self, data):
         request = APIRequestFactory().post('/api/billing/ecf-provider/cancel/', data, format='json')
-        force_authenticate(request, user=SimpleNamespace(is_authenticated=True, is_active=True))
+        user = SimpleNamespace(is_authenticated=True, is_active=True, is_superuser=False,
+                               is_tenant_owner=False, role='accountant')
+        force_authenticate(request, user=user)
         view = billing_views.ECFProviderViewSet.as_view({'post': 'cancel_invoice'}, throttle_classes=[])
         return view(request)
 

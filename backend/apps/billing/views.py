@@ -2,11 +2,17 @@
 API ViewSets for the Billing app.
 """
 import logging
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+
+from .permissions import CanManageBilling
 
 from .models import (
     DigitalCertificate, FiscalSequence, Invoice, InvoiceItem, ECFSubmission
@@ -27,6 +33,20 @@ from .services.nexconnect.provider import PROVIDER_KEY as NEXCONNECT, nexconnect
 
 logger = logging.getLogger(__name__)
 
+DRAFT_ONLY_ERROR = 'Solo facturas en borrador pueden modificarse'
+
+
+def tenant_dgii_environment():
+    """Ambiente DGII del tenant; nunca se toma del request."""
+    return getattr(current_tenant(), 'dgii_environment', None) or 'testecf'
+
+
+def usable_certificates():
+    """Certificados con los que se puede firmar: activos y no vencidos."""
+    return DigitalCertificate.objects.filter(is_active=True).filter(
+        Q(valid_until__isnull=True) | Q(valid_until__gt=timezone.now())
+    )
+
 
 def provider_error_status(error: ECFProviderError) -> int:
     """502 si NexConnect no respondió o falló (5xx); 400 para lo demás."""
@@ -46,7 +66,7 @@ NEXCONNECT_DIRECT_FLOW_ERROR = (
 class DigitalCertificateViewSet(viewsets.ModelViewSet):
     """CRUD para certificados digitales."""
     queryset = DigitalCertificate.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageBilling]
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
@@ -58,7 +78,7 @@ class FiscalSequenceViewSet(viewsets.ModelViewSet):
     """CRUD para secuencias fiscales e-NCF."""
     queryset = FiscalSequence.objects.all()
     serializer_class = FiscalSequenceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageBilling]
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):
@@ -70,7 +90,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
       actualizar estado. El flujo directo queda bloqueado para esos tenants.
     """
     queryset = Invoice.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageBilling]
 
     def _refuse_direct_flow(self):
         """Respuesta 400 si el tenant emite vía NexConnect; None si puede usar el flujo directo."""
@@ -90,6 +110,16 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        if serializer.instance.status != 'draft':
+            raise ValidationError(DRAFT_ONLY_ERROR)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.status != 'draft':
+            raise ValidationError(DRAFT_ONLY_ERROR)
+        instance.delete()
 
     @action(detail=True, methods=['post'], url_path='generate-ecf')
     def generate_ecf(self, request, pk=None):
@@ -122,28 +152,33 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            encf = sequence.get_next_encf()
-            if not encf:
-                return Response(
-                    {'error': 'Secuencia fiscal agotada'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            # Atómico: si el XML falla, el e-NCF asignado no se pierde.
+            with transaction.atomic():
+                encf = sequence.get_next_encf()
+                if not encf:
+                    return Response(
+                        {'error': 'Secuencia fiscal agotada'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-            # Asignar datos del tenant como emisor
-            from django.db import connection
-            from apps.tenants.models import Tenant
-            tenant = Tenant.objects.get(schema_name=connection.schema_name)
+                # Asignar datos del tenant como emisor
+                from django.db import connection
+                from apps.tenants.models import Tenant
+                tenant = Tenant.objects.get(schema_name=connection.schema_name)
 
-            invoice.encf_number = encf
-            invoice.fiscal_sequence = sequence
-            invoice.emisor_rnc = tenant.tax_id or ''
-            invoice.emisor_razon_social = tenant.business_name or tenant.name
+                invoice.encf_number = encf
+                invoice.fiscal_sequence = sequence
+                invoice.emisor_rnc = tenant.tax_id or ''
+                invoice.emisor_razon_social = tenant.business_name or tenant.name
 
-            # Generar XML
-            generator = ECFGenerator(invoice)
-            invoice.xml_content = generator.generate()
-            invoice.status = 'generated'
-            invoice.save()
+                # Los totales salen de las líneas, no de lo que se haya guardado antes.
+                invoice.recalculate_totals()
+
+                # Generar XML
+                generator = ECFGenerator(invoice)
+                invoice.xml_content = generator.generate()
+                invoice.status = 'generated'
+                invoice.save()
 
             return Response(
                 InvoiceDetailSerializer(invoice).data,
@@ -173,16 +208,23 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
         certificate_id = request.data.get('certificate_id')
         if not certificate_id:
-            # Usar certificado activo por defecto
-            cert = DigitalCertificate.objects.filter(is_active=True).first()
+            # Usar certificado activo y vigente por defecto
+            cert = usable_certificates().first()
+            if not cert:
+                return Response(
+                    {'error': 'No hay certificado digital activo y vigente disponible'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         else:
-            cert = DigitalCertificate.objects.filter(id=certificate_id).first()
-
-        if not cert:
-            return Response(
-                {'error': 'No hay certificado digital disponible'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            try:
+                cert = usable_certificates().filter(id=certificate_id).first()
+            except DjangoValidationError:  # id que no es un UUID
+                cert = None
+            if not cert:
+                return Response(
+                    {'error': 'El certificado indicado no existe, no está activo o está vencido'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         try:
             signer = ECFSigner(
@@ -226,11 +268,9 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        environment = request.data.get('environment', 'testecf')
-
         try:
             client = DGIIClient(
-                environment=environment,
+                environment=tenant_dgii_environment(),
                 certificate_path=cert.certificate_file.path if cert.certificate_file else None,
                 certificate_password=cert.certificate_password
             )
@@ -270,11 +310,9 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             )
 
         cert = invoice.certificate
-        environment = request.query_params.get('environment', 'testecf')
-
         try:
             client = DGIIClient(
-                environment=environment,
+                environment=tenant_dgii_environment(),
                 certificate_path=cert.certificate_file.path if cert and cert.certificate_file else None,
                 certificate_password=cert.certificate_password if cert else None,
             )
@@ -366,7 +404,7 @@ class ECFProviderViewSet(viewsets.ViewSet):
     """
     Endpoints para gestión del proveedor e-CF configurado.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageBilling]
 
     @action(detail=False, methods=['get', 'patch'], url_path='config')
     def config(self, request):
@@ -491,7 +529,7 @@ class DGIIReportViewSet(viewsets.ViewSet):
         GET /api/billing/dgii-reports/606/?year=2026&month=3  → summary JSON
         GET /api/billing/dgii-reports/606/csv/?year=2026&month=3  → CSV download
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageBilling]
 
     def _parse_period(self, request):
         """Extract year and month from query params"""

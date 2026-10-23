@@ -3,7 +3,7 @@ Models for the Billing (Facturación Electrónica) app.
 Handles e-CF generation, digital signing, and DGII submission.
 """
 from decimal import Decimal
-from django.db import models
+from django.db import models, transaction
 from django.core.validators import MinValueValidator
 from djmoney.models.fields import MoneyField
 from apps.core.models import UUIDModel, AuditModel, TimeStampedModel
@@ -127,11 +127,18 @@ class FiscalSequence(UUIDModel, TimeStampedModel):
         Obtiene el próximo e-NCF disponible y avanza el contador.
         Returns: str (ej: 'E310000000001') or None si agotada.
         """
-        if self.is_exhausted or not self.is_active:
-            return None
-        encf = f'{self.prefix}{str(self.current_number).zfill(10)}'
-        self.current_number += 1
-        self.save(update_fields=['current_number'])
+        with transaction.atomic():
+            # Relee la fila bajo bloqueo: dos emisiones concurrentes (o una
+            # instancia desactualizada) nunca reciben el mismo número.
+            locked = type(self).objects.select_for_update().get(pk=self.pk)
+            self.current_number = locked.current_number
+            self.is_active = locked.is_active
+            if locked.is_exhausted or not locked.is_active:
+                return None
+            encf = f'{locked.prefix}{str(locked.current_number).zfill(10)}'
+            locked.current_number += 1
+            locked.save(update_fields=['current_number'])
+        self.current_number = locked.current_number
         return encf
 
 
@@ -335,6 +342,28 @@ class Invoice(UUIDModel, AuditModel):
         encf = self.encf_number or 'SIN-NCF'
         return f'{encf} - {self.comprador_razon_social} ({self.total})'
 
+    def recalculate_totals(self):
+        """
+        Recalcula subtotal, ITBIS, descuento y total sumando las líneas
+        (cada línea se recalcula con ``InvoiceItem.calculate_totals``).
+        """
+        subtotal = total_itbis = total_discount = Decimal('0.00')
+        for item in self.items.all():
+            item.calculate_totals()
+            item.save(update_fields=['itbis_amount', 'itbis_amount_currency',
+                                     'total', 'total_currency'])
+            total_discount += item.discount_amount.amount
+            total_itbis += item.itbis_amount.amount
+            subtotal += item.total.amount - item.itbis_amount.amount
+        self.subtotal = subtotal
+        self.total_itbis = total_itbis
+        self.total_discount = total_discount
+        self.total = subtotal + total_itbis
+        self.save(update_fields=[
+            'subtotal', 'subtotal_currency', 'total_itbis', 'total_itbis_currency',
+            'total_discount', 'total_discount_currency', 'total', 'total_currency',
+        ])
+
 
 class InvoiceItem(UUIDModel):
     """
@@ -405,10 +434,13 @@ class InvoiceItem(UUIDModel):
 
     def calculate_totals(self):
         """Calcula ITBIS y total de la línea."""
-        subtotal = self.quantity * self.unit_price.amount - self.discount_amount.amount
+        cents = Decimal('0.01')
+        subtotal = (self.quantity * self.unit_price.amount - self.discount_amount.amount).quantize(cents)
         itbis_rate = Decimal(self.itbis_rate) / Decimal('100')
-        self.itbis_amount = subtotal * itbis_rate
-        self.total = subtotal + self.itbis_amount
+        # Local en Decimal: tras asignarlo, self.itbis_amount es Money y no suma con Decimal.
+        itbis_amount = (subtotal * itbis_rate).quantize(cents)
+        self.itbis_amount = itbis_amount
+        self.total = subtotal + itbis_amount
 
 
 class ECFSubmission(UUIDModel, TimeStampedModel):

@@ -48,7 +48,14 @@ class FiscalSequenceSerializer(serializers.ModelSerializer):
             'available_count', 'is_exhausted',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'available_count', 'is_exhausted', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'current_number', 'available_count', 'is_exhausted', 'created_at', 'updated_at',
+        ]
+
+    def create(self, validated_data):
+        # El contador sólo lo avanza get_next_encf; una secuencia nueva arranca al inicio del rango.
+        validated_data['current_number'] = validated_data['range_from']
+        return super().create(validated_data)
 
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
@@ -135,6 +142,12 @@ class InvoiceDetailSerializer(serializers.ModelSerializer):
             'id', 'encf_number', 'xml_content', 'signed_xml',
             'dgii_trackid', 'dgii_status', 'dgii_response', 'dgii_submitted_at',
             'created_at', 'updated_at', 'created_by',
+            # Estado e identidad fiscal: sólo los fija el flujo (generate/sign/submit).
+            'status', 'fiscal_sequence', 'certificate', 'security_code',
+            'emisor_rnc', 'emisor_razon_social', 'comprador_rnc', 'comprador_razon_social',
+            # Totales: salen de las líneas (Invoice.recalculate_totals).
+            'subtotal', 'total_itbis', 'total_discount', 'total',
+            'subtotal_currency', 'total_itbis_currency', 'total_discount_currency', 'total_currency',
         ]
 
     def get_ecf_provider(self, obj):
