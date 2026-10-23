@@ -1,13 +1,13 @@
 import pytest
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.tokens import RefreshToken
+from apps.users.tokens import issue_tokens
 
 pytestmark = pytest.mark.django_db
 TENANT = "tenant.test.localhost"
 OTHER = "other.test.localhost"
 
 def bearer(user):
-    return {"HTTP_AUTHORIZATION": f"Bearer {RefreshToken.for_user(user).access_token}"}
+    return {"HTTP_AUTHORIZATION": f"Bearer {issue_tokens(user).access_token}"}
 
 def test_token_of_tenant_user_is_rejected_on_other_host(tenant_schema, user_factory, other_tenant):
     user = user_factory(role="admin")
@@ -32,6 +32,7 @@ def test_users_of_inactive_tenant_are_rejected(tenant_schema, user_factory):
     user = user_factory(role="admin")
     tenant_schema.is_active = False
     tenant_schema.save(update_fields=["is_active"])
+    user.refresh_from_db()  # la desactivación movió password_changed_at; token vigente
     try:
         assert APIClient(HTTP_HOST=TENANT).get("/api/users/profile/", **bearer(user)).status_code == 403
     finally:

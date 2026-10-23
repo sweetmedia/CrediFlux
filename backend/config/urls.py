@@ -8,9 +8,9 @@ from django.conf.urls.static import static
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
+from rest_framework_simplejwt.views import TokenVerifyView
 from apps.billing.webhooks import NexConnectWebhookView
-from apps.users.views import CustomConfirmEmailView
+from apps.users.views import CustomConfirmEmailView, TenantAwareTokenRefreshView
 
 # Swagger/OpenAPI configuration
 schema_view = get_schema_view(
@@ -44,7 +44,7 @@ urlpatterns = [
 
     # Authentication: only JWT refresh/verify. Login, password and registration
     # live in /api/tenants/login/, /api/users/auth/* and /api/tenants/register/.
-    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/token/refresh/', TenantAwareTokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
 
     # API endpoints

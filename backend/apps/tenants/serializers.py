@@ -4,7 +4,7 @@ Serializers for Tenant API endpoints
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from django.db import transaction
-from rest_framework_simplejwt.tokens import RefreshToken
+from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
 
 User = get_user_model()
@@ -635,7 +635,7 @@ class TenantLoginSerializer(serializers.Serializer):
             }
 
         # Generate JWT tokens (no 2FA required)
-        refresh = RefreshToken.for_user(user)
+        refresh = issue_tokens(user)
 
         # Update last login
         from django.utils import timezone

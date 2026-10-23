@@ -13,6 +13,7 @@ from unfold.decorators import display, action
 from allauth.account.models import EmailAddress
 from allauth.account.utils import send_email_confirmation
 from .models import User
+from .tokens import revoke_user_credentials
 
 
 @admin.register(User)
@@ -166,6 +167,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 new_password = get_random_string(12, 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$%')
                 user.set_password(new_password)
                 user.save()
+                revoke_user_credentials(user)
                 messages.success(
                     request,
                     f'✅ Contraseña de {user.email} reseteada. '
@@ -182,6 +184,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             else:
                 user.set_password(new_password)
                 user.save()
+                revoke_user_credentials(user)
                 messages.success(
                     request,
                     f'✅ Contraseña de {user.email} actualizada exitosamente.'
@@ -220,6 +223,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             new_password = get_random_string(12, 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$%')
             user.set_password(new_password)
             user.save()
+            revoke_user_credentials(user)
             results.append(f'{user.email}: {new_password}')
 
         self.message_user(

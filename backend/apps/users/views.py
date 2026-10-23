@@ -12,6 +12,7 @@ from django.shortcuts import redirect
 from django.conf import settings
 from allauth.account.views import ConfirmEmailView
 from allauth.account.models import EmailConfirmation, EmailConfirmationHMAC
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from .serializers import (
     UserSerializer,
@@ -30,6 +31,7 @@ from .serializers import (
     TwoFactorLoginSerializer,
     TwoFactorDisableSerializer,
     BackupCodesRegenerateSerializer,
+    TenantAwareTokenRefreshSerializer,
 )
 
 User = get_user_model()
@@ -189,6 +191,15 @@ class PasswordResetConfirmView(APIView):
             return Response(result, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ============================================================================
+# TOKEN REFRESH
+# ============================================================================
+
+class TenantAwareTokenRefreshView(TokenRefreshView):
+    """Refresh de JWT ligado a la credencial y al tenant del host."""
+    serializer_class = TenantAwareTokenRefreshSerializer
 
 
 # ============================================================================
@@ -756,7 +767,7 @@ class TwoFactorLoginVerifyView(APIView):
     )
     def post(self, request):
         """Verify 2FA code during login"""
-        from rest_framework_simplejwt.tokens import RefreshToken
+        from .tokens import issue_tokens
 
         serializer = TwoFactorLoginSerializer(data=request.data)
 
@@ -764,7 +775,7 @@ class TwoFactorLoginVerifyView(APIView):
             user = serializer.validated_data['user']
 
             # Generate JWT tokens
-            refresh = RefreshToken.for_user(user)
+            refresh = issue_tokens(user)
 
             # Update last login
             from django.utils import timezone

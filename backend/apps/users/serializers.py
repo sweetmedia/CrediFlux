@@ -10,6 +10,12 @@ from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.settings import api_settings as jwt_settings
+
+from apps.core.permissions import user_matches_tenant
+from .authentication import token_revoked
+from .tokens import PWD_TS_CLAIM, issue_tokens, password_timestamp, revoke_user_credentials
 from dj_rest_auth.serializers import LoginSerializer as BaseLoginSerializer
 
 User = get_user_model()
@@ -160,10 +166,6 @@ class EmailVerificationSendSerializer(serializers.Serializer):
             'message': 'Verification email sent successfully.',
         }
 
-        if settings.DEBUG:
-            response['uid'] = uid
-            response['token'] = token
-
         return response
 
 
@@ -291,10 +293,6 @@ class PasswordResetRequestSerializer(serializers.Serializer):
                 'message': 'If an account exists with this email, a password reset link has been sent.',
             }
 
-            if settings.DEBUG:
-                response['uid'] = uid
-                response['token'] = token
-
             return response
 
         except User.DoesNotExist:
@@ -364,11 +362,48 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
         user.set_password(new_password)
         user.save()
+        revoke_user_credentials(user)
 
         return {
             'message': 'Password has been reset successfully. You can now login with your new password.',
             'email': user.email,
         }
+
+
+# ============================================================================
+# TOKEN REFRESH
+# ============================================================================
+
+class TenantAwareTokenRefreshSerializer(TokenRefreshSerializer):
+    """Refresh que exige que la credencial siga vigente en el tenant del host.
+
+    Rechaza (401 `token_revoked`) si el usuario no existe o está inactivo, si
+    `pwd_ts` falta o no coincide con `password_changed_at`, o si el usuario no
+    puede operar en `request.tenant`. Rota siempre: el refresh usado queda en
+    lista negra y se emite un par nuevo con `issue_tokens`. Responde con la
+    misma forma que simplejwt (`access`, `refresh`).
+    """
+
+    def validate(self, attrs):
+        # Firma, expiración y lista negra (TokenError -> 401 en la vista).
+        refresh = self.token_class(attrs['refresh'])
+
+        user = User.objects.select_related('tenant').filter(
+            **{jwt_settings.USER_ID_FIELD: refresh.get(jwt_settings.USER_ID_CLAIM)}
+        ).first()
+        request = self.context.get('request')
+        if (
+            user is None
+            or not user.is_active
+            or PWD_TS_CLAIM not in refresh
+            or refresh[PWD_TS_CLAIM] != password_timestamp(user)
+            or not user_matches_tenant(user, getattr(request, 'tenant', None))
+        ):
+            raise token_revoked()
+
+        refresh.blacklist()
+        new_refresh = issue_tokens(user)
+        return {'access': str(new_refresh.access_token), 'refresh': str(new_refresh)}
 
 
 # ============================================================================
@@ -475,6 +510,7 @@ class PasswordChangeSerializer(serializers.Serializer):
 
         user.set_password(new_password)
         user.save()
+        revoke_user_credentials(user)
 
         return {
             'message': 'Password changed successfully.',
@@ -742,6 +778,12 @@ class TwoFactorLoginSerializer(serializers.Serializer):
         except User.DoesNotExist:
             raise serializers.ValidationError({
                 'temp_token': 'Invalid session. Please login again.'
+            })
+
+        if not user.is_active or (user.tenant and not user.tenant.is_active):
+            cache.delete(f'2fa_pending_{temp_token}')
+            raise serializers.ValidationError({
+                'temp_token': 'This account or its organization has been deactivated.'
             })
 
         # Verify TOTP code
