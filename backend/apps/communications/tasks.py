@@ -216,7 +216,9 @@ def send_whatsapp_message(
                     to=formatted_phone,
                     text=message_text
                 )
-                wa_message_id = result  # PyWa returns the message ID
+                # pywa >= 2 returns a SentMessage object; older versions returned the id string.
+                # Store the bare wamid so status webhooks can find this message.
+                wa_message_id = getattr(result, 'id', result)
             except Exception as e:
                 logger.error(f"Failed to send WhatsApp message: {e}")
                 wa_message_id = f"failed_{uuid.uuid4().hex[:16]}"
