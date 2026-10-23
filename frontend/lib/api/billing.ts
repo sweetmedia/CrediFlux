@@ -5,6 +5,9 @@ import {
   FiscalSequence,
   DigitalCertificate,
   ECFSubmission,
+  ECFProviderConfig,
+  ECFProviderConfigUpdate,
+  ECFProviderStatus,
 } from '@/types/billing';
 import { PaginatedResponse } from '@/types';
 
@@ -80,6 +83,36 @@ export const billingAPI = {
     return apiClient.get(`/api/billing/invoices/${id}/dgii-status/${params}`);
   },
 
+  // NexConnect: emitir en un paso (asigna e-NCF, firma y envía a la DGII)
+  async emitInvoice(id: string): Promise<{
+    message: string;
+    status: string;
+    ncf: string;
+    invoice: Invoice;
+  }> {
+    return apiClient.post(`/api/billing/invoices/${id}/emit/`);
+  },
+
+  // NexConnect: consultar el estado actual
+  async refreshInvoiceStatus(id: string): Promise<{
+    status: string;
+    is_final: boolean;
+    invoice: Invoice;
+  }> {
+    return apiClient.post(`/api/billing/invoices/${id}/refresh-status/`);
+  },
+
+  // NexConnect: anular con una Nota de Crédito E34 (idempotente: reusa la E34 viva)
+  async cancelInvoice(id: string, reason: string): Promise<{
+    status: string;
+    ncf: string;
+    credit_note_id: string;
+    created: boolean;
+    message: string;
+  }> {
+    return apiClient.post('/api/billing/ecf-provider/cancel/', { invoice_id: id, reason });
+  },
+
   // Get invoice submissions history
   async getInvoiceSubmissions(id: string): Promise<ECFSubmission[]> {
     return apiClient.get<ECFSubmission[]>(`/api/billing/invoices/${id}/submissions/`);
@@ -137,6 +170,22 @@ export const billingAPI = {
 
   async deleteCertificate(id: string): Promise<void> {
     return apiClient.delete(`/api/billing/certificates/${id}/`);
+  },
+
+  // ============================================================
+  // e-CF provider (tenant)
+  // ============================================================
+
+  async getProviderConfig(): Promise<ECFProviderConfig> {
+    return apiClient.get<ECFProviderConfig>('/api/billing/ecf-provider/config/');
+  },
+
+  async updateProviderConfig(data: ECFProviderConfigUpdate): Promise<ECFProviderConfig> {
+    return apiClient.patch<ECFProviderConfig>('/api/billing/ecf-provider/config/', data);
+  },
+
+  async testProviderConnection(): Promise<ECFProviderStatus> {
+    return apiClient.get<ECFProviderStatus>('/api/billing/ecf-provider/status/');
   },
 
   // ============================================================

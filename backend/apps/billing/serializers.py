@@ -6,6 +6,9 @@ from .models import (
     DigitalCertificate, FiscalSequence, Invoice, InvoiceItem, ECFSubmission
 )
 
+# Estados locales en los que la DGII ya no va a cambiar nada.
+FINAL_INVOICE_STATUSES = {'accepted', 'conditionally_accepted', 'rejected', 'cancelled'}
+
 
 class DigitalCertificateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -85,6 +88,17 @@ class InvoiceDetailSerializer(serializers.ModelSerializer):
     ecf_type_display = serializers.CharField(source='get_ecf_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+    ecf_provider = serializers.SerializerMethodField(
+        help_text='Flujo de emisión de esta factura: "nexconnect" (Emitir en un paso) o el '
+                  'proveedor del tenant ("direct" = Generar XML → Firmar → Enviar)'
+    )
+    is_final = serializers.SerializerMethodField(
+        help_text='La DGII ya resolvió la factura (aceptada, condicional, rechazada o anulada)'
+    )
+    dgii_error_message = serializers.SerializerMethodField()
+    credit_notes = serializers.SerializerMethodField(
+        help_text='Notas de crédito/débito que referencian esta factura (p. ej. la E34 de anulación)'
+    )
 
     class Meta:
         model = Invoice
@@ -92,6 +106,7 @@ class InvoiceDetailSerializer(serializers.ModelSerializer):
             'id', 'encf_number', 'ecf_type', 'ecf_type_display',
             'fiscal_sequence', 'security_code',
             'status', 'status_display',
+            'ecf_provider', 'is_final', 'dgii_error_message', 'credit_notes',
             # Emisor
             'emisor_rnc', 'emisor_razon_social',
             # Comprador
@@ -120,6 +135,37 @@ class InvoiceDetailSerializer(serializers.ModelSerializer):
             'id', 'encf_number', 'xml_content', 'signed_xml',
             'dgii_trackid', 'dgii_status', 'dgii_response', 'dgii_submitted_at',
             'created_at', 'updated_at', 'created_by',
+        ]
+
+    def get_ecf_provider(self, obj):
+        from .services.nexconnect.provider import PROVIDER_KEY, nexconnect_invoice_id
+        from .services.ecf_provider import current_tenant, tenant_provider_key
+
+        # Una factura ya emitida por NexConnect sigue en ese flujo aunque el tenant cambie.
+        if nexconnect_invoice_id(obj):
+            return PROVIDER_KEY
+        tenant = self.context.get('tenant') or current_tenant()
+        return tenant_provider_key(tenant)
+
+    def get_is_final(self, obj):
+        return obj.status in FINAL_INVOICE_STATUSES
+
+    def get_dgii_error_message(self, obj):
+        data = obj.dgii_response if isinstance(obj.dgii_response, dict) else {}
+        return data.get('dgii_error_message') or ''
+
+    def get_credit_notes(self, obj):
+        notes = obj.credit_debit_notes.all().order_by('created_at')
+        return [
+            {
+                'id': str(note.id),
+                'ecf_type': note.ecf_type,
+                'encf_number': note.encf_number or '',
+                'status': note.status,
+                'status_display': note.get_status_display(),
+                'created_at': note.created_at,
+            }
+            for note in notes
         ]
 
 
@@ -156,3 +202,77 @@ class ECFSubmissionSerializer(serializers.ModelSerializer):
             'http_status_code', 'error_message', 'submitted_at',
         ]
         read_only_fields = ['id', 'submitted_at']
+
+
+class ECFProviderConfigSerializer(serializers.Serializer):
+    """
+    Configuración e-CF del tenant. La API key es de solo escritura: se guarda
+    cifrada y nunca se devuelve (solo ``has_api_key``).
+    """
+    ecf_provider = serializers.ChoiceField(choices=[], required=False)
+    dgii_environment = serializers.ChoiceField(choices=[], required=False)
+    api_key = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, trim_whitespace=True,
+        style={'input_type': 'password'},
+    )
+    clear_api_key = serializers.BooleanField(write_only=True, required=False, default=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from apps.tenants.models import Tenant
+        self.fields['ecf_provider'].choices = Tenant._meta.get_field('ecf_provider').choices
+        self.fields['dgii_environment'].choices = Tenant._meta.get_field('dgii_environment').choices
+
+    def validate(self, attrs):
+        if attrs.get('api_key') and attrs.get('clear_api_key'):
+            raise serializers.ValidationError('Envíe api_key o clear_api_key, no ambos.')
+        return attrs
+
+    def validate_api_key(self, value):
+        if value and not value.startswith('nxc_'):
+            raise serializers.ValidationError('La API key de NexConnect empieza por nxc_')
+        return value
+
+    def update(self, tenant, validated_data):
+        from .services.nexconnect.credentials import set_tenant_api_key
+
+        update_fields = []
+        for field in ('ecf_provider', 'dgii_environment'):
+            if field in validated_data:
+                setattr(tenant, field, validated_data[field])
+                update_fields.append(field)
+        if validated_data.get('api_key'):
+            set_tenant_api_key(tenant, validated_data['api_key'], save=False)
+            update_fields.append('ecf_provider_api_key')
+        elif validated_data.get('clear_api_key'):
+            tenant.ecf_provider_api_key = None
+            update_fields.append('ecf_provider_api_key')
+        if update_fields:
+            tenant.save(update_fields=update_fields)
+        return tenant
+
+    def to_representation(self, tenant):
+        from apps.tenants.models import Tenant
+        from apps.core.crypto import SecretDecryptionError
+        from .services.ecf_provider import tenant_provider_key
+        from .services.nexconnect.credentials import (
+            NexConnectCredentialsError, credentials_for_tenant,
+        )
+
+        try:
+            is_test_key = credentials_for_tenant(tenant).is_test_key
+        except (NexConnectCredentialsError, SecretDecryptionError):
+            is_test_key = None  # sin key, formato no nxc_ o no descifrable
+
+        def choices(field):
+            return [{'value': v, 'label': l} for v, l in Tenant._meta.get_field(field).choices]
+
+        return {
+            'ecf_provider': tenant_provider_key(tenant),
+            'dgii_environment': tenant.dgii_environment or 'testecf',
+            'has_api_key': bool(tenant.ecf_provider_api_key),
+            'is_test_key': is_test_key,
+            'webhook_registered': bool(getattr(tenant, 'nexconnect_webhook_id', '')),
+            'ecf_provider_choices': choices('ecf_provider'),
+            'dgii_environment_choices': choices('dgii_environment'),
+        }

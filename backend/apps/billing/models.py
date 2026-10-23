@@ -429,6 +429,7 @@ class ECFSubmission(UUIDModel, TimeStampedModel):
             ('query_status', 'Consulta de Estado'),
             ('query_result', 'Consulta de Resultado'),
             ('cancel', 'Anulación'),
+            ('webhook', 'Webhook del proveedor'),
         ],
         help_text='Tipo de acción realizada'
     )
@@ -475,3 +476,43 @@ class ECFSubmission(UUIDModel, TimeStampedModel):
 
     def __str__(self):
         return f'{self.get_action_display()} - {self.invoice.encf_number} ({self.response_status})'
+
+
+class NexConnectWebhookEvent(UUIDModel, TimeStampedModel):
+    """
+    Evento de webhook de NexConnect ya recibido.
+
+    ``event_id`` único: es la llave de idempotencia. NexConnect entrega
+    at-least-once (reintentos, replays), así que un evento repetido se responde
+    200 sin volver a aplicarse.
+    """
+    OUTCOME_CHOICES = [
+        ('applied', 'Aplicado'),
+        ('stale', 'Ignorado (más viejo que el estado actual)'),
+        ('unmatched', 'Sin factura asociada'),
+        ('mismatch', 'Factura con otro id de NexConnect'),
+        ('ignored', 'Tipo de evento no manejado'),
+    ]
+
+    event_id = models.CharField(max_length=100, unique=True,
+                                help_text='Id del evento (evt_…)')
+    event_type = models.CharField(max_length=60, help_text='Tipo de evento (invoice.accepted, …)')
+    event_created_at = models.DateTimeField(null=True, blank=True,
+                                            help_text='Fecha del evento según NexConnect')
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='nexconnect_events', help_text='Factura afectada',
+    )
+    nexconnect_invoice_id = models.CharField(max_length=64, blank=True,
+                                             help_text='Id de la factura en NexConnect')
+    outcome = models.CharField(max_length=20, choices=OUTCOME_CHOICES)
+    payload = models.JSONField(null=True, blank=True,
+                               help_text='Evento recibido (sin XML ni líneas)')
+
+    class Meta:
+        verbose_name = 'Evento de webhook NexConnect'
+        verbose_name_plural = 'Eventos de webhook NexConnect'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.event_type} {self.event_id} ({self.outcome})'
