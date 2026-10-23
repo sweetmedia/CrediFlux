@@ -159,14 +159,14 @@ class CustomConstanceAdmin(ConstanceAdmin):
 
         # For GET request, show confirmation page
         # Try to get database stats from cache
-        from django.core.cache import cache
+        from apps.core.services.rnc_lookup import RNCLookupService
         db_stats = None
-        meta = cache.get('dgii_rnc_database_meta')
+        meta = RNCLookupService.get_database_stats()
         if meta:
-            total = meta.get('total_records', 0)
+            total = meta.get('count', 0)
             db_stats = {
                 'total_records': f'{total:,}' if isinstance(total, int) else total,
-                'last_updated': meta.get('last_updated', '—'),
+                'last_updated': meta.get('loaded_at', '—'),
             }
 
         context = {

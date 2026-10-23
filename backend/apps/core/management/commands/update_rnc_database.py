@@ -6,20 +6,17 @@ import csv
 import requests
 import zipfile
 import tempfile
-import json
 from pathlib import Path
 from io import BytesIO
 from django.core.management.base import BaseCommand
-from django.core.cache import cache
 from django.conf import settings
 from constance import config as constance_config
+
+from apps.core.services.rnc_lookup import RNCLookupService, store_rnc_records
 
 
 class Command(BaseCommand):
     help = 'Download and cache the DGII RNC database for fast lookups'
-
-    # Redis cache key for the RNC database
-    CACHE_KEY = 'dgii_rnc_database'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -42,7 +39,7 @@ class Command(BaseCommand):
             return
 
         # Check if database already exists in cache
-        if not force and cache.get(self.CACHE_KEY):
+        if not force and RNCLookupService.is_database_loaded():
             self.stdout.write(
                 self.style.WARNING('RNC database already in cache. Use --force to refresh.')
             )
@@ -131,53 +128,29 @@ class Command(BaseCommand):
         return rnc_data
 
     def _load_to_cache(self, rnc_data):
-        """Load the RNC data into Redis cache"""
+        """Load the RNC data into the cache, one key per RNC"""
         self.stdout.write('Loading data into Redis cache...')
 
         # Get cache timeout from configuration (convert days to seconds)
         cache_timeout = constance_config.DGII_RNC_CACHE_TIMEOUT_DAYS * 24 * 60 * 60
-
-        # Store as JSON string to save memory
-        cache.set(
-            self.CACHE_KEY,
-            json.dumps(rnc_data),
-            timeout=cache_timeout
-        )
-
-        # Also store metadata
-        cache.set(
-            f'{self.CACHE_KEY}_meta',
-            {
-                'total_records': len(rnc_data),
-                'last_updated': self._get_current_timestamp(),
-                'cache_timeout_days': constance_config.DGII_RNC_CACHE_TIMEOUT_DAYS,
-                'auto_update_enabled': constance_config.DGII_RNC_AUTO_UPDATE,
-                'next_update_hour': constance_config.DGII_RNC_UPDATE_HOUR,
-            },
-            timeout=cache_timeout
-        )
+        store_rnc_records(rnc_data, source='update_rnc_database', timeout=cache_timeout)
 
     def _show_stats(self):
         """Show statistics about the cached database"""
-        meta = cache.get(f'{self.CACHE_KEY}_meta')
+        meta = RNCLookupService.get_database_stats()
 
         if meta:
             self.stdout.write('\n' + '='*60)
             self.stdout.write('RNC Database Statistics:')
             self.stdout.write('='*60)
-            self.stdout.write(f'Total records: {meta["total_records"]:,}')
-            self.stdout.write(f'Last updated: {meta["last_updated"]}')
-            self.stdout.write(f'Cache timeout: {meta.get("cache_timeout_days", "N/A")} days')
+            self.stdout.write(f'Total records: {meta["count"]:,}')
+            self.stdout.write(f'Last updated: {meta["loaded_at"]}')
+            self.stdout.write(f'Source: {meta.get("source", "N/A")}')
+            self.stdout.write(f'Cache timeout: {constance_config.DGII_RNC_CACHE_TIMEOUT_DAYS} days')
 
-            auto_update = meta.get("auto_update_enabled", False)
-            update_hour = meta.get("next_update_hour", "N/A")
+            auto_update = constance_config.DGII_RNC_AUTO_UPDATE
             self.stdout.write(f'Auto-update: {"Enabled" if auto_update else "Disabled"}')
             if auto_update:
-                self.stdout.write(f'Update hour: {update_hour}:00 UTC')
+                self.stdout.write(f'Update hour: {constance_config.DGII_RNC_UPDATE_HOUR}:00 UTC')
 
             self.stdout.write('='*60 + '\n')
-
-    def _get_current_timestamp(self):
-        """Get current timestamp as string"""
-        from datetime import datetime
-        return datetime.now().strftime('%Y-%m-%d %H:%M:%S')

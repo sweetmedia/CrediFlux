@@ -260,6 +260,7 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
     'user': config('DRF_THROTTLE_USER', default='300/minute'),
     'public_contracts': config('DRF_THROTTLE_PUBLIC_CONTRACTS', default='20/hour'),
     'tenant_registration': config('DRF_THROTTLE_TENANT_REGISTRATION', default='3/hour'),
+    'validate_rnc': config('DRF_THROTTLE_VALIDATE_RNC', default='10/minute'),
 }
 
 # Tope global de tenants creados por autoservicio en las últimas 24 h

@@ -4,32 +4,71 @@ RNC Lookup Service
 Provides fast RNC/Cedula validation and information lookup using cached DGII data
 
 3-Layer Validation Architecture:
-- Layer 1: Format validation (Luhn algorithm via frontend)
-- Layer 2: Local DGII database lookup (cached data)
-- Layer 3: Live DGII website scraping (when not found in cache)
+- Layer 1: Format validation (before touching the cache)
+- Layer 2: Local DGII database lookup (one cache key per RNC: O(1))
+- Layer 3: Live DGII website scraping (only for authenticated callers)
+
+Cache layout:
+- ``dgii_rnc:{rnc}`` -> dict with the record (razon_social, estado, ...)
+- ``dgii_rnc_database_meta`` -> {'count': N, 'loaded_at': iso, 'source': ...},
+  written last by the loaders; its presence means the registry is loaded.
 """
-import json
 import re
 import logging
 from typing import Optional, Dict
 from django.core.cache import cache
+from django.utils import timezone
 from .dgii_scraper import scrape_dgii_rnc
 
 logger = logging.getLogger(__name__)
+
+RECORD_KEY_PREFIX = 'dgii_rnc:'
+META_KEY = 'dgii_rnc_database_meta'
+# Formato anterior: todo el padrón en una sola clave JSON. Nunca se lee.
+LEGACY_CACHE_KEY = 'dgii_rnc_database'
+BATCH_SIZE = 5000
+
+
+def record_key(rnc: str) -> str:
+    """Cache key for an RNC; normalized like lookups (11 digits, zero-padded)."""
+    return f'{RECORD_KEY_PREFIX}{RNCLookupService._normalize_rnc(rnc)}'
+
+
+def store_rnc_records(rnc_data: Dict[str, Dict], *, source: str, timeout=None) -> int:
+    """
+    Write the registry to the cache, one key per RNC, in batches of BATCH_SIZE.
+    The meta key is written last, so the registry only counts as loaded once
+    every record is in place. Shared by the management command and the Celery task.
+    """
+    count = 0
+    batch = {}
+    for rnc, record in rnc_data.items():
+        batch[record_key(rnc)] = record
+        if len(batch) >= BATCH_SIZE:
+            cache.set_many(batch, timeout=timeout)
+            count += len(batch)
+            batch = {}
+    if batch:
+        cache.set_many(batch, timeout=timeout)
+        count += len(batch)
+
+    cache.set(
+        META_KEY,
+        {'count': count, 'loaded_at': timezone.now().isoformat(), 'source': source},
+        timeout=timeout,
+    )
+    # Libera el blob del formato anterior si seguía en caché.
+    cache.delete(LEGACY_CACHE_KEY)
+    return count
 
 
 class RNCLookupService:
     """Service for looking up RNC/Cedula information from DGII cached database"""
 
-    CACHE_KEY = 'dgii_rnc_database'
-
     @classmethod
     def lookup(cls, rnc_or_cedula: str) -> Optional[Dict]:
         """
-        Look up an RNC or Cedula in the cached DGII database
-
-        Args:
-            rnc_or_cedula: RNC or Cedula number to look up
+        Look up an RNC or Cedula in the cached DGII database (one cache.get).
 
         Returns:
             Dictionary with RNC information if found, None otherwise
@@ -43,56 +82,34 @@ class RNCLookupService:
                 'is_active': bool,
             }
         """
-        if not rnc_or_cedula:
+        if not rnc_or_cedula or not cls._is_valid_format(rnc_or_cedula):
             return None
 
-        # Clean and normalize the input
         rnc_clean = cls._normalize_rnc(rnc_or_cedula)
-
-        # Get cached database
-        rnc_database_json = cache.get(cls.CACHE_KEY)
-
-        if not rnc_database_json:
-            # Database not loaded yet
+        record = cache.get(record_key(rnc_clean))
+        if not isinstance(record, dict):
             return None
 
-        # Parse JSON (cache stores as JSON string to save memory)
-        try:
-            rnc_database = json.loads(rnc_database_json)
-        except (json.JSONDecodeError, TypeError):
-            return None
-
-        # Lookup the RNC
-        if rnc_clean in rnc_database:
-            record = rnc_database[rnc_clean]
-
-            # Add the RNC number and active status to the result
-            return {
-                'rnc': rnc_clean,
-                'razon_social': record['razon_social'],
-                'actividad_economica': record['actividad_economica'],
-                'fecha_inicio': record['fecha_inicio'],
-                'estado': record['estado'],
-                'regimen_pago': record['regimen_pago'],
-                'is_active': record['estado'].upper() == 'ACTIVO',
-            }
-
-        return None
+        estado = record.get('estado', '')
+        return {
+            'rnc': rnc_clean,
+            'razon_social': record.get('razon_social', ''),
+            'actividad_economica': record.get('actividad_economica', ''),
+            'fecha_inicio': record.get('fecha_inicio', ''),
+            'estado': estado,
+            'regimen_pago': record.get('regimen_pago', ''),
+            'is_active': estado.upper() == 'ACTIVO',
+        }
 
     @classmethod
-    def validate(cls, rnc_or_cedula: str) -> Dict:
+    def validate(cls, rnc_or_cedula: str, allow_scrape: bool) -> Dict:
         """
         Validate an RNC or Cedula and return validation result
-        Uses 3-layer architecture:
-        - Layer 1: Format validation (frontend Luhn)
-        - Layer 2: Local database lookup
-        - Layer 3: Live DGII scraping if not found
-
-        Args:
-            rnc_or_cedula: RNC or Cedula number to validate
+        - Layer 1: Format validation (no cache access when invalid)
+        - Layer 2: Local database lookup (one cache key)
+        - Layer 3: Live DGII scraping if not found, only when ``allow_scrape``
 
         Returns:
-            Dictionary with validation results:
             {
                 'is_valid': bool,
                 'exists': bool,
@@ -112,7 +129,7 @@ class RNCLookupService:
                 'source': None,
             }
 
-        # Check format
+        # Layer 1: format
         if not cls._is_valid_format(rnc_or_cedula):
             return {
                 'is_valid': False,
@@ -127,7 +144,6 @@ class RNCLookupService:
         data = cls.lookup(rnc_or_cedula)
 
         if data:
-            # Found in local database
             is_active = data['is_active']
             logger.info(f'RNC Validation Layer 2: Found {rnc_or_cedula} in local database')
 
@@ -140,6 +156,17 @@ class RNCLookupService:
                 'source': 'local_db',
             }
 
+        if not allow_scrape:
+            # Las peticiones anónimas nunca disparan una consulta en línea a la DGII.
+            return {
+                'is_valid': True,
+                'exists': False,
+                'is_active': False,
+                'data': None,
+                'message': 'RNC/Cédula no encontrado en la base de datos de la DGII',
+                'source': None,
+            }
+
         # Layer 3: Not found in local database, try scraping DGII
         logger.info(f'RNC Validation Layer 3: Attempting DGII scraping for {rnc_or_cedula}')
 
@@ -147,7 +174,6 @@ class RNCLookupService:
             scraped_data = scrape_dgii_rnc(cls._normalize_rnc(rnc_or_cedula))
 
             if scraped_data:
-                # Successfully scraped from DGII
                 is_active = scraped_data.get('is_active', False)
                 logger.info(f'RNC Validation Layer 3: Successfully scraped {rnc_or_cedula} from DGII')
 
@@ -163,7 +189,6 @@ class RNCLookupService:
                     'source': 'dgii_scraper',
                 }
             else:
-                # Not found even via scraping
                 logger.info(f'RNC Validation Layer 3: {rnc_or_cedula} not found via scraping')
 
                 return {
@@ -176,7 +201,6 @@ class RNCLookupService:
                 }
 
         except Exception as e:
-            # Scraping failed, return not found
             logger.error(f'RNC Validation Layer 3: Scraping error for {rnc_or_cedula}: {str(e)}')
 
             return {
@@ -190,55 +214,48 @@ class RNCLookupService:
 
     @classmethod
     def is_database_loaded(cls) -> bool:
-        """Check if the RNC database is loaded in cache"""
-        return cache.get(cls.CACHE_KEY) is not None
+        """True when the per-key registry is loaded (reads only the meta key)."""
+        meta = cache.get(META_KEY)
+        if isinstance(meta, dict) and 'count' in meta:
+            return True
+        if meta is not None or cache.has_key(LEGACY_CACHE_KEY):
+            logger.warning(
+                'RNC database is in the legacy single-key format and is ignored. '
+                'Re-run: python manage.py update_rnc_database --force'
+            )
+        return False
 
     @classmethod
     def get_database_stats(cls) -> Optional[Dict]:
         """Get statistics about the cached database"""
-        meta = cache.get(f'{cls.CACHE_KEY}_meta')
-        return meta
+        meta = cache.get(META_KEY)
+        if isinstance(meta, dict) and 'count' in meta:
+            return meta
+        return None
 
     @classmethod
     def _cache_scraped_result(cls, scraped_data: Dict) -> None:
         """
-        Cache a scraped result in the local database
-        This allows future lookups to use Layer 2 instead of Layer 3
-
-        Args:
-            scraped_data: Dictionary with scraped RNC data
+        Cache a scraped result under its own key so future lookups hit Layer 2.
         """
         try:
-            # Get existing database
-            rnc_database_json = cache.get(cls.CACHE_KEY)
-
-            if not rnc_database_json:
-                logger.warning('Cannot cache scraped result: database not loaded')
-                return
-
-            # Parse JSON
-            rnc_database = json.loads(rnc_database_json)
-
-            # Extract RNC and prepare cache entry
             rnc = scraped_data.get('rnc')
             if not rnc:
                 logger.warning('Cannot cache scraped result: no RNC in data')
                 return
 
-            # Add to database (without the 'source' field to match local DB format)
-            cache_entry = {
-                'razon_social': scraped_data.get('razon_social', ''),
-                'actividad_economica': scraped_data.get('actividad_economica', ''),
-                'fecha_inicio': scraped_data.get('fecha_inicio', ''),
-                'estado': scraped_data.get('estado', 'DESCONOCIDO'),
-                'regimen_pago': scraped_data.get('regimen_pago', 'DESCONOCIDO'),
-            }
-
-            rnc_database[rnc] = cache_entry
-
-            # Update cache with new entry
-            cache.set(cls.CACHE_KEY, json.dumps(rnc_database), timeout=None)
-
+            # Same shape as the loaders (without the 'source' field)
+            cache.set(
+                record_key(rnc),
+                {
+                    'razon_social': scraped_data.get('razon_social', ''),
+                    'actividad_economica': scraped_data.get('actividad_economica', ''),
+                    'fecha_inicio': scraped_data.get('fecha_inicio', ''),
+                    'estado': scraped_data.get('estado', 'DESCONOCIDO'),
+                    'regimen_pago': scraped_data.get('regimen_pago', 'DESCONOCIDO'),
+                },
+                timeout=None,
+            )
             logger.info(f'Cached scraped result for RNC {rnc} in local database')
 
         except Exception as e:
@@ -254,10 +271,7 @@ class RNCLookupService:
             '123456789' -> '00123456789'
             '12345678901' -> '12345678901'
         """
-        # Remove spaces and dashes
         clean = re.sub(r'[\s\-]', '', rnc)
-
-        # Pad with zeros to 11 digits
         return clean.zfill(11)
 
     @staticmethod
@@ -266,10 +280,7 @@ class RNCLookupService:
         Validate RNC/Cedula format
         Must be 9-11 digits (will be padded to 11)
         """
-        # Remove spaces and dashes
         clean = re.sub(r'[\s\-]', '', rnc)
-
-        # Check if it's numeric and has valid length
         return clean.isdigit() and 9 <= len(clean) <= 11
 
 
@@ -279,9 +290,9 @@ def lookup_rnc(rnc_or_cedula: str) -> Optional[Dict]:
     return RNCLookupService.lookup(rnc_or_cedula)
 
 
-def validate_rnc(rnc_or_cedula: str) -> Dict:
+def validate_rnc(rnc_or_cedula: str, allow_scrape: bool) -> Dict:
     """Convenience function to validate an RNC"""
-    return RNCLookupService.validate(rnc_or_cedula)
+    return RNCLookupService.validate(rnc_or_cedula, allow_scrape=allow_scrape)
 
 
 def is_rnc_database_loaded() -> bool:

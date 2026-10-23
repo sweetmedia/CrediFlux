@@ -34,16 +34,41 @@ class HealthCheckView(APIView):
 
 
 # RNC Validation Views
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.throttling import ScopedRateThrottle
 from apps.core.services.rnc_lookup import validate_rnc, is_rnc_database_loaded, RNCLookupService
+from apps.core.permissions import TenantMatches
+from apps.loans.permissions import CanManageCollections
 import logging
 
 logger = logging.getLogger(__name__)
 
 
+class CanLookupCedula(CanManageCollections):
+    """
+    Consulta del Padrón JCE: mismos roles que la gestión de cobranza
+    (CanManageCollections.allowed_roles), pero exigidos también en GET.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser or request.user.is_tenant_owner:
+            return True
+        if request.user.role not in self.allowed_roles:
+            raise PermissionDenied({
+                'detail': f'Tu rol ({request.user.get_role_display()}) no puede consultar el Padrón.',
+                'required_permission': 'CanLookupCedula',
+                'required_roles': self.allowed_roles,
+                'current_role': request.user.role,
+            })
+        return True
+
+
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, TenantMatches, CanLookupCedula])
 def validate_cedula_view(request):
     """
     Busca una cédula en el Padrón JCE (~7.9M registros).
@@ -117,6 +142,7 @@ def validate_cedula_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([ScopedRateThrottle])
 def validate_rnc_view(request):
     """
     API endpoint to validate an RNC or Cedula
@@ -175,7 +201,8 @@ def validate_rnc_view(request):
 
     # Validate the RNC
     try:
-        result = validate_rnc(rnc)
+        # El scraping en línea de la DGII queda sólo para usuarios autenticados.
+        result = validate_rnc(rnc, allow_scrape=request.user.is_authenticated)
 
         # Log the lookup for monitoring
         if result['exists']:
@@ -201,6 +228,7 @@ def validate_rnc_view(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes([ScopedRateThrottle])
 def rnc_database_status(request):
     """
     Get the status of the RNC database
@@ -221,8 +249,8 @@ def rnc_database_status(request):
         return Response(
             {
                 'loaded': True,
-                'total_records': stats.get('total_records'),
-                'last_updated': stats.get('last_updated'),
+                'total_records': stats.get('count'),
+                'last_updated': stats.get('loaded_at'),
             },
             status=status.HTTP_200_OK
         )
@@ -236,6 +264,11 @@ def rnc_database_status(request):
             },
             status=status.HTTP_200_OK
         )
+
+
+# @api_view no propaga throttle_scope a la vista envuelta: se fija en la clase generada.
+validate_rnc_view.cls.throttle_scope = 'validate_rnc'
+rnc_database_status.cls.throttle_scope = 'validate_rnc'
 
 
 # UI Theme Configuration View

@@ -5,10 +5,8 @@ Celery tasks for core app
 import csv
 import requests
 import zipfile
-import json
 from io import BytesIO
 from celery import shared_task
-from django.core.cache import cache
 from django.conf import settings
 import logging
 
@@ -116,31 +114,14 @@ def _download_and_parse_rnc_file():
 
 
 def _load_to_cache(rnc_data):
-    """Load the RNC data into Redis cache"""
-    CACHE_KEY = 'dgii_rnc_database'
+    """Load the RNC data into the cache, one key per RNC"""
+    from apps.core.services.rnc_lookup import store_rnc_records
+
     CACHE_TIMEOUT = 60 * 60 * 24 * 7  # 7 days
 
     logger.info('Loading data into Redis cache...')
-
-    # Store as JSON string to save memory
-    cache.set(
-        CACHE_KEY,
-        json.dumps(rnc_data),
-        timeout=CACHE_TIMEOUT
-    )
-
-    # Also store metadata
-    from datetime import datetime
-    cache.set(
-        f'{CACHE_KEY}_meta',
-        {
-            'total_records': len(rnc_data),
-            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        },
-        timeout=CACHE_TIMEOUT
-    )
-
-    logger.info(f'Successfully cached {len(rnc_data):,} records')
+    count = store_rnc_records(rnc_data, source='celery:update_rnc_database', timeout=CACHE_TIMEOUT)
+    logger.info(f'Successfully cached {count:,} records')
 
 
 @shared_task
