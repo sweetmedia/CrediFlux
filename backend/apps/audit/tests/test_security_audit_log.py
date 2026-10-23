@@ -192,3 +192,73 @@ def test_no_module_level_pre_save_cache(admin_user, tenant_schema):
     # Un save sin cambios (post_save retorna temprano) tampoco deja el snapshot
     customer.save()
     assert "_audit_old_instance" not in customer.__dict__
+
+
+# ---------------------------------------------------------------------------
+# Fix round 1
+# ---------------------------------------------------------------------------
+
+
+def test_schema_context_wins_over_request_tenant(tenant, public_schema):
+    """Un request del host público que corre bajo schema_context(B) registra el tenant B."""
+    from types import SimpleNamespace
+
+    from django_tenants.utils import schema_context
+
+    from apps.audit import middleware
+    from apps.billing.models import Invoice
+
+    middleware._thread_locals.request = SimpleNamespace(
+        tenant=public_schema, user=None, META={"REMOTE_ADDR": "127.0.0.1"}
+    )
+    try:
+        with schema_context(tenant.schema_name):
+            invoice = Invoice.objects.create(
+                customer=_customer(2), ecf_type="32", issue_date=date.today(),
+                comprador_rnc="101010101", comprador_razon_social="Webhook SRL",
+            )
+            log = AuditLog.objects.get(
+                model_name="Invoice", object_id=str(invoice.pk), action="create"
+            )
+    finally:
+        del middleware._thread_locals.request
+    assert log.tenant_id == tenant.id
+
+
+def test_invoice_xml_blobs_are_not_logged(tenant_schema):
+    from apps.billing.models import Invoice
+
+    invoice = Invoice.objects.create(
+        customer=_customer(3), ecf_type="32", issue_date=date.today(),
+        comprador_rnc="101010101", comprador_razon_social="Cliente SRL",
+    )
+    invoice.xml_content = "<ECF>" + "x" * 5000 + "</ECF>"
+    invoice.signed_xml = "<ECF signed/>"
+    invoice.dgii_response = {"estado": "Aceptado"}
+    invoice.notes = "enviada"
+    invoice.save()
+    log = AuditLog.objects.get(model_name="Invoice", object_id=str(invoice.pk), action="update")
+    assert "notes" in log.changes
+    for field in ("xml_content", "signed_xml", "dgii_response"):
+        assert field not in log.changes
+
+
+def test_failed_audit_insert_does_not_break_outer_transaction(tenant_schema):
+    """Un INSERT de auditoría que falla en la BD no deja rota la transacción del caller."""
+    from unittest import mock
+
+    from django.db import connection, transaction
+
+    from apps.loans.models import Customer
+
+    def failing_create(**kwargs):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1/0")  # error real de Postgres: aborta la transacción
+
+    customer = _customer(4)
+    with transaction.atomic():
+        with mock.patch.object(AuditLog.objects, "create", side_effect=failing_create):
+            customer.city = "Moca"
+            customer.save()
+        # La transacción externa sigue usable
+        assert Customer.objects.filter(pk=customer.pk, city="Moca").exists()

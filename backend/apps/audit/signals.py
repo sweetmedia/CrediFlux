@@ -1,3 +1,4 @@
+from django.db import connection, transaction
 from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
@@ -34,6 +35,8 @@ EXCLUDED_FIELDS = {
     'ecf_provider_api_key', 'ecf_provider_api_secret',
     'stripe_secret_key', 'paypal_client_secret',
     'certificate_password',
+    # Blobs de e-CF (decenas de KB por actualización DGII; no aportan al log)
+    'xml_content', 'signed_xml', 'dgii_response',
 }
 
 # Cualquier campo cuyo nombre contenga uno de estos fragmentos se trata como secreto.
@@ -84,8 +87,10 @@ def get_tenant_for_instance(instance):
     Tenant al que pertenece el registro auditado.
 
     1. FK `tenant` en la instancia (o la instancia ES un Tenant).
-    2. `request.tenant` del request en curso (modelos de schema sin FK a Tenant).
-    3. `connection.tenant` (schema activo; cubre Celery, shell y comandos).
+    2. `connection.tenant` si el schema activo no es el público: el registro vive
+       en ese schema aunque el request venga de otro host (p. ej. un webhook del
+       host público que guarda bajo `schema_context(B)`).
+    3. `request.tenant` del request en curso.
     Devuelve None sólo si nada de lo anterior existe.
     """
     if instance.__class__.__name__ == 'Tenant':
@@ -98,13 +103,20 @@ def get_tenant_for_instance(instance):
         if tenant:
             return tenant
 
-    request = get_current_request()
-    tenant = _real_tenant(getattr(request, 'tenant', None)) if request else None
-    if tenant:
-        return tenant
+    from django_tenants.utils import get_public_schema_name
 
-    from django.db import connection
-    return _real_tenant(getattr(connection, 'tenant', None))
+    schema_name = getattr(connection, 'schema_name', None)
+    if schema_name not in (None, get_public_schema_name()):
+        tenant = _real_tenant(getattr(connection, 'tenant', None))
+        if tenant is None:
+            # schema_context()/set_schema() dejan un FakeTenant: buscar el real
+            from apps.tenants.models import Tenant
+            tenant = Tenant.objects.filter(schema_name=schema_name).first()
+        if tenant:
+            return tenant
+
+    request = get_current_request()
+    return _real_tenant(getattr(request, 'tenant', None)) if request else None
 
 
 def get_field_value(instance, field_name):
@@ -171,7 +183,14 @@ def audit_pre_save(sender, instance, **kwargs):
     if not instance.pk or get_tenant_for_instance(instance) is None:
         return
     try:
-        instance._audit_old_instance = sender._default_manager.get(pk=instance.pk)
+        # No cargar los campos que nunca se comparan (secretos y blobs XML)
+        deferred = [
+            f.attname for f in sender._meta.concrete_fields
+            if not f.primary_key and is_excluded_field(f.name)
+        ]
+        instance._audit_old_instance = (
+            sender._default_manager.defer(*deferred).get(pk=instance.pk)
+        )
     except sender.DoesNotExist:
         pass
 
@@ -211,18 +230,20 @@ def audit_post_save(sender, instance, created, **kwargs):
 
     # Create audit log
     try:
-        AuditLog.objects.create(
-            tenant=tenant,
-            user=user if user and user.is_authenticated else None,
-            user_email=user.email if user and user.is_authenticated else 'system@crediflux.app',
-            action=action,
-            model_name=sender.__name__,
-            object_id=str(instance.pk),
-            object_repr=str(instance)[:255],
-            changes=changes,
-            ip_address=ip_address,
-            user_agent=user_agent,
-        )
+        # Savepoint: si el INSERT falla, la transacción del caller sigue usable
+        with transaction.atomic():
+            AuditLog.objects.create(
+                tenant=tenant,
+                user=user if user and user.is_authenticated else None,
+                user_email=user.email if user and user.is_authenticated else 'system@crediflux.app',
+                action=action,
+                model_name=sender.__name__,
+                object_id=str(instance.pk),
+                object_repr=str(instance)[:255],
+                changes=changes,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
     except Exception as e:
         # Don't let audit logging failures break the application
         import logging
@@ -250,18 +271,20 @@ def audit_post_delete(sender, instance, **kwargs):
     user_agent = get_user_agent(request) if request else None
 
     try:
-        AuditLog.objects.create(
-            tenant=tenant,
-            user=user if user and user.is_authenticated else None,
-            user_email=user.email if user and user.is_authenticated else 'system@crediflux.app',
-            action='delete',
-            model_name=sender.__name__,
-            object_id=str(instance.pk),
-            object_repr=str(instance)[:255],
-            changes={},
-            ip_address=ip_address,
-            user_agent=user_agent,
-        )
+        # Savepoint: si el INSERT falla, la transacción del caller sigue usable
+        with transaction.atomic():
+            AuditLog.objects.create(
+                tenant=tenant,
+                user=user if user and user.is_authenticated else None,
+                user_email=user.email if user and user.is_authenticated else 'system@crediflux.app',
+                action='delete',
+                model_name=sender.__name__,
+                object_id=str(instance.pk),
+                object_repr=str(instance)[:255],
+                changes={},
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
