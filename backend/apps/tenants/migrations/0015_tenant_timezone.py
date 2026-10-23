@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     dependencies = [
         (
             "tenants",
-            "0011_tenant_ai_api_key_tenant_ai_model_tenant_ai_provider_and_more",
+            "0014_merge_20261022_2059",
         ),
     ]
 
