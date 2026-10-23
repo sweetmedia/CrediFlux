@@ -11,6 +11,7 @@ For a financiera/prestamista:
 Reference: DGII Norma General 07-2014, updated Norma General 05-2023
 """
 import csv
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from io import StringIO, BytesIO
@@ -20,6 +21,26 @@ from django.db import connection
 from django.utils import timezone
 
 from apps.loans.models import Loan, LoanPayment, LoanSchedule
+
+_FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r', '\n')
+_NON_ALNUM = re.compile(r'[^A-Za-z0-9]')
+
+
+def csv_safe(value) -> str:
+    """Celda CSV que una hoja de cálculo no interpreta como fórmula."""
+    text = '' if value is None else str(value)
+    if text.startswith(_FORMULA_PREFIXES):
+        return "'" + text
+    return text
+
+
+def normalize_tax_id(raw) -> str:
+    """RNC/cédula sólo con alfanuméricos (sin guiones, espacios ni símbolos)."""
+    return _NON_ALNUM.sub('', raw or '')
+
+
+def _write_row(writer, cells):
+    writer.writerow([csv_safe(cell) for cell in cells])
 
 
 class DGIIReport607:
@@ -133,7 +154,7 @@ class DGIIReport607:
             itbis = Decimal('0.00')
 
             row = {
-                'rnc_cedula': (customer.id_number or '').replace('-', '').replace(' ', ''),
+                'rnc_cedula': normalize_tax_id(customer.id_number),
                 'tipo_identificacion': self._get_id_type(customer.id_type),
                 'ncf': '',  # Would come from e-CF system when integrated
                 'ncf_modificado': '',
@@ -186,10 +207,10 @@ class DGIIReport607:
         ]
 
         writer = csv.writer(output)
-        writer.writerow(headers)
+        _write_row(writer, headers)
 
         for row in rows:
-            writer.writerow([
+            _write_row(writer, [
                 row['rnc_cedula'], row['tipo_identificacion'], row['ncf'],
                 row['ncf_modificado'], row['tipo_ingreso'], row['fecha_comprobante'],
                 row['fecha_retencion'], row['monto_facturado'], row['itbis_facturado'],
@@ -290,7 +311,7 @@ class DGIIReport606:
         ]
 
         writer = csv.writer(output)
-        writer.writerow(headers)
+        _write_row(writer, headers)
         # No data rows — expense module not yet implemented
 
         return output.getvalue()

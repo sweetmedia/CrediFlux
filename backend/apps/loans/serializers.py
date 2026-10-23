@@ -1,6 +1,8 @@
 """
 Serializers for loan module
 """
+import re
+
 from rest_framework import serializers
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
@@ -9,6 +11,10 @@ from .models_guarantors import Guarantor
 from apps.core.media import SignedFilesModelSerializer
 from .fields import TenantUserField
 from .policy import validate_origination
+
+# `id_number` del cliente: sin caracteres que una hoja de cálculo interprete (=, +, @...).
+ID_NUMBER_RE = re.compile(r'^[A-Za-z0-9 -]+$')
+ID_NUMBER_DIGITS = {'cedula': 11, 'rnc': 9}
 
 
 class MoneyAmountField(serializers.DecimalField):
@@ -130,6 +136,30 @@ class CustomerSerializer(SignedFilesModelSerializer):
 
     def get_monthly_income(self, obj):
         return float(obj.monthly_income.amount) if obj.monthly_income else None
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if 'id_number' not in attrs and 'id_type' not in attrs:
+            return attrs
+
+        instance = self.instance
+        id_number = attrs.get('id_number', getattr(instance, 'id_number', None)) or ''
+        id_type = attrs.get('id_type', getattr(instance, 'id_type', None))
+
+        if not ID_NUMBER_RE.match(id_number):
+            raise serializers.ValidationError({
+                'id_number': 'El número de identificación sólo admite letras, dígitos, guiones y espacios.'
+            })
+
+        expected_digits = ID_NUMBER_DIGITS.get(id_type)
+        if expected_digits:
+            digits = re.sub(r'[-\s]', '', id_number)
+            if not (digits.isdigit() and len(digits) == expected_digits):
+                label = 'La cédula' if id_type == 'cedula' else 'El RNC'
+                raise serializers.ValidationError({
+                    'id_number': f'{label} debe tener exactamente {expected_digits} dígitos.'
+                })
+        return attrs
 
 
 class PublicContractCustomerSerializer(SignedFilesModelSerializer):

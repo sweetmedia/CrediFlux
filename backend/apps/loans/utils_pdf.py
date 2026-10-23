@@ -1,17 +1,27 @@
 """
 Utility functions for generating contract PDFs.
 """
+import html
 from io import BytesIO
 import os
 from decimal import Decimal
 
 from django.conf import settings
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.platypus import (
+from reportlab import rl_config
+
+# Ningún recurso remoto ni `file:` desde el markup de Paragraph (`<img src=...>`).
+# Se fija antes de importar platypus: reportlab lee estos valores en el primer
+# `open_for_read`. Las rutas locales simples (logo del tenant) no dependen de esto;
+# el texto de usuario se escapa con `_esc` para que nunca llegue como etiqueta.
+rl_config.trustedSchemes = []
+rl_config.trustedHosts = []
+
+from reportlab.lib import colors  # noqa: E402
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT  # noqa: E402
+from reportlab.lib.pagesizes import letter  # noqa: E402
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet  # noqa: E402
+from reportlab.lib.units import inch  # noqa: E402
+from reportlab.platypus import (  # noqa: E402
     HRFlowable,
     Image,
     Paragraph,
@@ -29,6 +39,13 @@ TEXT_DARK = colors.HexColor("#111827")
 TEXT_MUTED = colors.HexColor("#6B7280")
 BORDER = colors.HexColor("#D1D5DB")
 PAPER = colors.HexColor("#FCFBF8")
+
+
+def _esc(value):
+    """Texto de usuario como texto plano para Paragraph (sin markup interpretable)."""
+    if value is None:
+        return ""
+    return html.escape(str(value), quote=False)
 
 
 def _money_str(value, symbol="RD$"):
@@ -188,12 +205,12 @@ def generate_contract_pdf(contract, tenant=None):
         except Exception as e:
             print(f"Error loading logo: {e}")
 
-    elements.append(Paragraph(company_name, company_style))
+    elements.append(Paragraph(_esc(company_name), company_style))
     elements.append(Paragraph("DOCUMENTO LEGAL CONTRACTUAL", legal_kicker_style))
 
     if tenant:
         if getattr(tenant, "tax_id", None):
-            elements.append(Paragraph(f"RNC: {tenant.tax_id}", header_info_style))
+            elements.append(Paragraph(f"RNC: {_esc(tenant.tax_id)}", header_info_style))
 
         address_parts = [
             part for part in [
@@ -204,7 +221,7 @@ def generate_contract_pdf(contract, tenant=None):
             ] if part
         ]
         if address_parts:
-            elements.append(Paragraph(", ".join(address_parts), header_info_style))
+            elements.append(Paragraph(_esc(", ".join(address_parts)), header_info_style))
 
         contact_parts = []
         if getattr(tenant, "phone", None):
@@ -212,26 +229,26 @@ def generate_contract_pdf(contract, tenant=None):
         if getattr(tenant, "email", None):
             contact_parts.append(f"Email: {tenant.email}")
         if contact_parts:
-            elements.append(Paragraph(" | ".join(contact_parts), header_info_style))
+            elements.append(Paragraph(_esc(" | ".join(contact_parts)), header_info_style))
 
     elements.append(Spacer(1, 10))
     elements.append(HRFlowable(width="100%", thickness=1.3, color=BRAND_GREEN, lineCap="round", spaceAfter=14))
 
     # Title block
-    elements.append(Paragraph(contract.contract_number, contract_title_style))
+    elements.append(Paragraph(_esc(contract.contract_number), contract_title_style))
     elements.append(Paragraph("Contrato vinculado al expediente de préstamo", contract_subtitle_style))
 
     if contract.loan:
         metadata_rows = [
             [
                 Paragraph("EXPEDIENTE", metadata_label_style),
-                Paragraph(contract.loan.loan_number, metadata_value_style),
+                Paragraph(_esc(contract.loan.loan_number), metadata_value_style),
                 Paragraph("MONTO", metadata_label_style),
-                Paragraph(_money_str(contract.loan.principal_amount, currency_symbol), metadata_value_style),
+                Paragraph(_esc(_money_str(contract.loan.principal_amount, currency_symbol)), metadata_value_style),
             ],
             [
                 Paragraph("CLIENTE", metadata_label_style),
-                Paragraph(contract.loan.customer.get_full_name(), metadata_value_style),
+                Paragraph(_esc(contract.loan.customer.get_full_name()), metadata_value_style),
                 Paragraph("FECHA", metadata_label_style),
                 Paragraph(_format_long_date(contract.generated_at), metadata_value_style),
             ],
@@ -258,7 +275,7 @@ def generate_contract_pdf(contract, tenant=None):
         paragraphs = contract.content.split("\n\n")
         for para in paragraphs:
             if para.strip():
-                formatted_para = para.strip().replace("\n", "<br/>")
+                formatted_para = _esc(para.strip()).replace("\n", "<br/>")
                 elements.append(Paragraph(formatted_para, body_style))
     else:
         elements.append(Paragraph("<i>Este contrato no tiene contenido generado.</i>", body_style))
@@ -282,8 +299,8 @@ def generate_contract_pdf(contract, tenant=None):
                 Paragraph("<br/><br/>_______________________________", metadata_value_style),
             ],
             [
-                Paragraph(contract.loan.customer.get_full_name() if contract.loan else "Pendiente", signature_meta_style),
-                Paragraph(contract.loan.loan_officer.get_full_name() if contract.loan and contract.loan.loan_officer else "Pendiente", signature_meta_style),
+                Paragraph(_esc(contract.loan.customer.get_full_name()) if contract.loan else "Pendiente", signature_meta_style),
+                Paragraph(_esc(contract.loan.loan_officer.get_full_name()) if contract.loan and contract.loan.loan_officer else "Pendiente", signature_meta_style),
             ],
             [
                 Paragraph(
