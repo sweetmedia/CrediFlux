@@ -7,7 +7,7 @@ Lógica de habilitación:
 3. tenant.ai_provider / ai_api_key — si el tenant tiene su propia key, se usa;
    si no, se usa la key global de la plataforma
 """
-import os
+import uuid
 
 from django.conf import settings
 from rest_framework import status
@@ -15,6 +15,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import connection
+from djangosdk.models.conversation import Conversation
+from djangosdk.providers.schemas import ProviderConfig
 
 from .agents import CrediFluxAssistant, CrediFluxLiteAgent, CreditAnalystAgent
 
@@ -62,29 +64,25 @@ def get_ai_config():
     }
 
 
-def apply_tenant_ai_config(ai_config):
+def build_tenant_agent(agent_class, ai_config):
     """
-    Si el tenant tiene su propia API key, la inyecta como variable
-    de entorno para que litellm la use en esta request.
+    Instancia el agente con la configuración AI efectiva.
+
+    Si el tenant tiene clave propia, se pasa por instancia en un ``ProviderConfig``
+    (llega a litellm como ``api_key`` sólo en esta request); nunca se escribe en
+    ``os.environ``, que es global al proceso y compartido entre tenants.
     """
     if not ai_config or ai_config['source'] != 'tenant':
-        return
+        return agent_class()
 
     provider = ai_config['provider']
-    api_key = ai_config['api_key']
-
-    # Map provider to env var that litellm expects
-    env_map = {
-        'groq': 'GROQ_API_KEY',
-        'gemini': 'GEMINI_API_KEY',
-        'openai': 'OPENAI_API_KEY',
-        'anthropic': 'ANTHROPIC_API_KEY',
-        'custom': 'OPENAI_API_KEY',  # litellm uses openai-compatible for custom
-    }
-
-    env_var = env_map.get(provider)
-    if env_var and api_key:
-        os.environ[env_var] = api_key
+    model = ai_config.get('model') or ''
+    agent = agent_class(provider_config=ProviderConfig(
+        name=provider, api_key=ai_config['api_key'], default_model=model,
+    ))
+    if model:
+        agent.model = model
+    return agent
 
 
 class ChatView(APIView):
@@ -120,18 +118,33 @@ class ChatView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Apply tenant-specific API key if configured
-        apply_tenant_ai_config(ai_config)
+        if conversation_id:
+            try:
+                conversation_id = uuid.UUID(str(conversation_id))
+            except ValueError:
+                return Response(
+                    {'error': 'conversation_id inválido.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            owned = Conversation.objects.filter(
+                id=conversation_id, metadata__user_id=request.user.pk
+            ).exists()
+            if not owned:
+                return Response(
+                    {'error': 'Conversación no encontrada.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
         agent_class = self.AGENTS.get(agent_type, CrediFluxAssistant)
-        agent = agent_class()
-
-        # Override model if tenant has a specific one
-        if ai_config.get('model') and ai_config['source'] == 'tenant':
-            agent.model = ai_config['model']
+        agent = build_tenant_agent(agent_class, ai_config)
 
         if conversation_id:
             agent = agent.with_conversation(conversation_id)
+        else:
+            conversation = agent.start_conversation(
+                metadata={'user_id': request.user.pk, 'schema': connection.schema_name}
+            )
+            conversation_id = conversation.id
 
         try:
             response = agent.handle(prompt)
@@ -143,7 +156,7 @@ class ChatView(APIView):
 
         return Response({
             'text': response.text,
-            'conversation_id': response.conversation_id or conversation_id,
+            'conversation_id': str(response.conversation_id or conversation_id),
             'thinking': response.thinking.content if response.thinking else None,
             'usage': {
                 'prompt_tokens': response.usage.prompt_tokens,
@@ -236,9 +249,9 @@ class AIConfigView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Check if user is admin
+        # Mismo criterio que TenantSettingsView: dueño, admin o superusuario (nunca is_staff)
         user = request.user
-        if not (user.is_staff or user.is_superuser or getattr(user, 'role', '') == 'admin'):
+        if not (user.is_tenant_owner or user.role == 'admin' or user.is_superuser):
             return Response(
                 {'error': 'Solo administradores pueden cambiar la configuración AI.'},
                 status=status.HTTP_403_FORBIDDEN

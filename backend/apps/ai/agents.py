@@ -2,6 +2,8 @@
 Agentes AI para CrediFlux, powered by djangosdk.
 """
 from djangosdk import Agent
+from djangosdk.providers.litellm_provider import LiteLLMProvider
+from djangosdk.providers.schemas import ProviderConfig
 
 from .tools import (
     buscar_cliente,
@@ -14,7 +16,24 @@ from .tools import (
 )
 
 
-class CrediFluxAssistant(Agent):
+class TenantProviderMixin:
+    """
+    Permite que cada instancia del agente use la configuración de proveedor del
+    tenant (clave propia) sin tocar ``os.environ``, que es global al proceso y la
+    filtraría a requests concurrentes de otros tenants.
+    """
+
+    def __init__(self, provider_config: ProviderConfig | None = None, **kwargs):
+        super().__init__(**kwargs)
+        self.provider_config = provider_config
+
+    def _get_provider(self):
+        if self.provider_config is not None:
+            return LiteLLMProvider(provider_config=self.provider_config)
+        return super()._get_provider()
+
+
+class CrediFluxAssistant(TenantProviderMixin, Agent):
     """
     Asistente AI principal de CrediFlux.
     Ayuda a analistas y oficiales de crédito con consultas del sistema.
@@ -50,7 +69,7 @@ Si no tienes suficiente información, dilo claramente."""
     ]
 
 
-class CrediFluxLiteAgent(Agent):
+class CrediFluxLiteAgent(TenantProviderMixin, Agent):
     """
     Agente ligero sin tools — para preguntas generales y cálculos simples.
     Usa menos tokens, ideal para free tier con rate limits.
@@ -67,7 +86,7 @@ NO tienes acceso a datos del sistema en este modo."""
     tools = []  # No tools = fewer tokens
 
 
-class CreditAnalystAgent(Agent):
+class CreditAnalystAgent(TenantProviderMixin, Agent):
     """
     Agente especializado en análisis crediticio profundo.
     Uses the same default provider but with lower temperature for precision.

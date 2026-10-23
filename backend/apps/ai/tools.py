@@ -272,6 +272,9 @@ def calcular_prestamo(monto: float, tasa_mensual: float, plazo_meses: int, metod
         plazo_meses: Plazo en meses.
         metodo: Método de amortización: french, flat, saldo_insoluto, german.
     """
+    if not isinstance(plazo_meses, int) or not 1 <= plazo_meses <= 600:
+        return "plazo_meses debe estar entre 1 y 600."
+
     monto = Decimal(str(monto))
     tasa = Decimal(str(tasa_mensual)) / 100
 
