@@ -11,6 +11,7 @@ from django.conf.urls.static import static
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from apps.billing.webhooks import NexConnectWebhookView
 from apps.communications.webhooks.views import WhatsAppWebhookView
@@ -44,16 +45,19 @@ urlpatterns = [
     path('api/tenants/', include('apps.tenants.urls')),
     path('api/users/', include('apps.users.urls')),
 
-    # Custom email confirmation view (must be before dj_rest_auth.registration.urls)
+    # Email confirmation link (allauth builds it from the 'account_confirm_email' URL name)
     re_path(
         r'^api/auth/registration/account-confirm-email/(?P<key>[-:\w]+)/$',
         CustomConfirmEmailView.as_view(),
         name='account_confirm_email'
     ),
 
+    # Authentication: only JWT refresh/verify. Login, password and registration
+    # live in /api/tenants/login/, /api/users/auth/* and /api/tenants/register/.
+    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+
     # Tenant APIs exposed on public schema for dev/single-tenant mode
-    path('api/auth/', include('dj_rest_auth.urls')),
-    path('api/auth/registration/', include('dj_rest_auth.registration.urls')),
     path('api/loans/', include('apps.loans.urls')),
     path('api/communications/', include('apps.communications.urls')),
     path('api/audit/', include('apps.audit.urls')),

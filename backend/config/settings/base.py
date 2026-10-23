@@ -267,11 +267,9 @@ REST_AUTH = {
     'JWT_AUTH_COOKIE': None,  # Don't use cookies for JWT (use Authorization header)
     'JWT_AUTH_REFRESH_COOKIE': None,
     'JWT_AUTH_HTTPONLY': False,
-}
-
-# Custom serializers for dj-rest-auth (v6.0+)
-REST_AUTH_SERIALIZERS = {
+    # Las rutas de dj-rest-auth no están montadas; esto es defensa si alguien las vuelve a montar.
     'LOGIN_SERIALIZER': 'apps.users.serializers.TenantAwareLoginSerializer',
+    'REGISTER_PERMISSION_CLASSES': ('rest_framework.permissions.IsAdminUser',),
 }
 
 # CORS Settings
