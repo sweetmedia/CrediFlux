@@ -7,6 +7,8 @@ Provides endpoints for:
 - Sending messages to a conversation
 """
 import logging
+import re
+
 from django.db.models import Max, Count, Q, F
 from django.db.models.functions import Coalesce
 from rest_framework import viewsets, status
@@ -15,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from .models import WhatsAppMessage
+from .permissions import CanSendMessages
 from .serializers_whatsapp import (
     WhatsAppMessageSerializer,
     WhatsAppConversationSerializer,
@@ -161,10 +164,13 @@ class WhatsAppConversationViewSet(viewsets.ViewSet):
             'messages': serializer.data,
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, CanSendMessages])
     def send(self, request, pk=None):
         """
         Send a message to a conversation.
+
+        Only allowed when the recipient is an existing conversation of this
+        tenant or the phone of one of its customers.
 
         Args:
             pk: The conversation_id (phone number)
@@ -180,12 +186,20 @@ class WhatsAppConversationViewSet(viewsets.ViewSet):
 
         message_text = serializer.validated_data['message']
 
-        # Get customer ID if exists in this conversation
         latest_msg = WhatsAppMessage.objects.filter(
             conversation_id=conversation_id
         ).order_by('-created_at').first()
 
-        customer_id = latest_msg.customer_id if latest_msg else None
+        if latest_msg:
+            customer_id = latest_msg.customer_id
+        else:
+            customer = self._find_customer_by_exact_phone(conversation_id)
+            if customer is None:
+                return Response(
+                    {'detail': 'No existe una conversación ni un cliente con ese número en este tenant.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            customer_id = customer.id
 
         # Get tenant schema from request
         tenant_schema = request.tenant.schema_name
@@ -211,6 +225,21 @@ class WhatsAppConversationViewSet(viewsets.ViewSet):
                 'error': 'Failed to queue message',
                 'detail': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @staticmethod
+    def _find_customer_by_exact_phone(phone):
+        """Cliente del tenant cuyo teléfono (E.164) coincide exactamente con `phone`."""
+        from apps.loans.models import Customer
+
+        digits = re.sub(r'\D', '', phone or '')
+        if not digits:
+            return None
+        candidates = {f'+{digits}'}
+        if len(digits) == 10:
+            candidates.add(f'+1{digits}')
+        return Customer.objects.filter(
+            Q(phone__in=candidates) | Q(alternate_phone__in=candidates)
+        ).first()
 
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):

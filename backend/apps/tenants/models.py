@@ -203,7 +203,8 @@ class Tenant(TenantMixin):
         max_length=100,
         blank=True,
         null=True,
-        help_text='WhatsApp Phone Number ID from Meta Business'
+        unique=True,
+        help_text='WhatsApp Phone Number ID from Meta Business (único entre tenants; vacío se guarda como NULL)'
     )
 
     whatsapp_token = models.CharField(

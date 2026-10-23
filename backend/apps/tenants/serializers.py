@@ -419,6 +419,9 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
             'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_use_tls', 'smtp_use_ssl',
             'imap_host', 'imap_port', 'imap_username', 'imap_password', 'imap_use_ssl',
         ]
+        # La unicidad de whatsapp_phone_id la valida validate_whatsapp_phone_id
+        # (normaliza vacío a NULL y responde en español).
+        extra_kwargs = {'whatsapp_phone_id': {'validators': []}}
 
     def validate_email(self, value):
         """Validate email format"""
@@ -430,6 +433,18 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
         """Validate business name"""
         if not value or len(value.strip()) < 2:
             raise serializers.ValidationError("Business name must be at least 2 characters long.")
+        return value
+
+    def validate_whatsapp_phone_id(self, value):
+        """Vacío se guarda como NULL; un phone_number_id sólo puede pertenecer a un tenant."""
+        value = (value or '').strip()
+        if not value:
+            return None
+        others = Tenant.objects.filter(whatsapp_phone_id=value)
+        if self.instance is not None:
+            others = others.exclude(pk=self.instance.pk)
+        if others.exists():
+            raise serializers.ValidationError('Este phone_number_id ya está en uso.')
         return value
 
     def validate_primary_color(self, value):

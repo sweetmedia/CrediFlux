@@ -45,17 +45,27 @@ def find_tenant_by_phone_id(phone_number_id: str):
         phone_number_id: The phone_number_id from webhook metadata
 
     Returns:
-        Tenant instance or None if not found
+        Tenant instance, or None if there is no match or the match is
+        ambiguous (never guess which tenant owns a phone_number_id).
     """
     if not phone_number_id:
         return None
 
     from apps.tenants.models import Tenant
 
-    return Tenant.objects.filter(
+    matches = list(Tenant.objects.filter(
         whatsapp_phone_id=phone_number_id,
         is_active=True
-    ).first()
+    )[:2])
+
+    if len(matches) != 1:
+        logger.error(
+            "phone_number_id %s resolves to %s active tenants; webhook ignored",
+            phone_number_id, 'more than one' if matches else 'no',
+        )
+        return None
+
+    return matches[0]
 
 
 def extract_phone_number_id(payload: dict) -> Optional[str]:

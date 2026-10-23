@@ -62,6 +62,7 @@ class WhatsAppWebhookHandler:
                 return
 
             entries = payload.get('entry', [])
+            own_phone_id = self.tenant.whatsapp_phone_id
 
             for entry in entries:
                 changes = entry.get('changes', [])
@@ -71,6 +72,17 @@ class WhatsAppWebhookHandler:
                         continue
 
                     value = change.get('value', {})
+
+                    # Each change must belong to this tenant's phone number:
+                    # a payload can carry entries for several numbers.
+                    change_phone_id = (value.get('metadata') or {}).get('phone_number_id')
+                    if not own_phone_id or change_phone_id != own_phone_id:
+                        logger.warning(
+                            "Skipping webhook change for phone_number_id %s: "
+                            "does not belong to tenant %s",
+                            change_phone_id, self.tenant.schema_name,
+                        )
+                        continue
 
                     # Process incoming messages
                     messages = value.get('messages', [])
