@@ -800,6 +800,7 @@ class TwoFactorLoginSerializer(serializers.Serializer):
         """Validate either TOTP code or backup code"""
         from django.core.cache import cache
 
+        from .lockout import check_and_count_2fa, reset_2fa
         from .totp import verify_totp_once
 
         code = attrs.get('code', '').strip()
@@ -831,6 +832,14 @@ class TwoFactorLoginSerializer(serializers.Serializer):
                 'temp_token': 'This account or its organization has been deactivated.'
             })
 
+        # Límite de intentos de segundo factor: al superarlo se invalida el temp_token,
+        # así hay que volver a hacer login (y gastar el contador de login).
+        try:
+            check_and_count_2fa(user)
+        except serializers.ValidationError:
+            cache.delete(f'2fa_pending_{temp_token}')
+            raise
+
         # Verify TOTP code
         if code:
             if len(code) != 6 or not code.isdigit():
@@ -855,6 +864,8 @@ class TwoFactorLoginSerializer(serializers.Serializer):
             user.backup_codes.remove(backup_code)
             user.save(update_fields=['backup_codes'])
 
+        reset_2fa(user)
+
         # Clear temp token from cache
         cache.delete(f'2fa_pending_{temp_token}')
 
@@ -875,6 +886,7 @@ class TwoFactorDisableSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Verify password and TOTP code"""
+        from .lockout import check_and_count_2fa, reset_2fa
         from .totp import verify_totp_once
 
         user = self.context['request'].user
@@ -889,10 +901,12 @@ class TwoFactorDisableSerializer(serializers.Serializer):
 
         # Verify TOTP code
         if user.totp_secret:
+            check_and_count_2fa(user)
             if not verify_totp_once(user, code):
                 raise serializers.ValidationError({
                     'code': 'Invalid verification code.'
                 })
+            reset_2fa(user)
 
         return attrs
 
@@ -927,12 +941,15 @@ class BackupCodesRegenerateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Exige el segundo factor: con solo la contraseña no se regeneran los códigos."""
+        from .lockout import check_and_count_2fa, reset_2fa
         from .totp import verify_totp_once
 
         user = self.context['request'].user
         code = (attrs.get('code') or '').strip()
+        check_and_count_2fa(user)
         if not (len(code) == 6 and code.isdigit()) or not verify_totp_once(user, code):
             raise serializers.ValidationError({'code': 'Código de verificación inválido.'})
+        reset_2fa(user)
         return attrs
 
     def save(self):

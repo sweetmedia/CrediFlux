@@ -118,3 +118,72 @@ def test_regenerate_backup_codes_wrong_password_keeps_error(api_client, user_2fa
     )
     assert response.status_code == 400
     assert "password" in response.json()
+
+
+# --- Límite de intentos del segundo factor (fix round 1) ---
+
+LOCKOUT_MSG = "Demasiados intentos. Intenta de nuevo en unos minutos."
+
+
+def _wrong_code(user, at):
+    valid = pyotp.TOTP(user.totp_secret).at(at)
+    return f"{(int(valid) + 1) % 1_000_000:06d}"
+
+
+def _exhaust_2fa_login(api_client, user, token, now):
+    wrong = _wrong_code(user, now)
+    for _ in range(5):
+        response = api_client.post(
+            LOGIN_2FA_URL, {"temp_token": token, "code": wrong}, format="json"
+        )
+        assert response.status_code == 400
+        assert LOCKOUT_MSG not in str(response.json())
+
+
+def test_2fa_login_locks_after_five_wrong_codes(api_client, user_2fa, frozen_now):
+    token = _pending_token(user_2fa, "token-fuerza")
+    _exhaust_2fa_login(api_client, user_2fa, token, frozen_now)
+
+    valid = pyotp.TOTP(user_2fa.totp_secret).at(frozen_now)
+    response = api_client.post(LOGIN_2FA_URL, {"temp_token": token, "code": valid}, format="json")
+    assert response.status_code == 400
+    body = response.json()
+    assert LOCKOUT_MSG in str(body)
+    assert "access" not in body and "refresh" not in body
+    # El temp_token quedó invalidado: hay que volver a hacer login.
+    assert cache.get(f"2fa_pending_{token}") is None
+    again = api_client.post(LOGIN_2FA_URL, {"temp_token": token, "code": valid}, format="json")
+    assert again.status_code == 400
+    assert "temp_token" in again.json()
+
+
+def test_2fa_login_works_again_after_window(api_client, user_2fa, frozen_now):
+    token = _pending_token(user_2fa, "token-ventana")
+    _exhaust_2fa_login(api_client, user_2fa, token, frozen_now)
+
+    later = frozen_now + 301  # pasa la ventana de 300 s del contador
+    with mock.patch("apps.users.totp.time.time", return_value=later):
+        new_token = _pending_token(user_2fa, "token-nuevo")
+        valid = pyotp.TOTP(user_2fa.totp_secret).at(later)
+        response = api_client.post(
+            LOGIN_2FA_URL, {"temp_token": new_token, "code": valid}, format="json"
+        )
+    assert response.status_code == 200
+    assert "access" in response.json()
+
+
+def test_disable_locks_after_wrong_codes(api_client, user_2fa, frozen_now):
+    api_client.force_authenticate(user=user_2fa)
+    wrong = _wrong_code(user_2fa, frozen_now)
+    for _ in range(5):
+        response = api_client.post(
+            DISABLE_URL, {"password": PASSWORD, "code": wrong}, format="json"
+        )
+        assert response.status_code == 400
+        assert LOCKOUT_MSG not in str(response.json())
+
+    response = api_client.post(DISABLE_URL, {"password": PASSWORD, "code": wrong}, format="json")
+    assert response.status_code == 400
+    assert LOCKOUT_MSG in str(response.json())
+    user_2fa.refresh_from_db()
+    assert user_2fa.is_2fa_enabled

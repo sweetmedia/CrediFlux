@@ -61,6 +61,28 @@ def reset(email, request=None):
             pass  # la clave ya caducó
 
 
+TWO_FA_FAIL_LIMIT = 5  # códigos 2FA (TOTP o de respaldo) por usuario y ventana
+
+
+def _twofa_key(user):
+    return f'twofa_fail:{user.pk}'
+
+
+def check_and_count_2fa(user):
+    """Cuenta el intento de segundo factor antes de verificarlo y lanza si supera el límite.
+
+    Mismo esquema atómico que el login (incr antes de verificar). Sin esto, quien tenga la
+    contraseña puede pedir temp_tokens sin fin y adivinar los 6 dígitos.
+    """
+    if _increment(_twofa_key(user)) > TWO_FA_FAIL_LIMIT:
+        raise serializers.ValidationError(LOCKOUT_MESSAGE)
+
+
+def reset_2fa(user):
+    """Tras un segundo factor correcto: borra el contador del usuario."""
+    cache.delete(_twofa_key(user))
+
+
 def validate_strength(password, user=None):
     """Aplica AUTH_PASSWORD_VALIDATORS y traduce el error al formato de DRF."""
     try:
