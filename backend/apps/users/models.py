@@ -1,6 +1,9 @@
 """
 User models extending Django's default User model
 """
+from datetime import timedelta
+
+from django.contrib.auth.hashers import check_password
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
@@ -111,6 +114,31 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.email})"
+
+    def stamp_password_change(self):
+        """Mueve `password_changed_at` a ahora (en memoria; lo guarda el llamador).
+
+        Los JWT llevan `pwd_ts` en segundos: si el nuevo instante cae en el mismo
+        segundo que el anterior, avanza un segundo para que el claim cambie.
+        """
+        now = timezone.now()
+        previous = self.password_changed_at
+        if previous is not None and int(now.timestamp()) <= int(previous.timestamp()):
+            now = previous + timedelta(seconds=1)
+        self.password_changed_at = now
+
+    def set_password(self, raw_password):
+        """Toda contraseña nueva (API, admin, shell...) invalida los JWT previos."""
+        super().set_password(raw_password)
+        self.stamp_password_change()
+
+    def check_password(self, raw_password):
+        """Como Django, pero el re-hash por cambio de hasher no revoca tokens."""
+        def setter(raw):
+            AbstractUser.set_password(self, raw)
+            self._password = None
+            self.save(update_fields=['password'])
+        return check_password(raw_password, self.password, setter)
 
     def get_full_name(self):
         """Return user's full name"""
