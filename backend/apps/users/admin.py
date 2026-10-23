@@ -13,6 +13,8 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import display, action
 from allauth.account.models import EmailAddress
 from allauth.account.utils import send_email_confirmation
+from rest_framework import serializers
+from .lockout import validate_strength
 from .models import User
 from .tokens import revoke_user_credentials
 
@@ -22,6 +24,15 @@ PRIVILEGE_FIELDS = ('is_superuser', 'is_staff', 'groups', 'user_permissions', 't
 
 def _is_platform_admin(user):
     return user.is_superuser and user.tenant_id is None
+
+
+def _strength_errors(password, user):
+    """Mensajes de los validadores de fortaleza (lista vacía si la contraseña es válida)."""
+    try:
+        validate_strength(password, user=user)
+    except serializers.ValidationError as exc:
+        return [str(error) for error in exc.detail]
+    return []
 
 
 @admin.register(User)
@@ -190,8 +201,9 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 messages.error(request, 'La contraseña no puede estar vacía.')
             elif new_password != confirm_password:
                 messages.error(request, 'Las contraseñas no coinciden.')
-            elif len(new_password) < 8:
-                messages.error(request, 'La contraseña debe tener al menos 8 caracteres.')
+            elif password_errors := _strength_errors(new_password, user):
+                for error in password_errors:
+                    messages.error(request, error)
             else:
                 user.set_password(new_password)
                 user.save()

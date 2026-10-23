@@ -14,6 +14,7 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 
 from apps.core.permissions import user_matches_tenant
+from . import lockout
 from .authentication import token_revoked
 from .tokens import PWD_TS_CLAIM, issue_tokens, password_timestamp, revoke_user_credentials
 from dj_rest_auth.serializers import LoginSerializer as BaseLoginSerializer
@@ -37,14 +38,23 @@ class TenantAwareLoginSerializer(BaseLoginSerializer):
         """
         Validate credentials and ensure user belongs to current tenant.
         """
+        # Límite de intentos por cuenta y por IP antes de validar credenciales
+        request = self.context.get('request')
+        login_id = attrs.get('email') or attrs.get('username') or ''
+        lockout.check_and_count(login_id, request)
+
         # First, validate credentials using parent class
-        attrs = super().validate(attrs)
+        try:
+            attrs = super().validate(attrs)
+        except serializers.ValidationError:
+            lockout.register_failure(login_id, request)
+            raise
+        lockout.reset(login_id)
 
         # Get authenticated user
         user = attrs.get('user')
 
         # Get current tenant from request
-        request = self.context.get('request')
         current_tenant = getattr(request, 'tenant', None)
 
         # Superusers with no tenant can access any domain (system admins)
@@ -347,13 +357,18 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
                     'non_field_errors': 'This account has been deactivated.'
                 })
 
-            attrs['user'] = user
-            return attrs
-
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             raise serializers.ValidationError({
                 'uid': 'Invalid user ID.'
             })
+
+        try:
+            lockout.validate_strength(attrs['new_password'], user=user)
+        except serializers.ValidationError as exc:
+            raise serializers.ValidationError({'new_password': exc.detail})
+
+        attrs['user'] = user
+        return attrs
 
     def save(self):
         """Set new password"""
@@ -501,6 +516,11 @@ class PasswordChangeSerializer(serializers.Serializer):
                 'new_password': 'New password must be different from current password.'
             })
 
+        try:
+            lockout.validate_strength(attrs['new_password'], user=user)
+        except serializers.ValidationError as exc:
+            raise serializers.ValidationError({'new_password': exc.detail})
+
         return attrs
 
     def save(self):
@@ -559,6 +579,18 @@ class TeamMemberCreateSerializer(serializers.ModelSerializer):
                 "Only tenant owners can create users with admin role."
             )
 
+        return value
+
+    def validate_password(self, value):
+        """Aplica los validadores de fortaleza de contraseña."""
+        data = self.initial_data
+        candidate = User(
+            email=data.get('email', ''),
+            username=data.get('username', ''),
+            first_name=data.get('first_name', ''),
+            last_name=data.get('last_name', ''),
+        )
+        lockout.validate_strength(value, user=candidate)
         return value
 
     def validate(self, attrs):

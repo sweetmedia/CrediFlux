@@ -15,6 +15,7 @@ from rest_framework_simplejwt.views import TokenVerifyView
 
 from apps.billing.webhooks import NexConnectWebhookView
 from apps.communications.webhooks.views import WhatsAppWebhookView
+from apps.users.lockout import ratelimit_admin_login
 from apps.users.views import CustomConfirmEmailView, TenantAwareTokenRefreshView
 
 # Swagger/OpenAPI configuration
@@ -30,6 +31,9 @@ schema_view = get_schema_view(
     public=True,
     permission_classes=[permissions.AllowAny],
 )
+
+# Login del admin con límite de intentos (antes de que admin.site.urls construya las rutas)
+ratelimit_admin_login()
 
 urlpatterns = [
     # Admin (for system administration)

@@ -32,9 +32,6 @@ EMAIL_HOST_USER = ''
 EMAIL_HOST_PASSWORD = ''
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@crediflux.local')
 
-# Disable password validation in development
-AUTH_PASSWORD_VALIDATORS = []
-
 # Logging
 LOGGING['root']['level'] = 'DEBUG'
 LOGGING['loggers']['django']['level'] = 'DEBUG'

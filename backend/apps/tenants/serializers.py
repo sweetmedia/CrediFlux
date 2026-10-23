@@ -4,6 +4,7 @@ Serializers for Tenant API endpoints
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from django.db import transaction
+from apps.users import lockout
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
 
@@ -143,6 +144,17 @@ class TenantRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"The subdomain '{value}' is reserved.")
 
         return value.lower()
+
+    def validate_owner_password(self, value):
+        """Aplica los validadores de fortaleza (incluida la similitud con nombre y correo)."""
+        data = self.initial_data
+        candidate = User(
+            email=data.get('owner_email', ''),
+            first_name=data.get('owner_first_name', ''),
+            last_name=data.get('owner_last_name', ''),
+        )
+        lockout.validate_strength(value, user=candidate)
+        return value
 
     def validate_owner_email(self, value):
         """Validate that owner email is unique"""
@@ -606,11 +618,18 @@ class TenantLoginSerializer(serializers.Serializer):
         if not email or not password:
             raise serializers.ValidationError("Email and password are required.")
 
+        # Límite de intentos por cuenta y por IP (antes de tocar las credenciales)
+        request = self.context.get('request')
+        lockout.check_and_count(email, request)
+
         # Authenticate user
         user = authenticate(username=email, password=password)
 
         if not user:
+            lockout.register_failure(email, request)
             raise serializers.ValidationError("Invalid email or password.")
+
+        lockout.reset(email)
 
         # Check if user is active
         if not user.is_active:
