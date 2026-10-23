@@ -128,10 +128,62 @@ def test_user_added_by_tenant_admin_stays_in_their_tenant(admin_client, tenant_a
     assert created.is_tenant_owner is False
 
 
-def test_tenant_schema_name_is_read_only(user_factory, tenant_schema):
+@pytest.fixture
+def platform_client(user_factory):
     platform_admin = user_factory(tenant=None, is_superuser=True, is_staff=True)
     client = Client(HTTP_HOST=HOST)
     client.force_login(platform_admin)
-    r = client.get(reverse("admin:tenants_tenant_change", args=[tenant_schema.pk]))
+    return client
+
+
+def form_post_data(form):
+    """Datos POST equivalentes a enviar el formulario tal como se renderiza."""
+    from django.forms import MultiWidget
+
+    data = {}
+    for name in form.fields:
+        bound = form[name]
+        value = bound.value()
+        widget = bound.field.widget
+        if isinstance(widget, MultiWidget):
+            parts = value if isinstance(value, (list, tuple)) else widget.decompress(value)
+            for suffix, part in zip(widget.widgets_names, parts):
+                data[f"{bound.html_name}{suffix}"] = "" if part is None else part
+        elif isinstance(value, bool):
+            if value:
+                data[bound.html_name] = "on"
+        elif value is not None:
+            data[bound.html_name] = value
+    return data
+
+
+def test_tenant_schema_name_is_read_only_when_editing(platform_client, tenant_schema):
+    r = platform_client.get(reverse("admin:tenants_tenant_change", args=[tenant_schema.pk]))
     assert r.status_code == 200
     assert "schema_name" not in r.context["adminform"].form.fields
+    assert "schema_name" in r.context["adminform"].readonly_fields
+
+
+def test_platform_superuser_can_create_tenant_with_schema_name(user_factory, monkeypatch):
+    from apps.tenants.models import Tenant
+
+    monkeypatch.setattr(Tenant, "auto_create_schema", False)  # no crear el schema real
+    # Los tenants sólo se crean desde el schema público.
+    platform_client = Client(HTTP_HOST="localhost")
+    platform_client.force_login(user_factory(tenant=None, is_superuser=True, is_staff=True))
+    url = reverse("admin:tenants_tenant_add")
+    r = platform_client.get(url)
+    assert r.status_code == 200
+    form = r.context["adminform"].form
+    assert "schema_name" in form.fields
+
+    body = form_post_data(form)
+    body.update({
+        "name": "Financiera Nueva",
+        "schema_name": "financiera_nueva",
+        "business_name": "Financiera Nueva SRL",
+        "email": "admin@nueva.test",
+    })
+    r = platform_client.post(url, body)
+    assert r.status_code == 302, r.context["adminform"].form.errors if r.context else r.content
+    assert Tenant.objects.filter(schema_name="financiera_nueva", name="Financiera Nueva").exists()

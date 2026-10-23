@@ -45,7 +45,7 @@ class TenantAdmin(ModelAdmin):
     ]
     list_filter = ['is_active', 'subscription_plan', 'created_on']
     search_fields = ['name', 'business_name', 'email', 'tax_id']
-    readonly_fields = ['schema_name', 'created_on', 'updated_on']
+    readonly_fields = ['created_on', 'updated_on']
     list_per_page = 25
     save_on_top = True
     actions = ['generate_demo_data_action']
@@ -140,6 +140,13 @@ class TenantAdmin(ModelAdmin):
                 f'⚠️ Failed to create demo data for {error_count} tenant(s)',
                 level=messages.WARNING
             )
+
+    def get_readonly_fields(self, request, obj=None):
+        # schema_name se fija al crear el tenant; renombrarlo deja el schema de Postgres huérfano.
+        readonly = list(super().get_readonly_fields(request, obj))
+        if obj is not None:
+            readonly.append('schema_name')
+        return readonly
 
     def get_urls(self):
         """Add custom URL for demo data generation"""
