@@ -14,8 +14,19 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 
 from .models_geolocation import CollectorVisit, CollectorLocation
+from .permissions import CanManageCollections
 
 logger = logging.getLogger(__name__)
+
+# Roles que ven las visitas y ubicaciones de todos los cobradores.
+COLLECTOR_OVERSIGHT_ROLES = ('admin', 'manager', 'collection_supervisor')
+
+
+def _scope_to_collector(queryset, user):
+    """Gerencia, supervisión y dueños ven todo; el resto sólo lo suyo."""
+    if user.is_superuser or user.is_tenant_owner or user.role in COLLECTOR_OVERSIGHT_ROLES:
+        return queryset
+    return queryset.filter(collector=user)
 
 
 # === Serializers ===
@@ -88,7 +99,7 @@ class CollectorVisitViewSet(viewsets.ModelViewSet):
     queryset = CollectorVisit.objects.select_related(
         'collector', 'customer', 'loan', 'schedule'
     ).all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageCollections]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['collector', 'customer', 'loan', 'visit_type', 'outcome']
     search_fields = ['notes', 'customer__first_name', 'customer__last_name']
@@ -99,6 +110,9 @@ class CollectorVisitViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update']:
             return CollectorVisitCreateSerializer
         return CollectorVisitSerializer
+
+    def get_queryset(self):
+        return _scope_to_collector(super().get_queryset(), self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(collector=self.request.user)
@@ -172,10 +186,13 @@ class CollectorLocationViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = CollectorLocation.objects.select_related('collector').all()
     serializer_class = CollectorLocationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageCollections]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['collector']
     ordering = ['-timestamp']
+
+    def get_queryset(self):
+        return _scope_to_collector(super().get_queryset(), self.request.user)
 
     @action(detail=False, methods=['post'], url_path='ping')
     def ping(self, request):
@@ -200,7 +217,8 @@ class CollectorLocationViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Get latest timestamp per collector
         cutoff = timezone.now() - timedelta(hours=12)
-        latest = CollectorLocation.objects.filter(
+        scoped = self.get_queryset()
+        latest = scoped.filter(
             timestamp__gte=cutoff,
         ).values('collector').annotate(
             latest_ts=Max('timestamp'),
@@ -208,7 +226,7 @@ class CollectorLocationViewSet(viewsets.ReadOnlyModelViewSet):
 
         locations = []
         for entry in latest:
-            loc = CollectorLocation.objects.filter(
+            loc = scoped.filter(
                 collector_id=entry['collector'],
                 timestamp=entry['latest_ts'],
             ).select_related('collector').first()
@@ -229,7 +247,7 @@ class CollectorLocationViewSet(viewsets.ReadOnlyModelViewSet):
         from datetime import date as date_type
         target_date = date_type.fromisoformat(date_str)
 
-        points = CollectorLocation.objects.filter(
+        points = self.get_queryset().filter(
             collector_id=collector_id,
             timestamp__date=target_date,
         ).order_by('timestamp')
