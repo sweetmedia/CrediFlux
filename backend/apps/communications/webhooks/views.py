@@ -16,6 +16,8 @@ from .signature import verify_signature
 from .utils import (
     find_tenant_by_verify_token,
     find_tenant_by_phone_id,
+    find_tenant_by_waba_id,
+    extract_waba_id,
     extract_phone_number_id,
 )
 
@@ -94,12 +96,16 @@ class WhatsAppWebhookView(APIView):
             payload = request.data
             phone_number_id = extract_phone_number_id(payload)
 
-            if not phone_number_id:
-                logger.warning("Webhook missing phone_number_id in payload")
-                return Response(status=status.HTTP_200_OK)
-
-            # Find tenant by phone_number_id
-            tenant = find_tenant_by_phone_id(phone_number_id)
+            if phone_number_id:
+                # Find tenant by phone_number_id
+                tenant = find_tenant_by_phone_id(phone_number_id)
+            else:
+                # Template status updates carry no phone metadata: use the WABA id (entry.id)
+                waba_id = extract_waba_id(payload)
+                if not waba_id:
+                    logger.warning("Webhook missing phone_number_id and WABA id in payload")
+                    return Response(status=status.HTTP_200_OK)
+                tenant = find_tenant_by_waba_id(waba_id)
 
             if not tenant:
                 logger.warning(f"No tenant found for phone_number_id: {phone_number_id}")

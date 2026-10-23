@@ -188,12 +188,15 @@ def send_tenant_payment_reminders(tenant: Tenant):
             # Calculate amount due (remaining amount)
             amount_due = schedule.total_amount - (schedule.paid_amount or Decimal('0'))
 
-            # Send reminder
+            # Send reminder (plantilla Utility; si ya venció, con la mora pendiente)
+            late_fee_pending = schedule.late_fee_amount.amount - schedule.late_fee_paid.amount
             success = whatsapp_service.send_payment_reminder(
                 loan=schedule.loan,
                 phone=phone,
                 days_until_due=days_until_due,
-                amount_due=amount_due.amount if hasattr(amount_due, 'amount') else amount_due
+                amount_due=amount_due.amount if hasattr(amount_due, 'amount') else amount_due,
+                due_date=schedule.due_date,
+                late_fee=max(late_fee_pending, Decimal('0')),
             )
 
             if success:
@@ -291,29 +294,25 @@ def send_overdue_notice(force=False):
                         if not phone:
                             continue
 
-                        customer_name = schedule.loan.customer.get_full_name()
-                        amount = schedule.total_amount.amount - (schedule.paid_amount.amount if schedule.paid_amount else 0)
-                        company = tenant.business_name
-
-                        message = (
-                            f"⚠️ *Aviso de Mora — {threshold} días*\n\n"
-                            f"Estimado/a {customer_name},\n\n"
-                            f"Su cuota del préstamo {schedule.loan.loan_number} "
-                            f"tiene {threshold} días de atraso.\n\n"
-                            f"💰 *Monto pendiente:* RD${float(amount):,.2f}\n"
-                            f"📅 *Fecha vencimiento:* {schedule.due_date.strftime('%d/%m/%Y')}\n\n"
-                            f"Le invitamos a regularizar su pago lo antes posible "
-                            f"para evitar cargos adicionales por mora.\n\n"
-                            f"{company}"
+                        # Monto pendiente de la cuota más la mora sin pagar
+                        balance = schedule.total_amount.amount - (
+                            schedule.paid_amount.amount if schedule.paid_amount else Decimal('0')
+                        )
+                        late_fee = max(
+                            schedule.late_fee_amount.amount - schedule.late_fee_paid.amount, Decimal('0')
                         )
 
                         try:
-                            formatted = whatsapp_service._format_phone(phone)
-                            whatsapp_service.wa_client.send_message(to=formatted, text=message)
-                            _mark_sent('overdue', tenant, schedule, today)
-                            total_sent += 1
+                            sent = whatsapp_service.send_overdue_notice(
+                                schedule.loan, phone, days_overdue=threshold,
+                                due_date=schedule.due_date, amount_due=balance + late_fee,
+                            )
                         except Exception as e:
                             logger.error(f"Failed overdue notice for {schedule.loan.loan_number}: {e}")
+                            continue
+                        if sent:
+                            _mark_sent('overdue', tenant, schedule, today)
+                            total_sent += 1
 
         except Exception as e:
             logger.error(f"Error processing overdue notices for {tenant.name}: {e}")

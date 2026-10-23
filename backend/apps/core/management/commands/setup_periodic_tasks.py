@@ -69,6 +69,8 @@ class Command(BaseCommand):
              'Recordatorios de cuota por WhatsApp a las 09:00 locales de cada tenant'),
             ('loans.send_overdue_notice', 'WhatsApp overdue notices', '30',
              'Avisos de mora por WhatsApp (15/30/60/90 días) a las 09:30 locales de cada tenant'),
+            ('communications.sync_whatsapp_templates', 'WhatsApp templates sync', '15',
+             'Crea en Meta las plantillas que falten y refresca su estado (cada hora, todas las financieras)'),
         ]:
             hourly, _ = CrontabSchedule.objects.get_or_create(
                 minute=minute,
