@@ -1,0 +1,133 @@
+"""Registro público de tenants: throttle propio, tope diario, nombres reservados y errores uniformes."""
+import pytest
+from django.core.cache import cache
+from django.db import connection
+from django.test import override_settings
+from rest_framework.settings import api_settings
+
+from apps.tenants.models import Domain, Tenant
+from apps.users.models import User
+
+pytestmark = pytest.mark.django_db
+
+URL = "/api/tenants/register/"
+GENERIC = "No se pudo completar el registro con estos datos."
+
+
+def payload(**overrides):
+    data = {
+        "business_name": "Financiera Nueva SRL",
+        "tenant_name": "financiera-nueva",
+        "email": "contacto@nueva.test",
+        "subdomain": "financiera-nueva",
+        "owner_first_name": "Ana",
+        "owner_last_name": "Gomez",
+        "owner_email": "ana@nueva.test",
+        "owner_password": "Kx9!vRt#2mQw7zLp",
+        "subscription_plan": "basic",
+    }
+    data.update(overrides)
+    return data
+
+
+@pytest.fixture(autouse=True)
+def clear_throttle_cache():
+    cache.clear()
+    yield
+    cache.clear()
+
+
+def counts():
+    return Tenant.objects.count(), User.objects.count(), Domain.objects.count()
+
+
+def throttled_settings():
+    rf = dict(api_settings.user_settings)
+    rf["DEFAULT_THROTTLE_RATES"] = {"tenant_registration": "3/hour"}
+    return override_settings(REST_FRAMEWORK=rf)
+
+
+def test_fourth_registration_from_same_ip_in_an_hour_is_throttled(public_client):
+    # Peticiones inválidas a propósito: el throttle cuenta intentos, no altas.
+    bad = payload(owner_email="no-es-un-correo")
+    with throttled_settings():
+        for _ in range(3):
+            assert public_client.post(URL, bad, format="json").status_code == 400
+        before = counts()
+        response = public_client.post(URL, payload(), format="json")
+    assert response.status_code == 429
+    assert counts() == before
+
+
+@pytest.mark.parametrize("name", ["public", "test", "pg-catalog", "pg-foo", "information-schema", "www"])
+def test_reserved_or_existing_schema_names_are_rejected(public_client, tenant, name):
+    before = counts()
+    response = public_client.post(URL, payload(tenant_name=name), format="json")
+    assert response.status_code == 400
+    assert response.json() == {"non_field_errors": [GENERIC]}
+    assert counts() == before
+
+
+def test_name_whose_schema_exists_only_in_postgres_is_rejected(public_client):
+    with connection.cursor() as cursor:
+        cursor.execute("CREATE SCHEMA huerfano_schema")
+    before = counts()
+    response = public_client.post(URL, payload(tenant_name="huerfano-schema"), format="json")
+    assert response.status_code == 400
+    assert response.json() == {"non_field_errors": [GENERIC]}
+    assert counts() == before
+
+
+def test_existence_of_email_name_or_subdomain_is_indistinguishable(public_client, tenant, user_factory):
+    user_factory(email="ocupado@nueva.test")
+    connection.set_schema_to_public()
+    Tenant.objects.filter(pk=tenant.pk).update(name="ocupado")
+    before = counts()
+    by_email = public_client.post(URL, payload(owner_email="ocupado@nueva.test"), format="json")
+    by_name = public_client.post(URL, payload(tenant_name="ocupado"), format="json")
+    by_subdomain = public_client.post(URL, payload(subdomain="tenant"), format="json")
+    for response in (by_email, by_name, by_subdomain):
+        assert response.status_code == 400
+    assert by_email.json() == by_name.json() == by_subdomain.json() == {"non_field_errors": [GENERIC]}
+    assert counts() == before
+
+
+def test_format_errors_keep_their_specific_messages(public_client):
+    response = public_client.post(URL, payload(owner_email="no-es-un-correo", tenant_name="Mayus"), format="json")
+    assert response.status_code == 400
+    body = response.json()
+    assert "owner_email" in body and "tenant_name" in body
+    assert GENERIC not in str(body)
+
+
+@override_settings(MAX_TENANTS_PER_DAY=0)
+def test_daily_cap_rejects_new_registrations(public_client):
+    before = counts()
+    response = public_client.post(URL, payload(), format="json")
+    assert response.status_code == 400
+    assert GENERIC in str(response.json())
+    assert counts() == before
+
+
+def test_internal_error_returns_generic_400_without_details(public_client, monkeypatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("detalle interno secreto")
+
+    monkeypatch.setattr(Domain.objects, "create", boom)
+    monkeypatch.setattr(Tenant, "auto_create_schema", False)
+    before = counts()
+    response = public_client.post(URL, payload(), format="json")
+    assert response.status_code == 400
+    assert response.json() == {"detail": GENERIC}
+    assert "secreto" not in response.content.decode()
+    assert counts() == before
+
+
+def test_valid_registration_creates_tenant(public_client):
+    before_tenants = Tenant.objects.count()
+    response = public_client.post(URL, payload(), format="json")
+    assert response.status_code == 201, response.content
+    assert Tenant.objects.count() == before_tenants + 1
+    tenant = Tenant.objects.get(name="financiera-nueva")
+    assert tenant.schema_name == "financiera_nueva"
+    assert User.objects.filter(email="ana@nueva.test", tenant=tenant, is_tenant_owner=True).exists()

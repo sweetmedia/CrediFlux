@@ -259,7 +259,12 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
     'anon': config('DRF_THROTTLE_ANON', default='60/minute'),
     'user': config('DRF_THROTTLE_USER', default='300/minute'),
     'public_contracts': config('DRF_THROTTLE_PUBLIC_CONTRACTS', default='20/hour'),
+    'tenant_registration': config('DRF_THROTTLE_TENANT_REGISTRATION', default='3/hour'),
 }
+
+# Tope global de tenants creados por autoservicio en las últimas 24 h
+# (cada alta crea un schema y corre todas las migraciones).
+MAX_TENANTS_PER_DAY = config('MAX_TENANTS_PER_DAY', default=20, cast=int)
 
 # dj-rest-auth configuration (v6.0+)
 REST_AUTH = {

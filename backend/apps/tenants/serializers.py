@@ -1,14 +1,44 @@
 """
 Serializers for Tenant API endpoints
 """
+import re
+from datetime import timedelta
+
 from rest_framework import serializers
+from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
-from django.db import transaction
+from django.db import connection, transaction
+from django.utils import timezone
+from django_tenants.utils import schema_exists
 from apps.users import lockout
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
 
 User = get_user_model()
+
+# Mensaje único para cualquier dato ya existente o reservado: no revela si
+# lo que choca es el correo, el nombre del tenant o el subdominio.
+REGISTRATION_REJECTED = 'No se pudo completar el registro con estos datos.'
+
+RESERVED_TENANT_NAMES = {
+    'public', 'pg-catalog', 'pg-toast', 'information-schema', 'www', 'admin',
+    'api', 'app', 'mail', 'ftp', 'localhost', 'test',
+}
+_RESERVED_SCHEMAS = {name.replace('-', '_') for name in RESERVED_TENANT_NAMES}
+
+
+def schema_name_for(tenant_name):
+    """Schema de PostgreSQL derivado del nombre del tenant (guiones → guiones bajos)."""
+    return tenant_name.replace('-', '_')
+
+
+def _schema_unavailable(schema_name):
+    return (
+        schema_name in _RESERVED_SCHEMAS
+        or schema_name.startswith('pg_')
+        or Tenant.objects.filter(schema_name=schema_name).exists()
+        or schema_exists(schema_name)
+    )
 
 
 class TenantRegistrationSerializer(serializers.Serializer):
@@ -111,38 +141,19 @@ class TenantRegistrationSerializer(serializers.Serializer):
     )
 
     def validate_tenant_name(self, value):
-        """Validate that tenant name is unique and follows naming rules"""
-        # Check if tenant already exists
-        if Tenant.objects.filter(name=value).exists():
-            raise serializers.ValidationError("A tenant with this name already exists.")
-
-        # Check naming rules (lowercase alphanumeric and hyphens only)
-        import re
+        """Formato del nombre (la existencia se comprueba en `validate`)."""
         if not re.match(r'^[a-z0-9-]+$', value):
             raise serializers.ValidationError(
                 "Tenant name must contain only lowercase letters, numbers, and hyphens."
             )
-
         return value
 
     def validate_subdomain(self, value):
-        """Validate that subdomain is unique and follows naming rules"""
-        # Check if domain already exists
-        if Domain.objects.filter(domain__icontains=value).exists():
-            raise serializers.ValidationError("This subdomain is already taken.")
-
-        # Check naming rules (lowercase alphanumeric and hyphens only)
-        import re
+        """Formato del subdominio (la existencia se comprueba en `validate`)."""
         if not re.match(r'^[a-z0-9-]+$', value):
             raise serializers.ValidationError(
                 "Subdomain must contain only lowercase letters, numbers, and hyphens."
             )
-
-        # Reserved subdomains
-        reserved = ['www', 'admin', 'api', 'app', 'mail', 'ftp', 'localhost', 'public']
-        if value.lower() in reserved:
-            raise serializers.ValidationError(f"The subdomain '{value}' is reserved.")
-
         return value.lower()
 
     def validate_owner_password(self, value):
@@ -156,11 +167,20 @@ class TenantRegistrationSerializer(serializers.Serializer):
         lockout.validate_strength(value, user=candidate)
         return value
 
-    def validate_owner_email(self, value):
-        """Validate that owner email is unique"""
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
-        return value
+    def validate(self, attrs):
+        """Existencia y nombres reservados, todos con el mismo error no atribuible."""
+        tenant_name = attrs['tenant_name']
+        subdomain = attrs['subdomain']
+        if (
+            tenant_name in RESERVED_TENANT_NAMES
+            or subdomain in RESERVED_TENANT_NAMES
+            or _schema_unavailable(schema_name_for(tenant_name))
+            or Tenant.objects.filter(name=tenant_name).exists()
+            or Domain.objects.filter(domain__icontains=subdomain).exists()
+            or User.objects.filter(email__iexact=attrs['owner_email']).exists()
+        ):
+            raise serializers.ValidationError(REGISTRATION_REJECTED)
+        return attrs
 
     @transaction.atomic
     def create(self, validated_data):
@@ -170,7 +190,7 @@ class TenantRegistrationSerializer(serializers.Serializer):
         # Extract data
         # Generate schema_name from tenant_name (replace hyphens with underscores for PostgreSQL)
         tenant_name = validated_data['tenant_name']
-        schema_name = tenant_name.replace('-', '_')
+        schema_name = schema_name_for(tenant_name)
 
         tenant_data = {
             'name': tenant_name,
@@ -198,53 +218,54 @@ class TenantRegistrationSerializer(serializers.Serializer):
             'phone': validated_data.get('owner_phone', ''),
         }
 
-        try:
-            # Force connection to public schema for tenant creation
-            from django.db import connection
-            connection.set_schema_to_public()
+        # Force connection to public schema for tenant creation
+        connection.set_schema_to_public()
 
-            # 1. Create Tenant
-            tenant = Tenant.objects.create(**tenant_data)
+        # Tope global diario y re-comprobación dentro de la transacción
+        # (otra petición pudo crear el mismo schema tras `validate`).
+        since = timezone.now() - timedelta(days=1)
+        if Tenant.objects.filter(created_on__gte=since).count() >= settings.MAX_TENANTS_PER_DAY:
+            raise serializers.ValidationError(REGISTRATION_REJECTED)
+        if _schema_unavailable(schema_name) or Tenant.objects.filter(name=tenant_name).exists():
+            raise serializers.ValidationError(REGISTRATION_REJECTED)
 
-            # 2. Create Domain
-            # Use localhost for development, or configure based on environment
-            from django.conf import settings
-            base_domain = getattr(settings, 'TENANT_BASE_DOMAIN', 'localhost')
-            domain_name = f"{subdomain}.{base_domain}" if base_domain != 'localhost' else subdomain
+        # 1. Create Tenant
+        tenant = Tenant.objects.create(**tenant_data)
 
-            domain = Domain.objects.create(
-                domain=domain_name,
-                tenant=tenant,
-                is_primary=True
-            )
+        # 2. Create Domain
+        # Use localhost for development, or configure based on environment
+        base_domain = getattr(settings, 'TENANT_BASE_DOMAIN', 'localhost')
+        domain_name = f"{subdomain}.{base_domain}" if base_domain != 'localhost' else subdomain
 
-            # 3. Create Owner User
-            username = owner_data['email'].split('@')[0]  # Use email prefix as username
+        domain = Domain.objects.create(
+            domain=domain_name,
+            tenant=tenant,
+            is_primary=True
+        )
 
-            owner = User.objects.create_user(
-                username=username,
-                email=owner_data['email'],
-                password=owner_data['password'],
-                first_name=owner_data['first_name'],
-                last_name=owner_data['last_name'],
-                phone=owner_data['phone'],
-                tenant=tenant,
-                is_tenant_owner=True,
-                role='admin',
-                is_staff=True,  # Allow access to admin panel
-                is_active=True,
-                email_verified=False,  # Will need email verification
-            )
+        # 3. Create Owner User
+        username = owner_data['email'].split('@')[0]  # Use email prefix as username
 
-            return {
-                'tenant': tenant,
-                'domain': domain,
-                'owner': owner,
-            }
+        owner = User.objects.create_user(
+            username=username,
+            email=owner_data['email'],
+            password=owner_data['password'],
+            first_name=owner_data['first_name'],
+            last_name=owner_data['last_name'],
+            phone=owner_data['phone'],
+            tenant=tenant,
+            is_tenant_owner=True,
+            role='admin',
+            is_staff=True,  # Allow access to admin panel
+            is_active=True,
+            email_verified=False,  # Will need email verification
+        )
 
-        except Exception as e:
-            # Transaction will be rolled back automatically
-            raise serializers.ValidationError(f"Failed to create tenant: {str(e)}")
+        return {
+            'tenant': tenant,
+            'domain': domain,
+            'owner': owner,
+        }
 
     def to_representation(self, instance):
         """

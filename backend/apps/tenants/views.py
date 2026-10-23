@@ -1,7 +1,11 @@
 """
 API views for Tenant management
 """
-from rest_framework import status
+import logging
+
+from rest_framework import serializers as drf_serializers, status
+from rest_framework.settings import api_settings
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -12,8 +16,21 @@ from .serializers import (
     TenantRegistrationSerializer,
     TenantSerializer,
     TenantLoginSerializer,
-    TenantUpdateSerializer
+    TenantUpdateSerializer,
+    REGISTRATION_REJECTED,
 )
+
+logger = logging.getLogger(__name__)
+
+
+class TenantRegistrationThrottle(AnonRateThrottle):
+    """Límite propio por IP para el alta pública de tenants."""
+
+    scope = 'tenant_registration'
+
+    def get_rate(self):
+        # Se lee en cada petición (no al importar) para respetar override_settings.
+        return api_settings.DEFAULT_THROTTLE_RATES.get(self.scope, '3/hour')
 
 
 class TenantRegistrationView(APIView):
@@ -32,6 +49,7 @@ class TenantRegistrationView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [TenantRegistrationThrottle]
 
     @swagger_auto_schema(
         operation_id='register_tenant',
@@ -74,19 +92,11 @@ class TenantRegistrationView(APIView):
                 description='Bad request - validation errors',
                 examples={
                     'application/json': {
-                        'tenant_name': ['A tenant with this name already exists.'],
-                        'owner_email': ['A user with this email already exists.']
+                        'non_field_errors': ['No se pudo completar el registro con estos datos.']
                     }
                 }
             ),
-            500: openapi.Response(
-                description='Server error',
-                examples={
-                    'application/json': {
-                        'error': 'Failed to create tenant: Internal server error'
-                    }
-                }
-            )
+            429: openapi.Response(description='Too many registration attempts from this IP'),
         },
         tags=['Tenant Registration']
     )
@@ -119,32 +129,26 @@ class TenantRegistrationView(APIView):
         """
         serializer = TenantRegistrationSerializer(data=request.data)
 
-        if serializer.is_valid():
-            try:
-                # Create tenant, domain, and owner user
-                result = serializer.save()
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-                # Return success response
-                return Response(
-                    serializer.data,
-                    status=status.HTTP_201_CREATED
-                )
+        try:
+            # Create tenant, domain, and owner user
+            serializer.save()
+        except drf_serializers.ValidationError:
+            # Tope diario o carrera con otro alta: mismo mensaje que la validación.
+            return Response(
+                {'non_field_errors': [REGISTRATION_REJECTED]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception:  # IntegrityError incluido: nunca se devuelve str(e)
+            logger.exception('Tenant registration failed')
+            return Response(
+                {'detail': REGISTRATION_REJECTED},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-            except Exception as e:
-                import traceback
-                error_traceback = traceback.format_exc()
-                print(f"ERROR creating tenant: {str(e)}")
-                print(f"TRACEBACK: {error_traceback}")
-                return Response(
-                    {'error': f'Failed to create tenant: {str(e)}'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-        # Return validation errors
-        return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class TenantHealthCheckView(APIView):
