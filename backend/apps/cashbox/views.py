@@ -7,7 +7,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 
@@ -219,6 +219,19 @@ class CashMovementViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(recorded_by=self.request.user)
+
+    @staticmethod
+    def _ensure_session_open(movement):
+        if movement.session.status != 'open':
+            raise ValidationError({'detail': 'La sesión de caja no está abierta.'})
+
+    def perform_update(self, serializer):
+        self._ensure_session_open(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._ensure_session_open(instance)
+        instance.delete()
 
 
 class DenominationCountViewSet(viewsets.ModelViewSet):

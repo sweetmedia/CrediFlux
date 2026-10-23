@@ -70,6 +70,17 @@ class CashMovementCreateSerializer(serializers.ModelSerializer):
             'loan_payment', 'loan', 'customer_name',
         ]
 
+    def validate_session(self, session):
+        if session.status != 'open':
+            raise serializers.ValidationError('La sesión de caja no está abierta.')
+        return session
+
+    def validate_amount(self, value):
+        amount = getattr(value, 'amount', value)  # Money o Decimal
+        if amount is None or amount <= 0:
+            raise serializers.ValidationError('El monto debe ser mayor que cero.')
+        return value
+
 
 class CashSessionSerializer(serializers.ModelSerializer):
     cashier_name = serializers.CharField(
