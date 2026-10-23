@@ -14,9 +14,21 @@ from .media import PUBLIC_SCHEMA, unsign_media
 
 DEFAULT_MAX_AGE = 3600
 INLINE_CONTENT_TYPES = {'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'}
-# Activos de plataforma que se firman con schema `public` (el logo del tenant);
-# `tenants/logos/` es la ruta antigua del logo, anterior a `public/tenant_logos/`.
-PUBLIC_PREFIXES = ('public/', 'tenants/logos/')
+# Activos de plataforma firmados con schema `public` que se sirven en cualquier host:
+# el logo del tenant (`tenants/logos/` es su ruta antigua, anterior a `public/tenant_logos/`).
+PUBLIC_ASSET_PREFIXES = ('public/tenant_logos/', 'tenants/logos/')
+# Primer segmento de los nombres antiguos, anteriores a `<schema>/<prefijo>/...`.
+LEGACY_TOP_DIRS = frozenset({
+    'avatars', 'billing', 'collateral_documents', 'collateral_photos', 'collector_visits',
+    'contract_templates', 'contracts', 'customer_documents', 'customer_photos',
+    'guarantor_documents', 'loan_contracts', 'payment_receipts', 'tenants',
+})
+
+
+def _name_matches_schema(schema, name):
+    """Un nombre nuevo (``<schema>/...``) debe ser del schema firmado; uno antiguo, sin prefijo, vale."""
+    top = name.split('/', 1)[0]
+    return top in LEGACY_TOP_DIRS or top == schema
 
 
 def _quiet(status):
@@ -66,22 +78,25 @@ class SignedMediaView(APIView):
             as_attachment=content_type not in INLINE_CONTENT_TYPES,
             filename=os.path.basename(name),
         )
-        response['Cache-Control'] = 'private, max-age=300'
+        response['Cache-Control'] = 'private, no-store'
+        response['X-Content-Type-Options'] = 'nosniff'
         return response
 
     @staticmethod
     def _allowed(request, schema, name):
         tenant = getattr(request, 'tenant', None)
         host_schema = getattr(tenant, 'schema_name', None)
-        if host_schema is not None and schema == host_schema:
-            return True
-        if schema == PUBLIC_SCHEMA and name.startswith(PUBLIC_PREFIXES):
-            return True
         # Superusuario de plataforma con sesión en el host público (admin).
         user = getattr(request._request, 'user', None)
-        return bool(
+        if (
             host_schema == PUBLIC_SCHEMA
             and user is not None
             and user.is_authenticated
             and user.is_superuser
-        )
+        ):
+            return True
+        if not _name_matches_schema(schema, name):
+            return False
+        if host_schema is not None and schema == host_schema:
+            return True
+        return schema == PUBLIC_SCHEMA and name.startswith(PUBLIC_ASSET_PREFIXES)

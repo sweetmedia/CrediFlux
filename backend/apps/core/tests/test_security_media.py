@@ -225,3 +225,60 @@ def test_signed_file_field_returns_none_without_file(customer):
     from apps.loans.serializers import CustomerSerializer
 
     assert CustomerSerializer(customer).data["photo"] is None
+
+
+def _signed_file_response(name, schema, host, content=b"%PDF-1"):
+    from apps.core.media import signed_media_url
+
+    stored = default_storage.save(name, ContentFile(content))
+    try:
+        return stored, APIClient(HTTP_HOST=host).get(signed_media_url(stored, schema))
+    finally:
+        default_storage.delete(stored)
+
+
+def test_public_schema_files_outside_logo_prefix_are_not_cross_host(tenant_schema, other_tenant):
+    _, response = _signed_file_response("public/customer_documents/x/x.pdf", "public", OTHER_HOST)
+    assert response.status_code == 403
+
+    _, response = _signed_file_response("public/tenant_logos/x/x.png", "public", OTHER_HOST, PNG_BYTES)
+    assert response.status_code == 200
+
+
+def test_name_of_another_schema_is_forbidden_even_if_signed_for_host(tenant_schema):
+    _, response = _signed_file_response("other/customer_documents/x/x.pdf", "test", TENANT_HOST)
+    assert response.status_code == 403
+
+
+def test_legacy_name_without_schema_prefix_is_served_on_its_host(tenant_schema):
+    _, response = _signed_file_response("customer_documents/2025/01/old.pdf", "test", TENANT_HOST)
+    assert response.status_code == 200
+
+
+def test_private_file_is_not_cached(uploaded_document):
+    data, _ = uploaded_document
+    response = APIClient(HTTP_HOST=TENANT_HOST).get(_signed_path(data["document_file"]))
+    assert response["Cache-Control"] == "private, no-store"
+    assert response["X-Content-Type-Options"] == "nosniff"
+
+
+def test_certificate_upload_response_omits_certificate_file(auth_client):
+    response = auth_client.post(
+        "/api/billing/certificates/",
+        {
+            "name": "Firma DGII",
+            "certificate_file": SimpleUploadedFile(
+                "cert.p12", b"not-a-real-p12", content_type="application/x-pkcs12"
+            ),
+            "certificate_password": "s3cret",
+        },
+        format="multipart",
+    )
+    assert response.status_code == 201, response.content
+    assert "certificate_file" not in response.json()
+
+    from apps.billing.models import DigitalCertificate
+
+    certificate = DigitalCertificate.objects.get(pk=response.json()["id"])
+    assert certificate.certificate_file.name.startswith("test/billing/certificates/")
+    certificate.certificate_file.delete(save=False)

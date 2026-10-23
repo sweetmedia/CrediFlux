@@ -32,6 +32,8 @@ class DigitalCertificateUploadSerializer(SignedFilesModelSerializer):
             'is_active',
         ]
         extra_kwargs = {
+            # Material de clave privada: se sube, nunca se devuelve (ni firmado).
+            'certificate_file': {'write_only': True},
             'certificate_password': {'write_only': True},
         }
 
