@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from '@/lib/navigation';
 import Link from '@/lib/navigation/link';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -16,6 +16,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Field } from '@/components/ui/field';
+import { MoneyInput } from '@/components/ui/money-input';
+import { getApiErrorMessage } from '@/lib/api/client';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -73,6 +76,7 @@ export default function NewPaymentPage() {
 
   const {
     register,
+    control,
     handleSubmit,
     setValue,
     watch,
@@ -209,20 +213,7 @@ export default function NewPaymentPage() {
     } catch (err: any) {
       console.error('Error creating payment:', err);
 
-      if (err.response?.data) {
-        const errorData = err.response.data;
-        if (errorData.detail) {
-          setError(errorData.detail);
-        } else if (errorData.amount) {
-          setError(`Monto: ${errorData.amount[0]}`);
-        } else if (errorData.loan) {
-          setError(`Préstamo: ${errorData.loan[0]}`);
-        } else {
-          setError('Error al registrar el pago. Verifica los datos e inténtalo otra vez.');
-        }
-      } else {
-        setError('Error al conectar con el servidor');
-      }
+      setError(getApiErrorMessage(err, 'Error al registrar el pago. Verifica los datos e inténtalo otra vez.'));
     } finally {
       setIsLoading(false);
     }
@@ -469,22 +460,34 @@ export default function NewPaymentPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="amount">Monto del pago</Label>
-                      <Input
-                        id="amount"
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        {...register('amount')}
-                        disabled={isLoading}
-                        className="border-slate-200 bg-white shadow-none"
-                      />
-                      {errors.amount && <p className="text-xs text-red-600">{errors.amount.message}</p>}
-                      {selectedLoan && (
-                        <p className="text-xs text-slate-500">Balance actual: {formatCurrency(selectedLoan.outstanding_balance)}</p>
+                    <Field
+                      id="amount"
+                      label="Monto del pago"
+                      required
+                      error={errors.amount?.message}
+                      hint={selectedLoan ? `Balance actual: ${formatCurrency(selectedLoan.outstanding_balance)}` : undefined}
+                    >
+                      {(a11y) => (
+                        <Controller
+                          name="amount"
+                          control={control}
+                          render={({ field }) => (
+                            <MoneyInput
+                              {...a11y}
+                              ref={field.ref}
+                              name={field.name}
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              onBlur={field.onBlur}
+                              currencySymbol={config.currency_symbol}
+                              placeholder="0.00"
+                              disabled={isLoading}
+                              className="border-slate-200 bg-white shadow-none"
+                            />
+                          )}
+                        />
                       )}
-                    </div>
+                    </Field>
 
                     <div className="space-y-2">
                       <Label htmlFor="payment_date">Fecha de pago</Label>

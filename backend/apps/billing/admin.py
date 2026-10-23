@@ -5,7 +5,8 @@ Uses Django Unfold for a modern admin experience.
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from .models import (
-    DigitalCertificate, FiscalSequence, Invoice, InvoiceItem, ECFSubmission
+    DigitalCertificate, FiscalSequence, Invoice, InvoiceItem, ECFSubmission,
+    NexConnectWebhookEvent,
 )
 
 
@@ -97,3 +98,11 @@ class ECFSubmissionAdmin(ModelAdmin):
     list_filter = ['action', 'environment', 'response_status']
     search_fields = ['trackid', 'invoice__encf_number']
     readonly_fields = ['submitted_at', 'request_xml', 'response_body']
+
+
+@admin.register(NexConnectWebhookEvent)
+class NexConnectWebhookEventAdmin(ModelAdmin):
+    list_display = ['event_type', 'event_id', 'invoice', 'outcome', 'event_created_at', 'created_at']
+    list_filter = ['event_type', 'outcome']
+    search_fields = ['event_id', 'nexconnect_invoice_id', 'invoice__encf_number']
+    readonly_fields = [f.name for f in NexConnectWebhookEvent._meta.fields]

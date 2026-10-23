@@ -140,12 +140,13 @@ class Tenant(TenantMixin):
     ecf_provider = models.CharField(
         max_length=20,
         choices=[
+            ('nexconnect', 'NexConnect (PSFE)'),
             ('none', 'Sin facturación electrónica'),
             ('direct', 'DGII Directo (certificado propio)'),
             ('dgmax', 'DGMax.do (PSFE)'),
             ('ef2', 'EF2.do (PSFE)'),
         ],
-        default='none',
+        default='nexconnect',
         help_text='Proveedor de facturación electrónica'
     )
     dgii_environment = models.CharField(
@@ -160,11 +161,19 @@ class Tenant(TenantMixin):
     )
     ecf_provider_api_key = models.CharField(
         max_length=255, blank=True, null=True,
-        help_text='API Key del proveedor PSFE (DGMax/EF2)'
+        help_text='API Key del proveedor PSFE. NexConnect: key de emisor nxc_…, guardada cifrada'
     )
     ecf_provider_api_secret = models.CharField(
         max_length=255, blank=True, null=True,
         help_text='API Secret del proveedor PSFE (DGMax/EF2)'
+    )
+    nexconnect_webhook_id = models.CharField(
+        max_length=64, blank=True, default='',
+        help_text='Id del webhook registrado en NexConnect (POST /v1/webhooks/)'
+    )
+    nexconnect_webhook_secret = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text='Secret HMAC del webhook de NexConnect, guardado cifrado'
     )
 
     # Email configuration

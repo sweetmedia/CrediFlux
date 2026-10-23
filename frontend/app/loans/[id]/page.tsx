@@ -14,6 +14,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ErrorState } from '@/components/ui/error-state';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { getApiErrorMessage } from '@/lib/api/client';
 import {
   Loader2,
   ArrowLeft,
@@ -49,6 +54,8 @@ export default function LoanDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'approve' | 'disburse' | 'reject' | null>(null);
+  const [rejectionNotes, setRejectionNotes] = useState('');
 
   // Check if user can approve/reject loans (admin, manager, loan_officer, or tenant owner)
   const canManageLoans = user && (
@@ -81,7 +88,7 @@ export default function LoanDetailPage() {
       setLoan(data);
     } catch (err: any) {
       console.error('Error loading loan:', err);
-      setError('Error al cargar los detalles del préstamo');
+      setError(getApiErrorMessage(err, 'Error al cargar los detalles del préstamo'));
     } finally {
       setIsLoading(false);
     }
@@ -89,11 +96,6 @@ export default function LoanDetailPage() {
 
   const handleApproveLoan = async () => {
     if (!loan) return;
-
-    if (!confirm('¿Estás seguro de aprobar este préstamo?')) {
-      return;
-    }
-
     try {
       setIsProcessing(true);
       setError('');
@@ -101,7 +103,7 @@ export default function LoanDetailPage() {
       await loadLoanDetails();
     } catch (err: any) {
       console.error('Error approving loan:', err);
-      setError(err.response?.data?.error || 'Error al aprobar el préstamo');
+      setError(getApiErrorMessage(err, 'Error al aprobar el préstamo'));
     } finally {
       setIsProcessing(false);
     }
@@ -109,11 +111,6 @@ export default function LoanDetailPage() {
 
   const handleDisburseLoan = async () => {
     if (!loan) return;
-
-    if (!confirm('¿Estás seguro de desembolsar este préstamo? Esta acción marcará el préstamo como activo.')) {
-      return;
-    }
-
     try {
       setIsProcessing(true);
       setError('');
@@ -121,35 +118,23 @@ export default function LoanDetailPage() {
       await loadLoanDetails();
     } catch (err: any) {
       console.error('Error disbursing loan:', err);
-      setError(err.response?.data?.error || 'Error al desembolsar el préstamo');
+      setError(getApiErrorMessage(err, 'Error al desembolsar el préstamo'));
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleRejectLoan = async () => {
-    if (!loan) return;
-
-    // Ask for rejection reason
-    const rejectionNotes = prompt('Por favor, ingresa el motivo del rechazo:');
-
-    if (!rejectionNotes || rejectionNotes.trim() === '') {
-      setError('Se requiere especificar el motivo del rechazo');
-      return;
-    }
-
-    if (!confirm(`¿Estás seguro de rechazar este préstamo?\n\nMotivo: ${rejectionNotes}`)) {
-      return;
-    }
-
+    if (!loan || !rejectionNotes.trim()) return;
     try {
       setIsProcessing(true);
       setError('');
-      await loansAPI.rejectLoan(loan.id, rejectionNotes);
+      await loansAPI.rejectLoan(loan.id, rejectionNotes.trim());
+      setRejectionNotes('');
       await loadLoanDetails();
     } catch (err: any) {
       console.error('Error rejecting loan:', err);
-      setError(err.response?.data?.error || 'Error al rechazar el préstamo');
+      setError(getApiErrorMessage(err, 'Error al rechazar el préstamo'));
     } finally {
       setIsProcessing(false);
     }
@@ -247,10 +232,13 @@ export default function LoanDetailPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
         <div className="container mx-auto max-w-7xl">
-          <Alert variant="destructive">
-            <AlertDescription>No se encontró el préstamo</AlertDescription>
-          </Alert>
-          <div className="mt-4">
+          <ErrorState
+            variant="page"
+            title="No pudimos cargar el préstamo"
+            message={error || 'No se encontró el préstamo'}
+            onRetry={error ? loadLoanDetails : undefined}
+          />
+          <div className="mt-4 flex justify-center">
             <Link href="/loans">
               <Button variant="outline">
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -314,11 +302,11 @@ export default function LoanDetailPage() {
             )}
             {loan.status === 'pending' && canManageLoans && (
               <>
-                <Button variant="outline" onClick={handleRejectLoan} disabled={isProcessing} className="border-red-300 bg-white text-red-700 hover:bg-red-50">
+                <Button variant="outline" onClick={() => setPendingAction('reject')} disabled={isProcessing} className="border-red-300 bg-white text-red-700 hover:bg-red-50">
                   {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
                   Rechazar
                 </Button>
-                <Button onClick={handleApproveLoan} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700">
+                <Button onClick={() => setPendingAction('approve')} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700">
                   {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
                   Aprobar
                 </Button>
@@ -326,7 +314,7 @@ export default function LoanDetailPage() {
             )}
             {loan.status === 'approved' && canManageLoans && (
               <Button
-                onClick={handleDisburseLoan}
+                onClick={() => setPendingAction('disburse')}
                 disabled={isProcessing || (loan.contract_id ? !loan.contract_is_signed : true)}
                 className="bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 title={loan.contract_is_signed ? 'Desembolsar préstamo' : 'El contrato debe estar firmado antes de desembolsar'}
@@ -337,6 +325,57 @@ export default function LoanDetailPage() {
             )}
           </div>
         </div>
+
+        <ConfirmDialog
+          open={pendingAction === 'approve'}
+          onOpenChange={(open) => !open && setPendingAction(null)}
+          title="¿Aprobar este préstamo?"
+          description={`Se aprobará ${loan.loan_number}. Después podrás generar el contrato y desembolsar.`}
+          customer={loan.customer_name}
+          amount={loan.principal_amount}
+          confirmLabel="Aprobar préstamo"
+          onConfirm={handleApproveLoan}
+        />
+        <ConfirmDialog
+          open={pendingAction === 'disburse'}
+          onOpenChange={(open) => !open && setPendingAction(null)}
+          title="¿Desembolsar este préstamo?"
+          description={`${loan.loan_number} pasará a activo y empezará a generar cuotas. Esta acción no se puede deshacer.`}
+          customer={loan.customer_name}
+          amount={loan.principal_amount}
+          confirmLabel="Desembolsar"
+          onConfirm={handleDisburseLoan}
+        />
+        <ConfirmDialog
+          open={pendingAction === 'reject'}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPendingAction(null);
+              setRejectionNotes('');
+            }
+          }}
+          title="¿Rechazar este préstamo?"
+          description={`${loan.loan_number} quedará rechazado. Esta acción no se puede deshacer.`}
+          customer={loan.customer_name}
+          amount={loan.principal_amount}
+          confirmLabel="Rechazar préstamo"
+          variant="destructive"
+          confirmDisabled={!rejectionNotes.trim()}
+          onConfirm={handleRejectLoan}
+        >
+          <div className="space-y-2">
+            <Label htmlFor="rejection-notes">
+              Motivo del rechazo <span className="font-normal text-fg-muted">(obligatorio)</span>
+            </Label>
+            <Textarea
+              id="rejection-notes"
+              value={rejectionNotes}
+              onChange={(e) => setRejectionNotes(e.target.value)}
+              rows={3}
+              placeholder="Ej.: ingresos insuficientes para la cuota solicitada"
+            />
+          </div>
+        </ConfirmDialog>
 
         {error && (
           <Alert variant="destructive">

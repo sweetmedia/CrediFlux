@@ -67,6 +67,7 @@ import {
   Mail,
   UserCircle,
 } from 'lucide-react';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 const columns: { id: TaskStatus; title: string; color: string }[] = [
   { id: 'todo', title: 'Por Hacer', color: 'bg-gray-500' },
@@ -321,6 +322,7 @@ export default function TasksPage() {
   const { teamMembers } = useTeam();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [askConfirm, confirmDialog] = useConfirm();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [error, setError] = useState<string>('');
@@ -449,7 +451,12 @@ export default function TasksPage() {
   };
 
   const handleDeleteTask = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar esta tarea?')) return;
+    if (!(await askConfirm({
+      title: '¿Eliminar esta tarea?',
+      description: 'La tarea se eliminará del tablero. Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar tarea',
+      variant: 'destructive',
+    }))) return;
 
     try {
       await deleteTask(id);
@@ -545,6 +552,7 @@ export default function TasksPage() {
 
   return (
     <div className="p-6">
+      {confirmDialog}
       <div className="max-w-full">
         {/* Header */}
         <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
