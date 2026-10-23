@@ -68,7 +68,7 @@ docker compose exec backend pytest --cov
 cd frontend && npm test            # vitest + jsdom
 cd frontend && npm run test:e2e    # Playwright contra localhost:3100
 # con sesión (barre todas las rutas autenticadas):
-# E2E_EMAIL=admin@crediflux.com E2E_PASSWORD=admin2026 npm run test:e2e
+# E2E_EMAIL=admin@crediflux.com E2E_PASSWORD=<password> npm run test:e2e
 cd frontend && npm run typecheck
 ```
 

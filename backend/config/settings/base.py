@@ -3,6 +3,7 @@ Base settings for CrediFlux project.
 """
 import os
 from pathlib import Path
+import dj_database_url
 from decouple import config, Csv
 from datetime import timedelta
 from django.templatetags.static import static
@@ -118,16 +119,26 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django_tenants.postgresql_backend',
-        'NAME': config('DB_NAME', default='crediflux_db'),
-        'USER': config('DB_USER', default='crediflux_user'),
-        'PASSWORD': config('DB_PASSWORD', default='crediflux_pass'),
-        'HOST': config('DB_HOST', default='db'),
-        'PORT': config('DB_PORT', default='5432'),
+# DATABASE_URL tiene prioridad; si no existe, se usan las variables DB_*.
+# La contraseña no tiene default: production.py falla si queda vacía.
+DATABASE_URL = config('DATABASE_URL', default='')
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL, engine='django_tenants.postgresql_backend'
+        ),
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django_tenants.postgresql_backend',
+            'NAME': config('DB_NAME', default='crediflux_db'),
+            'USER': config('DB_USER', default='crediflux_user'),
+            'PASSWORD': config('DB_PASSWORD', default=''),
+            'HOST': config('DB_HOST', default='db'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
+    }
 
 DATABASE_ROUTERS = (
     'django_tenants.routers.TenantSyncRouter',
@@ -209,6 +220,9 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'apps.core.exceptions.custom_exception_handler',
     'DATETIME_FORMAT': '%Y-%m-%d %H:%M:%S',
     'DATE_FORMAT': '%Y-%m-%d',
+    # Proxies inversos de confianza delante de Django: DRF toma la IP del
+    # cliente de X-Forwarded-For sólo hasta esa profundidad (throttling por IP).
+    'NUM_PROXIES': config('DRF_NUM_PROXIES', default=1, cast=int),
 }
 
 # JWT Settings

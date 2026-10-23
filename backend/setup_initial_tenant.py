@@ -7,8 +7,21 @@ import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
+from django.utils.crypto import get_random_string
+
 from apps.tenants.models import Tenant, Domain
 from apps.users.models import User
+
+# Contraseña del superusuario inicial: del entorno, o aleatoria (se imprime una sola vez).
+password = os.environ.get('INITIAL_SUPERUSER_PASSWORD')
+password_generated = not password
+if password_generated:
+    password = get_random_string(16)
+
+
+def report_password():
+    if password_generated:
+        print(f"🔑 Generated password (shown only once): {password}")
 
 # Create public tenant if it doesn't exist
 tenant, created = Tenant.objects.get_or_create(
@@ -50,11 +63,12 @@ try:
     if not User.objects.filter(email='admin@crediflux.com').exists():
         user = User.objects.create_superuser(
             email='admin@crediflux.com',
-            password='admin2026',
+            password=password,
             first_name='Admin',
             last_name='CrediFlux',
         )
-        print(f"✅ Superuser created: admin@crediflux.com / admin2026")
+        print("✅ Superuser created: admin@crediflux.com")
+        report_password()
     else:
         print(f"ℹ️  Superuser already exists: admin@crediflux.com")
 except Exception as e:
@@ -65,9 +79,10 @@ except Exception as e:
             user = User.objects.create_superuser(
                 username='admin',
                 email='admin@crediflux.com',
-                password='admin2026',
+                password=password,
             )
-            print(f"✅ Superuser created: admin / admin2026")
+            print("✅ Superuser created: admin")
+            report_password()
         else:
             print(f"ℹ️  Superuser already exists: admin")
     except Exception as e2:

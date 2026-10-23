@@ -59,6 +59,10 @@ services:
       - "8100:8000"
     env_file:
       - .env
+    environment:
+      # Debe coincidir con POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB del servicio db
+      # (Django ya no tiene contraseña de BD por defecto).
+      - DATABASE_URL=postgres://crediflux_user:crediflux_pass@db:5432/crediflux_db
     depends_on:
       db:
         condition: service_healthy
@@ -79,6 +83,10 @@ services:
       - ./backend:/app
     env_file:
       - .env
+    environment:
+      # Debe coincidir con POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB del servicio db
+      # (Django ya no tiene contraseña de BD por defecto).
+      - DATABASE_URL=postgres://crediflux_user:crediflux_pass@db:5432/crediflux_db
     depends_on:
       - db
       - redis
@@ -93,6 +101,10 @@ services:
       - ./backend:/app
     env_file:
       - .env
+    environment:
+      # Debe coincidir con POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB del servicio db
+      # (Django ya no tiene contraseña de BD por defecto).
+      - DATABASE_URL=postgres://crediflux_user:crediflux_pass@db:5432/crediflux_db
     depends_on:
       - db
       - redis

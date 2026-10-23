@@ -1,7 +1,12 @@
 """
 Production settings for CrediFlux project.
 """
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import *
+
+if not DATABASES['default'].get('PASSWORD'):
+    raise ImproperlyConfigured('DB_PASSWORD or DATABASE_URL is required')
 
 DEBUG = False
 
