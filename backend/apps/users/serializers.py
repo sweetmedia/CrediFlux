@@ -749,7 +749,7 @@ class TwoFactorVerifySerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Verify the TOTP code against user's secret"""
-        import pyotp
+        from .totp import verify_totp_once
 
         user = self.context['request'].user
         code = attrs['code']
@@ -759,9 +759,8 @@ class TwoFactorVerifySerializer(serializers.Serializer):
                 'code': 'Please setup 2FA first by calling the setup endpoint.'
             })
 
-        # Verify TOTP code
-        totp = pyotp.TOTP(user.totp_secret)
-        if not totp.verify(code):
+        # Verify TOTP code (un solo uso por paso)
+        if not verify_totp_once(user, code):
             raise serializers.ValidationError({
                 'code': 'Invalid verification code. Please try again.'
             })
@@ -799,8 +798,9 @@ class TwoFactorLoginSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Validate either TOTP code or backup code"""
-        import pyotp
         from django.core.cache import cache
+
+        from .totp import verify_totp_once
 
         code = attrs.get('code', '').strip()
         backup_code = attrs.get('backup_code', '').strip()
@@ -838,8 +838,7 @@ class TwoFactorLoginSerializer(serializers.Serializer):
                     'code': 'Code must be 6 digits.'
                 })
 
-            totp = pyotp.TOTP(user.totp_secret)
-            if not totp.verify(code):
+            if not verify_totp_once(user, code):
                 raise serializers.ValidationError({
                     'code': 'Invalid verification code.'
                 })
@@ -876,7 +875,7 @@ class TwoFactorDisableSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Verify password and TOTP code"""
-        import pyotp
+        from .totp import verify_totp_once
 
         user = self.context['request'].user
         password = attrs['password']
@@ -890,8 +889,7 @@ class TwoFactorDisableSerializer(serializers.Serializer):
 
         # Verify TOTP code
         if user.totp_secret:
-            totp = pyotp.TOTP(user.totp_secret)
-            if not totp.verify(code):
+            if not verify_totp_once(user, code):
                 raise serializers.ValidationError({
                     'code': 'Invalid verification code.'
                 })
@@ -913,8 +911,12 @@ class TwoFactorDisableSerializer(serializers.Serializer):
 
 
 class BackupCodesRegenerateSerializer(serializers.Serializer):
-    """Serializer for regenerating backup codes"""
+    """Serializer for regenerating backup codes (contraseña + TOTP vigente)."""
     password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+    code = serializers.CharField(
+        required=False, allow_blank=True, write_only=True,
+        help_text='Código TOTP vigente de la app autenticadora.',
+    )
 
     def validate_password(self, value):
         """Verify password"""
@@ -922,6 +924,16 @@ class BackupCodesRegenerateSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("Incorrect password.")
         return value
+
+    def validate(self, attrs):
+        """Exige el segundo factor: con solo la contraseña no se regeneran los códigos."""
+        from .totp import verify_totp_once
+
+        user = self.context['request'].user
+        code = (attrs.get('code') or '').strip()
+        if not (len(code) == 6 and code.isdigit()) or not verify_totp_once(user, code):
+            raise serializers.ValidationError({'code': 'Código de verificación inválido.'})
+        return attrs
 
     def save(self):
         """Generate new backup codes"""
