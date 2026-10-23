@@ -75,6 +75,30 @@ def tenant(public_tenant, django_db_blocker):
     return tenant
 
 
+OTHER_TENANT_DOMAIN = "other.test.localhost"
+
+
+@pytest.fixture
+def other_tenant(db, public_schema):
+    """Segundo tenant SIN schema propio (`auto_create_schema = False`).
+
+    Sólo sirve para que `other.test.localhost` resuelva a un tenant distinto
+    y probar que una credencial del tenant de pruebas no vale en otro host.
+    """
+    from apps.tenants.models import Domain, Tenant
+
+    tenant = Tenant(
+        schema_name="other",
+        name="Otra Financiera",
+        business_name="Otra Financiera SRL",
+        email="admin@otra.test",
+    )
+    tenant.auto_create_schema = False
+    tenant.save(verbosity=0)
+    Domain.objects.create(domain=OTHER_TENANT_DOMAIN, tenant=tenant, is_primary=True)
+    return tenant
+
+
 @pytest.fixture
 def tenant_schema(db, tenant):
     """Activa el schema del tenant de pruebas durante el test."""

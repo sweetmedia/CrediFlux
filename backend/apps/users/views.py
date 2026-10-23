@@ -469,16 +469,14 @@ class TeamMemberDetailView(APIView):
 
     def get_object(self, request, pk):
         """Get team member or return error"""
+        if request.user.tenant_id is None:
+            return None, Response(
+                {'error': 'You do not belong to any tenant.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         try:
-            user = User.objects.get(pk=pk)
-
-            # Check if the user is in the same tenant
-            if user.tenant != request.user.tenant:
-                return None, Response(
-                    {'error': 'User not found in your tenant.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
+            user = User.objects.get(pk=pk, tenant_id=request.user.tenant_id)
             return user, None
 
         except User.DoesNotExist:

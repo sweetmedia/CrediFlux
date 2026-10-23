@@ -8,8 +8,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from django.db import connection
-from .models import Tenant
 from .serializers import (
     TenantRegistrationSerializer,
     TenantSerializer,
@@ -316,16 +314,14 @@ class TenantSettingsView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
-    def _get_effective_tenant(self, user):
-        """Resolve tenant from user relation first, then current schema as fallback."""
-        if getattr(user, 'tenant', None):
+    def _get_effective_tenant(self, request):
+        """Tenant del usuario; el superusuario de plataforma usa el del host."""
+        user = request.user
+        if user.tenant_id is not None:
             return user.tenant
-
-        current_schema = getattr(connection, 'schema_name', 'public')
-        try:
-            return Tenant.objects.get(schema_name=current_schema)
-        except Tenant.DoesNotExist:
-            return None
+        if user.is_superuser:
+            return getattr(request, 'tenant', None)
+        return None
 
     @swagger_auto_schema(
         operation_id='get_tenant_settings',
@@ -354,7 +350,7 @@ class TenantSettingsView(APIView):
         """
         # Get user's tenant
         user = request.user
-        tenant = self._get_effective_tenant(user)
+        tenant = self._get_effective_tenant(request)
 
         if not tenant:
             return Response(
@@ -441,7 +437,7 @@ class TenantSettingsView(APIView):
     def _update_tenant(self, request, partial=False):
         """Helper method to update tenant"""
         user = request.user
-        tenant = self._get_effective_tenant(user)
+        tenant = self._get_effective_tenant(request)
 
         # Check if user belongs to a tenant
         if not tenant:
