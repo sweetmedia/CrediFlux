@@ -72,7 +72,7 @@ def _loan_payload(customer, **overrides):
         "loan_type": "personal",
         "principal_amount": "5000.00",
         "principal_amount_currency": "DOP",
-        "interest_rate": "5.00",
+        "interest_rate": "1.00",  # mensual: 12% anual, dentro de la política
         "interest_type": "flat",
         "term_months": 2,
         "payment_frequency": "monthly",
@@ -213,7 +213,7 @@ def test_validate_origination_reports_field_keys(policy, customer_factory):
 
     attrs = {
         "principal_amount": Money(Decimal("50.00"), "DOP"),
-        "interest_rate": Decimal("1.00"),
+        "interest_rate": Decimal("0.10"),  # 1.2% anual < mínimo anual de 5%
         "term_months": 13,
     }
     with pytest.raises(serializers.ValidationError) as exc:
@@ -236,6 +236,47 @@ def test_patch_cannot_push_loan_outside_policy(policy, manager_client, loan_fact
     stored = Loan.objects.get(pk=loan.pk)
     assert stored.interest_rate == Decimal("5.00")
     assert stored.term_months == 6
+
+
+@pytest.mark.parametrize(
+    "rate, expected_status",
+    [("3.00", 201), ("0.30", 400), ("4.00", 400)],  # 36% / 3.6% / 48% anual
+)
+def test_monthly_rate_is_compared_annualized_on_default_policy(
+    manager_client, customer_factory, contract_template, rate, expected_status
+):
+    """Política por defecto (5%–36% anual): la tasa mensual del préstamo se anualiza ×12."""
+    from apps.loans.models import Loan
+
+    payload = _loan_payload(customer_factory(), interest_rate=rate)
+    response = manager_client.post("/api/loans/", payload, format="json")
+
+    assert response.status_code == expected_status, response.content
+    if expected_status == 400:
+        assert "interest_rate" in response.json()
+        assert Loan.objects.count() == 0
+
+
+def test_rate_error_message_shows_both_units(manager_client, customer_factory, contract_template):
+    payload = _loan_payload(customer_factory(), interest_rate="4.00")
+    response = manager_client.post("/api/loans/", payload, format="json")
+
+    assert response.status_code == 400, response.content
+    assert response.json()["interest_rate"] == [
+        "La tasa 4.00% mensual (48.00% anual) excede el máximo anual de 36.00%."
+    ]
+
+
+def test_patch_on_loan_at_customer_cap_is_allowed(policy, manager_client, customer_factory, loan_factory):
+    from apps.loans.models import Loan
+
+    customer = customer_factory()
+    loan = loan_factory(customer=customer, status="pending", disbursement_date=None, interest_rate=Decimal("1.00"))
+
+    response = manager_client.patch(f"/api/loans/{loan.id}/", {"term_months": 3}, format="json")
+
+    assert response.status_code == 200, response.content
+    assert Loan.objects.get(pk=loan.pk).term_months == 3
 
 
 @pytest.mark.parametrize(

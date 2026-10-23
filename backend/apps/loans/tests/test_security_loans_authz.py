@@ -96,7 +96,7 @@ def _loan_payload(customer):
         "loan_type": "personal",
         "principal_amount": "5000.00",
         "principal_amount_currency": "DOP",
-        "interest_rate": "5.00",
+        "interest_rate": "2.00",  # mensual (24% anual, dentro de la política por defecto)
         "interest_type": "flat",
         "term_months": 2,
         "payment_frequency": "monthly",

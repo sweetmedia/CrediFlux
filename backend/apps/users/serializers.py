@@ -629,6 +629,14 @@ class TeamMemberUpdateSerializer(serializers.ModelSerializer):
                 "Cannot deactivate tenant owner. Transfer ownership first."
             )
 
+        # Reactivar ocupa un cupo del plan (la vista bloquea la fila del tenant).
+        if value and not instance.is_active:
+            tenant = self.context.get('tenant') or instance.tenant
+            if tenant is not None:
+                active_users = User.objects.filter(tenant=tenant, is_active=True).count()
+                if active_users >= tenant.max_users:
+                    raise serializers.ValidationError('Límite de usuarios del plan alcanzado.')
+
         return value
 
 

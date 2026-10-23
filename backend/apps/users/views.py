@@ -484,6 +484,25 @@ class TeamMemberDetailView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    def _update(self, request, user, partial):
+        # Mismo bloqueo que el alta: una reactivación no puede saltarse max_users.
+        with transaction.atomic():
+            tenant = Tenant.objects.select_for_update().get(pk=user.tenant_id) if user.tenant_id else None
+            serializer = TeamMemberUpdateSerializer(
+                user,
+                data=request.data,
+                partial=partial,
+                context={'request': request, 'tenant': tenant}
+            )
+            if serializer.is_valid():
+                serializer.save()
+                return Response(
+                    TeamMemberListSerializer(user).data,
+                    status=status.HTTP_200_OK
+                )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     def get_object(self, request, pk):
         """Get team member or return error"""
         if request.user.tenant_id is None:
@@ -545,20 +564,7 @@ class TeamMemberDetailView(APIView):
         if error_response:
             return error_response
 
-        serializer = TeamMemberUpdateSerializer(
-            user,
-            data=request.data,
-            context={'request': request}
-        )
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response(
-                TeamMemberListSerializer(user).data,
-                status=status.HTTP_200_OK
-            )
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return self._update(request, user, partial=False)
 
     @swagger_auto_schema(
         operation_id='partial_update_team_member',
@@ -585,21 +591,7 @@ class TeamMemberDetailView(APIView):
         if error_response:
             return error_response
 
-        serializer = TeamMemberUpdateSerializer(
-            user,
-            data=request.data,
-            partial=True,
-            context={'request': request}
-        )
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response(
-                TeamMemberListSerializer(user).data,
-                status=status.HTTP_200_OK
-            )
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return self._update(request, user, partial=True)
 
     @swagger_auto_schema(
         operation_id='delete_team_member',

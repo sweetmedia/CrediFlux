@@ -576,7 +576,10 @@ class LoanSerializer(serializers.ModelSerializer):
                 'interest_rate': attrs.get('interest_rate', self.instance.interest_rate),
                 'term_months': attrs.get('term_months', self.instance.term_months),
             }
-            customer = attrs.get('customer', self.instance.customer)
+            # El tope de préstamos por cliente sólo se revisa si el préstamo cambia de cliente.
+            customer = attrs.get('customer')
+            if customer is not None and customer.pk == self.instance.customer_id:
+                customer = None
             validate_origination(
                 merged, customer, self.context.get('request'), instance=self.instance
             )

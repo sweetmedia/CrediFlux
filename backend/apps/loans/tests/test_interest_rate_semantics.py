@@ -97,7 +97,17 @@ def test_help_text_de_interest_rate_dice_mensual():
     assert "annual" not in help_text
 
 
-def test_crear_prestamo_fija_la_cuota_en_el_servidor(auth_client, customer_factory):
+@pytest.fixture
+def tasa_alta_permitida(tenant_schema):
+    """5% mensual = 60% anual: el tenant debe permitirlo (el default es 36% anual)."""
+    original = tenant_schema.max_interest_rate
+    tenant_schema.max_interest_rate = Decimal("60.00")
+    tenant_schema.save()
+    yield
+    tenant_schema.max_interest_rate = original  # la BD se revierte; el objeto de sesión no
+
+
+def test_crear_prestamo_fija_la_cuota_en_el_servidor(auth_client, customer_factory, tasa_alta_permitida):
     """La cuota del contrato sale del mismo cálculo que el cronograma, no del cliente."""
     from apps.loans.models import Loan
     from apps.loans.models_contracts import ContractTemplate

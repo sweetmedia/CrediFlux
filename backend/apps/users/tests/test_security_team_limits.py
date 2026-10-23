@@ -59,3 +59,30 @@ def test_inactive_users_do_not_count(auth_client, user_factory, set_max_users):
     response = auth_client.post("/api/users/team/create/", _payload(3), format="json")
 
     assert response.status_code == 201, response.content
+
+
+def test_reactivation_cannot_exceed_plan_limit(auth_client, user_factory, set_max_users):
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    member_a = user_factory(role="viewer")
+    set_max_users(2)  # dueño + A ocupan los dos cupos
+
+    response = auth_client.patch(f"/api/users/team/{member_a.pk}/", {"is_active": False}, format="json")
+    assert response.status_code == 200, response.content
+
+    response = auth_client.post("/api/users/team/create/", _payload(4), format="json")
+    assert response.status_code == 201, response.content
+
+    response = auth_client.patch(f"/api/users/team/{member_a.pk}/", {"is_active": True}, format="json")
+    assert response.status_code == 400, response.content
+    assert "Límite de usuarios del plan alcanzado." in str(response.json())
+    assert User.objects.get(pk=member_a.pk).is_active is False
+
+    response = auth_client.put(
+        f"/api/users/team/{member_a.pk}/",
+        {"first_name": "A", "last_name": "B", "role": "viewer", "is_active": True},
+        format="json",
+    )
+    assert response.status_code == 400, response.content
+    assert User.objects.get(pk=member_a.pk).is_active is False

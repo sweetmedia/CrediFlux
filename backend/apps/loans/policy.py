@@ -57,10 +57,16 @@ def validate_origination(attrs, customer, request=None, instance=None):
 
     rate = attrs.get('interest_rate')
     if rate is not None:
+        # Loan.interest_rate es MENSUAL; los límites del tenant son ANUALES (nominal = mensual × 12).
+        annual = (Decimal(str(rate)) * 12).quantize(Decimal('0.01'))
         low, high = tenant.min_interest_rate, tenant.max_interest_rate
-        if (low is not None and rate < low) or (high is not None and rate > high):
+        if high is not None and annual > high:
             errors['interest_rate'] = (
-                f'La tasa de interés debe estar entre {low} y {high} según la política de la organización.'
+                f'La tasa {rate:.2f}% mensual ({annual:.2f}% anual) excede el máximo anual de {high:.2f}%.'
+            )
+        elif low is not None and annual < low:
+            errors['interest_rate'] = (
+                f'La tasa {rate:.2f}% mensual ({annual:.2f}% anual) es menor al mínimo anual de {low:.2f}%.'
             )
 
     term = attrs.get('term_months')
