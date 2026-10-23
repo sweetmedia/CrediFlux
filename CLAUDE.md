@@ -1,6 +1,6 @@
 # CrediFlux
 
-Multi-tenant loan management SaaS. Django REST backend + Next.js frontend, orchestrated via Docker Compose.
+Multi-tenant loan management SaaS. Django REST backend + Vite/React SPA frontend, orchestrated via Docker Compose.
 
 ## Stack
 
@@ -10,15 +10,21 @@ Multi-tenant loan management SaaS. Django REST backend + Next.js frontend, orche
 - Auth: `dj-rest-auth` + `allauth` + `rest_framework_simplejwt`
 - Admin: Django Unfold (+ Constance for runtime config)
 - Other: `djmoney`, `phonenumber_field`, `drf-yasg`, `django-filters`, custom `djangosdk` AI integration
-- Settings split: `config/settings/{base,development,production}.py`
+- Settings split: `config/settings/{base,development,production,test}.py`
+- Dependencias con **uv**: `backend/pyproject.toml` + `uv.lock` (Python 3.11). `uv add <pkg>` / `uv lock`; en Docker el entorno vive en `/opt/venv` (fuera del bind mount) y ya está en el PATH
 - Two URL confs: `config/urls.py` (tenant) and `config/urls_public.py` (public schema)
 
 **Frontend** (`frontend/`)
-- Next.js 16 (App Router) + React 19 + TypeScript
+- Vite 8 + React 19 + TypeScript, SPA con React Router 7 (sin SSR)
+- Rutas generadas desde `app/**/page.tsx` (convención heredada de Next App Router) en `app/router.tsx`: `[id]` → `:id`, grupos `(x)` ignorados. Cada página es un chunk diferido
+- Navegación: `@/lib/navigation` (`useRouter`, `usePathname`, `useSearchParams`, `useParams`, misma forma que `next/navigation`) y `@/lib/navigation/link`; imágenes con `@/components/ui/image`. No importar `next/*` ni `react-router` directo en páginas
 - TailwindCSS + Radix UI + shadcn-style components (`components.json`)
 - TanStack Query + TanStack Table, `react-hook-form` + `zod`
 - `axios` for API calls, `recharts` for charts, `sonner` for toasts
-- `middleware.ts` handles auth/tenant routing
+- `components/layout/TenantHostGuard.tsx` (antes `middleware.ts`) manda el host sin subdominio a `/select-tenant`
+- Metadatos y script anti-flash de apariencia en `index.html`; fuentes en `app/fonts.css`
+- Env: `VITE_API_URL`, `VITE_APP_URL` (`import.meta.env`, se incrustan en build)
+- Producción: `frontend/Dockerfile` construye `dist/` y lo sirve nginx (`frontend/nginx.conf`, fallback a index.html)
 
 ## Apps
 
@@ -44,11 +50,36 @@ docker compose up
 #           backend (8000), celery, celery-beat, frontend (3000), docs (3001)
 ```
 
-Frontend talks to backend via `NEXT_PUBLIC_API_URL=http://localhost:8000`. Mailhog UI at `localhost:8025` for dev email.
+Frontend talks to backend via `VITE_API_URL` (V2 en Docker: `http://localhost:8100`; ver `lib/api/client.ts`, que la deduce del host). Mailhog UI at `localhost:8025` for dev email.
+
+## Tests
+
+Mismo esquema que NexConnect/NexFacturas.
+
+```bash
+# Backend: pytest + pytest-django contra Postgres real (django-tenants necesita schemas)
+docker compose exec backend pytest                 # --reuse-db por defecto
+docker compose exec backend pytest --create-db     # tras cambiar migraciones
+docker compose exec backend pytest --cov
+
+# Backend fuera de Docker: cd backend && uv run pytest
+
+# Frontend (Node 20, ver frontend/.nvmrc)
+cd frontend && npm test            # vitest + jsdom
+cd frontend && npm run test:e2e    # Playwright contra localhost:3100
+# con sesión (barre todas las rutas autenticadas):
+# E2E_EMAIL=admin@crediflux.com E2E_PASSWORD=admin2026 npm run test:e2e
+cd frontend && npm run typecheck
+```
+
+- Settings de test: `config/settings/test.py` (cache/correo en memoria, Celery eager, sin throttling).
+- `backend/conftest.py` crea una vez por sesión el tenant público (`localhost`) y un tenant `test` (`tenant.test.localhost`). Fixtures: `tenant_schema`, `public_schema`, `user_factory`, `admin_user`, `api_client`, `auth_client`, `public_client`. Fábricas en `backend/tests/factories.py`.
+- Tests backend: `apps/<app>/tests/test_*.py` o `backend/tests/`. Frontend: `*.test.ts(x)` junto al código o en `frontend/tests/unit/`; e2e en `frontend/tests/e2e/`.
+- CI: `.github/workflows/backend-ci.yml` y `frontend-ci.yml`. Ruff completo y `tsc` aún son informativos (deuda previa).
 
 ## Frontend routes (`frontend/app/`)
 
-App Router with route groups: `(auth)`, `dashboard`, `loans`, `customers`, `payments`, `cashbox`, `collections`, `collector`, `billing`, `communications`, `contracts`, `contract-templates`, `schedules`, `tasks`, `users`, `settings`, `ai`, `audit`, `calculator`, `sign`, `select-tenant`, `login`, `register`, `forgot-password`, `reset-password`, `access-denied`.
+Carpetas de páginas (cada `page.tsx` es una ruta): `(auth)`, `dashboard`, `loans`, `customers`, `payments`, `cashbox`, `collections`, `collector`, `billing`, `communications`, `contracts`, `contract-templates`, `schedules`, `tasks`, `users`, `settings`, `ai`, `audit`, `calculator`, `sign`, `select-tenant`, `login`, `register`, `forgot-password`, `reset-password`, `access-denied`.
 
 ## Conventions / gotchas
 

@@ -1,5 +1,3 @@
-'use client';
-
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { formatMoney } from '@/lib/utils/currency';
 import { cn } from '@/lib/utils';

@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -45,7 +43,7 @@ import {
   AlertCircle,
   ArrowLeft,
 } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/lib/navigation/link';
 
 const loanSettingsSchema = z.object({
   // Interest Rates

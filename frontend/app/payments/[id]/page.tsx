@@ -1,8 +1,6 @@
-'use client';
-
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter, useParams } from '@/lib/navigation';
+import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { paymentsAPI } from '@/lib/api/loans';
@@ -34,7 +32,10 @@ import {
   BadgeDollarSign,
   CircleDollarSign,
 } from 'lucide-react';
-import { useConfirm } from '@/components/ui/confirm-dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { getApiErrorMessage } from '@/lib/api/client';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function PaymentDetailPage() {
   const router = useRouter();
@@ -43,7 +44,8 @@ export default function PaymentDetailPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { config } = useConfig();
   const [payment, setPayment] = useState<any>(null);
-  const [askConfirm, confirmDialog] = useConfirm();
+  const [showReverseDialog, setShowReverseDialog] = useState(false);
+  const [reverseReason, setReverseReason] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -77,25 +79,17 @@ export default function PaymentDetailPage() {
   };
 
   const handleReversePayment = async () => {
-    if (!(await askConfirm({
-      title: '¿Revertir este pago?',
-      description: 'El pago se anulará y el balance del préstamo se recalculará. Esta acción no se puede deshacer.',
-      customer: payment?.customer_name,
-      amount: payment?.amount,
-      confirmLabel: 'Revertir pago',
-      variant: 'destructive',
-    }))) {
-      return;
-    }
-
+    const reason = reverseReason.trim();
+    if (!reason) return;
     try {
       setIsProcessing(true);
       setError('');
-      await paymentsAPI.reversePayment(paymentId);
+      await paymentsAPI.reversePayment(paymentId, reason);
+      setReverseReason('');
       await loadPayment(); // Reload payment details
     } catch (err: any) {
       console.error('Error reversing payment:', err);
-      setError(err.response?.data?.error || 'Error al revertir el pago');
+      setError(getApiErrorMessage(err, 'Error al revertir el pago'));
     } finally {
       setIsProcessing(false);
     }
@@ -257,7 +251,34 @@ export default function PaymentDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f8f7] p-4 py-8 print:bg-white md:p-6">
-      {confirmDialog}
+      <ConfirmDialog
+        open={showReverseDialog}
+        onOpenChange={(open) => {
+          setShowReverseDialog(open);
+          if (!open) setReverseReason('');
+        }}
+        title="¿Revertir este pago?"
+        description="El pago se anulará y el balance del préstamo se recalculará. Esta acción no se puede deshacer."
+        customer={payment?.customer_name}
+        amount={payment?.amount}
+        confirmLabel="Revertir pago"
+        variant="destructive"
+        confirmDisabled={!reverseReason.trim()}
+        onConfirm={handleReversePayment}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="reverse-reason">
+            Motivo del reverso <span className="font-normal text-fg-muted">(obligatorio)</span>
+          </Label>
+          <Textarea
+            id="reverse-reason"
+            value={reverseReason}
+            onChange={(e) => setReverseReason(e.target.value)}
+            rows={3}
+            placeholder="Ej.: pago registrado en el préstamo equivocado"
+          />
+        </div>
+      </ConfirmDialog>
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between print:hidden">
           <div>
@@ -492,7 +513,7 @@ export default function PaymentDetailPage() {
 
                         <Button
                           variant="destructive"
-                          onClick={handleReversePayment}
+                          onClick={() => setShowReverseDialog(true)}
                           disabled={isProcessing}
                         >
                           {isProcessing ? (

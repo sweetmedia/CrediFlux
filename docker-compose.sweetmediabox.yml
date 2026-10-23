@@ -142,11 +142,10 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-      - /app/.next
     ports:
       - "3600:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://10.0.0.93:8600
+      - VITE_API_URL=http://10.0.0.93:8600
     depends_on:
       - backend
     networks:

@@ -1,15 +1,7 @@
-'use client';
-
 import { useState, useRef, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
+import { useParams } from '@/lib/navigation';
+import SignatureCanvas from 'react-signature-canvas';
 import { publicContractAPI } from '@/lib/api/contracts';
-
-// Importación dinámica de SignatureCanvas para evitar problemas de SSR
-const SignatureCanvas = dynamic(() => import('react-signature-canvas'), {
-  ssr: false,
-  loading: () => <div className="w-full h-48 bg-slate-100 animate-pulse rounded-lg"></div>
-});
 
 export default function PublicSignPage() {
   const params = useParams();

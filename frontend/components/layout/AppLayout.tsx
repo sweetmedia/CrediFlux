@@ -1,8 +1,6 @@
-'use client';
-
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import Image from 'next/image';
+import { useRouter, usePathname } from '@/lib/navigation';
+import Image from '@/components/ui/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
 import { Loader2, Menu, X } from 'lucide-react';

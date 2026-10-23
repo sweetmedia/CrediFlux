@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * AppearanceProvider — light / dark / system color-scheme management.
  *

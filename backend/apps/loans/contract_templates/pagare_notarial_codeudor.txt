@@ -1,0 +1,43 @@
+PAGARÉ NOTARIAL
+
+ACTO NÚMERO ______________ (_____) Y FOLIOS NÚMEROS ______________ (_____). En la Ciudad y Municipio de {{municipio}}, Provincia de {{provincia}}, {{pais}}, a los {{contract_date}}, por ante mí, Licenciado(a) ________________________________, Notario Público de los del Número para el Municipio de {{municipio}}, portador(a) de la cédula de identidad y electoral número ________________, con matrícula del Colegio de Notarios de la República Dominicana número ________, con estudio profesional abierto en ________________________________________________, de esta ciudad; han comparecido: a) De una parte, {{customer_name}}, dominicano(a), mayor de edad, de estado civil ______________, portador(a) de la cédula de identidad y electoral número {{customer_id_number}}, domiciliado(a) y residente en {{customer_address}}; quien en lo adelante, para todos los fines y consecuencias legales del presente acto, se denominará: EL DEUDOR; b) De otra parte, {{guarantor_name}}, dominicano(a), mayor de edad, de estado civil ______________, portador(a) de la cédula de identidad y electoral número {{guarantor_id}}, domiciliado(a) y residente en {{guarantor_address}}, lugar donde hace formal elección de domicilio; quien en lo adelante, para todos los fines y consecuencias legales del presente acto, se denominará: EL CO-DEUDOR; y c) De la otra parte, {{company_name}}, RNC/cédula número {{company_tax_id}}, con domicilio en {{company_address}}; quien en lo adelante, para los fines propios de este acto, se denominará: LA ACREEDORA. Yo, Notario infrascrito, doy fe de conocer a los supraindicados comparecientes y de haberlos identificado, además, por medio de la presentación que me hicieron de sus cédulas de identidad y electoral. Y me han declarado EL DEUDOR y EL CO-DEUDOR:
+
+PRIMERO: Que reconocen ser deudores solidarios de LA ACREEDORA por la suma total de {{total_con_interes_letras}} ({{total_con_interes}}), moneda de curso legal, que comprende el capital recibido a título de préstamo por la suma de {{loan_amount_words}} ({{loan_amount}}) más los intereses y costos del contrato calculados a la tasa de {{interest_rate}} mensual sobre el capital, según el préstamo número {{loan_number}};
+
+SEGUNDO: Que se comprometen y obligan conjunta y solidariamente, por este mismo acto, al pago de la suma adeudada mediante {{cantidad_cuotas_letras}} ({{cantidad_cuotas}}) cuotas {{frecuencia_pago_plural}}, iguales y consecutivas, por un monto de {{monto_cuota_letras}} ({{monto_cuota}}) cada una, contentivas de capital, costos de contrato e intereses, moneda de curso legal, debiendo realizar el primer pago en fecha {{first_payment_date}} y la última cuota en fecha {{final_payment_date}}, hasta el saldo total y satisfactorio de las obligaciones principales y accesorias contraídas;
+
+TERCERO: Los comparecientes declaran y reconocen que se comprometen y obligan conjunta y solidariamente al pago total de la deuda antes indicada frente a LA ACREEDORA, renunciando ambos al beneficio de división y de discusión, así como a cualquier otro beneficio que la ley pudiera otorgarles;
+
+CUARTO: Que en caso de no efectuarse el pago de cualquiera de las cuotas en la fecha convenida, se obligan a pagar una suma adicional equivalente al {{mora_porcentaje}} del valor de dicha cuota {{mora_frecuencia}}, a título de interés indemnizatorio o mora, así como todas las costas y gastos (incluyendo honorarios de abogados) en que pudiera incurrir LA ACREEDORA para su cobro por la vía judicial o por cualquier otra vía, con renuncia expresa del fuero del domicilio y de cualquier otra ley que pudiere favorecerles;
+
+QUINTO: Que la falta de pago de una de las cuotas constituye una violación al compromiso contraído; en consecuencia, reconocen que bajo esa circunstancia pierden ipso facto el beneficio del término, y se hará exigible de pleno derecho el pago total del saldo adeudado a esa fecha, quedando afectados todos sus bienes, muebles e inmuebles, habidos y por haber;
+
+SEXTO: En caso de que EL DEUDOR y EL CO-DEUDOR pretendan saldar dicha deuda antes del plazo establecido en este contrato, se comprometen con LA ACREEDORA a un pago mínimo de seis (6) cuotas a título de indemnización;
+
+SÉPTIMO: EL DEUDOR y EL CO-DEUDOR autorizan expresa y formalmente a LA ACREEDORA a suministrar a los Centros de Información Crediticia la información patrimonial y extrapatrimonial necesaria a los fines de evaluación del crédito por parte de otras instituciones suscriptoras de dichos Centros de Información, reconociendo y garantizando que la revelación de dichas informaciones por parte de LA ACREEDORA, y/o por los Centros de Información Crediticia y/o sus respectivos empleados, funcionarios y accionistas, no conllevará violación de secreto profesional ni generará responsabilidad alguna, al tiempo de renunciar expresa y formalmente al ejercicio de cualesquiera acciones o demandas a los fines de reclamación de daños y perjuicios por dicha causa o motivo, o por el suministro de información inexacta, y prometiendo sumisión de sus representantes, accionistas y demás causahabientes a lo pactado;
+
+OCTAVO: EL DEUDOR y EL CO-DEUDOR reconocen expresamente que deberán realizar los pagos correspondientes al saldo de la deuda en {{company_address}}, lugar donde tiene abiertas sus oficinas LA ACREEDORA.
+
+De todo lo cual se instrumenta el presente acto, que leído íntegramente a los comparecientes, me declaran encontrarlo conforme por ser la exacta expresión de la verdad, en el día, mes y año preindicados, en mi estudio profesional; y quienes, requeridos a firmar en señal de aprobación, lo hacen junto conmigo y por ante mí, de modo libre y voluntario, Notario Público, que certifico y doy fe.
+
+POR EL DEUDOR:
+
+
+_________________________________
+{{customer_name}}
+
+POR EL CO-DEUDOR:
+
+
+_________________________________
+{{guarantor_name}}
+
+POR LA ACREEDORA:
+
+
+_________________________________
+{{company_name}}
+
+____________________________________________
+Lic. ________________________________
+Notario Público

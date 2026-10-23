@@ -1,8 +1,6 @@
-'use client';
-
 import { useState } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/navigation';
 import { loansAPI } from '@/lib/api/loans';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

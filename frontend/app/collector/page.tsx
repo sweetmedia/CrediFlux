@@ -1,8 +1,6 @@
-'use client';
-
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter } from '@/lib/navigation';
+import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { schedulesAPI, paymentsAPI, collectionsAPI } from '@/lib/api/loans';
@@ -471,7 +469,7 @@ export default function CollectorMobilePage() {
                     {/* Statement */}
                     {item.customer_id && (
                       <a
-                        href={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/loans/customers/${item.customer_id}/statement-preview/`}
+                        href={`${import.meta.env.VITE_API_URL || ''}/api/loans/customers/${item.customer_id}/statement-preview/`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center justify-center gap-2 bg-white border border-gray-200 rounded-lg py-2.5 px-3 text-sm font-medium text-gray-700 active:bg-gray-100"

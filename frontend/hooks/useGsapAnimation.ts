@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect, useRef, RefObject } from 'react';
 
 type AnimationType = 'fadeIn' | 'fadeInUp' | 'fadeInDown' | 'fadeInLeft' | 'fadeInRight' | 'scaleIn' | 'slideIn';

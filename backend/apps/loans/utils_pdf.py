@@ -263,46 +263,49 @@ def generate_contract_pdf(contract, tenant=None):
     else:
         elements.append(Paragraph("<i>Este contrato no tiene contenido generado.</i>", body_style))
 
-    elements.append(Spacer(1, 22))
-    elements.append(HRFlowable(width="100%", thickness=0.8, color=BORDER, spaceAfter=14))
+    # Las plantillas con firmas propias (ej. pagaré notarial) no llevan el bloque genérico
+    template_has_signatures = bool(contract.template and contract.template.includes_signatures)
+    if not template_has_signatures:
+        elements.append(Spacer(1, 22))
+        elements.append(HRFlowable(width="100%", thickness=0.8, color=BORDER, spaceAfter=14))
 
-    # Signatures block
-    elements.append(Paragraph("FIRMAS Y VALIDACIÓN", signature_title_style))
+        # Signatures block
+        elements.append(Paragraph("FIRMAS Y VALIDACIÓN", signature_title_style))
 
-    signature_rows = [
-        [
-            Paragraph("Cliente / Deudor", metadata_label_style),
-            Paragraph("Oficial de crédito", metadata_label_style),
-        ],
-        [
-            Paragraph("<br/><br/>_______________________________", metadata_value_style),
-            Paragraph("<br/><br/>_______________________________", metadata_value_style),
-        ],
-        [
-            Paragraph(contract.loan.customer.get_full_name() if contract.loan else "Pendiente", signature_meta_style),
-            Paragraph(contract.loan.loan_officer.get_full_name() if contract.loan and contract.loan.loan_officer else "Pendiente", signature_meta_style),
-        ],
-        [
-            Paragraph(
-                f"Firmado: {_format_long_date(contract.customer_signed_at)}" if contract.customer_signed_at else "Firma pendiente",
-                signature_meta_style,
-            ),
-            Paragraph(
-                f"Firmado: {_format_long_date(contract.officer_signed_at)}" if contract.officer_signed_at else "Firma pendiente",
-                signature_meta_style,
-            ),
-        ],
-    ]
+        signature_rows = [
+            [
+                Paragraph("Cliente / Deudor", metadata_label_style),
+                Paragraph("Oficial de crédito", metadata_label_style),
+            ],
+            [
+                Paragraph("<br/><br/>_______________________________", metadata_value_style),
+                Paragraph("<br/><br/>_______________________________", metadata_value_style),
+            ],
+            [
+                Paragraph(contract.loan.customer.get_full_name() if contract.loan else "Pendiente", signature_meta_style),
+                Paragraph(contract.loan.loan_officer.get_full_name() if contract.loan and contract.loan.loan_officer else "Pendiente", signature_meta_style),
+            ],
+            [
+                Paragraph(
+                    f"Firmado: {_format_long_date(contract.customer_signed_at)}" if contract.customer_signed_at else "Firma pendiente",
+                    signature_meta_style,
+                ),
+                Paragraph(
+                    f"Firmado: {_format_long_date(contract.officer_signed_at)}" if contract.officer_signed_at else "Firma pendiente",
+                    signature_meta_style,
+                ),
+            ],
+        ]
 
-    signature_table = Table(signature_rows, colWidths=[3.15 * inch, 3.15 * inch])
-    signature_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
-    elements.append(signature_table)
+        signature_table = Table(signature_rows, colWidths=[3.15 * inch, 3.15 * inch])
+        signature_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(signature_table)
 
     elements.append(Spacer(1, 14))
     elements.append(Paragraph(

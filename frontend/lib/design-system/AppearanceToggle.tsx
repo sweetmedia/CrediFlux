@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * AppearanceToggle — single-button cycler: light → dark → system → light.
  *

@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Mesa de cobranza</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/bundle.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: {
+              50: '#f0f7eb',
+              100: '#dcecd0',
+              500: '#4d8630',
+              700: '#2d5a10',
+              900: '#163300',
+              950: '#0a1a00',
+            },
+            sage: {
+              50: '#f3f6f1',
+              100: '#e4ebe0',
+              200: '#c8d4be',
+              300: '#a8b89c',
+              400: '#8a9d7a',
+              500: '#738566',
+              600: '#5c6d4d',
+              700: '#4a5a3d',
+            },
+            sun: { 100: '#fffbe6', 500: '#ffe026' },
+            flame: { 500: '#ff7503', 600: '#cc5e02' },
+            cream: '#faf8f2',
+            'warm-white': '#f5f3ed',
+            tenant: 'var(--color-tenant-primary)',
+          },
+          letterSpacing: {
+            'widest': '0.14em',
+            'ultra': '0.18em',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    html, body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #faf8f2;
+      color: #163300;
+      font-feature-settings: 'rlig' 1, 'calt' 1;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .paper-bg {
+      background-color: #faf8f2;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(22, 51, 0, 0.035) 1px, transparent 0);
+      background-size: 28px 28px;
+    }
+
+    .sidebar {
+      background: var(--color-tenant-primary, #163300);
+    }
+
+    .nav-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 6px 12px 6px 14px;
+      border-radius: 4px;
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 1.4;
+      text-decoration: none;
+      transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                  background-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav-item:hover {
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .nav-item.active {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      font-weight: 500;
+    }
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: -1px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2px;
+      height: 18px;
+      background: #ffe026;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .nav-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 4px 14px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: rgba(255, 255, 255, 0.32);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav-group-header:hover { color: rgba(255, 255, 255, 0.6); }
+    .nav-group-header.flat { cursor: default; }
+    .nav-group-header.flat:hover { color: rgba(255, 255, 255, 0.32); }
+    .nav-group-chevron {
+      transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+      opacity: 0.7;
+    }
+    .nav-group[data-collapsed="true"] .nav-group-chevron { transform: rotate(-90deg); }
+    .nav-group[data-collapsed="true"] .nav-group-items { display: none; }
+
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 1;
+      color: rgba(255, 255, 255, 0.6);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-bottom-width: 2px;
+      border-radius: 3px;
+    }
+
+    .sidebar-search {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: calc(100% - 24px);
+      margin: 12px 12px 0;
+      padding: 7px 10px 7px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .sidebar-search:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.14);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .scrollbar-dark::-webkit-scrollbar { width: 6px; }
+    .scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-dark::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+    }
+    .scrollbar-dark:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); }
+    .scrollbar-dark { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent; }
+
+    .util-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 32px;
+      padding: 0 8px;
+      border-radius: 4px;
+      color: #5c6d4d;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .util-btn:hover {
+      color: #163300;
+      background: rgba(22, 51, 0, 0.04);
+    }
+    .util-btn--icon { width: 32px; padding: 0; }
+
+    .reminder-dot {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      min-width: 14px;
+      height: 14px;
+      padding: 0 3px;
+      background: #ff7503;
+      color: #ffffff;
+      border-radius: 7px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 14px;
+      text-align: center;
+      border: 2px solid #faf8f2;
+    }
+
+    .dev-banner {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px 10px 16px;
+      background: rgba(22, 51, 0, 0.92);
+      backdrop-filter: blur(8px);
+      color: rgba(255, 255, 255, 0.85);
+      border-radius: 6px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      box-shadow: 0 20px 40px -12px rgba(22, 51, 0, 0.4),
+                  0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    .dev-banner__label { color: rgba(255, 255, 255, 0.45); }
+    .dev-banner__swatches { display: flex; gap: 8px; }
+    .dev-banner__swatch {
+      width: 20px; height: 20px; border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer; padding: 0;
+      transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .dev-banner__swatch:hover { transform: translateY(-2px); }
+    .dev-banner__swatch.active { box-shadow: 0 0 0 2px #ffe026, 0 0 0 3px rgba(22, 51, 0, 0.92); }
+    .dev-banner__swatch::after {
+      content: attr(data-name);
+      position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+      padding: 3px 7px; background: rgba(22, 51, 0, 0.95); color: rgba(255, 255, 255, 0.9);
+      font-size: 9px; border-radius: 3px; white-space: nowrap; opacity: 0; pointer-events: none;
+      transition: opacity 150ms;
+    }
+    .dev-banner__swatch:hover::after { opacity: 1; }
+
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .rule-b { border-bottom: 1px solid rgba(22, 51, 0, 0.08); }
+    .rule-t { border-top: 1px solid rgba(22, 51, 0, 0.08); }
+    .rule-r { border-right: 1px solid rgba(22, 51, 0, 0.08); }
+
+    /* Logo filter for white on dark */
+    .logo-white {
+      filter: brightness(0) invert(1);
+    }
+
+    /* ======================================================================
+     * Customers list page-specific styles
+     * ====================================================================== */
+    .filter-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 12px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: #738566;
+      background: transparent;
+      border: 1px solid rgba(22, 51, 0, 0.1);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 150ms;
+    }
+    .filter-pill:hover {
+      color: #163300;
+      border-color: rgba(22, 51, 0, 0.2);
+      background: rgba(22, 51, 0, 0.02);
+    }
+    .filter-pill.active {
+      color: #163300;
+      background: rgba(22, 51, 0, 0.06);
+      border-color: rgba(22, 51, 0, 0.2);
+      font-weight: 600;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .data-table thead th {
+      padding: 10px 12px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #738566;
+      text-align: left;
+      border-bottom: 1px solid rgba(22, 51, 0, 0.12);
+      white-space: nowrap;
+    }
+    .data-table tbody tr {
+      border-bottom: 1px solid rgba(22, 51, 0, 0.06);
+      transition: background 100ms;
+    }
+    .data-table tbody tr:hover {
+      background: rgba(22, 51, 0, 0.02);
+    }
+    .data-table tbody td {
+      padding: 12px 12px;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    .checkbox-custom {
+      width: 16px;
+      height: 16px;
+      border: 1px solid rgba(22, 51, 0, 0.2);
+      border-radius: 3px;
+      background: white;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 150ms;
+    }
+    .checkbox-custom:checked {
+      background: #163300;
+      border-color: #163300;
+    }
+    .checkbox-custom:checked::after {
+      content: '';
+      display: block;
+      width: 10px;
+      height: 10px;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 10' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 5.5L4 7.5L8 3' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+    .checkbox-custom:hover {
+      border-color: rgba(22, 51, 0, 0.4);
+    }
+
+    .sort-select {
+      appearance: none;
+      -webkit-appearance: none;
+      padding: 5px 28px 5px 10px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: #738566;
+      background: white;
+      border: 1px solid rgba(22, 51, 0, 0.1);
+      border-radius: 4px;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23738566' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      transition: all 150ms;
+    }
+    .sort-select:hover {
+      border-color: rgba(22, 51, 0, 0.2);
+      color: #163300;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border-radius: 3px;
+    }
+    .status-badge--activo {
+      color: #4d8630;
+      background: rgba(77, 134, 48, 0.08);
+    }
+    .status-badge--mora {
+      color: #cc5e02;
+      background: rgba(255, 117, 3, 0.08);
+    }
+    .status-badge--inactivo {
+      color: #738566;
+      background: rgba(115, 133, 102, 0.08);
+    }
+  </style>
+  <style>.cf-table td.cf-mono{white-space:nowrap}</style>
+</head>
+<body class="min-h-screen">
+
+  <!-- ============================================================== -->
+  <!-- Sidebar                                                         -->
+  <!-- ============================================================== -->
+  <aside
+    class="sidebar fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col text-white"
+    aria-label="Navegacion principal"
+  >
+
+    <!-- Editorial masthead: CrediFlux REAL logo + tenant identity -->
+    <div class="px-5 pt-5 pb-4 border-b border-white/[0.08]">
+      <!-- CrediFlux real logo (isotipo + wordmark) — white on dark -->
+      <div class="mb-4">
+        <img
+          src="../branding/logo-full/svg/crediflux-logo.svg"
+          alt="CrediFlux"
+          class="logo-white h-[22px] w-auto"
+        />
+      </div>
+
+      <!-- Tenant masthead -->
+      <div>
+        <div class="font-display text-[14px] font-medium text-white leading-[1.25]">
+          Cooperativa San&nbsp;José
+        </div>
+        <div class="mt-1 flex items-center gap-2 font-mono text-[10px] text-white/40 uppercase tracking-widest">
+          <span>coop-san-jose</span>
+          <span class="text-white/15">·</span>
+          <span>rd</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global search trigger -->
+    <button class="sidebar-search" aria-label="Abrir busqueda global">
+      <span class="flex items-center gap-2">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+        </svg>
+        <span>Buscar</span>
+      </span>
+      <span class="kbd">⌘K</span>
+    </button>
+
+    <!-- Navigation groups -->
+    <nav class="flex-1 overflow-y-auto scrollbar-dark px-3 py-5">
+
+      <!-- Overview -->
+      <div class="mb-6">
+        <div class="nav-group-header flat"><span>Overview</span></div>
+        <div class="mt-1.5 space-y-[1px]">
+          <a href="dashboard.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+            </svg>
+            <span>Dashboard</span>
+          </a>
+          <a href="calculator.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/>
+            </svg>
+            <span>Calculadora</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/>
+            </svg>
+            <span>Asistente IA</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Operacion -->
+      <div class="mb-6 nav-group" data-collapsed="false">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="true">
+          <span>Operación</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="loans-list.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Préstamos</span>
+          </a>
+          <a href="customers-list.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Clientes</span>
+          </a>
+          <a href="payments-new.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span>Pagos</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+            <span>Caja</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Cobranza -->
+      <div class="mb-6 nav-group" data-collapsed="false">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="true">
+          <span>Cobranza</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="collections.html" class="nav-item active" aria-current="page">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <span>Mesa de cobranza</span>
+          </a>
+          <a href="collection-contacts.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span>Gestiones</span>
+          </a>
+          <a href="collection-reminders.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span>Recordatorios</span>
+          </a>
+          <a href="collector-mobile.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>Cobrador móvil</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="16" x2="8" y2="12"/><line x1="12" y1="16" x2="12" y2="8"/><line x1="16" y1="16" x2="16" y2="11"/></svg>
+            <span>Reportes</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Facturacion -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Facturación</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Facturas e-CF</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+            <span>Secuencias e-NCF</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Certificados</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="12" x2="8" y2="18"/><line x1="12" y1="8" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="18"/></svg>
+            <span>Reportes DGII</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Contratos -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Contratos</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10.29 10.7l2.29 2.3 4.42-4.42"/></svg>
+            <span>Lista</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span>Plantillas</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Comunicaciones -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Comunicaciones</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>Mensajes</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span>Tareas</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Administracion -->
+      <div>
+        <div class="nav-group-header flat"><span>Administración</span></div>
+        <div class="mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/><path d="M22 15h-6"/></svg>
+            <span>Equipo</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+            <span>Auditoría</span>
+          </a>
+          <a href="settings-roles.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Configuración</span>
+          </a>
+        </div>
+      </div>
+
+    </nav>
+
+    <!-- User profile footer -->
+    <div class="border-t border-white/[0.08] px-3 py-3">
+      <div class="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-white/[0.04] transition-colors cursor-pointer">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-medium text-white tabular-nums" style="background: #738566;">
+          MF
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="truncate font-display text-[13px] font-medium text-white leading-tight">
+            María Fernández
+          </div>
+          <div class="truncate font-mono text-[9px] uppercase tracking-widest text-white/45 mt-0.5">
+            Oficial de Cobranza
+          </div>
+        </div>
+        <button class="p-1.5 text-white/35 hover:text-white/90 transition-colors rounded" aria-label="Cerrar sesion" title="Cerrar sesion">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================== -->
+  <!-- Main layout area                                                -->
+  <!-- ============================================================== -->
+  <div class="ml-[240px]">
+
+    <!-- Sticky header -->
+    <header class="sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div class="flex h-14 items-center gap-3 pl-8 pr-6">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="#" class="text-[12px] text-sage-500 hover:text-forest-900 transition-colors">Inicio</a>
+          <span class="text-sun-500 text-[9px] leading-none">&#9679;</span>
+          <span class="text-[12px] text-sage-500">Cobranza</span>
+          <span class="text-sun-500 text-[9px] leading-none">●</span>
+          <span class="font-display text-[13px] font-medium text-forest-900">Mesa de cobranza</span>
+
+        </div>
+        <div class="flex items-center gap-1">
+          <div class="hidden lg:flex items-center gap-2 pr-3 mr-2 border-r border-forest-900/10">
+            <span class="relative flex h-2 w-2">
+              <span class="absolute inline-flex h-full w-full rounded-full bg-forest-500 opacity-40" style="animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite;"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-forest-500"></span>
+            </span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Actualizado 14:32</span>
+          </div>
+          <button class="util-btn gap-1.5 px-2.5 text-[12px]">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4v18M12 21V11l7-4v14"/></svg>
+            <span class="font-mono text-[10px] uppercase tracking-widest">coop-san-jose</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <button class="util-btn util-btn--icon" aria-label="Busqueda global">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </button>
+          <button class="util-btn util-btn--icon relative" aria-label="Recordatorios pendientes (3)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="reminder-dot">3</span>
+          </button>
+          <button class="flex items-center gap-2 h-8 pl-1 pr-2 ml-1 rounded hover:bg-forest-900/[0.04] transition-colors" aria-label="Menu de usuario">
+            <div class="flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] font-medium text-white tabular-nums" style="background: #738566;">MF</div>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sage-500"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================================== -->
+    <!-- Main content: Customers List                                    -->
+    <!-- ============================================================== -->
+    <main class="paper-bg min-h-[calc(100vh-56px)] px-8 py-8">
+      <div class="max-w-[1400px] mx-auto">
+
+        <header class="cf-page-header">
+          <div>
+            <div class="cf-page-header__eyebrow">Miércoles 10 · abr · 2026 &nbsp;—&nbsp; Cobranza</div>
+            <h1 class="cf-page-header__title">Mesa de cobranza</h1>
+            <p class="cf-page-header__desc">Lo que vence hoy, lo atrasado y las promesas en una sola lista. Cada fila se gestiona sin salir de aquí.</p>
+          </div>
+          <div class="cf-page-header__actions">
+            <a href="collection-contact-new.html" class="cf-btn cf-btn--secondary">Registrar gestión</a>
+            <a href="collection-reminders.html" class="cf-btn cf-btn--secondary">Recordatorios</a>
+            <a href="payments-new.html" class="cf-btn cf-btn--primary">Registrar pago</a>
+          </div>
+        </header>
+
+        <div class="cf-kpi-strip" style="grid-template-columns:repeat(5,minmax(0,1fr))">
+          <div class="cf-kpi"><div class="cf-kpi__label">Vencido +30 días</div><div class="cf-kpi__value"><span class="cf-kpi__currency">RD$</span><span class="cf-kpi__number cf-kpi__number--overdue">284,600</span></div><div class="cf-kpi__delta cf-kpi__delta--down"><span class="cf-kpi__delta-val">18</span> préstamos · +3 vs marzo</div></div>
+          <div class="cf-kpi"><div class="cf-kpi__label">Vence hoy</div><div class="cf-kpi__value"><span class="cf-kpi__currency">RD$</span><span class="cf-kpi__number">30,297</span></div>
+            <div class="mt-3"><div class="flex justify-between text-[11px] mb-1"><span class="text-sage-600">5 cuotas · 2 cobradas</span><span class="cf-mono font-medium" style="color:var(--forest-600)">39%</span></div><div class="h-[3px] bg-forest-900/[0.08]"><div class="h-full" style="width:39%;background:var(--forest-500)"></div></div></div></div>
+          <div class="cf-kpi"><div class="cf-kpi__label">Próximos 7 días</div><div class="cf-kpi__value"><span class="cf-kpi__currency">RD$</span><span class="cf-kpi__number">142,300</span></div><div class="cf-kpi__delta"><span class="cf-kpi__delta-val" style="color:var(--forest-900)">34</span> cuotas · avisos listos</div></div>
+          <div class="cf-kpi"><div class="cf-kpi__label">Recuperado · abril</div><div class="cf-kpi__value"><span class="cf-kpi__currency">RD$</span><span class="cf-kpi__number">186,200</span></div><div class="cf-kpi__delta cf-kpi__delta--up"><span class="cf-kpi__delta-val">82%</span> de la meta de recuperación</div></div>
+          <div class="cf-kpi"><div class="cf-kpi__label">Promesas hoy</div><div class="cf-kpi__value"><span class="cf-kpi__currency">RD$</span><span class="cf-kpi__number">14,300</span></div><div class="cf-kpi__delta"><span class="cf-kpi__delta-val" style="color:var(--forest-900)">3</span> clientes · 8 activas en total</div></div>
+        </div>
+
+        <!-- Prioridades -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 border-b border-forest-900/[0.08]">
+          <a href="collection-contacts.html" class="attn cf-rule-r"><span class="attn-num" style="color:var(--flame-700)">2</span><span class="flex-1"><span class="attn-title">Promesas rotas ayer</span><span class="attn-sub">RD$ 9,700 · reprogramar o escalar</span></span><span class="attn-arrow">→</span></a>
+          <a href="collection-contacts.html" class="attn lg:cf-rule-r"><span class="attn-num">3</span><span class="flex-1"><span class="attn-title">Escalación requerida</span><span class="attn-sub">3 intentos sin respuesta</span></span><span class="attn-arrow">→</span></a>
+          <a href="loans-overdue.html" class="attn cf-rule-r"><span class="attn-num">5</span><span class="flex-1"><span class="attn-title">Sin gestión en 7 días</span><span class="attn-sub">2 sin cobrador asignado</span></span><span class="attn-arrow">→</span></a>
+          <a href="collection-reminders.html" class="attn"><span class="attn-num" style="color:var(--flame-700)">2</span><span class="flex-1"><span class="attn-title">Recordatorios fallidos</span><span class="attn-sub">número inválido · reintentar</span></span><span class="attn-arrow">→</span></a>
+        </div>
+
+        <div class="cf-tabs mt-8" role="tablist" aria-label="Segmento" id="seg">
+          <button class="cf-tab active" role="tab" aria-selected="true" data-s="all">Todos <span class="cf-tab__count">90</span></button>
+          <button class="cf-tab" role="tab" aria-selected="false" data-s="hoy"><span class="cf-dot cf-dot--today"></span>Vence hoy <span class="cf-tab__count">5</span></button>
+          <button class="cf-tab" role="tab" aria-selected="false" data-s="prox"><span class="cf-dot cf-dot--soon"></span>Próximos 7 días <span class="cf-tab__count">34</span></button>
+          <button class="cf-tab" role="tab" aria-selected="false" data-s="low"><span class="cf-dot cf-dot--mora-low"></span>Atraso 1–30 <span class="cf-tab__count">33</span></button>
+          <button class="cf-tab" role="tab" aria-selected="false" data-s="mora"><span class="cf-dot cf-dot--mora-heavy"></span>Mora +30 <span class="cf-tab__count">18</span></button>
+          <button class="cf-tab" role="tab" aria-selected="false" data-s="prom"><span class="cf-dot cf-dot--promise"></span>Promesas <span class="cf-tab__count">8</span></button>
+          <button class="cf-tab" role="tab" aria-selected="false" data-s="none"><span class="cf-dot cf-dot--unassigned"></span>Sin asignar <span class="cf-tab__count">4</span></button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 py-4">
+          <label class="relative flex-1 min-w-[240px] max-w-[380px]">
+            <span class="sr-only">Buscar</span>
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-sage-500" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input class="w-full h-9 pl-9 pr-3 rounded border border-forest-900/15 bg-white text-[13px] placeholder:text-sage-400" placeholder="Cliente, préstamo o teléfono">
+          </label>
+          <select class="cf-select" aria-label="Cobrador"><option>Cobrador: todos</option><option>Pedro Núñez</option><option>Yudelka Díaz</option><option>José Abreu</option></select>
+          <select class="cf-select" aria-label="Zona"><option>Zona: todas</option><option>Santiago norte</option><option>Centro</option><option>Los Jardines</option></select>
+          <span class="ml-auto font-mono text-[10px] uppercase tracking-widest text-sage-600">12 de 90 · RD$ 85,786</span>
+        </div>
+
+        <div class="overflow-x-auto">
+        <table class="cf-table cf-table--dense min-w-[1080px]" id="mesa">
+          <thead><tr>
+            <th style="width:36px"><input type="checkbox" class="cf-checkbox" aria-label="Seleccionar todo"></th>
+            <th aria-sort="none">Cliente</th>
+            <th aria-sort="none">Préstamo</th>
+            <th aria-sort="none" data-type="date">Vence</th>
+            <th class="cf-num" aria-sort="none" data-type="num">Monto RD$</th>
+            <th class="cf-num" aria-sort="descending" data-type="num">Atraso</th>
+            <th aria-sort="none">Última gestión · cobrador</th>
+            <th>Estado</th>
+            <th class="cf-num">Acciones</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        </div>
+
+        <!-- Bottom -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 pt-12">
+          <section>
+            <div class="rail-h"><span>Promesas que vencen hoy</span><a href="collection-contacts.html">Ver 8 activas</a></div>
+            <ul id="prom"></ul>
+          </section>
+          <section>
+            <div class="rail-h"><span>Actividad de hoy</span><a href="collection-contacts.html">Bitácora</a></div>
+            <ol class="cf-tl mt-4">
+              <li class="cf-tl__item cf-tl__item--ok"><div class="cf-tl__time">10:24</div><div class="cf-tl__title">Luz Castillo pagó cuota 11 · RD$ 6,500.00</div><div class="cf-tl__meta">efectivo · Caja #2 · María F.</div></li>
+              <li class="cf-tl__item"><div class="cf-tl__time">09:40</div><div class="cf-tl__title">Llamada a Francisco Ureña · no contestó</div><div class="cf-tl__meta">3er intento · escalado a visita · Pedro N.</div></li>
+              <li class="cf-tl__item cf-tl__item--sent"><div class="cf-tl__time">09:00</div><div class="cf-tl__title">WhatsApp “Cuota hoy” a 5 clientes</div><div class="cf-tl__meta">automático · 4 leídos</div></li>
+              <li class="cf-tl__item cf-tl__item--ok"><div class="cf-tl__time">08:52</div><div class="cf-tl__title">Elena Martínez pagó cuota 9 · RD$ 5,416.67</div><div class="cf-tl__meta">efectivo · Caja #2 · María F.</div></li>
+              <li class="cf-tl__item"><div class="cf-tl__time">08:15</div><div class="cf-tl__title">Pedro N. inició ruta Santiago norte</div><div class="cf-tl__meta">10 visitas agendadas</div></li>
+            </ol>
+          </section>
+        </div>
+        <div class="pt-12">
+          <section>
+            <div class="rail-h"><span>Equipo de cobro · hoy</span></div>
+            <table class="cf-table cf-table--dense" id="team">
+              <thead><tr><th aria-sort="none">Gestor</th><th aria-sort="none">Ruta</th><th class="cf-num" aria-sort="none" data-type="num">Gestiones</th><th class="cf-num" aria-sort="none" data-type="num">Contactados</th><th class="cf-num" aria-sort="none" data-type="num">Promesas</th><th class="cf-num" aria-sort="descending" data-type="num">Cobrado RD$</th></tr></thead>
+              <tbody>
+                <tr><td>Pedro Núñez</td><td>campo · Santiago norte</td><td class="cf-num cf-mono">12</td><td class="cf-num cf-mono" data-v="75">9 · 75%</td><td class="cf-num cf-mono">2</td><td class="cf-num cf-amount">12,800.00</td></tr>
+                <tr><td>María Fernández</td><td>oficina</td><td class="cf-num cf-mono">9</td><td class="cf-num cf-mono" data-v="78">7 · 78%</td><td class="cf-num cf-mono">2</td><td class="cf-num cf-amount">11,916.67</td></tr>
+                <tr><td>Yudelka Díaz</td><td>campo · centro</td><td class="cf-num cf-mono">8</td><td class="cf-num cf-mono" data-v="75">6 · 75%</td><td class="cf-num cf-mono">2</td><td class="cf-num cf-amount">7,450.00</td></tr>
+                <tr><td>José Abreu</td><td>campo · Los Jardines</td><td class="cf-num cf-mono">5</td><td class="cf-num cf-mono" data-v="60">3 · 60%</td><td class="cf-num cf-mono">0</td><td class="cf-num cf-amount">2,100.00</td></tr>
+              </tbody>
+            </table>
+            <div class="flex justify-between pt-3 font-mono text-[11px] text-sage-600"><span>34 gestiones · 25 contactados · 6 promesas</span><span class="text-forest-900">RD$ 34,266.67</span></div>
+          </section>
+        </div>
+
+        <div class="mt-16 pt-5 rule-t flex flex-wrap items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-widest text-sage-500">
+          <span>CrediFlux v2.0 · Santiago, RD</span>
+          <span>Datos al 10 abr 2026 14:32 · sesión 2h 14m</span>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Dev-only: tenant theme switcher -->
+  <div class="dev-banner" role="presentation">
+    <span class="dev-banner__label">tenant-primary &rarr;</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" data-name="Forest (default)" style="background: #163300;" aria-label="Forest"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" data-name="Burgundy" style="background: #3a0e1e;" aria-label="Burgundy"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" data-name="Deep Navy" style="background: #0c1e38;" aria-label="Deep Navy"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" data-name="Teal" style="background: #1a4d3a;" aria-label="Teal"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" data-name="Violet" style="background: #2d1b4e;" aria-label="Violet"></button>
+    </div>
+  </div>
+
+  <!-- Pulse keyframe -->
+  <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0; transform: scale(2); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      @keyframes pulse { 0%, 100% { opacity: 0.4; transform: none; } }
+    }
+  </style>
+
+  <script>
+    // Toggle collapsible nav groups
+    function toggleGroup(headerEl) {
+      const group = headerEl.closest('.nav-group');
+      if (!group) return;
+      const collapsed = group.dataset.collapsed === 'true';
+      group.dataset.collapsed = collapsed ? 'false' : 'true';
+      headerEl.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
+    }
+
+    // Filter pills toggle
+    document.querySelectorAll('.filter-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+      });
+    });
+
+    // Select-all checkbox
+    const selectAll = document.getElementById('select-all');
+    const rowChecks = document.querySelectorAll('.row-check');
+    selectAll.addEventListener('change', () => {
+      rowChecks.forEach(cb => { cb.checked = selectAll.checked; });
+    });
+    rowChecks.forEach(cb => {
+      cb.addEventListener('change', () => {
+        const allChecked = Array.from(rowChecks).every(c => c.checked);
+        const someChecked = Array.from(rowChecks).some(c => c.checked);
+        selectAll.checked = allChecked;
+        selectAll.indeterminate = someChecked && !allChecked;
+      });
+    });
+
+    // Tenant theme switcher
+    const swatches = document.querySelectorAll('.dev-banner__swatch');
+    swatches.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const color = btn.dataset.color;
+        document.documentElement.style.setProperty('--color-tenant-primary', color);
+        swatches.forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  </script>
+  <script src="_design-notes.js"></script>
+
+  <script src="ds/datatable.js"></script>
+  <link rel="stylesheet" href="ds/patterns.css">
+  <style>
+    .attn{display:flex;align-items:center;gap:14px;padding:16px 20px 16px 0;text-decoration:none;color:inherit}
+    .attn + .attn{padding-left:20px}
+    .attn:hover{background:#16330005}
+    .attn-num{font-family:var(--font-mono);font-size:20px;font-weight:500;min-width:32px;font-variant-numeric:tabular-nums}
+    .attn-title{display:block;font-size:13px;font-weight:500}
+    .attn-sub{display:block;font-size:11px;color:var(--sage-600);margin-top:1px}
+    .attn-arrow{color:var(--sage-400)}
+    @media (min-width:1024px){.lg\:cf-rule-r{border-right:1px solid var(--hairline)}}
+    .ch{display:inline-flex;align-items:center;gap:6px}
+    .prom{padding:14px 0;border-bottom:1px solid #1633000f}
+  </style>
+  <script>
+  (function () {
+    const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const DOT = { wa: 'cf-ch-dot--wa', call: 'cf-ch-dot--voice', visit: null, sms: 'cf-ch-dot--sms', none: null };
+    // seg, cliente, tel, préstamo, cuota, vence(texto), vence ISO, monto, atraso(días, <0 futuro), cobrador, gestión, canal, hace, estado html
+    const R = [
+      ['mora','Carlos Díaz','809-555-0089','LN-2025-0089','cuotas 3–4','15 feb 2026','2026-02-15',11200,54,'Pedro Núñez','WhatsApp · leído','wa','2 d','<span class="cf-pill cf-pill--promise">Promesa 17 abr</span>'],
+      ['mora','Francisco Ureña','829-555-0045','LN-2026-0045','cuotas 2–3','01 mar 2026','2026-03-01',15488.89,40,'Pedro Núñez','Llamada · no contestó','call','5 h','<span class="cf-badge cf-badge--mora">Escalar</span>'],
+      ['mora none','Mercedes Paulino','809-555-0144','LN-2025-0144','cuotas 4–5','06 mar 2026','2026-03-06',9400,35,'','Sin gestión','none','—','<span class="cf-badge cf-badge--mora">Mora 35d</span>'],
+      ['low prom','Joaquín Bautista','849-555-0198','LN-2025-0198','cuota 6/18','18 mar 2026','2026-03-18',4700,23,'Yudelka Díaz','Visita · promete','visit','1 d','<span class="cf-pill cf-pill--promise">Promesa hoy</span>'],
+      ['low prom','Isabel Reyes','829-555-0222','LN-2025-0222','cuota 8/24','03 abr 2026','2026-04-03',3900,7,'Pedro Núñez','Llamada · promete','call','1 d','<span class="cf-pill cf-pill--promise">Promesa hoy</span>'],
+      ['prom mora','Daniela Fermín','849-555-0133','LN-2025-0133','cuotas 5–6','08 mar 2026','2026-03-08',7200,33,'Yudelka Díaz','Visita · promete','visit','4 d','<span class="cf-pill cf-pill--promise">Promesa hoy</span>'],
+      ['hoy','Miguel A. Santos','402-555-1234','LN-2025-0067','cuota 19/24','10 abr 2026 · 11:15','2026-04-10',7930.60,0,'José Abreu','WhatsApp · leído','wa','5 h','<span class="cf-pill cf-pill--today">Vence hoy</span>'],
+      ['hoy none','Tomás Vargas','809-555-0204','LN-2025-0204','cuota 7/12','10 abr 2026 · 16:30','2026-04-10',4250,0,'','WhatsApp · entregado','wa','5 h','<span class="cf-pill cf-pill--today">Vence hoy</span>'],
+      ['hoy','Ramona Cruz','829-555-0187','LN-2025-0187','cuota 4/12','10 abr 2026 · 14:00','2026-04-10',6200,0,'Yudelka Díaz','WhatsApp · leído','wa','5 h','<span class="cf-pill cf-pill--today">Vence hoy</span>'],
+      ['hoy','Elena Martínez','809-555-0178','LN-2025-0178','cuota 9/12','10 abr 2026 · 09:00','2026-04-10',5416.67,0,'María Fernández','Pagó en caja','none','08:52','<span class="cf-badge cf-badge--activo">Cobrada</span>'],
+      ['hoy','Luz Castillo','809-555-0112','LN-2025-0112','cuota 11/12','10 abr 2026 · 10:30','2026-04-10',6500,0,'María Fernández','Pagó en caja','none','10:24','<span class="cf-badge cf-badge--activo">Cobrada</span>'],
+      ['prox','Mirta Espinal','809-555-0139','LN-2025-0139','cuota 10/24','11 abr 2026','2026-04-11',3600,-1,'Pedro Núñez','Recordatorio programado','sms','—','<span class="cf-pill cf-pill--soon">Mañana</span>'],
+    ];
+    const WA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    const CALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+    const PAY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
+    const late = d => d > 30 ? `<span class="cf-pill cf-pill--mora">${d} d</span>` : d > 0 ? `<span class="cf-pill cf-pill--mora" style="background:#ff750314">${d} d</span>` : d === 0 ? '<span class="cf-mono">hoy</span>' : `<span class="cf-mono" style="color:var(--sage-600)">en ${-d} d</span>`;
+    document.querySelector('#mesa tbody').innerHTML = R.map(r => {
+      const [seg, name, tel, ln, q, due, iso, amt, d, col, act, ch, ago, st] = r;
+      return `<tr data-s="${seg}">
+        <td><input type="checkbox" class="cf-checkbox" aria-label="Seleccionar ${name}"></td>
+        <td>${name}<span class="cf-table__sub cf-mono">${tel}</span></td>
+        <td class="cf-mono">${ln}<span class="cf-table__sub">${q}</span></td>
+        <td class="cf-mono" data-v="${iso}">${due.split(' · ')[0]}${due.includes(' · ') ? `<span class="cf-table__sub">${due.split(' · ')[1]}</span>` : ''}</td>
+        <td class="cf-num cf-amount" data-v="${amt}">${fmt(amt)}</td>
+        <td class="cf-num" data-v="${d}">${late(d)}</td>
+        <td><span class="ch">${DOT[ch] ? `<span class="cf-ch-dot ${DOT[ch]}"></span>` : ''}${act}</span><span class="cf-table__sub">${col || '<span style="color:var(--flame-700)">Sin asignar</span>'} · <span class="cf-mono">${ago}</span></span></td>
+        <td>${st}</td>
+        <td class="cf-num"><span class="inline-flex gap-1.5"><button class="cf-ic-btn cf-ic-btn--wa" aria-label="WhatsApp a ${name}">${WA}</button><button class="cf-ic-btn cf-ic-btn--call" aria-label="Llamar a ${name}">${CALL}</button><a href="payments-new.html" class="cf-ic-btn" aria-label="Registrar pago de ${name}">${PAY}</a></span></td>
+      </tr>`;
+    }).join('');
+
+    const P = [
+      ['Daniela Fermín','LN-2025-0133 · cuotas 5–6',6200,'Visita · hoy en la tarde','efectivo en campo','Yudelka D. · hace 4 d'],
+      ['Joaquín Bautista','LN-2025-0198 · cuota 6/18',4200,'Transferencia · hoy pm','Banco Popular','Yudelka D. · ayer'],
+      ['Isabel Reyes','LN-2025-0222 · cuota 8/24',3900,'Efectivo · hoy am','pasará por oficina','Pedro N. · ayer'],
+    ];
+    document.getElementById('prom').innerHTML = P.map(([n, ln, a, when, how, who]) => `<li class="prom">
+      <div class="flex items-baseline justify-between"><span class="text-[13px] font-medium">${n}</span><span class="cf-mono text-[15px] font-medium">RD$ ${fmt(a)}</span></div>
+      <div class="cf-mono text-[11px] text-sage-600 mt-0.5">${ln}</div>
+      <div class="flex items-center justify-between mt-2 text-[12px]"><span class="text-sage-700">${when} · ${how}</span><span class="text-sage-600">${who}</span></div>
+      <div class="flex gap-2 mt-3"><button class="cf-btn cf-btn--secondary cf-btn--sm">Recordar</button><a href="payments-new.html" class="cf-btn cf-btn--secondary cf-btn--sm">Registrar pago</a></div>
+    </li>`).join('');
+
+    document.querySelectorAll('#seg .cf-tab').forEach(t => t.addEventListener('click', () => {
+      document.querySelectorAll('#seg .cf-tab').forEach(x => { x.classList.toggle('active', x === t); x.setAttribute('aria-selected', x === t); });
+      document.querySelectorAll('#mesa tbody tr').forEach(tr => { tr.hidden = t.dataset.s !== 'all' && !tr.dataset.s.split(' ').includes(t.dataset.s); });
+    }));
+  })();
+  </script>
+
+</body>
+</html>

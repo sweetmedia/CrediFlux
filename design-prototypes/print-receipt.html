@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Recibo de pago</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/print.css">
+</head>
+<body class="print-desk">
+<div class="desk">
+  <div class="desk__bar" style="max-width:none;justify-content:center;flex-direction:column;align-items:center">
+    <div class="desk__meta">Impresos · Pagos</div>
+    <div class="desk__title">Recibo de pago</div>
+  </div>
+  <div class="desk__row">
+
+    <!-- Media carta -->
+    <div>
+      <div class="page page--half">
+        <div class="lh">
+          <div class="lh__brand"><div class="lh__logo">CSJ</div><div><div class="lh__name">Cooperativa San José</div><div class="lh__sub">Coop. de Ahorro y Crédito San José, Inc.<br>RNC 1-31-24587-3 · 809-582-4410</div></div></div>
+          <div class="lh__doc"><div class="lh__type" style="font-size:15px">Recibo</div><div class="lh__num">RC-04412</div><div class="lh__date">05 abr 2026 · 11:02</div></div>
+        </div>
+
+        <div class="blk" style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="eb">Recibimos de</div>
+            <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-top:3px">Ana María Ramírez Guzmán</div>
+            <div class="mono" style="font-size:10px;color:var(--ink-3)">Cédula 001-5678901-4 · C-0891</div>
+          </div>
+          <span class="copy-tag">Original · cliente</span>
+        </div>
+
+        <div class="blk box box--ink" style="text-align:center;padding:12px">
+          <div class="eb">La suma de</div>
+          <div class="big" style="margin-top:4px"><span style="font-size:14px;color:var(--ink-3)">RD$ </span>5,000.00</div>
+          <div style="font-size:10px;font-style:italic;color:var(--ink-2);margin-top:2px">cinco mil pesos dominicanos con 00/100</div>
+        </div>
+
+        <table class="pt blk">
+          <thead><tr><th>Concepto</th><th class="r">RD$</th></tr></thead>
+          <tbody>
+            <tr><td>Préstamo LN-2025-0118 · cuota 8 de 24<br><span class="note">vencía 15 abr 2026 · pagada a tiempo</span></td><td class="r amt">5,000.00</td></tr>
+            <tr class="muted"><td style="padding-left:16px">Capital</td><td class="r mono">3,125.00</td></tr>
+            <tr class="muted"><td style="padding-left:16px">Interés</td><td class="r mono">1,875.00</td></tr>
+            <tr class="muted"><td style="padding-left:16px">Mora</td><td class="r mono">0.00</td></tr>
+          </tbody>
+          <tfoot><tr><td>Total recibido</td><td class="r amt">5,000.00</td></tr></tfoot>
+        </table>
+
+        <dl class="kv blk">
+          <dt>Método</dt><dd>Transferencia · Banco Popular · ref. 88412093</dd>
+          <dt>Recibió</dt><dd>María Fernández · Caja #2</dd>
+          <dt>Balance de capital</dt><dd class="mono">RD$ 50,000.00 · quedan 16 cuotas</dd>
+          <dt>Próxima cuota</dt><dd class="mono">RD$ 5,000.00 · 15 may 2026</dd>
+        </dl>
+
+        <div class="sigs sigs--2" style="margin-top:26px">
+          <div class="sig"><div class="sig__drawn">M. Fernández</div><div class="sig__line">María Fernández</div><div class="sig__role">Cajera</div></div>
+          <div class="sig"><div class="sig__drawn"></div><div class="sig__line">Firma del cliente</div><div class="sig__role">Opcional</div></div>
+        </div>
+
+        <div class="pf"><div>Verifique en crediflux.do/v/RC-04412<br>sha256 9f3a…c21e · CrediFlux v2.0</div><div class="qr" aria-label="Código QR de verificación"></div></div>
+      </div>
+      <div class="desk__cap">Media carta · 5.5 × 8.5 in · oficina</div>
+    </div>
+
+    <!-- Térmico 80mm -->
+    <div>
+      <div class="page page--thermal">
+        <div class="th-c" style="font-family:var(--font-display);font-weight:900;font-size:14px">COOPERATIVA SAN JOSÉ</div>
+        <div class="th-c mono" style="font-size:9.5px">RNC 1-31-24587-3<br>809-582-4410</div>
+        <div class="th-rule"></div>
+        <div class="th-c" style="font-family:var(--font-display);font-weight:700">RECIBO DE COBRO EN CAMPO</div>
+        <div class="th-row"><span>No.</span><span>RC-campo-0412</span></div>
+        <div class="th-row"><span>Fecha</span><span>10/04/2026 16:12</span></div>
+        <div class="th-row"><span>Cobrador</span><span>Pedro Núñez</span></div>
+        <div class="th-rule"></div>
+        <div class="th-row"><span>Cliente</span><span>Isabel Reyes</span></div>
+        <div class="th-row"><span>Cédula</span><span>402-1167700-3</span></div>
+        <div class="th-row"><span>Préstamo</span><span>LN-2025-0222</span></div>
+        <div class="th-rule"></div>
+        <div class="th-row"><span>Cuota 8/24</span><span>3,900.00</span></div>
+        <div class="th-row"><span>Mora</span><span>500.00</span></div>
+        <div class="th-rule"></div>
+        <div class="th-c mono" style="font-size:9.5px">TOTAL RECIBIDO · EFECTIVO</div>
+        <div class="th-big">RD$ 4,400.00</div>
+        <div class="th-rule"></div>
+        <div class="th-row"><span>Balance</span><span>62,400.00</span></div>
+        <div class="th-row"><span>Próxima</span><span>03/05 · 3,900.00</span></div>
+        <div class="th-rule"></div>
+        <div class="th-c" style="margin-top:10px">_______________________</div>
+        <div class="th-c mono" style="font-size:9px">Firma del cliente</div>
+        <div class="th-rule"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><div class="qr" style="width:40px;height:40px"></div><div class="mono" style="font-size:8.5px;line-height:1.4">Verifique este recibo<br>crediflux.do/v/412<br>GPS 19.4551,-70.6890<br>Sincronizado 16:20</div></div>
+        <div class="th-c mono" style="font-size:8.5px;margin-top:8px">Gracias por su pago puntual</div>
+      </div>
+      <div class="desk__cap">Térmico 80 mm · cobrador en campo</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

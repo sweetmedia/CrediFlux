@@ -264,12 +264,11 @@ RUN apt-get update && apt-get install -y \
 # Crear directorio de trabajo
 WORKDIR /app
 
-# Copiar requirements
-COPY requirements/production.txt /app/requirements.txt
-
-# Instalar dependencias Python
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+# Instalar dependencias Python con uv (sin el grupo dev)
+COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /usr/local/bin/uv
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv PATH="/opt/venv/bin:$PATH"
+COPY pyproject.toml uv.lock .python-version /app/
+RUN uv sync --frozen --no-install-project --no-dev
 
 # Copiar código
 COPY . /app/

@@ -179,14 +179,14 @@ export const paymentsAPI = {
     );
   },
 
-  // Cancel payment
-  async cancelPayment(id: string): Promise<{ message: string }> {
-    return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/cancel/`);
+  // Cancel payment (el motivo opcional queda en la auditoría)
+  async cancelPayment(id: string, reason?: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/cancel/`, { reason });
   },
 
-  // Reverse payment
-  async reversePayment(id: string): Promise<{ message: string }> {
-    return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/reverse/`);
+  // Reverse payment (el backend exige el motivo)
+  async reversePayment(id: string, reason: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/reverse/`, { reason });
   },
 
   // Download payment receipt PDF

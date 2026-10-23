@@ -39,8 +39,17 @@ Default loan parameters and limits.
 ### 4. Payments & Fees
 Payment processing and fee configuration.
 
-- **LATE_PAYMENT_FEE**: Late payment fee amount charged after grace period
-- **LATE_PAYMENT_GRACE_DAYS**: Number of days grace period before charging late fee
+- **LATE_PAYMENT_FEE**: Late payment fee amount charged after grace period (**fallback only**, see below)
+- **LATE_PAYMENT_GRACE_DAYS**: Number of days grace period before charging late fee (**fallback only**)
+
+> **Mora: el Tenant manda, Constance es respaldo.** El cálculo real
+> (`apps/loans/late_fees.py`, usado por `manage.py calculate_late_fees`) toma la
+> configuración de mora del Tenant (`late_fee_type`, `late_fee_percentage`,
+> `late_fee_fixed_amount`, `late_fee_frequency`, `grace_period_days`).
+> `LATE_PAYMENT_FEE` / `LATE_PAYMENT_GRACE_DAYS` sólo se usan cuando no hay
+> tenant (cargo fijo único tras la gracia) o cuando el tenant eligió mora fija
+> con monto 0 (se toma `LATE_PAYMENT_FEE` como monto). No leas estas claves
+> directamente para cobrar mora: usa `apps.loans.late_fees.policy_for(tenant)`.
 - **PAYMENT_REMINDER_DAYS**: Days before due date to send payment reminder
 - **EARLY_PAYMENT_DISCOUNT**: Discount percentage for early payments (%)
 

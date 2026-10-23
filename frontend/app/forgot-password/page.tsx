@@ -1,8 +1,6 @@
-'use client';
-
 import { useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
+import Link from '@/lib/navigation/link';
+import Image from '@/components/ui/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';

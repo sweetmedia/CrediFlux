@@ -1,8 +1,6 @@
-'use client';
-
-import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
-import Image from 'next/image';
+import Link from '@/lib/navigation/link';
+import { useRouter, usePathname } from '@/lib/navigation';
+import Image from '@/components/ui/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';

@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Registrar pago</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/bundle.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: {
+              50: '#f0f7eb',
+              100: '#dcecd0',
+              500: '#4d8630',
+              700: '#2d5a10',
+              900: '#163300',
+              950: '#0a1a00',
+            },
+            sage: {
+              50: '#f3f6f1',
+              100: '#e4ebe0',
+              200: '#c8d4be',
+              300: '#a8b89c',
+              400: '#8a9d7a',
+              500: '#738566',
+              600: '#5c6d4d',
+              700: '#4a5a3d',
+            },
+            sun: { 100: '#fffbe6', 500: '#ffe026' },
+            flame: { 500: '#ff7503', 600: '#cc5e02' },
+            cream: '#faf8f2',
+            'warm-white': '#f5f3ed',
+            tenant: 'var(--color-tenant-primary)',
+          },
+          letterSpacing: {
+            'widest': '0.14em',
+            'ultra': '0.18em',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    html, body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #faf8f2;
+      color: #163300;
+      font-feature-settings: 'rlig' 1, 'calt' 1;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .paper-bg {
+      background-color: #faf8f2;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(22, 51, 0, 0.035) 1px, transparent 0);
+      background-size: 28px 28px;
+    }
+
+    .sidebar {
+      background: var(--color-tenant-primary, #163300);
+    }
+
+    .nav-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 6px 12px 6px 14px;
+      border-radius: 4px;
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 1.4;
+      text-decoration: none;
+      transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                  background-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav-item:hover {
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .nav-item.active {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      font-weight: 500;
+    }
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: -1px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2px;
+      height: 18px;
+      background: #ffe026;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .nav-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 4px 14px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: rgba(255, 255, 255, 0.32);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav-group-header:hover { color: rgba(255, 255, 255, 0.6); }
+    .nav-group-header.flat { cursor: default; }
+    .nav-group-header.flat:hover { color: rgba(255, 255, 255, 0.32); }
+    .nav-group-chevron {
+      transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+      opacity: 0.7;
+    }
+    .nav-group[data-collapsed="true"] .nav-group-chevron { transform: rotate(-90deg); }
+    .nav-group[data-collapsed="true"] .nav-group-items { display: none; }
+
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 1;
+      color: rgba(255, 255, 255, 0.6);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-bottom-width: 2px;
+      border-radius: 3px;
+    }
+
+    .sidebar-search {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: calc(100% - 24px);
+      margin: 12px 12px 0;
+      padding: 7px 10px 7px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .sidebar-search:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.14);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .scrollbar-dark::-webkit-scrollbar { width: 6px; }
+    .scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-dark::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+    }
+    .scrollbar-dark:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); }
+    .scrollbar-dark { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent; }
+
+    .util-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 32px;
+      padding: 0 8px;
+      border-radius: 4px;
+      color: #5c6d4d;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .util-btn:hover {
+      color: #163300;
+      background: rgba(22, 51, 0, 0.04);
+    }
+    .util-btn--icon { width: 32px; padding: 0; }
+
+    .reminder-dot {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      min-width: 14px;
+      height: 14px;
+      padding: 0 3px;
+      background: #ff7503;
+      color: #ffffff;
+      border-radius: 7px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 14px;
+      text-align: center;
+      border: 2px solid #faf8f2;
+    }
+
+    .dev-banner {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px 10px 16px;
+      background: rgba(22, 51, 0, 0.92);
+      backdrop-filter: blur(8px);
+      color: rgba(255, 255, 255, 0.85);
+      border-radius: 6px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      box-shadow: 0 20px 40px -12px rgba(22, 51, 0, 0.4),
+                  0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    .dev-banner__label { color: rgba(255, 255, 255, 0.45); }
+    .dev-banner__swatches { display: flex; gap: 8px; }
+    .dev-banner__swatch {
+      width: 20px; height: 20px; border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer; padding: 0;
+      transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .dev-banner__swatch:hover { transform: translateY(-2px); }
+    .dev-banner__swatch.active { box-shadow: 0 0 0 2px #ffe026, 0 0 0 3px rgba(22, 51, 0, 0.92); }
+    .dev-banner__swatch::after {
+      content: attr(data-name);
+      position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+      padding: 3px 7px; background: rgba(22, 51, 0, 0.95); color: rgba(255, 255, 255, 0.9);
+      font-size: 9px; border-radius: 3px; white-space: nowrap; opacity: 0; pointer-events: none;
+      transition: opacity 150ms;
+    }
+    .dev-banner__swatch:hover::after { opacity: 1; }
+
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .rule-b { border-bottom: 1px solid rgba(22, 51, 0, 0.08); }
+    .rule-t { border-top: 1px solid rgba(22, 51, 0, 0.08); }
+    .rule-r { border-right: 1px solid rgba(22, 51, 0, 0.08); }
+
+    /* Logo filter for white on dark */
+    .logo-white {
+      filter: brightness(0) invert(1);
+    }
+
+    /* ======================================================================
+     * Customers list page-specific styles
+     * ====================================================================== */
+    .filter-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 12px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: #738566;
+      background: transparent;
+      border: 1px solid rgba(22, 51, 0, 0.1);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 150ms;
+    }
+    .filter-pill:hover {
+      color: #163300;
+      border-color: rgba(22, 51, 0, 0.2);
+      background: rgba(22, 51, 0, 0.02);
+    }
+    .filter-pill.active {
+      color: #163300;
+      background: rgba(22, 51, 0, 0.06);
+      border-color: rgba(22, 51, 0, 0.2);
+      font-weight: 600;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .data-table thead th {
+      padding: 10px 12px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #738566;
+      text-align: left;
+      border-bottom: 1px solid rgba(22, 51, 0, 0.12);
+      white-space: nowrap;
+    }
+    .data-table tbody tr {
+      border-bottom: 1px solid rgba(22, 51, 0, 0.06);
+      transition: background 100ms;
+    }
+    .data-table tbody tr:hover {
+      background: rgba(22, 51, 0, 0.02);
+    }
+    .data-table tbody td {
+      padding: 12px 12px;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    .checkbox-custom {
+      width: 16px;
+      height: 16px;
+      border: 1px solid rgba(22, 51, 0, 0.2);
+      border-radius: 3px;
+      background: white;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 150ms;
+    }
+    .checkbox-custom:checked {
+      background: #163300;
+      border-color: #163300;
+    }
+    .checkbox-custom:checked::after {
+      content: '';
+      display: block;
+      width: 10px;
+      height: 10px;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 10' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 5.5L4 7.5L8 3' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+    .checkbox-custom:hover {
+      border-color: rgba(22, 51, 0, 0.4);
+    }
+
+    .sort-select {
+      appearance: none;
+      -webkit-appearance: none;
+      padding: 5px 28px 5px 10px;
+      font-family: 'ABC Whyte', system-ui, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: #738566;
+      background: white;
+      border: 1px solid rgba(22, 51, 0, 0.1);
+      border-radius: 4px;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23738566' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      transition: all 150ms;
+    }
+    .sort-select:hover {
+      border-color: rgba(22, 51, 0, 0.2);
+      color: #163300;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      font-family: 'ABC Whyte Mono', ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border-radius: 3px;
+    }
+    .status-badge--activo {
+      color: #4d8630;
+      background: rgba(77, 134, 48, 0.08);
+    }
+    .status-badge--mora {
+      color: #cc5e02;
+      background: rgba(255, 117, 3, 0.08);
+    }
+    .status-badge--inactivo {
+      color: #738566;
+      background: rgba(115, 133, 102, 0.08);
+    }
+  </style>
+  <style>.cf-table td.cf-mono{white-space:nowrap}</style>
+</head>
+<body class="min-h-screen">
+
+  <!-- ============================================================== -->
+  <!-- Sidebar                                                         -->
+  <!-- ============================================================== -->
+  <aside
+    class="sidebar fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col text-white"
+    aria-label="Navegacion principal"
+  >
+
+    <!-- Editorial masthead: CrediFlux REAL logo + tenant identity -->
+    <div class="px-5 pt-5 pb-4 border-b border-white/[0.08]">
+      <!-- CrediFlux real logo (isotipo + wordmark) — white on dark -->
+      <div class="mb-4">
+        <img
+          src="../branding/logo-full/svg/crediflux-logo.svg"
+          alt="CrediFlux"
+          class="logo-white h-[22px] w-auto"
+        />
+      </div>
+
+      <!-- Tenant masthead -->
+      <div>
+        <div class="font-display text-[14px] font-medium text-white leading-[1.25]">
+          Cooperativa San&nbsp;José
+        </div>
+        <div class="mt-1 flex items-center gap-2 font-mono text-[10px] text-white/40 uppercase tracking-widest">
+          <span>coop-san-jose</span>
+          <span class="text-white/15">·</span>
+          <span>rd</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global search trigger -->
+    <button class="sidebar-search" aria-label="Abrir busqueda global">
+      <span class="flex items-center gap-2">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+        </svg>
+        <span>Buscar</span>
+      </span>
+      <span class="kbd">⌘K</span>
+    </button>
+
+    <!-- Navigation groups -->
+    <nav class="flex-1 overflow-y-auto scrollbar-dark px-3 py-5">
+
+      <!-- Overview -->
+      <div class="mb-6">
+        <div class="nav-group-header flat"><span>Overview</span></div>
+        <div class="mt-1.5 space-y-[1px]">
+          <a href="dashboard.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+            </svg>
+            <span>Dashboard</span>
+          </a>
+          <a href="calculator.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/>
+            </svg>
+            <span>Calculadora</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/>
+            </svg>
+            <span>Asistente IA</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Operacion -->
+      <div class="mb-6 nav-group" data-collapsed="false">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="true">
+          <span>Operación</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="loans-list.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Préstamos</span>
+          </a>
+          <a href="customers-list.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Clientes</span>
+          </a>
+          <a href="payments-new.html" class="nav-item active" aria-current="page">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span>Pagos</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+            <span>Caja</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Cobranza -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Cobranza</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <span>Cobranza</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>Cobrador Móvil</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Facturacion -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Facturación</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Facturas e-CF</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+            <span>Secuencias e-NCF</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Certificados</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="12" x2="8" y2="18"/><line x1="12" y1="8" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="18"/></svg>
+            <span>Reportes DGII</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Contratos -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Contratos</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10.29 10.7l2.29 2.3 4.42-4.42"/></svg>
+            <span>Lista</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span>Plantillas</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Comunicaciones -->
+      <div class="mb-6 nav-group" data-collapsed="true">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="false">
+          <span>Comunicaciones</span>
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>Mensajes</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span>Tareas</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Administracion -->
+      <div>
+        <div class="nav-group-header flat"><span>Administración</span></div>
+        <div class="mt-1.5 space-y-[1px]">
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/><path d="M22 15h-6"/></svg>
+            <span>Equipo</span>
+          </a>
+          <a href="#" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+            <span>Auditoría</span>
+          </a>
+          <a href="settings-roles.html" class="nav-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Configuración</span>
+          </a>
+        </div>
+      </div>
+
+    </nav>
+
+    <!-- User profile footer -->
+    <div class="border-t border-white/[0.08] px-3 py-3">
+      <div class="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-white/[0.04] transition-colors cursor-pointer">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-medium text-white tabular-nums" style="background: #738566;">
+          MF
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="truncate font-display text-[13px] font-medium text-white leading-tight">
+            María Fernández
+          </div>
+          <div class="truncate font-mono text-[9px] uppercase tracking-widest text-white/45 mt-0.5">
+            Oficial de Cobranza
+          </div>
+        </div>
+        <button class="p-1.5 text-white/35 hover:text-white/90 transition-colors rounded" aria-label="Cerrar sesion" title="Cerrar sesion">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================== -->
+  <!-- Main layout area                                                -->
+  <!-- ============================================================== -->
+  <div class="ml-[240px]">
+
+    <!-- Sticky header -->
+    <header class="sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div class="flex h-14 items-center gap-3 pl-8 pr-6">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="#" class="text-[12px] text-sage-500 hover:text-forest-900 transition-colors">Inicio</a>
+          <span class="text-sun-500 text-[9px] leading-none">&#9679;</span>
+          <span class="text-[12px] text-sage-500">Operación</span>
+          <span class="text-sun-500 text-[9px] leading-none">●</span>
+          <span class="font-display text-[13px] font-medium text-forest-900">Registrar pago</span>
+
+        </div>
+        <div class="flex items-center gap-1">
+          <div class="hidden lg:flex items-center gap-2 pr-3 mr-2 border-r border-forest-900/10">
+            <span class="relative flex h-2 w-2">
+              <span class="absolute inline-flex h-full w-full rounded-full bg-forest-500 opacity-40" style="animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite;"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-forest-500"></span>
+            </span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Actualizado 14:32</span>
+          </div>
+          <button class="util-btn gap-1.5 px-2.5 text-[12px]">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4v18M12 21V11l7-4v14"/></svg>
+            <span class="font-mono text-[10px] uppercase tracking-widest">coop-san-jose</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <button class="util-btn util-btn--icon" aria-label="Busqueda global">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </button>
+          <button class="util-btn util-btn--icon relative" aria-label="Recordatorios pendientes (3)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="reminder-dot">3</span>
+          </button>
+          <button class="flex items-center gap-2 h-8 pl-1 pr-2 ml-1 rounded hover:bg-forest-900/[0.04] transition-colors" aria-label="Menu de usuario">
+            <div class="flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] font-medium text-white tabular-nums" style="background: #738566;">MF</div>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sage-500"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================================== -->
+    <!-- Main content: Customers List                                    -->
+    <!-- ============================================================== -->
+    <main class="paper-bg min-h-[calc(100vh-56px)] px-8 py-8">
+      <div class="max-w-[1400px] mx-auto">
+
+        <header class="cf-page-header">
+          <div>
+            <div class="cf-page-header__eyebrow">Caja #2 abierta &nbsp;—&nbsp; turno AM · María Fernández</div>
+            <h1 class="cf-page-header__title">Registrar pago</h1>
+            <p class="cf-page-header__desc">El pago se aplica de la cuota más vieja a la más nueva: primero la mora de cada cuota, luego interés y capital.</p>
+          </div>
+          <div class="cf-page-header__actions">
+            <span class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-sage-600 mr-2"><span class="cf-live"></span>Efectivo en caja RD$ 48,200</span>
+            <a href="loans-list.html" class="cf-btn cf-btn--secondary">Cancelar</a>
+          </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10 pt-8">
+          <section class="lg:col-span-2 min-w-0 space-y-12">
+
+            <!-- 1 · Préstamo -->
+            <div>
+              <div class="cf-sec__head" style="margin-bottom:20px">
+                <div class="cf-sec__eyebrow">01</div>
+                <h2 class="cf-sec__title">Préstamo</h2>
+              </div>
+              <div class="cf-field">
+                <label class="cf-label" for="q">Buscar por número, cliente o cédula</label>
+                <input id="q" class="cf-input" value="LN-2025-0089">
+              </div>
+              <div class="mt-4 flex flex-wrap items-center gap-5 p-4 border border-forest-900/15 bg-white/70 rounded">
+                <span class="cf-avatar cf-avatar--md cf-avatar--flame">CD</span>
+                <div class="flex-1 min-w-[220px]">
+                  <div class="flex items-center gap-3"><span class="text-[15px] font-medium">Carlos Díaz</span><span class="cf-badge cf-badge--mora">Mora 54d</span></div>
+                  <div class="font-mono text-[11px] text-sage-600 mt-0.5">LN-2025-0089 · personal flat 3.0% · 12 × RD$ 5,100 · 001-9876543-2 · 809-555-0089</div>
+                </div>
+                <div class="text-right">
+                  <div class="cf-eyebrow">Balance de capital</div>
+                  <div class="font-mono text-[20px] font-medium">RD$ 37,500.00</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2 · Cuotas -->
+            <div>
+              <div class="cf-sec__head" style="margin-bottom:20px">
+                <div class="cf-sec__eyebrow">02</div>
+                <h2 class="cf-sec__title">Qué está pagando</h2>
+                <p class="cf-sec__desc">Mora de RD$ 500 por cuota vencida después de 5 días de gracia (Configuración › Políticas).</p>
+              </div>
+              <div class="flex flex-wrap gap-2 mb-4" id="quick">
+                <button class="cf-filter" data-amt="11200">Ponerse al día <span class="cf-filter__count">11,200.00</span></button>
+                <button class="cf-filter" data-amt="5600">Cuota más vieja <span class="cf-filter__count">5,600.00</span></button>
+                <button class="cf-filter" data-amt="42550">Saldar préstamo <span class="cf-filter__count">42,550.00</span></button>
+              </div>
+              <table class="cf-table" id="due">
+                <thead><tr>
+                  <th class="cf-num" aria-sort="ascending" data-type="num">Cuota</th>
+                  <th aria-sort="none" data-type="date">Vence</th>
+                  <th class="cf-num" aria-sort="none" data-type="num">Atraso</th>
+                  <th class="cf-num" aria-sort="none" data-type="num">Cuota RD$</th>
+                  <th class="cf-num" aria-sort="none" data-type="num">Mora RD$</th>
+                  <th class="cf-num" aria-sort="none" data-type="num">Debe RD$</th>
+                  <th>Estado</th>
+                </tr></thead>
+                <tbody>
+                  <tr><td class="cf-num cf-mono">3</td><td class="cf-mono">15 feb 2026</td><td class="cf-num cf-mono" data-v="54">54 d</td><td class="cf-num cf-mono">5,100.00</td><td class="cf-num cf-mono">500.00</td><td class="cf-num cf-amount">5,600.00</td><td><span class="cf-badge cf-badge--mora">Vencida</span></td></tr>
+                  <tr><td class="cf-num cf-mono">4</td><td class="cf-mono">15 mar 2026</td><td class="cf-num cf-mono" data-v="26">26 d</td><td class="cf-num cf-mono">5,100.00</td><td class="cf-num cf-mono">500.00</td><td class="cf-num cf-amount">5,600.00</td><td><span class="cf-badge cf-badge--vencido">Vencida</span></td></tr>
+                  <tr><td class="cf-num cf-mono">5</td><td class="cf-mono">15 abr 2026</td><td class="cf-num cf-mono" data-v="-5">en 5 d</td><td class="cf-num cf-mono">5,100.00</td><td class="cf-num cf-mono">0.00</td><td class="cf-num cf-amount">5,100.00</td><td><span class="cf-pill cf-pill--soon">Próxima</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 3 · Datos del pago -->
+            <div>
+              <div class="cf-sec__head" style="margin-bottom:20px">
+                <div class="cf-sec__eyebrow">03</div>
+                <h2 class="cf-sec__title">Datos del pago</h2>
+              </div>
+              <div class="grid sm:grid-cols-2 gap-8">
+                <div class="cf-field">
+                  <label class="cf-label" for="amt">Monto recibido</label>
+                  <div class="cf-input-group"><span class="cf-prefix">RD$</span><input id="amt" class="cf-input cf-input--large" value="8,000.00" inputmode="decimal"></div>
+                  <div class="cf-hint" id="amt-hint"></div>
+                </div>
+                <div class="cf-field">
+                  <label class="cf-label" for="date">Fecha del pago</label>
+                  <input id="date" class="cf-input cf-input--mono" value="10 abr 2026 · 14:32">
+                  <div class="cf-hint">Pagos con fecha anterior requieren supervisor</div>
+                </div>
+              </div>
+              <div class="cf-label mt-8" id="lbl-m">Método</div>
+              <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-1" role="radiogroup" aria-labelledby="lbl-m">
+                <label class="opt"><input type="radio" name="m" checked><div class="opt__title">Efectivo</div><div class="opt__desc">Entra a Caja #2</div></label>
+                <label class="opt"><input type="radio" name="m"><div class="opt__title">Transferencia</div><div class="opt__desc">Con referencia</div></label>
+                <label class="opt"><input type="radio" name="m"><div class="opt__title">Cheque</div><div class="opt__desc">Número y banco</div></label>
+                <label class="opt"><input type="radio" name="m"><div class="opt__title">Tarjeta</div><div class="opt__desc">Últimos 4</div></label>
+                <label class="opt"><input type="radio" name="m"><div class="opt__title">Pago móvil</div><div class="opt__desc">tPago, Popular</div></label>
+              </div>
+              <div class="grid sm:grid-cols-2 gap-8 mt-8">
+                <div class="cf-field"><label class="cf-label" for="ref">Referencia <span class="text-sage-500 normal-case tracking-normal">opcional en efectivo</span></label><input id="ref" class="cf-input cf-input--mono" placeholder="ej: TRX-12345"></div>
+                <div class="cf-field"><label class="cf-label" for="notes">Notas</label><input id="notes" class="cf-input" value="Pagó en oficina; promete el resto el viernes 17."></div>
+              </div>
+              <div class="flex flex-wrap gap-x-8 gap-y-2 mt-6">
+                <label class="cf-check-label"><input type="checkbox" class="cf-checkbox" checked> Enviar recibo por WhatsApp a 809-555-0089</label>
+                <label class="cf-check-label"><input type="checkbox" class="cf-checkbox" checked> Registrar promesa por el resto · vie 17 abr</label>
+              </div>
+            </div>
+          </section>
+
+          <!-- Rail: distribución -->
+          <aside class="lg:sticky lg:top-20 self-start space-y-8">
+            <section>
+              <div class="rail-h"><span>Cómo se aplica</span><span class="cf-mono" id="d-total"></span></div>
+              <ol class="mt-1" id="dist"></ol>
+            </section>
+            <section>
+              <div class="rail-h"><span>Después del pago</span></div>
+              <dl class="dl">
+                <div><dt>Balance de capital</dt><dd class="cf-mono"><span class="text-sage-500 line-through mr-2">37,500.00</span><span id="a-bal"></span></dd></div>
+                <div><dt>Vencido pendiente</dt><dd class="cf-mono" id="a-due"></dd></div>
+                <div><dt>Estado</dt><dd id="a-st"></dd></div>
+                <div><dt>Cuotas</dt><dd class="cf-mono" id="a-q"></dd></div>
+              </dl>
+            </section>
+            <button class="cf-btn cf-btn--sun cf-btn--lg w-full" id="confirm"></button>
+            <p class="text-[12px] text-sage-600">Se imprime el recibo <span class="cf-mono text-forest-900">RC-04418</span> y el movimiento queda en la bitácora de Caja #2.</p>
+          </aside>
+        </div>
+
+        <div class="mt-16 pt-5 rule-t flex flex-wrap items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-widest text-sage-500">
+          <span>CrediFlux v2.0 · Santiago, RD</span>
+          <span>Datos al 10 abr 2026 14:32 · sesión 2h 14m</span>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Dev-only: tenant theme switcher -->
+  <div class="dev-banner" role="presentation">
+    <span class="dev-banner__label">tenant-primary &rarr;</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" data-name="Forest (default)" style="background: #163300;" aria-label="Forest"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" data-name="Burgundy" style="background: #3a0e1e;" aria-label="Burgundy"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" data-name="Deep Navy" style="background: #0c1e38;" aria-label="Deep Navy"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" data-name="Teal" style="background: #1a4d3a;" aria-label="Teal"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" data-name="Violet" style="background: #2d1b4e;" aria-label="Violet"></button>
+    </div>
+  </div>
+
+  <!-- Pulse keyframe -->
+  <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0; transform: scale(2); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      @keyframes pulse { 0%, 100% { opacity: 0.4; transform: none; } }
+    }
+  </style>
+
+  <script>
+    // Toggle collapsible nav groups
+    function toggleGroup(headerEl) {
+      const group = headerEl.closest('.nav-group');
+      if (!group) return;
+      const collapsed = group.dataset.collapsed === 'true';
+      group.dataset.collapsed = collapsed ? 'false' : 'true';
+      headerEl.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
+    }
+
+    // Filter pills toggle
+    document.querySelectorAll('.filter-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+      });
+    });
+
+    // Select-all checkbox
+    const selectAll = document.getElementById('select-all');
+    const rowChecks = document.querySelectorAll('.row-check');
+    selectAll.addEventListener('change', () => {
+      rowChecks.forEach(cb => { cb.checked = selectAll.checked; });
+    });
+    rowChecks.forEach(cb => {
+      cb.addEventListener('change', () => {
+        const allChecked = Array.from(rowChecks).every(c => c.checked);
+        const someChecked = Array.from(rowChecks).some(c => c.checked);
+        selectAll.checked = allChecked;
+        selectAll.indeterminate = someChecked && !allChecked;
+      });
+    });
+
+    // Tenant theme switcher
+    const swatches = document.querySelectorAll('.dev-banner__swatch');
+    swatches.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const color = btn.dataset.color;
+        document.documentElement.style.setProperty('--color-tenant-primary', color);
+        swatches.forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  </script>
+  <script src="_design-notes.js"></script>
+
+  <script src="ds/datatable.js"></script>
+  <link rel="stylesheet" href="ds/patterns.css">
+  <style>
+    .dist{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid #1633000f;font-size:13px}
+    .dist__what{color:var(--forest-900)}
+    .dist__sub{grid-column:1/-1;font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--sage-600)}
+  </style>
+  <script>
+  (function () {
+    // LN-2025-0089 · 45,000 flat 3% · 12 cuotas: capital 3,750 + interés 1,350 = 5,100. Cuotas 1–2 pagadas.
+    // Saldar = capital pendiente 37,500 + interés de cuotas 3–5 (4,050) + mora 1,000 = 42,550.
+    const DUE = [
+      { q: 3, mora: 500, int: 1350, cap: 3750, late: true },
+      { q: 4, mora: 500, int: 1350, cap: 3750, late: true },
+      { q: 5, mora: 0,   int: 1350, cap: 3750, late: false },
+    ];
+    const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const parse = s => parseFloat(String(s).replace(/[^0-9.]/g, '')) || 0;
+    const amt = document.getElementById('amt');
+
+    function render() {
+      let left = parse(amt.value), capPaid = 0, lines = [], dueLeft = 0, partial = null, cleared = 0;
+      DUE.forEach(d => {
+        const parts = [['Mora', d.mora], ['Interés', d.int], ['Capital', d.cap]];
+        let applied = 0, owed = d.mora + d.int + d.cap;
+        parts.forEach(([k, v]) => {
+          const a = Math.min(left, v); left -= a; applied += a;
+          if (k === 'Capital') capPaid += a;
+        });
+        if (applied > 0) lines.push({ d, applied, owed });
+        if (applied >= owed) cleared++;
+        else if (applied > 0) partial = { d, rest: owed - applied };
+        if (d.late) dueLeft += owed - applied;
+      });
+      document.getElementById('dist').innerHTML = lines.map(({ d, applied, owed }) =>
+        `<li class="dist"><span class="dist__what">Cuota ${d.q}${d.late ? '' : ' · adelanto'}</span><span class="cf-mono">${fmt(applied)}</span><span class="dist__sub">${applied >= owed ? 'completa' : 'parcial · faltan ' + fmt(owed - applied)}${d.mora ? ' · incluye mora ' + fmt(Math.min(applied, d.mora)) : ''}</span></li>`
+      ).join('') + (left > 0 ? `<li class="dist"><span class="dist__what">Abono a capital</span><span class="cf-mono">${fmt(left)}</span><span class="dist__sub">reduce las últimas cuotas</span></li>` : '');
+      capPaid += left;
+      const total = parse(amt.value);
+      document.getElementById('d-total').textContent = 'RD$ ' + fmt(total);
+      document.getElementById('a-bal').textContent = fmt(37500 - capPaid);
+      document.getElementById('a-due').textContent = dueLeft > 0 ? 'RD$ ' + fmt(dueLeft) : 'RD$ 0.00';
+      document.getElementById('a-st').innerHTML = dueLeft <= 0 ? '<span class="cf-badge cf-badge--activo">Al día</span>'
+        : '<span class="cf-badge cf-badge--vencido">Vencido · 26 d</span>';
+      document.getElementById('a-q').textContent = `${2 + cleared} pagadas${partial ? ' · ' + partial.d.q + ' parcial' : ''}`;
+      document.getElementById('amt-hint').textContent = total < 11200 ? `Faltan RD$ ${fmt(11200 - total)} para quedar al día` : 'Queda al día';
+      document.getElementById('confirm').textContent = 'Registrar RD$ ' + fmt(total);
+    }
+    amt.addEventListener('input', render);
+    document.querySelectorAll('#quick .cf-filter').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#quick .cf-filter').forEach(x => x.classList.toggle('active', x === b));
+      amt.value = fmt(+b.dataset.amt); render();
+    }));
+    render();
+  })();
+  </script>
+
+</body>
+</html>

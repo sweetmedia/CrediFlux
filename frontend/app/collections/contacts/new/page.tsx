@@ -1,8 +1,6 @@
-'use client';
-
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/lib/navigation/link';
+import { useRouter } from '@/lib/navigation';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { collectionsAPI, loansAPI } from '@/lib/api/loans';

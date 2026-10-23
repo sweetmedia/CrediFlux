@@ -7,6 +7,7 @@ from decimal import Decimal
 from datetime import timedelta
 from apps.tenants.models import Tenant
 from apps.loans.models import Loan, LoanSchedule
+from apps.loans.amortization import build_installments, number_of_payments
 from django_tenants.utils import schema_context
 from dateutil.relativedelta import relativedelta
 
@@ -80,27 +81,15 @@ class Command(BaseCommand):
 
         period_delta = frequency_map.get(loan.payment_frequency, {'months': 1})
 
-        # Calculate number of payments
-        if loan.payment_frequency == 'monthly':
-            num_payments = loan.term_months
-        elif loan.payment_frequency == 'quarterly':
-            num_payments = loan.term_months // 3
-        elif loan.payment_frequency == 'weekly':
-            num_payments = loan.term_months * 4
-        elif loan.payment_frequency == 'biweekly':
-            num_payments = loan.term_months * 2
-        elif loan.payment_frequency == 'daily':
-            num_payments = loan.term_months * 30
-        else:
-            num_payments = loan.term_months
-
-        # Simple interest calculation
-        total_interest = loan.principal_amount.amount * (loan.interest_rate / Decimal('100')) * (Decimal(loan.term_months) / Decimal('12'))
-        total_amount = loan.principal_amount.amount + total_interest
-
-        payment_amount = total_amount / Decimal(num_payments)
-        principal_per_payment = loan.principal_amount.amount / Decimal(num_payments)
-        interest_per_payment = total_interest / Decimal(num_payments)
+        # Montos con el mismo cálculo que la calculadora y el desembolso
+        # (tasa MENSUAL; ver apps.loans.amortization).
+        num_payments = number_of_payments(loan.term_months, loan.payment_frequency)
+        rows, payment_amount, _ = build_installments(
+            loan.principal_amount.amount, loan.interest_rate, num_payments,
+            loan.payment_frequency, loan.interest_type,
+        )
+        if not rows:
+            return 0
 
         # Determine starting date
         if loan.first_payment_date:
@@ -116,7 +105,7 @@ class Command(BaseCommand):
         today = timezone.now().date()
 
         # Create schedule entries
-        for i in range(1, int(num_payments) + 1):
+        for i, row in enumerate(rows, start=1):
             # Determine status based on loan status and payment progress
             if loan.status == 'paid':
                 status = 'paid'
@@ -146,16 +135,16 @@ class Command(BaseCommand):
                 days_overdue = (today - current_date).days
 
             # Calculate paid amount and date for paid installments
-            paid_amount = payment_amount if status == 'paid' else Decimal('0')
+            paid_amount = row['payment'] if status == 'paid' else Decimal('0')
             paid_date = current_date if status == 'paid' else None
 
             LoanSchedule.objects.create(
                 loan=loan,
                 installment_number=i,
                 due_date=current_date,
-                total_amount=payment_amount,
-                principal_amount=principal_per_payment,
-                interest_amount=interest_per_payment,
+                total_amount=row['payment'],
+                principal_amount=row['principal'],
+                interest_amount=row['interest'],
                 status=status,
                 paid_amount=paid_amount,
                 paid_date=paid_date,

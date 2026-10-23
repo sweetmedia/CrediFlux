@@ -64,11 +64,10 @@ ERROR: Could not find a version that satisfies the requirement django-tenants
 **Solución**:
 
 ```bash
-# Limpiar cache de pip
-docker-compose exec backend pip cache purge
-
-# Reinstalar
-docker-compose exec backend pip install -r requirements/base.txt --no-cache-dir
+# Las dependencias viven en la imagen (uv sync en el Dockerfile):
+# reconstruirla reinstala exactamente lo de backend/uv.lock
+docker compose build --no-cache backend celery celery-beat
+docker compose up -d backend celery celery-beat
 ```
 
 ---

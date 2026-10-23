@@ -1,9 +1,7 @@
-'use client';
-
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import Image from 'next/image';
+import Link from '@/lib/navigation/link';
+import { usePathname, useRouter } from '@/lib/navigation';
+import Image from '@/components/ui/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api/client';
 import { GlobalSearch } from '@/components/search';

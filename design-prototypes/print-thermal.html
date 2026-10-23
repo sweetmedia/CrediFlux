@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Impresión térmica 80 mm</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/print.css">
+  <style>
+    /* Térmica: solo negro puro, sin grises ni fondos; mono ~42 columnas a 80 mm */
+    .tk{width:80mm;background:#fff;padding:5mm 4mm 9mm;box-sizing:border-box;color:#000;font-family:var(--font-mono);font-size:10.5px;line-height:1.45;box-shadow:0 1px 2px #16330014,0 12px 32px -12px #16330033;position:relative}
+    .tk::after{content:'';position:absolute;left:0;right:0;bottom:-6px;height:6px;background:radial-gradient(circle at 4px 0,#fff 4px,transparent 4.5px) 0 0/8px 6px repeat-x}
+    .tk *{color:#000!important}
+    .c{text-align:center}.b{font-weight:700}.xl{font-size:19px;font-weight:700;letter-spacing:-.01em}.lg{font-size:13px;font-weight:700}
+    .hr{border-top:1px dashed #000;margin:5px 0}.hr2{border-top:2px solid #000;margin:5px 0}
+    .r2{display:flex;justify-content:space-between;gap:6px}
+    .inv{background:#000;color:#fff!important;padding:1px 4px;font-weight:700}
+    .inv *{color:#fff!important}
+    .tk .qr{width:38px;height:38px;outline:0;background:conic-gradient(from 90deg at 3px 3px,#000 90deg,transparent 0) 0 0/8px 8px}
+    .rules{max-width:1100px;margin:0 auto 22px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+    .rules div{font-size:12px;color:var(--ink-2);line-height:1.45}
+    .rules b{display:block;font-family:var(--font-display);font-size:12px;color:var(--ink);margin-bottom:2px}
+    @page{size:80mm auto;margin:0}
+  </style>
+</head>
+<body class="print-desk">
+<div class="desk">
+  <div class="desk__bar" style="max-width:1100px"><div><div class="desk__meta">Impresos · Térmica</div><div class="desk__title">Impresión térmica 80 mm</div></div><div class="desk__meta">ESC/POS · 576 px · 42 col</div></div>
+  <div class="rules">
+    <div><b>Solo negro</b>La térmica no imprime grises: jerarquía con tamaño, negrita y bloques invertidos.</div>
+    <div><b>Mono y columnas</b>42 columnas en fuente A; montos alineados a la derecha con 2 decimales.</div>
+    <div><b>QR nativo</b>El QR de verificación se manda como comando ESC/POS, no como imagen.</div>
+    <div><b>Corte y copia</b>Corte parcial al final; “COPIA” en la segunda impresión. Reimpresión marcada.</div>
+  </div>
+
+  <div class="desk__row" style="gap:22px">
+
+    <div><div class="tk">
+      <div class="c lg">COOPERATIVA SAN JOSÉ</div>
+      <div class="c">RNC 1-31-24587-3<br>C/ del Sol #85, Santiago<br>809-582-4410</div>
+      <div class="hr2"></div>
+      <div class="c b">RECIBO DE PAGO</div>
+      <div class="r2"><span>No.</span><span>RC-04412</span></div>
+      <div class="r2"><span>Fecha</span><span>05/04/2026 11:02</span></div>
+      <div class="r2"><span>Caja</span><span>#2 · M. Fernández</span></div>
+      <div class="hr"></div>
+      <div>ANA MARÍA RAMÍREZ GUZMÁN</div>
+      <div>Céd. 001-5678901-4</div>
+      <div>Préstamo LN-2025-0118</div>
+      <div class="hr"></div>
+      <div class="r2"><span>Cuota 8/24</span><span>5,000.00</span></div>
+      <div class="r2"><span>  Capital</span><span>3,125.00</span></div>
+      <div class="r2"><span>  Interés</span><span>1,875.00</span></div>
+      <div class="r2"><span>  Mora</span><span>0.00</span></div>
+      <div class="hr2"></div>
+      <div class="c">TOTAL · TRANSFERENCIA</div>
+      <div class="c xl">RD$ 5,000.00</div>
+      <div class="c">Ref. Popular 88412093</div>
+      <div class="hr"></div>
+      <div class="r2"><span>Balance capital</span><span>50,000.00</span></div>
+      <div class="r2"><span>Próxima 15/05</span><span>5,000.00</span></div>
+      <div class="hr"></div>
+      <div style="display:flex;gap:8px;align-items:center"><div class="qr"></div><div>Verifique en<br>crediflux.do/v/RC-04412</div></div>
+      <div class="c" style="margin-top:6px">Gracias por su pago puntual</div>
+    </div><div class="desk__cap">Recibo en caja</div></div>
+
+    <div><div class="tk">
+      <div class="c lg">COOPERATIVA SAN JOSÉ</div>
+      <div class="hr2"></div>
+      <div class="c b">CIERRE DE CAJA</div>
+      <div class="r2"><span>Caja</span><span>#2 · turno AM</span></div>
+      <div class="r2"><span>Desde</span><span>10/04 08:00</span></div>
+      <div class="r2"><span>Hasta</span><span>10/04 14:30</span></div>
+      <div class="r2"><span>Cajera</span><span>M. Fernández</span></div>
+      <div class="hr"></div>
+      <div class="r2"><span>Fondo inicial</span><span>10,000.00</span></div>
+      <div class="r2"><span>+ Efectivo (19)</span><span>41,800.00</span></div>
+      <div class="r2"><span>- Egresos (2)</span><span>3,600.00</span></div>
+      <div class="r2 b"><span>= Esperado</span><span>48,200.00</span></div>
+      <div class="r2"><span>Contado</span><span>48,200.00</span></div>
+      <div class="c" style="margin:4px 0"><span class="inv">DIFERENCIA 0.00 · CUADRA</span></div>
+      <div class="hr"></div>
+      <div class="r2"><span>Transferencias (3)</span><span>16,500.00</span></div>
+      <div class="r2"><span>Pago móvil (1)</span><span>2,400.00</span></div>
+      <div class="r2 b"><span>Total turno</span><span>60,700.00</span></div>
+      <div class="hr"></div>
+      <div>2000x12  1000x15  500x10</div>
+      <div>200x12   100x12   50x8</div>
+      <div>25x4  10x5  5x6  1x20</div>
+      <div class="hr"></div>
+      <div class="r2"><span>A depositar</span><span>38,200.00</span></div>
+      <div class="r2"><span>Fondo turno PM</span><span>10,000.00</span></div>
+      <div class="hr"></div>
+      <div style="margin-top:14px">Cajera ______________</div>
+      <div style="margin-top:14px">Superv. ______________</div>
+    </div><div class="desk__cap">Cierre de caja</div></div>
+
+    <div><div class="tk">
+      <div class="c lg">COOPERATIVA SAN JOSÉ</div>
+      <div class="hr2"></div>
+      <div class="c b">CIERRE DE JORNADA</div>
+      <div class="r2"><span>Cobrador</span><span>Pedro Núñez</span></div>
+      <div class="r2"><span>Ruta</span><span>Santiago norte</span></div>
+      <div class="r2"><span>Fecha</span><span>10/04/2026 17:40</span></div>
+      <div class="hr"></div>
+      <div class="r2"><span>Visitas</span><span>10/10</span></div>
+      <div class="r2"><span>Cobros</span><span>7</span></div>
+      <div class="r2"><span>Promesas</span><span>2 · 17,944.44</span></div>
+      <div class="r2"><span>No estaba</span><span>1</span></div>
+      <div class="hr"></div>
+      <div class="r2"><span>RC-campo-0406</span><span>2,100.00</span></div>
+      <div class="r2"><span>RC-campo-0407</span><span>1,800.00</span></div>
+      <div class="r2"><span>RC-campo-0408</span><span>1,600.00 T</span></div>
+      <div class="r2"><span>RC-campo-0409</span><span>1,200.00</span></div>
+      <div class="r2"><span>RC-campo-0410</span><span>950.00</span></div>
+      <div class="r2"><span>RC-campo-0411</span><span>750.00</span></div>
+      <div class="r2"><span>RC-campo-0412</span><span>4,400.00</span></div>
+      <div class="hr2"></div>
+      <div class="r2 b"><span>TOTAL COBRADO</span><span>12,800.00</span></div>
+      <div class="r2"><span>  Transferencia</span><span>1,600.00</span></div>
+      <div class="c" style="margin:5px 0"><span class="inv">EFECTIVO A ENTREGAR 11,200.00</span></div>
+      <div class="hr"></div>
+      <div style="margin-top:14px">Cobrador ______________</div>
+      <div style="margin-top:14px">Recibe caja ___________</div>
+    </div><div class="desk__cap">Cierre de jornada · cobrador</div></div>
+
+    <div><div class="tk">
+      <div class="c lg">COOPERATIVA SAN JOSÉ</div>
+      <div class="hr2"></div>
+      <div class="c b">CONSULTA DE BALANCE</div>
+      <div class="c">10/04/2026 14:32 · informativo</div>
+      <div class="hr"></div>
+      <div>ANA MARÍA RAMÍREZ GUZMÁN</div>
+      <div>LN-2025-0118 · Personal</div>
+      <div class="hr"></div>
+      <div class="r2"><span>Monto original</span><span>75,000.00</span></div>
+      <div class="r2"><span>Cuotas pagadas</span><span>8 de 24</span></div>
+      <div class="r2"><span>Pagado</span><span>40,000.00</span></div>
+      <div class="r2 b"><span>Balance capital</span><span>50,000.00</span></div>
+      <div class="r2"><span>Vencido / mora</span><span>0.00</span></div>
+      <div class="hr"></div>
+      <div class="b">PRÓXIMAS CUOTAS</div>
+      <div class="r2"><span>15/05/2026</span><span>5,000.00</span></div>
+      <div class="r2"><span>15/06/2026</span><span>5,000.00</span></div>
+      <div class="r2"><span>15/07/2026</span><span>5,000.00</span></div>
+      <div class="hr"></div>
+      <div class="r2"><span>Para saldar hoy</span><span>50,000.00</span></div>
+      <div class="c" style="margin-top:6px">Este ticket no es un recibo</div>
+    </div><div class="desk__cap">Consulta de balance</div></div>
+
+    <div><div class="tk">
+      <div class="c lg">COOPERATIVA SAN JOSÉ</div>
+      <div class="hr2"></div>
+      <div class="c b">COMPROBANTE DE DESEMBOLSO</div>
+      <div class="r2"><span>No.</span><span>DS-0156</span></div>
+      <div class="r2"><span>Fecha</span><span>10/04/2026 14:05</span></div>
+      <div class="hr"></div>
+      <div>ROSA MENDOZA TAVERAS</div>
+      <div>Céd. 402-3456789-0</div>
+      <div>Préstamo LN-2026-0156</div>
+      <div class="hr"></div>
+      <div class="r2"><span>Monto aprobado</span><span>75,000.00</span></div>
+      <div class="r2"><span>- Gastos legales</span><span>2,500.00</span></div>
+      <div class="hr2"></div>
+      <div class="c">NETO ENTREGADO · CHEQUE</div>
+      <div class="c xl">RD$ 72,500.00</div>
+      <div class="c">Cheque Popular No. 004518</div>
+      <div class="hr"></div>
+      <div class="r2"><span>24 cuotas de</span><span>5,000.00</span></div>
+      <div class="r2"><span>Primera</span><span>10/05/2026</span></div>
+      <div class="r2"><span>Tasa flat</span><span>2.5% mensual</span></div>
+      <div class="hr"></div>
+      <div style="margin-top:14px">Recibí conforme</div>
+      <div style="margin-top:12px">_______________________</div>
+      <div>Rosa Mendoza Taveras</div>
+    </div><div class="desk__cap">Comprobante de desembolso</div></div>
+
+    <div><div class="tk">
+      <div class="c lg">COOPERATIVA SAN JOSÉ</div>
+      <div class="hr2"></div>
+      <div class="c b">COMPROMISO DE PAGO</div>
+      <div class="r2"><span>Gestión</span><span>visita domicilio</span></div>
+      <div class="r2"><span>Fecha</span><span>10/04/2026 14:20</span></div>
+      <div class="r2"><span>Gestor</span><span>Pedro Núñez</span></div>
+      <div class="hr"></div>
+      <div>FRANCISCO UREÑA PERALTA</div>
+      <div>LN-2026-0045 · 40 días</div>
+      <div class="hr"></div>
+      <div class="r2"><span>Vencido</span><span>14,488.89</span></div>
+      <div class="r2"><span>Mora</span><span>1,000.00</span></div>
+      <div class="r2 b"><span>Total exigible</span><span>15,488.89</span></div>
+      <div class="hr2"></div>
+      <div class="c">ME COMPROMETO A PAGAR</div>
+      <div class="c xl">RD$ 7,744.44</div>
+      <div class="c b">EL LUNES 14/04/2026</div>
+      <div class="hr"></div>
+      <div>Saldo restante a fin de mes:</div>
+      <div class="r2"><span></span><span>7,744.45</span></div>
+      <div class="hr"></div>
+      <div style="margin-top:14px">_______________________</div>
+      <div>Firma del cliente</div>
+      <div class="c" style="margin-top:6px">Recibirá un recordatorio por WhatsApp</div>
+    </div><div class="desk__cap">Compromiso de pago · cobrador</div></div>
+
+  </div>
+</div>
+</body>
+</html>

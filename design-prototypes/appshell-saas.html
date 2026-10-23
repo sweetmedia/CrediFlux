@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — AppShell · Variante 2 (Modern SaaS)</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',500:'#4d8630',600:'#3d7020',700:'#2d5a10',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 100:'#fffbe6',500:'#ffe026' },
+            flame: { 50:'#fff5ec',100:'#ffedd6',500:'#ff7503',600:'#cc5e02' },
+            tenant: 'var(--color-tenant-primary)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    html, body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #fafafa;
+      color: #163300;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Sidebar — clean white with colored accents (the SaaS standard) */
+    .sidebar {
+      background: #ffffff;
+      border-right: 1px solid #e7e5e4;
+    }
+
+    /* Nav items — pill-shaped active state, no left bar */
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      color: #57534e;
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 150ms ease;
+    }
+    .nav-item:hover {
+      background: #f5f5f4;
+      color: #163300;
+    }
+    .nav-item.active {
+      background: var(--color-tenant-primary, #163300);
+      color: #ffffff;
+    }
+    .nav-item.active svg {
+      color: #ffffff;
+    }
+    .nav-item .nav-badge {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #f5f5f4;
+      color: #57534e;
+    }
+    .nav-item.active .nav-badge {
+      background: rgba(255,255,255,0.2);
+      color: #ffffff;
+    }
+    .nav-section {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #a8a29e;
+      padding: 6px 12px;
+      margin-top: 14px;
+      margin-bottom: 4px;
+    }
+
+    /* Cards — the SaaS bread and butter */
+    .card {
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(22,51,0,0.04);
+    }
+    .card-padded {
+      padding: 24px;
+    }
+
+    /* KPI cards */
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 12px;
+      padding: 22px;
+      transition: box-shadow 200ms ease;
+    }
+    .kpi-card:hover {
+      box-shadow: 0 4px 12px rgba(22,51,0,0.06);
+    }
+    .kpi-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+    }
+
+    /* Pills / badges */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 999px;
+    }
+    .pill-success { background: #ecfdf5; color: #047857; }
+    .pill-warn    { background: #fff5ec; color: #cc5e02; }
+    .pill-info    { background: #eff6ff; color: #1d4ed8; }
+    .pill-neutral { background: #f5f5f4; color: #57534e; }
+
+    /* Header search */
+    .header-search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 320px;
+      padding: 8px 12px;
+      background: #f5f5f4;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      color: #78716c;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .header-search:hover {
+      background: #ffffff;
+      border-color: #e7e5e4;
+    }
+    .header-search .kbd-soft {
+      margin-left: auto;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      color: #a8a29e;
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+
+    /* Icon button */
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      color: #57534e;
+      background: transparent;
+      border: 1px solid transparent;
+      transition: all 150ms ease;
+      position: relative;
+    }
+    .icon-btn:hover {
+      background: #f5f5f4;
+      color: #163300;
+    }
+    .icon-btn .dot-badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      background: #ff7503;
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #ffffff;
+      box-sizing: content-box;
+    }
+
+    /* Activity rows */
+    .activity-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      transition: background 150ms ease;
+    }
+    .activity-row:hover { background: #fafaf9; }
+    .activity-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+
+    /* Tenant theme switcher */
+    .dev-banner {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(22,51,0,0.08);
+      z-index: 50;
+    }
+    .dev-banner__label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #78716c;
+    }
+    .dev-banner__swatches { display: flex; gap: 6px; }
+    .dev-banner__swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .dev-banner__swatch:hover { transform: scale(1.1); }
+    .dev-banner__swatch.active {
+      border-color: #163300;
+      box-shadow: 0 0 0 2px #ffffff inset;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- =================== SIDEBAR =================== -->
+  <aside class="sidebar fixed inset-y-0 left-0 w-[256px] flex flex-col">
+    <!-- Brand -->
+    <div class="px-5 pt-5 pb-4 border-b border-stone-200">
+      <div class="flex items-center gap-3">
+        <div class="flex h-9 w-9 items-center justify-center rounded-lg" style="background: var(--color-tenant-primary, #163300);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffe026" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/>
+          </svg>
+        </div>
+        <div>
+          <div class="font-bold text-[15px] text-forest-900 leading-tight">CrediFlux</div>
+          <div class="text-[11px] text-stone-500 leading-tight mt-0.5">Cooperativa San José</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="px-3 pt-3">
+      <button class="header-search w-full" onclick="openSearch()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+        </svg>
+        <span>Buscar...</span>
+        <span class="kbd-soft">⌘K</span>
+      </button>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 overflow-y-auto px-3 py-3">
+      <div class="nav-section">General</div>
+      <a href="#" class="nav-item active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+        </svg>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <span>Clientes</span>
+        <span class="nav-badge">347</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+        <span>Préstamos</span>
+        <span class="nav-badge">412</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+        <span>Pagos</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span>Contratos</span>
+      </a>
+
+      <div class="nav-section">Operación</div>
+      <a href="#" class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span>Comunicaciones</span>
+        <span class="nav-badge">3</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11H1l8-8 8 8h-8v8h-8v-8z" transform="rotate(180 12 12)"/><polyline points="3 17 9 11 13 15 21 7"/>
+        </svg>
+        <span>Reportes</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span>Cobranza</span>
+      </a>
+
+      <div class="nav-section">Sistema</div>
+      <a href="#" class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Configuración</span>
+      </a>
+      <a href="#" class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span>Ayuda</span>
+      </a>
+    </nav>
+
+    <!-- User footer -->
+    <div class="border-t border-stone-200 p-3">
+      <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white font-semibold text-[12px]" style="background: #738566;">MF</div>
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-[13px] font-semibold text-forest-900 leading-tight">María Fernández</div>
+          <div class="truncate text-[11px] text-stone-500 mt-0.5">Oficial de Cobranza</div>
+        </div>
+        <button class="p-1.5 text-stone-400 hover:text-forest-900 rounded" aria-label="Cerrar sesión">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- =================== MAIN =================== -->
+  <div class="ml-[256px]">
+
+    <!-- Header -->
+    <header class="sticky top-0 z-30 bg-white border-b border-stone-200">
+      <div class="flex h-16 items-center gap-4 px-8">
+        <!-- Breadcrumb -->
+        <div class="flex items-center gap-2 text-[13px] text-stone-500">
+          <span>Inicio</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="font-semibold text-forest-900">Dashboard</span>
+        </div>
+
+        <div class="flex-1"></div>
+
+        <!-- Tenant switcher pill -->
+        <button class="hidden md:flex items-center gap-2 h-9 px-3 rounded-lg border border-stone-200 bg-stone-50 hover:bg-white text-[13px] font-medium text-forest-900 transition-colors">
+          <span class="h-2 w-2 rounded-full" style="background: var(--color-tenant-primary, #163300);"></span>
+          <span>coop-san-jose</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+
+        <!-- Search -->
+        <button class="icon-btn" onclick="openSearch()" aria-label="Buscar (⌘K)">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+        </button>
+
+        <!-- Bell -->
+        <button class="icon-btn" aria-label="Notificaciones">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="dot-badge">3</span>
+        </button>
+
+        <!-- Avatar -->
+        <button class="flex items-center gap-2 h-9 pl-1 pr-2.5 rounded-lg hover:bg-stone-100 transition-colors">
+          <div class="flex h-7 w-7 items-center justify-center rounded-full text-white font-semibold text-[11px]" style="background: #738566;">MF</div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-400"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="px-8 py-8">
+      <div class="max-w-[1400px] mx-auto">
+
+        <!-- Page header -->
+        <div class="flex items-start justify-between gap-6 mb-8">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-[13px] text-stone-500">Miércoles, 10 de abril de 2026</span>
+              <span class="pill pill-success">● En vivo</span>
+            </div>
+            <h1 class="text-[28px] font-bold text-forest-900 leading-tight tracking-tight">Hola, María 👋</h1>
+            <p class="text-[14px] text-stone-500 mt-1">Aquí está el resumen operativo de hoy en Cooperativa San José.</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button class="h-10 px-4 flex items-center gap-2 text-[13px] font-semibold text-forest-900 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>Exportar</span>
+            </button>
+            <button class="h-10 pl-3 pr-4 flex items-center gap-2 text-[13px] font-semibold text-white rounded-lg transition-colors" style="background: var(--color-tenant-primary, #163300);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Nuevo préstamo</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI cards (4) -->
+        <div class="grid grid-cols-4 gap-4 mb-8">
+          <div class="kpi-card">
+            <div class="kpi-icon" style="background: #ecfdf5; color: #047857;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
+            <div class="text-[12px] font-semibold text-stone-500 uppercase tracking-wide">Cartera activa</div>
+            <div class="mt-1.5 text-[26px] font-bold text-forest-900 tabular-nums">RD$ 12.45M</div>
+            <div class="mt-2 flex items-center gap-1.5">
+              <span class="pill pill-success">↑ 4.2%</span>
+              <span class="text-[12px] text-stone-500">vs mes anterior</span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon" style="background: #eff6ff; color: #1d4ed8;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+            <div class="text-[12px] font-semibold text-stone-500 uppercase tracking-wide">Recaudado · Abril</div>
+            <div class="mt-1.5 text-[26px] font-bold text-forest-900 tabular-nums">RD$ 1.84M</div>
+            <div class="mt-2.5">
+              <div class="flex items-center justify-between text-[11px] mb-1">
+                <span class="text-stone-500">Meta RD$ 1.95M</span>
+                <span class="font-semibold text-forest-700">94%</span>
+              </div>
+              <div class="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                <div class="h-full rounded-full" style="width: 94%; background: linear-gradient(90deg, #4d8630, #738566);"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kpi-card" style="border-color: #ffd1a3;">
+            <div class="kpi-icon" style="background: #fff5ec; color: #cc5e02;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <div class="text-[12px] font-semibold text-stone-500 uppercase tracking-wide">Balance vencido</div>
+            <div class="mt-1.5 text-[26px] font-bold tabular-nums" style="color: #cc5e02;">RD$ 284.6K</div>
+            <div class="mt-2 flex items-center gap-1.5">
+              <span class="pill pill-warn">18 morosos</span>
+              <span class="text-[12px] text-stone-500">requieren acción</span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon" style="background: #f5f3ff; color: #6d28d9;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <div class="text-[12px] font-semibold text-stone-500 uppercase tracking-wide">Clientes activos</div>
+            <div class="mt-1.5 text-[26px] font-bold text-forest-900 tabular-nums">347 <span class="text-[16px] text-stone-400 font-semibold">/ 412</span></div>
+            <div class="mt-2 flex items-center gap-1.5">
+              <span class="pill pill-success">+12</span>
+              <span class="text-[12px] text-stone-500">esta semana</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Two-col layout -->
+        <div class="grid grid-cols-3 gap-6">
+          <!-- Activity (col-span-2) -->
+          <div class="card col-span-2">
+            <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-stone-100">
+              <div>
+                <h2 class="text-[16px] font-bold text-forest-900">Actividad reciente</h2>
+                <p class="text-[12px] text-stone-500 mt-0.5">Últimas operaciones del equipo</p>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="h-8 px-3 text-[12px] font-semibold text-forest-900 bg-stone-100 rounded-lg">Hoy</button>
+                <button class="h-8 px-3 text-[12px] font-medium text-stone-500 hover:bg-stone-100 rounded-lg">Semana</button>
+                <button class="h-8 px-3 text-[12px] font-medium text-stone-500 hover:bg-stone-100 rounded-lg">Mes</button>
+              </div>
+            </div>
+            <div class="p-2">
+              <div class="activity-row">
+                <div class="activity-icon" style="background: #ecfdf5; color: #047857;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[14px] font-semibold text-forest-900">Pago registrado</span>
+                    <span class="pill pill-neutral">LN-2026-0142</span>
+                  </div>
+                  <div class="text-[12px] text-stone-500 mt-0.5">Juan Pérez · Cuota 4 de 24 · Efectivo</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-[14px] font-bold text-forest-900 tabular-nums">+RD$ 4,500</div>
+                  <div class="text-[11px] text-stone-400 mt-0.5">hace 12 min</div>
+                </div>
+              </div>
+
+              <div class="activity-row">
+                <div class="activity-icon" style="background: #fffbe6; color: #9a7b00;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[14px] font-semibold text-forest-900">Préstamo aprobado</span>
+                    <span class="pill pill-info">LN-2026-0156</span>
+                  </div>
+                  <div class="text-[12px] text-stone-500 mt-0.5">Rosa Mendoza · 24 cuotas · 2.5% mensual</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-[14px] font-bold text-forest-900 tabular-nums">RD$ 75,000</div>
+                  <div class="text-[11px] text-stone-400 mt-0.5">hace 34 min</div>
+                </div>
+              </div>
+
+              <div class="activity-row">
+                <div class="activity-icon" style="background: #fff5ec; color: #cc5e02;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[14px] font-semibold text-forest-900">Recordatorio enviado</span>
+                    <span class="pill pill-warn">WhatsApp</span>
+                  </div>
+                  <div class="text-[12px] text-stone-500 mt-0.5">Carlos Díaz · Cuota vencida hace 5 días</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-[14px] font-bold text-forest-900 tabular-nums">RD$ 3,200</div>
+                  <div class="text-[11px] text-stone-400 mt-0.5">hace 1 h</div>
+                </div>
+              </div>
+
+              <div class="activity-row">
+                <div class="activity-icon" style="background: #ecfdf5; color: #047857;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[14px] font-semibold text-forest-900">Cliente registrado</span>
+                    <span class="pill pill-info">JCE verificado</span>
+                  </div>
+                  <div class="text-[12px] text-stone-500 mt-0.5">Ana Ramírez · Padrón JCE confirmado</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-[11px] text-stone-400">hace 2 h</div>
+                </div>
+              </div>
+
+              <div class="activity-row">
+                <div class="activity-icon" style="background: #f3f6f1; color: #5c6d4d;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[14px] font-semibold text-forest-900">Visita de cobrador</span>
+                    <span class="pill pill-neutral">Zona Norte</span>
+                  </div>
+                  <div class="text-[12px] text-stone-500 mt-0.5">Pedro Núñez · 8 de 10 clientes visitados</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-[14px] font-bold text-forest-900 tabular-nums">RD$ 12,800</div>
+                  <div class="text-[11px] text-stone-400 mt-0.5">hace 3 h</div>
+                </div>
+              </div>
+            </div>
+            <div class="px-6 py-3 border-t border-stone-100">
+              <a href="#" class="text-[13px] font-semibold text-forest-700 hover:text-forest-900">Ver toda la actividad →</a>
+            </div>
+          </div>
+
+          <!-- Por cobrar hoy -->
+          <div class="card">
+            <div class="px-5 pt-5 pb-4 border-b border-stone-100">
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-[16px] font-bold text-forest-900">Por cobrar hoy</h2>
+                <span class="pill pill-neutral">7 cuotas</span>
+              </div>
+              <div class="text-[11px] text-stone-500 uppercase font-semibold tracking-wide">Total del día</div>
+              <div class="text-[26px] font-bold text-forest-900 tabular-nums mt-0.5">RD$ 28,400</div>
+            </div>
+            <ul>
+              <li class="px-5 py-3 flex items-center justify-between border-b border-stone-100 hover:bg-stone-50 transition-colors">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-600 text-[11px] font-semibold">MS</div>
+                  <div>
+                    <div class="text-[13px] font-semibold text-forest-900">Miguel A. Santos</div>
+                    <div class="text-[11px] text-stone-500">09:00 · LN-142</div>
+                  </div>
+                </div>
+                <div class="text-[13px] font-bold text-forest-900 tabular-nums">4,500</div>
+              </li>
+              <li class="px-5 py-3 flex items-center justify-between border-b border-stone-100 hover:bg-stone-50 transition-colors">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-600 text-[11px] font-semibold">LC</div>
+                  <div>
+                    <div class="text-[13px] font-semibold text-forest-900">Luz Castillo</div>
+                    <div class="text-[11px] text-stone-500">10:30 · LN-089</div>
+                  </div>
+                </div>
+                <div class="text-[13px] font-bold text-forest-900 tabular-nums">6,200</div>
+              </li>
+              <li class="px-5 py-3 flex items-center justify-between border-b border-stone-100 hover:bg-stone-50 transition-colors">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-flame-50 text-flame-600 text-[11px] font-semibold">FU</div>
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <div class="text-[13px] font-semibold text-forest-900">Francisco Ureña</div>
+                      <span class="pill pill-warn">Mora</span>
+                    </div>
+                    <div class="text-[11px] text-stone-500">11:15 · LN-201</div>
+                  </div>
+                </div>
+                <div class="text-[13px] font-bold tabular-nums" style="color: #cc5e02;">3,800</div>
+              </li>
+              <li class="px-5 py-3 flex items-center justify-between border-b border-stone-100 hover:bg-stone-50 transition-colors">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-600 text-[11px] font-semibold">EM</div>
+                  <div>
+                    <div class="text-[13px] font-semibold text-forest-900">Elena Martínez</div>
+                    <div class="text-[11px] text-stone-500">14:00 · LN-178</div>
+                  </div>
+                </div>
+                <div class="text-[13px] font-bold text-forest-900 tabular-nums">5,100</div>
+              </li>
+              <li class="px-5 py-3 flex items-center justify-between hover:bg-stone-50 transition-colors">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-600 text-[11px] font-semibold">RT</div>
+                  <div>
+                    <div class="text-[13px] font-semibold text-forest-900">Ramón Torres</div>
+                    <div class="text-[11px] text-stone-500">16:30 · LN-067</div>
+                  </div>
+                </div>
+                <div class="text-[13px] font-bold text-forest-900 tabular-nums">8,800</div>
+              </li>
+            </ul>
+            <a href="#" class="block px-5 py-3 border-t border-stone-100 text-center text-[13px] font-semibold text-forest-700 hover:bg-stone-50 rounded-b-xl transition-colors">
+              Ver 2 más →
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Tenant theme switcher -->
+  <div class="dev-banner" role="presentation">
+    <span class="dev-banner__label">Tenant →</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" style="background: #163300;" aria-label="Forest"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" style="background: #3a0e1e;" aria-label="Burgundy"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" style="background: #0c1e38;" aria-label="Deep Navy"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" style="background: #1a4d3a;" aria-label="Teal"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" style="background: #2d1b4e;" aria-label="Violet"></button>
+    </div>
+  </div>
+
+  <script>
+    function openSearch() {}
+    document.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); }
+    });
+    const swatches = document.querySelectorAll('.dev-banner__swatch');
+    swatches.forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.documentElement.style.setProperty('--color-tenant-primary', btn.dataset.color);
+        swatches.forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  </script>
+  <script src="_design-notes.js"></script>
+</body>
+</html>

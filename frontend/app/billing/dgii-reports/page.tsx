@@ -1,8 +1,6 @@
-'use client';
-
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter } from '@/lib/navigation';
+import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { apiClient } from '@/lib/api/client';
@@ -154,7 +152,7 @@ export default function DGIIReportsPage() {
   };
 
   const handleDownloadCSV = (reportType: '606' | '607') => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    const baseUrl = import.meta.env.VITE_API_URL || '';
     window.open(`${baseUrl}/api/billing/dgii-reports/${reportType}/csv/?year=${year}&month=${month}`, '_blank');
   };
 

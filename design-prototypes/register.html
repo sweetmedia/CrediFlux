@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Crear cuenta</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',500:'#4d8630',700:'#2d5a10',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 100:'#fffbe6', 500:'#ffe026' },
+            flame: { 500:'#ff7503', 600:'#cc5e02', 700:'#a34b02' },
+            cream: '#faf8f2',
+            tenant: 'var(--color-tenant-primary)',
+          },
+          letterSpacing: { widest:'0.14em', ultra:'0.18em' },
+        }
+      }
+    }
+  </script>
+  <style>
+    html,body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#faf8f2;color:#163300;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;margin:0;}
+    .paper-bg{background-color:#faf8f2;background-image:radial-gradient(circle at 1px 1px,rgba(22,51,0,0.035) 1px,transparent 0);background-size:28px 28px;}
+    .masthead{background:var(--color-tenant-primary,#163300);}
+    .logo-white{filter:brightness(0) invert(1);}
+    .rule-b{border-bottom:1px solid rgba(22,51,0,0.08);}
+    .rule-t{border-top:1px solid rgba(22,51,0,0.08);}
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}.masthead :focus-visible{outline-color:#ffe026}
+
+    .form-label{display:flex;align-items:baseline;justify-content:space-between;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.14em;color:#5c6d4d;margin-bottom:6px;}
+    .form-label .opt{color:#8a9d7a;letter-spacing:0.08em;}
+    .form-input{display:block;width:100%;padding:9px 0;border:none;border-bottom:1px solid rgba(22,51,0,0.18);background:transparent;font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;color:#163300;transition:border-color 200ms;border-radius:0;}
+    .form-input:focus{border-bottom-color:#163300;box-shadow:0 1px 0 0 #163300;}
+    .form-input::placeholder{color:#a8b89c;}
+    .form-input--mono{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:14px;letter-spacing:0.02em;}
+    .form-input--filled{color:#163300;background:rgba(77,134,48,0.05);padding-left:8px;border-bottom-color:#4d8630;}
+    .hint{margin-top:6px;font-size:12px;color:#5c6d4d;}
+    .hint--ok{color:#2d5a10;}
+
+    .btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:10px;height:44px;padding:0 22px;background:#163300;color:#fff;border:none;border-radius:4px;font-family:'ABC Whyte',system-ui,sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:background 150ms cubic-bezier(0.16,1,0.3,1);}
+    .btn-primary:hover{background:#0a1a00;}
+    .btn-secondary{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border:1px solid rgba(22,51,0,0.18);border-radius:4px;background:#fff;font-size:13px;font-weight:500;color:#163300;cursor:pointer;white-space:nowrap;}
+    .btn-secondary:hover{border-color:#163300;}
+    .btn-ghost{display:inline-flex;align-items:center;gap:6px;height:44px;font-size:13px;color:#5c6d4d;background:none;border:none;cursor:pointer;padding:0 4px;}
+    .btn-ghost:hover{color:#163300;}
+    .kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;line-height:1;color:rgba(255,255,255,0.55);background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.16);border-bottom-width:2px;border-radius:3px;}
+
+    .checkbox{appearance:none;width:15px;height:15px;border:1.5px solid rgba(22,51,0,0.3);border-radius:3px;background:#fff;cursor:pointer;display:inline-grid;place-content:center;flex-shrink:0;margin-top:2px;}
+    .checkbox:checked{background:#163300;border-color:#163300;}
+    .checkbox:checked::after{content:'';width:8px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px);}
+
+    /* Verified record panel (DGII / JCE) */
+    .record{border-left:2px solid #4d8630;background:rgba(77,134,48,0.05);padding:14px 16px;}
+    .record-row{display:flex;justify-content:space-between;gap:16px;padding:5px 0;font-size:13px;}
+    .record-row dt{color:#5c6d4d;}
+    .record-row dd{color:#163300;text-align:right;}
+
+    /* Vertical step list on masthead */
+    .vstep{position:relative;display:flex;gap:14px;padding:12px 0 12px 16px;color:rgba(255,255,255,0.45);cursor:pointer;}
+    .vstep::before{content:'';position:absolute;left:0;top:14px;bottom:14px;width:2px;border-radius:0 2px 2px 0;background:transparent;}
+    .vstep.active{color:#fff;}
+    .vstep.active::before{background:#ffe026;}
+    .vstep.done{color:rgba(255,255,255,0.75);}
+    .vstep-num{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:11px;width:20px;padding-top:2px;}
+    .vstep-title{font-family:'ABC Whyte',system-ui,sans-serif;font-size:14px;}
+    .vstep.active .vstep-title{font-weight:500;}
+    .vstep-sub{font-size:12px;color:rgba(255,255,255,0.4);margin-top:1px;}
+    .vstep.done .vstep-num{color:#a8d48a;}
+
+    /* Mobile horizontal progress */
+    .hbar{height:2px;background:rgba(22,51,0,0.1);}
+    .hbar > div{height:100%;background:#163300;transition:width 300ms cubic-bezier(0.16,1,0.3,1);}
+
+    /* Plans — hairline columns, no cards with shadow */
+    .plan{position:relative;display:flex;flex-direction:column;padding:20px 20px 22px;border:1px solid rgba(22,51,0,0.12);background:rgba(255,255,255,0.55);cursor:pointer;transition:border-color 150ms,background 150ms;}
+    .plan:hover{border-color:rgba(22,51,0,0.35);}
+    .plan input{position:absolute;opacity:0;pointer-events:none;}
+    .plan:has(input:checked){border-color:#163300;background:#fff;box-shadow:inset 0 0 0 1px #163300;}
+    .plan-radio{width:16px;height:16px;border-radius:50%;border:1.5px solid rgba(22,51,0,0.3);display:grid;place-content:center;}
+    .plan:has(input:checked) .plan-radio{border-color:#163300;}
+    .plan:has(input:checked) .plan-radio::after{content:'';width:8px;height:8px;border-radius:50%;background:#163300;}
+    .plan li{display:flex;gap:8px;font-size:13px;color:#4a5a3d;padding:5px 0;border-top:1px solid rgba(22,51,0,0.06);}
+    .plan li:first-child{border-top:none;}
+
+    /* Theme preset cards */
+    .theme{display:block;border:1px solid rgba(22,51,0,0.12);padding:10px;cursor:pointer;background:rgba(255,255,255,0.55);}
+    .theme input{position:absolute;opacity:0;pointer-events:none;}
+    .theme:has(input:checked){border-color:#163300;box-shadow:inset 0 0 0 1px #163300;background:#fff;}
+
+    .strength{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px;}
+    .strength span{height:3px;background:rgba(22,51,0,0.1);}
+    .strength span.on{background:#4d8630;}
+
+    .step{display:none;}
+    .step.active{display:block;}
+
+    @keyframes pulse{50%{opacity:.25}}
+    .live{animation:pulse 2s cubic-bezier(0.4,0,0.6,1) infinite;}
+    @media (prefers-reduced-motion:reduce){.live{animation:none;}}
+
+    .dev-banner{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;align-items:center;gap:12px;padding:10px 14px 10px 16px;background:rgba(22,51,0,0.92);backdrop-filter:blur(8px);color:rgba(255,255,255,0.85);border-radius:6px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;box-shadow:0 20px 40px -12px rgba(22,51,0,0.4),0 0 0 1px rgba(255,255,255,0.08);}
+    .dev-banner button{font:inherit;letter-spacing:inherit;color:rgba(255,255,255,0.55);background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:3px;}
+    .dev-banner button.active{color:#163300;background:#ffe026;}
+    @media (max-width:767px){.dev-banner{left:16px;right:16px;bottom:12px;justify-content:center;}}
+  </style>
+</head>
+<body class="min-h-screen">
+
+<div class="min-h-screen grid lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
+
+  <!-- ==============================================================
+       Masthead — steps + live ficha
+       ============================================================== -->
+  <aside class="masthead text-white hidden lg:flex flex-col px-10 py-10 lg:sticky lg:top-0 lg:h-screen">
+    <div class="flex items-center justify-between">
+      <a href="login.html"><img src="../branding/logo-full/svg/crediflux-logo.svg" alt="CrediFlux" class="logo-white h-[22px] w-auto"></a>
+      <span class="font-mono text-[10px] uppercase tracking-widest text-white/40">Alta de financiera</span>
+    </div>
+
+    <nav class="mt-14" aria-label="Pasos">
+      <div class="font-mono text-[10px] uppercase tracking-ultra text-white/45 mb-2">4 pasos · ~5 min</div>
+      <div id="vsteps">
+        <div class="vstep active" data-go="1"><span class="vstep-num">01</span><div><div class="vstep-title">Empresa</div><div class="vstep-sub">RNC, nombre y dirección web</div></div></div>
+        <div class="vstep" data-go="2"><span class="vstep-num">02</span><div><div class="vstep-title">Administrador</div><div class="vstep-sub">Quién tendrá acceso total</div></div></div>
+        <div class="vstep" data-go="3"><span class="vstep-num">03</span><div><div class="vstep-title">Plan</div><div class="vstep-sub">Lo puedes cambiar después</div></div></div>
+        <div class="vstep" data-go="4"><span class="vstep-num">04</span><div><div class="vstep-title">Confirmar</div><div class="vstep-sub">Revisa y crea la cuenta</div></div></div>
+      </div>
+    </nav>
+
+    <!-- Live ficha — fills as user advances -->
+    <div class="mt-auto">
+      <div class="font-mono text-[10px] uppercase tracking-ultra text-white/45 mb-3">Tu dirección en CrediFlux</div>
+      <div class="font-mono text-[15px] text-white break-all"><span id="m-sub">coop-san-jose</span><span class="text-white/40">.crediflux.com.do</span></div>
+      <div class="mt-6 border-t border-white/[0.08]">
+        <div class="flex justify-between gap-4 py-2.5 border-b border-white/[0.08] text-[12px]"><span class="text-white/45">Empresa</span><span class="text-white/85 text-right" id="m-biz">Cooperativa San José</span></div>
+        <div class="flex justify-between gap-4 py-2.5 border-b border-white/[0.08] text-[12px]"><span class="text-white/45">RNC</span><span class="font-mono text-white/85" id="m-rnc">1-31-24587-3</span></div>
+        <div class="flex justify-between gap-4 py-2.5 border-b border-white/[0.08] text-[12px]"><span class="text-white/45">Administrador</span><span class="text-white/85" id="m-owner">—</span></div>
+        <div class="flex justify-between gap-4 py-2.5 border-b border-white/[0.08] text-[12px]"><span class="text-white/45">Plan</span><span class="text-white/85" id="m-plan">—</span></div>
+      </div>
+      <div class="mt-8 flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-white/30">
+        <span>CrediFlux v2.0 · Santiago, RD</span>
+        <span>TLS 1.3</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==============================================================
+       Form column
+       ============================================================== -->
+  <main class="paper-bg flex flex-col min-h-screen">
+    <!-- Top bar -->
+    <div class="flex items-center justify-between gap-3 px-4 sm:px-8 lg:px-14 pt-6">
+      <img src="../branding/logo-full/svg/crediflux-logo.svg" alt="CrediFlux" class="lg:hidden h-[20px] w-auto">
+      <div class="ml-auto text-[13px] text-sage-600">
+        <span class="hidden sm:inline">¿Ya tienes cuenta?</span>
+        <a href="login.html" class="font-medium text-forest-900 underline decoration-forest-900/25 underline-offset-4 hover:decoration-forest-900">Iniciar sesión</a>
+      </div>
+    </div>
+
+    <!-- Mobile progress -->
+    <div class="lg:hidden px-4 sm:px-8 mt-6">
+      <div class="flex justify-between font-mono text-[10px] uppercase tracking-widest text-sage-600 mb-2"><span id="mob-label">Paso 1 de 4 · Empresa</span><span id="mob-pct">25%</span></div>
+      <div class="hbar"><div id="mob-bar" style="width:25%"></div></div>
+    </div>
+
+    <div class="flex-1 px-4 sm:px-8 lg:px-14 py-10 lg:py-14">
+      <div class="w-full max-w-[640px]">
+
+        <!-- =================== STEP 1 · Empresa =================== -->
+        <section class="step active" data-step="1">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Paso 01</span>
+            <span class="h-px w-6 bg-forest-900/20"></span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Empresa</span>
+          </div>
+          <h1 class="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">Tu financiera</h1>
+          <p class="mt-3 text-[14px] leading-relaxed text-sage-600 max-w-[480px]">Con el RNC buscamos los datos en la DGII para que no tengas que escribirlos.</p>
+
+          <div class="mt-10 space-y-8">
+            <div>
+              <label class="form-label" for="rnc">RNC</label>
+              <div class="flex items-end gap-3">
+                <input id="rnc" class="form-input form-input--mono flex-1" placeholder="ej: 1-31-24587-3" value="1-31-24587-3">
+                <button class="btn-secondary mb-0.5" type="button">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  Buscar en DGII
+                </button>
+              </div>
+              <div class="record mt-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-forest-700">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Encontrado en DGII
+                  </span>
+                  <span class="font-mono text-[10px] text-sage-600 tabular-nums">consultado 14:32</span>
+                </div>
+                <dl>
+                  <div class="record-row"><dt>Razón social</dt><dd>Cooperativa de Ahorro y Crédito San José, Inc.</dd></div>
+                  <div class="record-row"><dt>Estado</dt><dd class="font-mono text-[12px]">ACTIVO</dd></div>
+                  <div class="record-row"><dt>Actividad</dt><dd>Intermediación financiera · cooperativas</dd></div>
+                  <div class="record-row"><dt>Régimen</dt><dd>Normal</dd></div>
+                </dl>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label" for="biz">Nombre comercial <span class="opt">como lo verán tus clientes</span></label>
+              <input id="biz" class="form-input" placeholder="ej: Financiera ABC" value="Cooperativa San José">
+            </div>
+
+            <div>
+              <label class="form-label" for="sub">Dirección web</label>
+              <div class="flex items-end border-b border-forest-900/20 focus-within:border-forest-900 focus-within:shadow-[0_1px_0_0_#163300]">
+                <input id="sub" class="form-input form-input--mono !border-0 !shadow-none flex-1 min-w-0" placeholder="mi-financiera" value="coop-san-jose">
+                <span class="font-mono text-[14px] text-sage-500 pb-[9px] shrink-0">.crediflux.com.do</span>
+              </div>
+              <div class="hint hint--ok flex items-center gap-1.5">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Disponible. Solo letras minúsculas, números y guiones.
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-8">
+              <div>
+                <label class="form-label" for="bemail">Correo de la empresa</label>
+                <input id="bemail" type="email" class="form-input" placeholder="ej: contacto@financiera.do" value="contacto@coopsanjose.do">
+              </div>
+              <div>
+                <label class="form-label" for="bphone">Teléfono <span class="opt">opcional</span></label>
+                <input id="bphone" class="form-input form-input--mono" placeholder="ej: 809-555-1234" value="809-582-4410">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =================== STEP 2 · Administrador =================== -->
+        <section class="step" data-step="2">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Paso 02</span>
+            <span class="h-px w-6 bg-forest-900/20"></span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Administrador</span>
+          </div>
+          <h1 class="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">Quién administra</h1>
+          <p class="mt-3 text-[14px] leading-relaxed text-sage-600 max-w-[480px]">Esta persona tendrá acceso total y podrá invitar al resto del equipo. Validamos la cédula con el padrón de la JCE.</p>
+
+          <div class="mt-10 space-y-8">
+            <div>
+              <label class="form-label" for="ced">Cédula</label>
+              <div class="flex items-end gap-3">
+                <input id="ced" class="form-input form-input--mono flex-1" placeholder="ej: 001-1234567-8" value="031-0458712-6">
+                <button class="btn-secondary mb-0.5" type="button">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  Validar en JCE
+                </button>
+              </div>
+              <div class="hint hint--ok flex items-center gap-1.5">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Cédula válida · nombre completado desde el padrón
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-8">
+              <div>
+                <label class="form-label" for="fn">Nombre</label>
+                <input id="fn" class="form-input form-input--filled" value="Luis Manuel">
+              </div>
+              <div>
+                <label class="form-label" for="ln">Apellidos</label>
+                <input id="ln" class="form-input form-input--filled" value="Almonte Reyes">
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-8">
+              <div>
+                <label class="form-label" for="oemail">Correo para entrar</label>
+                <input id="oemail" type="email" class="form-input" placeholder="ej: juan@financiera.do" value="luis.almonte@coopsanjose.do">
+              </div>
+              <div>
+                <label class="form-label" for="ophone">Celular <span class="opt">opcional</span></label>
+                <input id="ophone" class="form-input form-input--mono" placeholder="ej: 829-555-1234" value="829-640-1187">
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-8">
+              <div>
+                <label class="form-label" for="pw">Contraseña</label>
+                <input id="pw" type="password" class="form-input" placeholder="Mínimo 8 caracteres" value="Sanjose#2026">
+                <div class="strength" aria-hidden="true"><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+                <div class="hint flex justify-between"><span>Buena</span><span class="font-mono text-[11px] tabular-nums">12 car.</span></div>
+              </div>
+              <div>
+                <label class="form-label" for="pw2">Repite la contraseña</label>
+                <input id="pw2" type="password" class="form-input" value="Sanjose#2026">
+                <div class="hint hint--ok flex items-center gap-1.5 mt-[17px]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  Coinciden
+                </div>
+              </div>
+            </div>
+
+            <ul class="grid sm:grid-cols-2 gap-x-8 gap-y-1.5 text-[12px] text-sage-700">
+              <li class="flex items-center gap-2"><span class="text-forest-500">✓</span> 8 caracteres o más</li>
+              <li class="flex items-center gap-2"><span class="text-forest-500">✓</span> Una mayúscula</li>
+              <li class="flex items-center gap-2"><span class="text-forest-500">✓</span> Un número</li>
+              <li class="flex items-center gap-2"><span class="text-sage-400">○</span> No usar el nombre de la empresa</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- =================== STEP 3 · Plan =================== -->
+        <section class="step" data-step="3">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Paso 03</span>
+            <span class="h-px w-6 bg-forest-900/20"></span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Plan</span>
+          </div>
+          <h1 class="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">Elige un plan</h1>
+          <p class="mt-3 text-[14px] leading-relaxed text-sage-600 max-w-[480px]">Precios mensuales en pesos, ITBIS no incluido. Puedes cambiar de plan cuando quieras desde Configuración.</p>
+
+          <div class="mt-10 grid md:grid-cols-3 gap-3" id="plans">
+            <label class="plan">
+              <input type="radio" name="plan" value="Starter">
+              <div class="flex items-center justify-between"><span class="font-display text-[16px] font-bold">Starter</span><span class="plan-radio"></span></div>
+              <div class="mt-4 flex items-baseline gap-1.5"><span class="font-mono text-[13px] font-medium text-sage-500">RD$</span><span class="font-mono text-[32px] font-medium tracking-tight tabular-nums leading-none">1,499</span></div>
+              <div class="font-mono text-[10px] uppercase tracking-widest text-sage-600 mt-1">por mes</div>
+              <ul class="mt-5">
+                <li><span class="font-mono tabular-nums">50</span> préstamos activos</li>
+                <li><span class="font-mono tabular-nums">1</span> usuario</li>
+                <li>Reportes básicos</li>
+                <li>Soporte por correo</li>
+              </ul>
+            </label>
+            <label class="plan">
+              <input type="radio" name="plan" value="Professional" checked>
+              <div class="flex items-center justify-between"><span class="font-display text-[16px] font-bold">Professional</span><span class="plan-radio"></span></div>
+              <div class="mt-4 flex items-baseline gap-1.5"><span class="font-mono text-[13px] font-medium text-sage-500">RD$</span><span class="font-mono text-[32px] font-medium tracking-tight tabular-nums leading-none">2,999</span></div>
+              <div class="font-mono text-[10px] uppercase tracking-widest text-sage-600 mt-1">por mes</div>
+              <ul class="mt-5">
+                <li><span class="font-mono tabular-nums">500</span> préstamos activos</li>
+                <li><span class="font-mono tabular-nums">5</span> usuarios</li>
+                <li>Reportes avanzados</li>
+                <li>Acceso por API</li>
+                <li>Soporte prioritario</li>
+              </ul>
+              <div class="mt-auto pt-4 font-mono text-[10px] uppercase tracking-widest text-forest-700">El que más eligen</div>
+            </label>
+            <label class="plan">
+              <input type="radio" name="plan" value="Enterprise">
+              <div class="flex items-center justify-between"><span class="font-display text-[16px] font-bold">Enterprise</span><span class="plan-radio"></span></div>
+              <div class="mt-4 flex items-baseline gap-1.5"><span class="font-mono text-[13px] font-medium text-sage-500">RD$</span><span class="font-mono text-[32px] font-medium tracking-tight tabular-nums leading-none">5,999</span></div>
+              <div class="font-mono text-[10px] uppercase tracking-widest text-sage-600 mt-1">por mes</div>
+              <ul class="mt-5">
+                <li>Préstamos sin límite</li>
+                <li>Usuarios sin límite</li>
+                <li>Reportes a la medida</li>
+                <li>Integraciones completas</li>
+                <li>Soporte a toda hora</li>
+              </ul>
+            </label>
+          </div>
+
+          <div class="mt-6 flex items-start gap-3 text-[12px] leading-relaxed text-sage-600">
+            <svg class="mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>Facturación electrónica e-CF, cobranza por WhatsApp y Asistente IA se activan como módulos aparte, desde Configuración › Módulos.</span>
+          </div>
+        </section>
+
+        <!-- =================== STEP 4 · Confirmar =================== -->
+        <section class="step" data-step="4">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Paso 04</span>
+            <span class="h-px w-6 bg-forest-900/20"></span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Confirmar</span>
+          </div>
+          <h1 class="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">Revisa y crea</h1>
+          <p class="mt-3 text-[14px] leading-relaxed text-sage-600 max-w-[480px]">Si algo está mal, toca la sección para corregirla.</p>
+
+          <div class="mt-10">
+            <div class="flex items-baseline justify-between pb-2 rule-b">
+              <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Empresa</span>
+              <button class="text-[12px] text-sage-600 hover:text-forest-900" data-go="1">Editar</button>
+            </div>
+            <dl class="text-[13px]">
+              <div class="flex justify-between gap-6 py-2.5 rule-b"><dt class="text-sage-600">Nombre</dt><dd>Cooperativa San José</dd></div>
+              <div class="flex justify-between gap-6 py-2.5 rule-b"><dt class="text-sage-600">RNC</dt><dd class="font-mono">1-31-24587-3</dd></div>
+              <div class="flex justify-between gap-6 py-2.5 rule-b"><dt class="text-sage-600">Dirección</dt><dd class="font-mono break-all text-right">coop-san-jose.crediflux.com.do</dd></div>
+            </dl>
+
+            <div class="flex items-baseline justify-between pb-2 rule-b mt-8">
+              <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Administrador</span>
+              <button class="text-[12px] text-sage-600 hover:text-forest-900" data-go="2">Editar</button>
+            </div>
+            <dl class="text-[13px]">
+              <div class="flex justify-between gap-6 py-2.5 rule-b"><dt class="text-sage-600">Nombre</dt><dd>Luis Manuel Almonte Reyes</dd></div>
+              <div class="flex justify-between gap-6 py-2.5 rule-b"><dt class="text-sage-600">Cédula</dt><dd class="font-mono">031-0458712-6</dd></div>
+              <div class="flex justify-between gap-6 py-2.5 rule-b"><dt class="text-sage-600">Correo</dt><dd class="break-all text-right">luis.almonte@coopsanjose.do</dd></div>
+            </dl>
+
+            <div class="flex items-baseline justify-between pb-2 rule-b mt-8">
+              <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600">Plan</span>
+              <button class="text-[12px] text-sage-600 hover:text-forest-900" data-go="3">Cambiar</button>
+            </div>
+            <div class="flex items-baseline justify-between py-3 rule-b">
+              <span class="text-[13px]" id="c-plan">Professional · 5 usuarios · 500 préstamos</span>
+              <span class="flex items-baseline gap-1"><span class="font-mono text-[12px] text-sage-500">RD$</span><span class="font-mono text-[17px] font-medium tabular-nums" id="c-price">2,999</span><span class="font-mono text-[11px] text-sage-500">/mes</span></span>
+            </div>
+
+            <!-- Appearance: V1 / V4 defaults offered at tenant creation -->
+            <div class="mt-8">
+              <div class="font-mono text-[10px] uppercase tracking-widest text-sage-600 pb-2 rule-b">Apariencia <span class="text-sage-500 normal-case tracking-normal font-sans text-[12px] ml-2">la puedes cambiar luego</span></div>
+              <div class="grid grid-cols-2 gap-3 mt-4">
+                <label class="theme relative">
+                  <input type="radio" name="theme" checked>
+                  <div class="h-[64px] flex overflow-hidden border border-forest-900/10">
+                    <div class="w-[30%] bg-forest-900 p-1.5"><div class="h-1 w-6 bg-white/60 mb-1"></div><div class="h-0.5 w-4 bg-white/25 mb-0.5"></div><div class="h-0.5 w-5 bg-white/25"></div></div>
+                    <div class="flex-1 bg-cream p-2"><div class="h-1.5 w-10 bg-forest-900 mb-1.5"></div><div class="flex gap-1"><div class="h-3 flex-1 border-b border-forest-900/20"></div><div class="h-3 flex-1 border-b border-forest-900/20"></div></div></div>
+                  </div>
+                  <div class="mt-2 flex items-baseline justify-between"><span class="text-[13px] font-medium">Editorial</span><span class="font-mono text-[10px] text-sage-500">V1</span></div>
+                </label>
+                <label class="theme relative">
+                  <input type="radio" name="theme">
+                  <div class="h-[64px] flex overflow-hidden border border-forest-900/10">
+                    <div class="w-[30%] p-1.5 border-r border-forest-900/10" style="background:#f8f4e9"><div class="h-1 w-6 bg-forest-900/70 mb-1"></div><div class="h-0.5 w-4 bg-forest-900/25 mb-0.5"></div><div class="h-0.5 w-5 bg-forest-900/25"></div></div>
+                    <div class="flex-1 p-2" style="background:#f8f4e9"><div class="h-1.5 w-10 bg-forest-900 mb-1.5"></div><div class="flex gap-1"><div class="h-3 flex-1 border-b-2 border-sun-500"></div><div class="h-3 flex-1 border-b-2 border-sun-500"></div></div></div>
+                  </div>
+                  <div class="mt-2 flex items-baseline justify-between"><span class="text-[13px] font-medium">Editorial cálido</span><span class="font-mono text-[10px] text-sage-500">V4</span></div>
+                </label>
+              </div>
+            </div>
+
+            <label class="mt-8 flex items-start gap-3 text-[13px] leading-relaxed text-sage-700 cursor-pointer">
+              <input type="checkbox" class="checkbox" checked>
+              <span>Acepto los <a href="#" class="text-forest-900 underline decoration-forest-900/25 underline-offset-4">Términos de servicio</a> y la <a href="#" class="text-forest-900 underline decoration-forest-900/25 underline-offset-4">Política de privacidad</a>, y confirmo que represento a esta empresa.</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- =================== Done =================== -->
+        <section class="step" data-step="5">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="relative flex h-2 w-2"><span class="live absolute inline-flex h-full w-full rounded-full bg-forest-500"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-forest-500"></span></span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-forest-700">Cuenta creada</span>
+          </div>
+          <h1 class="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">Todo listo,<br>Luis.</h1>
+          <p class="mt-4 text-[14px] leading-relaxed text-sage-600 max-w-[480px]">Enviamos un correo a <span class="text-forest-900">luis.almonte@coopsanjose.do</span> para confirmar la dirección. Mientras tanto ya puedes entrar.</p>
+
+          <div class="mt-10 rule-t">
+            <div class="flex items-baseline justify-between gap-6 py-3 rule-b"><span class="text-[13px] text-sage-600">Tu dirección</span><span class="font-mono text-[13px] text-forest-900 break-all text-right">coop-san-jose.crediflux.com.do</span></div>
+            <div class="flex items-baseline justify-between gap-6 py-3 rule-b"><span class="text-[13px] text-sage-600">Plan</span><span class="text-[13px]">Professional</span></div>
+            <div class="flex items-baseline justify-between gap-6 py-3 rule-b"><span class="text-[13px] text-sage-600">Primer cobro</span><span class="font-mono text-[13px] tabular-nums">10 · May · 2026</span></div>
+          </div>
+
+          <div class="mt-10">
+            <div class="font-mono text-[10px] uppercase tracking-widest text-sage-600 mb-3">Para empezar</div>
+            <ol class="text-[14px]">
+              <li class="flex gap-4 py-3 rule-b"><span class="font-mono text-[12px] text-sage-500 w-5 pt-0.5">01</span><span>Configura tasas, mora y días de gracia</span></li>
+              <li class="flex gap-4 py-3 rule-b"><span class="font-mono text-[12px] text-sage-500 w-5 pt-0.5">02</span><span>Invita a tu equipo y asigna roles</span></li>
+              <li class="flex gap-4 py-3 rule-b"><span class="font-mono text-[12px] text-sage-500 w-5 pt-0.5">03</span><span>Registra tu primer cliente</span></li>
+            </ol>
+          </div>
+
+          <a href="login.html" class="btn-primary mt-10">Entrar a CrediFlux
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </section>
+
+        <!-- Wizard nav -->
+        <div id="wiz-nav" class="mt-12 pt-6 rule-t flex items-center justify-between">
+          <button class="btn-ghost" id="prev">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Atrás
+          </button>
+          <button class="btn-primary" id="next">Continuar <span class="kbd">↵</span></button>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-8 lg:px-14 pb-6 font-mono text-[10px] uppercase tracking-widest text-sage-500">
+      <span>© 2026 CrediFlux</span>
+      <span class="flex gap-4"><a href="#" class="hover:text-forest-900">Privacidad</a><a href="#" class="hover:text-forest-900">Términos</a><a href="#" class="hover:text-forest-900">Ayuda</a></span>
+    </div>
+  </main>
+</div>
+
+<div class="dev-banner">
+  <span class="text-white/45">Paso</span>
+  <span class="flex gap-1" id="dev-steps">
+    <button data-go="1" class="active">1</button><button data-go="2">2</button><button data-go="3">3</button><button data-go="4">4</button><button data-go="5">Listo</button>
+  </span>
+</div>
+
+<script>
+  const NAMES = {1:'Empresa',2:'Administrador',3:'Plan',4:'Confirmar',5:'Listo'};
+  const PRICES = {Starter:['1,499','1 usuario · 50 préstamos'],Professional:['2,999','5 usuarios · 500 préstamos'],Enterprise:['5,999','usuarios y préstamos sin límite']};
+  let cur = 1;
+
+  function go(n){
+    cur = Math.max(1, Math.min(5, n));
+    document.querySelectorAll('.step').forEach(s=>s.classList.toggle('active', +s.dataset.step===cur));
+    document.querySelectorAll('.vstep').forEach(v=>{
+      const k=+v.dataset.go;
+      v.classList.toggle('active', k===cur);
+      v.classList.toggle('done', k<cur);
+      v.querySelector('.vstep-num').textContent = k<cur ? '✓' : String(k).padStart(2,'0');
+    });
+    document.querySelectorAll('#dev-steps button').forEach(b=>b.classList.toggle('active', +b.dataset.go===cur));
+    document.getElementById('wiz-nav').style.display = cur===5 ? 'none' : '';
+    document.getElementById('prev').style.visibility = cur===1 ? 'hidden' : 'visible';
+    const next = document.getElementById('next');
+    next.innerHTML = cur===4 ? 'Crear cuenta <span class="kbd">↵</span>' : 'Continuar <span class="kbd">↵</span>';
+    const step = Math.min(cur,4);
+    document.getElementById('mob-label').textContent = cur===5 ? 'Cuenta creada' : `Paso ${step} de 4 · ${NAMES[cur]}`;
+    document.getElementById('mob-pct').textContent = cur===5 ? '100%' : `${step*25}%`;
+    document.getElementById('mob-bar').style.width = cur===5 ? '100%' : `${step*25}%`;
+    // Live ficha
+    document.getElementById('m-owner').textContent = cur>=3 ? 'Luis M. Almonte' : '—';
+    document.getElementById('m-plan').textContent = cur>=4 ? selectedPlan() : '—';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  function selectedPlan(){ return document.querySelector('input[name=plan]:checked').value; }
+
+  document.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',()=>go(+el.dataset.go)));
+  document.getElementById('next').addEventListener('click',()=>go(cur+1));
+  document.getElementById('prev').addEventListener('click',()=>go(cur-1));
+  document.querySelectorAll('input[name=plan]').forEach(r=>r.addEventListener('change',()=>{
+    const p=selectedPlan();
+    document.getElementById('c-plan').textContent = `${p} · ${PRICES[p][1]}`;
+    document.getElementById('c-price').textContent = PRICES[p][0];
+  }));
+  // Live subdomain / name on masthead
+  const sub=document.getElementById('sub');
+  sub.addEventListener('input',()=>{ sub.value=sub.value.toLowerCase().replace(/[^a-z0-9-]/g,''); document.getElementById('m-sub').textContent=sub.value||'mi-financiera'; });
+  document.getElementById('biz').addEventListener('input',e=>document.getElementById('m-biz').textContent=e.target.value||'—');
+  document.addEventListener('keydown',e=>{ if(e.key==='Enter' && e.target.tagName!=='BUTTON' && cur<5){ e.preventDefault(); go(cur+1);} });
+  go(1);
+</script>
+</body>
+</html>

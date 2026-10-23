@@ -170,12 +170,16 @@ class EmailVerificationSendSerializer(serializers.Serializer):
             fail_silently=False,
         )
 
-        return {
+        response = {
             'email': user.email,
             'message': 'Verification email sent successfully.',
-            'uid': uid,
-            'token': token,  # Only for development/testing
         }
+
+        if settings.DEBUG:
+            response['uid'] = uid
+            response['token'] = token
+
+        return response
 
 
 class EmailVerificationConfirmSerializer(serializers.Serializer):
@@ -298,11 +302,15 @@ class PasswordResetRequestSerializer(serializers.Serializer):
                 fail_silently=False,
             )
 
-            return {
+            response = {
                 'message': 'If an account exists with this email, a password reset link has been sent.',
-                'uid': uid,
-                'token': token,  # Only for development/testing
             }
+
+            if settings.DEBUG:
+                response['uid'] = uid
+                response['token'] = token
+
+            return response
 
         except User.DoesNotExist:
             # Return same message for security (don't reveal user doesn't exist)

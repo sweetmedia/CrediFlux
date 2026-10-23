@@ -73,3 +73,32 @@ class CanManageLoans(permissions.BasePermission):
             })
 
         return True
+
+
+class CanRegisterPayments(permissions.BasePermission):
+    """
+    Registrar pagos: roles que cobran (caja, cobranza, oficiales y gerencia).
+    Lectura para cualquier usuario autenticado. Contabilidad y consulta no cobran.
+    """
+
+    allowed_roles = ['admin', 'manager', 'loan_officer', 'collector', 'collection_supervisor', 'cashier']
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        if request.user.is_superuser or request.user.is_tenant_owner:
+            return True
+
+        if request.user.role not in self.allowed_roles:
+            raise PermissionDenied({
+                'detail': f'Tu rol ({request.user.get_role_display()}) no puede registrar pagos.',
+                'required_permission': 'CanRegisterPayments',
+                'required_roles': self.allowed_roles,
+                'current_role': request.user.role,
+            })
+
+        return True

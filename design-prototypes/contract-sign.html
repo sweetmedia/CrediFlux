@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Firma de contrato por enlace</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/bundle.css">
+  <link rel="stylesheet" href="ds/patterns.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Dancing+Script&display=swap">
+  <style>
+    body{margin:0}
+    .sheet{max-width:1400px;margin:0 auto;padding:40px 32px 48px}
+    .phones{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;margin-top:36px}
+    .cap{width:390px}.cap h2{margin:18px 0 4px;font-family:var(--font-display);font-size:16px;font-weight:700}.cap p{margin:0;font-size:13px;color:var(--sage-600);line-height:1.5}
+    .sum{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:10px;overflow:hidden;margin-top:12px}
+    .sum div{background:#fff;padding:10px 12px}.sum b{display:block;font-family:var(--font-mono);font-size:15px;font-weight:600;margin-top:2px}
+    .mini-doc{margin-top:14px;background:#fff;border:1px solid var(--hairline-control);border-radius:10px;padding:14px 16px;font-family:'EB Garamond',Georgia,serif;font-size:13px;line-height:1.5;color:#1d2a12;max-height:270px;overflow:hidden;position:relative}
+    .mini-doc::after{content:'';position:absolute;left:0;right:0;bottom:0;height:60px;background:linear-gradient(transparent,#fff)}
+    .otp{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}
+    .otp span{height:44px;border:1px solid var(--hairline-control);border-radius:8px;display:grid;place-content:center;font-family:var(--font-mono);font-size:20px;font-weight:600;background:#fff}
+    .otp span.f{border-color:var(--forest-900)}
+    .pad{margin-top:8px;height:150px;border:1.5px dashed #16330040;border-radius:12px;background:#fff;position:relative;display:grid;place-content:center}
+    .pad .sig{font-family:'Dancing Script',cursive;font-size:42px;color:#1d2a12;transform:rotate(-4deg)}
+    .pad .x{position:absolute;left:16px;right:16px;bottom:28px;border-top:1px solid #16330033}
+    .sticky-foot{position:absolute;left:0;right:0;bottom:0;padding:12px 16px 30px;background:var(--cream);border-top:1px solid var(--hairline)}
+  </style>
+</head>
+<body class="cf-page cf-paper">
+<div class="sheet">
+  <header class="cf-page-header">
+    <div>
+      <div class="cf-page-header__eyebrow">Contratos &nbsp;—&nbsp; página pública /sign/&lt;token&gt; · la ve el cliente, no requiere cuenta</div>
+      <h1 class="cf-page-header__title">Firma por enlace</h1>
+      <p class="cf-page-header__desc">Rosa Mendoza recibe el enlace por WhatsApp, revisa su contrato en lenguaje simple y firma con un código de un solo uso. Lleva la marca de la financiera, no la de CrediFlux.</p>
+    </div>
+    <div class="cf-page-header__actions"><a href="contracts-list.html" class="cf-btn cf-btn--secondary">Contratos</a></div>
+  </header>
+
+  <div class="phones">
+    <div class="cap">
+      <div class="cf-phone"><div class="cf-phone__viewport">
+        <div class="cf-phone__top" style="padding-bottom:16px">
+          <div class="cf-phone__greet">Cooperativa San José · contrato para firmar</div>
+          <div class="cf-phone__title">Hola, Rosa</div>
+          <div style="font-size:12px;color:#ffffffb3;margin-top:6px">Revisa tu contrato antes de firmar. Toma unos 3 minutos.</div>
+        </div>
+        <div class="cf-phone__body" style="padding-bottom:120px">
+          <div class="cf-eyebrow">Lo más importante</div>
+          <div class="sum">
+            <div><span class="cf-eyebrow">Recibes</span><b>RD$ 75,000.00</b></div>
+            <div><span class="cf-eyebrow">Pagas por cuota</span><b>RD$ 5,000.00</b></div>
+            <div><span class="cf-eyebrow">Cuotas</span><b>24 · mensuales</b></div>
+            <div><span class="cf-eyebrow">Primera</span><b>10 may 2026</b></div>
+            <div><span class="cf-eyebrow">Total a pagar</span><b>RD$ 120,000.00</b></div>
+            <div><span class="cf-eyebrow">Si te atrasas</span><b>RD$ 500 / cuota</b></div>
+          </div>
+          <div style="font-size:11px;color:var(--sage-600);margin-top:6px">La mora se cobra después de 5 días de vencida la cuota. Puedes pagar antes sin penalidad.</div>
+          <div class="mini-doc">
+            <div style="font-family:var(--font-display);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;text-align:center">Contrato de préstamo personal</div>
+            <div style="font-family:var(--font-mono);font-size:9px;text-align:center;color:var(--sage-600);margin-bottom:8px">CT-2026-0156</div>
+            <p style="margin:0 0 6px"><b>ENTRE:</b> Cooperativa de Ahorro y Crédito San José, Inc., RNC 1-31-24587-3, en lo adelante EL PRESTAMISTA; y <i>Rosa Mendoza Taveras</i>, cédula 402-3456789-0, en lo adelante EL PRESTATARIO…</p>
+            <p style="margin:0 0 6px"><b>1.</b> EL PRESTAMISTA entrega en calidad de préstamo la suma de RD$ 75,000.00…</p>
+            <p style="margin:0"><b>2.</b> La suma prestada devengará un interés de 2.5% mensual…</p>
+          </div>
+          <button class="cf-act cf-act--outline" style="width:100%;margin-top:10px">Leer contrato completo · 3 páginas</button>
+        </div>
+        <div class="sticky-foot">
+          <label class="cf-check-label" style="font-size:12px;margin-bottom:10px"><input type="checkbox" class="cf-checkbox" checked> Leí el contrato y la tabla de pagos</label>
+          <button class="cf-btn cf-btn--primary cf-btn--lg" style="width:100%;height:48px;border-radius:12px">Continuar a firmar</button>
+        </div>
+      </div></div>
+      <h2>1 · Revisar</h2>
+      <p>Primero un resumen con lo que el cliente necesita entender (cuánto recibe, cuánto paga, qué pasa si se atrasa) y después el documento completo.</p>
+    </div>
+
+    <div class="cap">
+      <div class="cf-phone"><div class="cf-phone__viewport">
+        <div class="cf-phone__top" style="padding-bottom:16px">
+          <div class="cf-phone__greet">← Paso 2 de 2</div>
+          <div class="cf-phone__title">Firma tu contrato</div>
+        </div>
+        <div class="cf-phone__body" style="padding-bottom:120px">
+          <div class="cf-eyebrow">Código enviado al 809-•••-0156</div>
+          <div class="otp"><span class="f">4</span><span class="f">8</span><span class="f">2</span><span class="f">9</span><span class="f">1</span><span class="f">6</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sage-600);margin-top:6px"><span style="color:var(--forest-600)">✓ Código correcto</span><span class="cf-mono">reenviar en 0:41</span></div>
+          <div class="cf-eyebrow" style="margin-top:18px">Dibuja tu firma con el dedo</div>
+          <div class="pad"><span class="sig">Rosa Mendoza</span><span class="x"></span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:6px"><button class="cf-btn cf-btn--ghost cf-btn--sm" style="height:28px;padding:0">Borrar</button><span style="color:var(--sage-600)">o <u>escribir mi nombre</u></span></div>
+          <label class="cf-check-label" style="font-size:12px;margin-top:14px;align-items:flex-start"><input type="checkbox" class="cf-checkbox" checked style="margin-top:2px"> Acepto firmar electrónicamente. Mi firma, la fecha, mi IP y este dispositivo quedan registrados en el contrato.</label>
+        </div>
+        <div class="sticky-foot">
+          <button class="cf-btn cf-btn--sun cf-btn--lg" style="width:100%;height:48px;border-radius:12px">Firmar contrato</button>
+          <div style="text-align:center;font-size:10.5px;color:var(--sage-600);margin-top:8px">Recibirás una copia en PDF por WhatsApp</div>
+        </div>
+      </div></div>
+      <h2>2 · Firmar</h2>
+      <p>OTP de 6 dígitos al teléfono registrado, firma trazada (o escrita) y consentimiento explícito. El botón amarillo es la única confirmación del flujo.</p>
+    </div>
+
+    <div class="cap">
+      <div class="cf-phone"><div class="cf-phone__viewport">
+        <div class="cf-phone__body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%;padding:40px 28px">
+          <div style="width:64px;height:64px;border-radius:50%;background:#4d86301a;display:grid;place-content:center"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--forest-600)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div style="font-family:var(--font-display);font-size:22px;font-weight:700;margin-top:16px">Contrato firmado</div>
+          <div style="font-size:13px;color:var(--sage-600);margin-top:6px;line-height:1.5">Gracias, Rosa. Tu copia llegó a WhatsApp. Tu primera cuota es el <b style="color:var(--forest-900)">10 de mayo</b> por <b style="color:var(--forest-900)" class="cf-mono">RD$ 5,000.00</b>.</div>
+          <dl class="dl" style="width:100%;margin-top:22px;text-align:left">
+            <div><dt>Contrato</dt><dd class="cf-mono">CT-2026-0156</dd></div>
+            <div><dt>Firmado</dt><dd class="cf-mono">10 abr 2026 · 14:52</dd></div>
+            <div><dt>Verificación</dt><dd class="cf-mono">sha256 3c9d…7e10</dd></div>
+          </dl>
+          <button class="cf-act cf-act--outline" style="width:100%;margin-top:18px;flex:none;height:40px">Descargar PDF</button>
+          <div style="font-size:11px;color:var(--sage-600);margin-top:26px">¿Dudas? Escribe a la Cooperativa San José<br><span class="cf-mono">809-582-4410</span></div>
+        </div>
+      </div></div>
+      <h2>3 · Listo</h2>
+      <p>Confirmación con la primera cuota y el número de verificación. El contrato pasa a “Falta oficial” o a “Firmado” según quién falte.</p>
+    </div>
+  </div>
+  <div style="margin-top:56px;padding-top:20px;border-top:1px solid var(--hairline);display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--sage-500)"><span>CrediFlux v2.0 · Santiago, RD</span><span>Página pública · marca de la financiera</span></div>
+</div>
+</body>
+</html>

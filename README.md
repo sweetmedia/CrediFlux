@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![Django](https://img.shields.io/badge/Django-5.0-green.svg)](https://www.djangoproject.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF.svg)](https://vite.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
 
@@ -120,7 +120,7 @@ CrediFlux automatiza estos procesos, reduce errores manuales y mejora la eficien
 ### Frontend
 | Tecnología | Versión | Propósito |
 |------------|---------|-----------|
-| **Next.js** | 14+ | Framework React |
+| **Vite** + **React Router** | 8 / 7 | Build y SPA React |
 | **React** | 18+ | UI Library |
 | **TypeScript** | 5+ | Tipado estático |
 | **Tailwind CSS** | 3+ | Styling |
@@ -143,7 +143,7 @@ CrediFlux automatiza estos procesos, reduce errores manuales y mejora la eficien
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Frontend (Next.js)                     │
+│                     Frontend (Vite + React)                   │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
 │  │  Loans   │  │ Payments │  │Collections│  │ Reports  │    │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
@@ -208,15 +208,15 @@ CrediFlux/
 │   │   ├── urls.py               # URL routing
 │   │   ├── wsgi.py               # WSGI application
 │   │   └── celery.py             # Celery config
-│   ├── requirements/              # Dependencias Python
+│   ├── pyproject.toml / uv.lock   # Dependencias Python (uv)
 │   │   ├── base.txt              # Dependencias base
 │   │   ├── development.txt       # Dev dependencies
 │   │   └── production.txt        # Prod dependencies
 │   ├── Dockerfile                 # Docker image
 │   └── manage.py
 │
-├── frontend/                      # Next.js Frontend
-│   ├── app/                       # App Router (Next.js 14)
+├── frontend/                      # Frontend Vite + React (SPA)
+│   ├── app/                       # Páginas (page.tsx → ruta)
 │   │   ├── (auth)/               # Auth routes
 │   │   │   ├── login/
 │   │   │   └── register/
@@ -318,7 +318,7 @@ REDIS_URL=redis://redis:6379/0
 JWT_SECRET_KEY=your-jwt-secret-here
 
 # Frontend
-NEXT_PUBLIC_API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:8000
 ```
 
 ### 3️⃣ Iniciar con Docker
@@ -677,13 +677,10 @@ Content-Type: application/json
 #### Backend
 
 ```bash
-# Crear y activar entorno virtual
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Instalar dependencias
+# Instalar dependencias (uv crea backend/.venv con Python 3.11)
 cd backend
-pip install -r requirements/development.txt
+uv sync
+source .venv/bin/activate  # o anteponer `uv run` a cada comando
 
 # Configurar variables de entorno
 export DJANGO_SETTINGS_MODULE=config.settings.development

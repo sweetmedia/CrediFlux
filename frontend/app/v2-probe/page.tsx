@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * V2 Token probe — visual smoke test for the design system foundation.
  *

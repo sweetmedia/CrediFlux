@@ -67,8 +67,8 @@ yarn install
 Create a `.env.local` file in the root directory:
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_APP_NAME=CrediFlux
+VITE_API_URL=http://localhost:8000
+VITE_APP_NAME=CrediFlux
 ```
 
 ### Development
@@ -342,7 +342,7 @@ PORT=3001 npm run dev
 Make sure:
 1. Backend is running on http://localhost:8000
 2. CORS is properly configured in backend
-3. `.env.local` has correct `NEXT_PUBLIC_API_URL`
+3. `.env.local` has correct `VITE_API_URL`
 
 ### TypeScript Errors
 

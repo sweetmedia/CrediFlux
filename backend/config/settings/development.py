@@ -54,7 +54,3 @@ SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False,
     'JSON_EDITOR': True,
 }
-
-# Fix CSRF for plain localhost access
-CSRF_COOKIE_DOMAIN = None
-SESSION_COOKIE_DOMAIN = None

@@ -1,8 +1,6 @@
-'use client';
-
 import { Building2, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 
 export default function SelectTenantPage() {
   const tenants = [

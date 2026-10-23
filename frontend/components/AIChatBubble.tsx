@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useRef, useEffect } from 'react';
 import { aiAPI, ChatMessage } from '@/lib/api/ai';
 import { Button } from '@/components/ui/button';

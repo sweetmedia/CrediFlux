@@ -6,7 +6,10 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from celery import shared_task
+from django.core.management import call_command
+from django.core.cache import cache
 from django.db.models import Q
+from django.utils import timezone
 from django_tenants.utils import schema_context
 
 from apps.tenants.models import Tenant
@@ -14,6 +17,45 @@ from .models import LoanSchedule, Loan
 from .utils_whatsapp import get_whatsapp_service
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(name='loans.calculate_late_fees')
+def calculate_late_fees():
+    """
+    Tarea diaria: recalcula la mora de las cuotas vencidas en cada tenant
+    (comando `calculate_late_fees`; reglas en apps.loans.late_fees).
+    Un tenant que falla no detiene a los demás.
+    """
+    processed, failed = [], []
+    for tenant in Tenant.objects.exclude(schema_name='public'):
+        try:
+            call_command('calculate_late_fees', tenant=tenant.schema_name)
+            processed.append(tenant.schema_name)
+        except Exception:
+            logger.exception("Error calculando mora del tenant %s", tenant.schema_name)
+            failed.append(tenant.schema_name)
+    return {'processed': processed, 'failed': failed}
+
+
+def _whatsapp_tenants():
+    """Tenants con recordatorios por WhatsApp activos (nunca el schema público)."""
+    return Tenant.objects.filter(
+        is_active=True,
+        enable_whatsapp_reminders=True,
+    ).exclude(schema_name='public')
+
+
+def _already_sent(kind, tenant, schedule, today):
+    """Evita repetir el mismo aviso el mismo día si la tarea se reintenta."""
+    return cache.get(_sent_key(kind, tenant, schedule, today)) is not None
+
+
+def _mark_sent(kind, tenant, schedule, today):
+    cache.set(_sent_key(kind, tenant, schedule, today), 1, timeout=60 * 60 * 36)
+
+
+def _sent_key(kind, tenant, schedule, today):
+    return f'wa:{kind}:{tenant.schema_name}:{schedule.pk}:{today.isoformat()}'
 
 
 @shared_task(name='loans.send_payment_reminders')
@@ -25,10 +67,7 @@ def send_payment_reminders():
     logger.info("Starting payment reminders task")
 
     # Get all active tenants with WhatsApp reminders enabled
-    tenants = Tenant.objects.filter(
-        is_active=True,
-        enable_whatsapp_reminders=True
-    )
+    tenants = _whatsapp_tenants()
 
     total_sent = 0
     total_failed = 0
@@ -72,13 +111,20 @@ def send_tenant_payment_reminders(tenant: Tenant):
         logger.warning(f"WhatsApp not configured for tenant {tenant.name}")
         return 0, 0
 
-    today = date.today()
+    today = timezone.localdate()
     sent_count = 0
     failed_count = 0
 
-    # Define reminder windows based on tenant settings
-    reminder_days_before = getattr(tenant, 'reminder_days_before', [7, 3, 1])  # Default: 7, 3, 1 day before
-    reminder_days_after = getattr(tenant, 'reminder_days_after', [1, 3, 7])    # Default: 1, 3, 7 days after
+    # Define reminder windows based on tenant settings.
+    # Tenant.reminder_days_before es un entero (días antes del vencimiento).
+    days_before = getattr(tenant, 'reminder_days_before', None)
+    if days_before is None:
+        reminder_days_before = [7, 3, 1]
+    elif isinstance(days_before, int):
+        reminder_days_before = [days_before]
+    else:
+        reminder_days_before = list(days_before)
+    reminder_days_after = getattr(tenant, 'reminder_days_after', [1, 3, 7])  # Default: 1, 3, 7 days after
 
     # Get schedules that need reminders
     reminder_dates = []
@@ -94,9 +140,10 @@ def send_tenant_payment_reminders(tenant: Tenant):
     # Also include today (due today)
     reminder_dates.append(today)
 
-    # Get pending schedules with due dates matching reminder dates
+    # Unpaid schedules with due dates matching reminder dates ('overdue' incluido:
+    # la tarea de mora de las 00:30 marca así las vencidas)
     schedules = LoanSchedule.objects.filter(
-        status__in=['pending', 'partial'],
+        status__in=['pending', 'partial', 'overdue'],
         due_date__in=reminder_dates,
         loan__status='active'
     ).select_related('loan', 'loan__customer')
@@ -104,6 +151,8 @@ def send_tenant_payment_reminders(tenant: Tenant):
     logger.info(f"Found {schedules.count()} schedules to process for {tenant.name}")
 
     for schedule in schedules:
+        if _already_sent('reminder', tenant, schedule, today):
+            continue
         try:
             # Calculate days until due
             days_until_due = (schedule.due_date - today).days
@@ -131,6 +180,7 @@ def send_tenant_payment_reminders(tenant: Tenant):
             )
 
             if success:
+                _mark_sent('reminder', tenant, schedule, today)
                 sent_count += 1
                 logger.info(
                     f"Sent reminder for loan {schedule.loan.loan_number} "
@@ -193,13 +243,10 @@ def send_overdue_notice():
     """
     logger.info("Starting overdue notices task")
 
-    tenants = Tenant.objects.filter(
-        is_active=True,
-        enable_whatsapp_reminders=True,
-    )
+    tenants = _whatsapp_tenants()
 
     total_sent = 0
-    today = date.today()
+    today = timezone.localdate()
     overdue_thresholds = [15, 30, 60, 90]
 
     for tenant in tenants:
@@ -218,6 +265,8 @@ def send_overdue_notice():
                     ).select_related('loan', 'loan__customer')
 
                     for schedule in schedules:
+                        if _already_sent('overdue', tenant, schedule, today):
+                            continue
                         phone = schedule.loan.customer.phone
                         if not phone:
                             continue
@@ -241,6 +290,7 @@ def send_overdue_notice():
                         try:
                             formatted = whatsapp_service._format_phone(phone)
                             whatsapp_service.wa_client.send_message(to=formatted, text=message)
+                            _mark_sent('overdue', tenant, schedule, today)
                             total_sent += 1
                         except Exception as e:
                             logger.error(f"Failed overdue notice for {schedule.loan.loan_number}: {e}")

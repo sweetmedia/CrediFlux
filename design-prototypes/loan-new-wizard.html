@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="es" data-tenant="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrediFlux — Nuevo préstamo</title>
+  <link rel="stylesheet" href="../branding/tokens.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"ABC Whyte"', 'system-ui', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"ABC Whyte Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            forest: { 50:'#f0f7eb',100:'#dcecd0',500:'#4d8630',700:'#2d5a10',900:'#163300',950:'#0a1a00' },
+            sage: { 50:'#f3f6f1',100:'#e4ebe0',200:'#c8d4be',300:'#a8b89c',400:'#8a9d7a',500:'#738566',600:'#5c6d4d',700:'#4a5a3d' },
+            sun: { 100:'#fffbe6',500:'#ffe026' },
+            flame: { 500:'#ff7503',600:'#cc5e02' },
+            cream: '#faf8f2', 'warm-white':'#f5f3ed',
+            tenant: 'var(--color-tenant-primary)',
+          },
+          letterSpacing: { 'widest':'0.14em','ultra':'0.18em' },
+        }
+      }
+    }
+  </script>
+  <style>
+    html,body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#faf8f2;color:#163300;font-feature-settings:'rlig' 1,'calt' 1;-webkit-font-smoothing:antialiased;}
+    .paper-bg{background-color:#faf8f2;background-image:radial-gradient(circle at 1px 1px,rgba(22,51,0,0.035) 1px,transparent 0);background-size:28px 28px;}
+    .sidebar{background:var(--color-tenant-primary,#163300);}
+    .nav-item{position:relative;display:flex;align-items:center;gap:11px;padding:6px 12px 6px 14px;border-radius:4px;color:rgba(255,255,255,0.55);font-size:13px;font-weight:400;line-height:1.4;text-decoration:none;transition:color 150ms,background-color 150ms;}
+    .nav-item:hover{color:rgba(255,255,255,0.92);background:rgba(255,255,255,0.04);}
+    .nav-item.active{color:#fff;background:rgba(255,255,255,0.08);font-weight:500;}
+    .nav-item.active::before{content:'';position:absolute;left:-1px;top:50%;transform:translateY(-50%);width:2px;height:18px;background:#ffe026;border-radius:0 2px 2px 0;}
+    .nav-group-header{display:flex;align-items:center;justify-content:space-between;width:100%;padding:4px 14px;font-family:'ABC Whyte',system-ui,sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:rgba(255,255,255,0.32);background:transparent;border:none;cursor:pointer;}
+    .nav-group-header.flat{cursor:default;}
+    .nav-group-chevron{transition:transform 200ms;opacity:0.7;}
+    .nav-group[data-collapsed="true"] .nav-group-chevron{transform:rotate(-90deg);}
+    .nav-group[data-collapsed="true"] .nav-group-items{display:none;}
+    .kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;line-height:1;color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-bottom-width:2px;border-radius:3px;}
+    .sidebar-search{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 24px);margin:12px 12px 0;padding:7px 10px 7px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:4px;font-size:12px;color:rgba(255,255,255,0.5);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
+    .sidebar-search:hover{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.8);}
+    .scrollbar-dark::-webkit-scrollbar{width:6px;}.scrollbar-dark::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px;}.scrollbar-dark{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent;}
+    .util-btn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 8px;border-radius:4px;color:#5c6d4d;background:transparent;border:none;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
+    .util-btn:hover{color:#163300;background:rgba(22,51,0,0.04);}
+    .util-btn--icon{width:32px;padding:0;}
+    .reminder-dot{position:absolute;top:3px;right:3px;min-width:14px;height:14px;padding:0 3px;background:#ff7503;color:#fff;border-radius:7px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:9px;font-weight:700;line-height:14px;text-align:center;border:2px solid #faf8f2;}
+    .dev-banner{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;align-items:center;gap:14px;padding:10px 14px 10px 16px;background:rgba(22,51,0,0.92);backdrop-filter:blur(8px);color:rgba(255,255,255,0.85);border-radius:6px;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;box-shadow:0 20px 40px -12px rgba(22,51,0,0.4),0 0 0 1px rgba(255,255,255,0.08);}
+    .dev-banner__label{color:rgba(255,255,255,0.45);}.dev-banner__swatches{display:flex;gap:8px;}
+    .dev-banner__swatch{width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;padding:0;transition:transform 150ms;position:relative;}
+    .dev-banner__swatch:hover{transform:translateY(-2px);}.dev-banner__swatch.active{box-shadow:0 0 0 2px #ffe026,0 0 0 3px rgba(22,51,0,0.92);}
+    .dev-banner__swatch::after{content:attr(data-name);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:3px 7px;background:rgba(22,51,0,0.95);color:rgba(255,255,255,0.9);font-size:9px;border-radius:3px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 150ms;}
+    .dev-banner__swatch:hover::after{opacity:1;}
+    :focus{outline:none}:focus-visible{outline:2px solid #163300;outline-offset:2px}aside :focus-visible,.sidebar :focus-visible,[class*=bg-forest-9] :focus-visible{outline-color:#ffe026}
+    .rule-b{border-bottom:1px solid rgba(22,51,0,0.08);}.rule-t{border-top:1px solid rgba(22,51,0,0.08);}.rule-r{border-right:1px solid rgba(22,51,0,0.08);}
+    .logo-white{filter:brightness(0) invert(1);}
+
+    /* Form styles */
+    .form-label{display:block;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.14em;color:#738566;margin-bottom:6px;}
+    .form-input{display:block;width:100%;padding:8px 0;border:none;border-bottom:1px solid rgba(22,51,0,0.15);background:transparent;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;color:#163300;transition:border-color 200ms;}
+    .form-input:focus{border-bottom-color:#ffe026;}
+    .form-input::placeholder{color:#a8b89c;}
+    .form-input--mono{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:13px;letter-spacing:0.02em;}
+    .form-input--large{font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:28px;font-weight:600;letter-spacing:0.02em;}
+    .form-select{display:block;width:100%;padding:8px 24px 8px 0;border:none;border-bottom:1px solid rgba(22,51,0,0.15);background:transparent url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23738566' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right center;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;color:#163300;appearance:none;cursor:pointer;}
+    .form-select:focus{border-bottom-color:#ffe026;}
+    textarea.form-input{resize:vertical;min-height:60px;}
+
+    /* Wizard progress */
+    .wizard-step{display:none;}
+    .wizard-step.active{display:block;}
+    .progress-step{display:flex;align-items:center;gap:8px;cursor:pointer;transition:opacity 150ms;}
+    .progress-step.disabled{opacity:0.35;cursor:default;}
+    .progress-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'ABC Whyte Mono',ui-monospace,monospace;font-size:11px;font-weight:600;transition:all 200ms;border:2px solid rgba(22,51,0,0.15);color:#738566;background:transparent;}
+    .progress-step.active .progress-dot{border-color:#163300;color:#fff;background:#163300;}
+    .progress-step.completed .progress-dot{border-color:#4d8630;color:#fff;background:#4d8630;}
+    .progress-line{width:40px;height:1px;background:rgba(22,51,0,0.12);}
+    .progress-line.completed{background:#4d8630;}
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="sidebar fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col text-white" aria-label="Navegación principal">
+    <div class="px-5 pt-5 pb-4 border-b border-white/[0.08]">
+      <div class="mb-4"><img src="../branding/logo-full/svg/crediflux-logo.svg" alt="CrediFlux" class="logo-white h-[22px] w-auto"/></div>
+      <div>
+        <div class="font-display text-[14px] font-medium text-white leading-[1.25]">Cooperativa San&nbsp;José</div>
+        <div class="mt-1 flex items-center gap-2 font-mono text-[10px] text-white/40 uppercase tracking-widest"><span>coop-san-jose</span><span class="text-white/15">·</span><span>rd</span></div>
+      </div>
+    </div>
+    <button class="sidebar-search"><span class="flex items-center gap-2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar</span></span><span class="kbd">⌘K</span></button>
+    <nav class="flex-1 overflow-y-auto scrollbar-dark px-3 py-5">
+      <div class="mb-6"><div class="nav-group-header flat"><span>Overview</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="appshell.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Dashboard</span></a>
+        <a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></svg><span>Calculadora</span></a>
+        <a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 1.9L12 19l-2-6.1L4 11l5.9-2.2L12 3z"/></svg><span>Asistente IA</span></a>
+      </div></div>
+      <div class="mb-6 nav-group" data-collapsed="false">
+        <button class="nav-group-header" onclick="toggleGroup(this)" aria-expanded="true"><span>Operación</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+        <div class="nav-group-items mt-1.5 space-y-[1px]">
+          <a href="loans-list.html" class="nav-item active" aria-current="page"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span>Préstamos</span></a>
+          <a href="customers-list.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Clientes</span></a>
+          <a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Pagos</span></a>
+          <a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg><span>Caja</span></a>
+        </div>
+      </div>
+      <div class="mb-6 nav-group" data-collapsed="true"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Cobranza</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]"><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span>Cobranza</span></a><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Cobrador Móvil</span></a></div></div>
+      <div class="mb-6 nav-group" data-collapsed="true"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Facturación</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]"><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg><span>Facturas e-CF</span></a><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg><span>Secuencias e-NCF</span></a><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Certificados</span></a><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="12" x2="8" y2="18"/><line x1="12" y1="8" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="18"/></svg><span>Reportes DGII</span></a></div></div>
+      <div class="mb-6 nav-group" data-collapsed="true"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Contratos</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]"><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10.29 10.7l2.29 2.3 4.42-4.42"/></svg><span>Lista</span></a><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span>Plantillas</span></a></div></div>
+      <div class="mb-6 nav-group" data-collapsed="true"><button class="nav-group-header" onclick="toggleGroup(this)"><span>Comunicaciones</span><svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="nav-group-items mt-1.5 space-y-[1px]"><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Mensajes</span></a><a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Tareas</span></a></div></div>
+      <div><div class="nav-group-header flat"><span>Administración</span></div><div class="mt-1.5 space-y-[1px]">
+        <a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/><path d="M22 15h-6"/></svg><span>Equipo</span></a>
+        <a href="#" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg><span>Auditoría</span></a>
+        <a href="settings-roles.html" class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Configuración</span></a>
+      </div></div>
+    </nav>
+    <div class="border-t border-white/[0.08] px-3 py-3">
+      <div class="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-white/[0.04] transition-colors cursor-pointer">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-medium text-white" style="background:#738566;">MF</div>
+        <div class="min-w-0 flex-1"><div class="truncate font-display text-[13px] font-medium text-white leading-tight">María Fernández</div><div class="truncate font-mono text-[9px] uppercase tracking-widest text-white/45 mt-0.5">Oficial de Cobranza</div></div>
+        <button class="p-1.5 text-white/35 hover:text-white/90 transition-colors rounded"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="ml-[240px]">
+    <header class="sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div class="flex h-14 items-center gap-3 pl-8 pr-6">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="appshell.html" class="text-[12px] text-sage-500 hover:text-forest-900 transition-colors">Inicio</a>
+          <span class="text-sun-500 text-[9px] leading-none">●</span>
+          <a href="loans-list.html" class="text-[12px] text-sage-500 hover:text-forest-900 transition-colors">Préstamos</a>
+          <span class="text-sun-500 text-[9px] leading-none">●</span>
+          <span class="font-display text-[13px] font-medium text-forest-900">Nuevo préstamo</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <div class="hidden lg:flex items-center gap-2 pr-3 mr-2 border-r border-forest-900/10">
+            <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-forest-500 opacity-40" style="animation:pulse 2s cubic-bezier(0.4,0,0.6,1) infinite;"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-forest-500"></span></span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500 tabular-nums">Actualizado 14:32</span>
+          </div>
+          <button class="util-btn gap-1.5 px-2.5 text-[12px]"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4v18M12 21V11l7-4v14"/></svg><span class="font-mono text-[10px] uppercase tracking-widest">coop-san-jose</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="util-btn util-btn--icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+          <button class="util-btn util-btn--icon relative"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="reminder-dot">3</span></button>
+          <button class="flex items-center gap-2 h-8 pl-1 pr-2 ml-1 rounded hover:bg-forest-900/[0.04] transition-colors"><div class="flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] font-medium text-white" style="background:#738566;">MF</div><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sage-500"><polyline points="6 9 12 15 18 9"/></svg></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="paper-bg min-h-[calc(100vh-56px)] px-8 py-8">
+      <div class="max-w-[960px] mx-auto">
+
+        <!-- Page header -->
+        <div class="pb-6 rule-b">
+          <a href="loans-list.html" class="inline-flex items-center gap-1.5 text-[12px] text-sage-500 hover:text-forest-900 transition-colors mb-4">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Préstamos
+          </a>
+          <div class="flex items-center gap-3 mb-3">
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Operación</span>
+            <span class="h-px w-6 bg-forest-900/20"></span>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Solicitud de préstamo</span>
+          </div>
+          <h1 class="font-display text-[38px] font-black text-forest-900 leading-none tracking-tight">
+            Nuevo préstamo
+          </h1>
+        </div>
+
+        <!-- Wizard progress bar -->
+        <div class="flex items-center justify-center gap-0 py-8" id="progress-bar">
+          <div class="progress-step active" onclick="goToStep(1)">
+            <div class="progress-dot">1</div>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600 hidden sm:inline">Cliente</span>
+          </div>
+          <div class="progress-line" id="line-1-2"></div>
+          <div class="progress-step disabled" onclick="goToStep(2)">
+            <div class="progress-dot">2</div>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600 hidden sm:inline">Préstamo</span>
+          </div>
+          <div class="progress-line" id="line-2-3"></div>
+          <div class="progress-step disabled" onclick="goToStep(3)">
+            <div class="progress-dot">3</div>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600 hidden sm:inline">Condiciones</span>
+          </div>
+          <div class="progress-line" id="line-3-4"></div>
+          <div class="progress-step disabled" onclick="goToStep(4)">
+            <div class="progress-dot">4</div>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600 hidden sm:inline">Garantías</span>
+          </div>
+          <div class="progress-line" id="line-4-5"></div>
+          <div class="progress-step disabled" onclick="goToStep(5)">
+            <div class="progress-dot">5</div>
+            <span class="font-mono text-[10px] uppercase tracking-widest text-sage-600 hidden sm:inline">Confirmar</span>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 1: Cliente                                               -->
+        <!-- ============================================================ -->
+        <div class="wizard-step active" id="step-1">
+          <h2 class="font-display text-[20px] font-bold text-forest-900 mb-1">Seleccionar cliente</h2>
+          <p class="text-[12px] text-sage-600 mb-8">Busque al cliente por nombre, cédula o código para asociar el préstamo.</p>
+
+          <div class="flex items-end gap-4 mb-6">
+            <div class="flex-1 max-w-[400px]">
+              <label class="form-label">Buscar cliente</label>
+              <input type="text" class="form-input" value="Ana Ramírez" placeholder="Nombre, cédula o código..."/>
+            </div>
+            <button class="h-[38px] px-4 flex items-center gap-2 text-[12px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded transition-colors shrink-0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              Buscar
+            </button>
+          </div>
+
+          <!-- Found result -->
+          <div class="rounded border border-forest-500/20 bg-forest-50 p-5 mb-6">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-6">
+                <div>
+                  <div class="font-display text-[15px] font-bold text-forest-900">Ana Ramírez</div>
+                  <div class="font-mono text-[12px] text-sage-600 tabular-nums mt-1">001-5678901-4</div>
+                </div>
+                <div class="h-8 w-px bg-forest-500/10"></div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-0.5">Código</div>
+                  <div class="font-mono text-[12px] text-forest-900 tabular-nums">C-0891</div>
+                </div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-0.5">Estado</div>
+                  <span class="font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 rounded" style="background:rgba(77,134,48,0.1);color:#4d8630;">Activa</span>
+                </div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-0.5">Préstamos</div>
+                  <div class="font-mono text-[12px] text-forest-900 tabular-nums">1</div>
+                </div>
+                <div>
+                  <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-0.5">Balance</div>
+                  <div class="font-mono text-[12px] text-forest-900 tabular-nums">RD$ 50,000</div>
+                </div>
+              </div>
+              <button class="h-8 px-4 text-[12px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded transition-colors">Seleccionar</button>
+            </div>
+          </div>
+
+          <a href="customer-new.html" class="font-mono text-[10px] uppercase tracking-widest text-sage-500 hover:text-forest-900 transition-colors">Registrar nuevo cliente →</a>
+
+          <div class="flex items-center justify-between pt-6 mt-8 rule-t">
+            <a href="loans-list.html" class="h-10 px-5 inline-flex items-center text-[13px] font-medium text-sage-700 rounded border border-forest-900/15 hover:border-forest-900/30 hover:bg-forest-900/[0.02] transition-all">Cancelar</a>
+            <button onclick="goToStep(2)" class="h-10 pl-4 pr-5 flex items-center gap-2 text-[13px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded transition-colors">
+              Continuar
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 2: Préstamo                                              -->
+        <!-- ============================================================ -->
+        <div class="wizard-step" id="step-2">
+          <h2 class="font-display text-[20px] font-bold text-forest-900 mb-1">Datos del préstamo</h2>
+          <p class="text-[12px] text-sage-600 mb-8">Defina el monto, tipo y propósito del préstamo.</p>
+
+          <div class="mb-8">
+            <label class="form-label">Monto del préstamo</label>
+            <div class="flex items-baseline gap-2">
+              <span class="font-mono text-[18px] text-sage-400">RD$</span>
+              <input type="text" class="form-input form-input--large flex-1" value="100,000" placeholder="0"/>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-x-10 gap-y-6">
+            <div>
+              <label class="form-label">Tipo de préstamo</label>
+              <select class="form-select">
+                <option value="">Seleccionar...</option>
+                <option value="personal" selected>Personal</option>
+                <option value="comercial">Comercial</option>
+                <option value="hipotecario">Hipotecario</option>
+                <option value="vehicular">Vehicular</option>
+                <option value="agricola">Agrícola</option>
+              </select>
+            </div>
+            <div></div>
+            <div class="col-span-2">
+              <label class="form-label">Propósito</label>
+              <textarea class="form-input" placeholder="Describa brevemente el propósito del préstamo...">Consolidación de deudas y mejora de vivienda</textarea>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-8 mt-8 rule-t">
+            <button onclick="goToStep(1)" class="h-10 px-5 inline-flex items-center gap-2 text-[13px] font-medium text-sage-700 rounded border border-forest-900/15 hover:border-forest-900/30 hover:bg-forest-900/[0.02] transition-all">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Atrás
+            </button>
+            <button onclick="goToStep(3)" class="h-10 pl-4 pr-5 flex items-center gap-2 text-[13px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded transition-colors">
+              Continuar<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 3: Condiciones                                           -->
+        <!-- ============================================================ -->
+        <div class="wizard-step" id="step-3">
+          <h2 class="font-display text-[20px] font-bold text-forest-900 mb-1">Condiciones del préstamo</h2>
+          <p class="text-[12px] text-sage-600 mb-8">Configure la tasa, plazo y frecuencia de pagos.</p>
+
+          <div class="grid grid-cols-2 gap-x-10 gap-y-6 mb-8">
+            <div>
+              <label class="form-label">Tasa de interés (%)</label>
+              <input type="text" class="form-input form-input--mono" value="2.5" placeholder="0.0"/>
+              <p class="mt-1.5 font-mono text-[9px] uppercase tracking-widest text-sage-400">Rango permitido: 1.5% – 4.0% mensual</p>
+            </div>
+            <div>
+              <label class="form-label">Plazo (cuotas)</label>
+              <input type="text" class="form-input form-input--mono" value="24" placeholder="0"/>
+              <p class="mt-1.5 font-mono text-[9px] uppercase tracking-widest text-sage-400">Máximo 60 cuotas</p>
+            </div>
+            <div>
+              <label class="form-label">Frecuencia</label>
+              <select class="form-select">
+                <option value="mensual" selected>Mensual</option>
+                <option value="quincenal">Quincenal</option>
+                <option value="semanal">Semanal</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Fecha primer pago</label>
+              <input type="date" class="form-input form-input--mono" value="2026-05-15"/>
+            </div>
+            <div>
+              <label class="form-label">Método de cálculo</label>
+              <select class="form-select">
+                <option value="cuota-fija" selected>Cuota fija</option>
+                <option value="interes-saldo">Interés sobre saldo</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Calculator preview -->
+          <div class="rounded border border-sun-500/30 bg-sun-100 p-5">
+            <div class="font-mono text-[10px] uppercase tracking-widest text-sage-600 mb-4">Proyección de cuota</div>
+            <div class="flex items-center gap-10">
+              <div>
+                <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Cuota mensual</div>
+                <div class="font-mono text-[28px] font-medium text-forest-900 leading-none tabular-nums">RD$ 5,284</div>
+              </div>
+              <div class="h-10 w-px bg-forest-900/10"></div>
+              <div>
+                <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Total a pagar</div>
+                <div class="font-mono text-[18px] font-medium text-forest-900 leading-none tabular-nums">RD$ 126,816</div>
+              </div>
+              <div class="h-10 w-px bg-forest-900/10"></div>
+              <div>
+                <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500 mb-1">Total intereses</div>
+                <div class="font-mono text-[18px] font-medium text-forest-900 leading-none tabular-nums">RD$ 26,816</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-8 mt-8 rule-t">
+            <button onclick="goToStep(2)" class="h-10 px-5 inline-flex items-center gap-2 text-[13px] font-medium text-sage-700 rounded border border-forest-900/15 hover:border-forest-900/30 hover:bg-forest-900/[0.02] transition-all">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Atrás
+            </button>
+            <button onclick="goToStep(4)" class="h-10 pl-4 pr-5 flex items-center gap-2 text-[13px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded transition-colors">
+              Continuar<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 4: Garantías                                             -->
+        <!-- ============================================================ -->
+        <div class="wizard-step" id="step-4">
+          <h2 class="font-display text-[20px] font-bold text-forest-900 mb-1">Garantías y garante</h2>
+          <p class="text-[12px] text-sage-600 mb-8">Registre las garantías del préstamo y la información del garante si aplica.</p>
+
+          <div class="mb-8">
+            <div class="flex items-center gap-3 mb-5">
+              <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Garantía</span>
+              <span class="flex-1 h-px bg-forest-900/[0.06]"></span>
+            </div>
+            <div class="grid grid-cols-2 gap-x-10 gap-y-6">
+              <div>
+                <label class="form-label">Tipo de garantía</label>
+                <select class="form-select" id="guarantee-type" onchange="toggleGuaranteeFields()">
+                  <option value="">Sin garantía</option>
+                  <option value="inmueble">Inmueble</option>
+                  <option value="vehiculo" selected>Vehículo</option>
+                  <option value="deposito">Depósito a plazo</option>
+                  <option value="maquinaria">Maquinaria / Equipo</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Valor estimado</label>
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-[12px] text-sage-500">RD$</span>
+                  <input type="text" class="form-input form-input--mono flex-1" placeholder="0.00"/>
+                </div>
+              </div>
+              <div class="col-span-2">
+                <label class="form-label">Descripción de la garantía</label>
+                <textarea class="form-input" placeholder="Describe la garantía ofrecida..."></textarea>
+              </div>
+            </div>
+
+            <!-- Vehicle-specific fields (visible when tipo = vehículo) -->
+            <div class="mt-6 pt-6 border-t border-forest-900/[0.04]" id="vehicle-fields">
+              <div class="flex items-center gap-3 mb-5">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Datos del vehículo</span>
+                <span class="flex-1 h-px bg-forest-900/[0.06]"></span>
+              </div>
+              <div class="grid grid-cols-3 gap-x-8 gap-y-6">
+                <div>
+                  <label class="form-label">Marca</label>
+                  <select class="form-select" id="vehicle-brand" onchange="updateModels()">
+                    <option value="">Seleccionar...</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label">Modelo</label>
+                  <select class="form-select" id="vehicle-model">
+                    <option value="">Primero seleccione marca...</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label">Año</label>
+                  <select class="form-select">
+                    <option value="">Seleccionar...</option>
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                    <option value="2023">2023</option>
+                    <option value="2022">2022</option>
+                    <option value="2021">2021</option>
+                    <option value="2020">2020</option>
+                    <option value="2019">2019</option>
+                    <option value="2018">2018</option>
+                    <option value="2017">2017</option>
+                    <option value="2016">2016</option>
+                    <option value="2015">2015</option>
+                    <option value="anterior">Anterior a 2015</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label">Color</label>
+                  <input type="text" class="form-input" placeholder="Ej: Blanco"/>
+                </div>
+                <div>
+                  <label class="form-label">Placa</label>
+                  <input type="text" class="form-input form-input--mono" placeholder="Ej: A123456"/>
+                </div>
+                <div>
+                  <label class="form-label">No. de chasis</label>
+                  <input type="text" class="form-input form-input--mono" placeholder="VIN / Chasis"/>
+                </div>
+              </div>
+            </div>
+
+            <!-- Photo upload (visible for vehículo, inmueble, maquinaria) -->
+            <div class="mt-6 pt-6 border-t border-forest-900/[0.04]" id="guarantee-photos">
+              <div class="flex items-center gap-3 mb-5">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Fotos de la garantía</span>
+                <span class="flex-1 h-px bg-forest-900/[0.06]"></span>
+              </div>
+              <div class="grid grid-cols-4 gap-4">
+                <!-- Uploaded photo placeholder 1 -->
+                <div class="aspect-[4/3] rounded border border-forest-900/10 bg-white flex flex-col items-center justify-center overflow-hidden relative group">
+                  <div class="w-full h-full bg-sage-50 flex items-center justify-center">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#a8b89c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  </div>
+                  <div class="absolute bottom-0 left-0 right-0 bg-white/90 px-2 py-1.5 border-t border-forest-900/[0.06]">
+                    <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500">Foto frontal</div>
+                  </div>
+                </div>
+                <!-- Uploaded photo placeholder 2 -->
+                <div class="aspect-[4/3] rounded border border-forest-900/10 bg-white flex flex-col items-center justify-center overflow-hidden relative group">
+                  <div class="w-full h-full bg-sage-50 flex items-center justify-center">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#a8b89c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  </div>
+                  <div class="absolute bottom-0 left-0 right-0 bg-white/90 px-2 py-1.5 border-t border-forest-900/[0.06]">
+                    <div class="font-mono text-[9px] uppercase tracking-widest text-sage-500">Foto lateral</div>
+                  </div>
+                </div>
+                <!-- Upload button -->
+                <div class="aspect-[4/3] rounded border-2 border-dashed border-forest-900/10 hover:border-forest-900/20 bg-transparent flex flex-col items-center justify-center cursor-pointer transition-colors group">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a8b89c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:stroke-forest-900 transition-colors"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <span class="mt-2 font-mono text-[9px] uppercase tracking-widest text-sage-400 group-hover:text-forest-900 transition-colors">Subir foto</span>
+                </div>
+              </div>
+              <p class="mt-3 font-mono text-[9px] uppercase tracking-widest text-sage-400">JPG, PNG o PDF · Máximo 5 MB por archivo · Hasta 8 fotos</p>
+            </div>
+          </div>
+
+          <div class="mb-6">
+            <div class="flex items-center gap-3 mb-5">
+              <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Garante</span>
+              <span class="flex-1 h-px bg-forest-900/[0.06]"></span>
+            </div>
+            <div class="mb-4">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="w-4 h-4 rounded border-forest-900/20 text-forest-900 focus:ring-0" />
+                <span class="text-[13px] text-forest-900">Sin garante</span>
+              </label>
+            </div>
+            <div class="grid grid-cols-2 gap-x-10 gap-y-6">
+              <div>
+                <label class="form-label">Nombre completo</label>
+                <input type="text" class="form-input" placeholder="Nombre del garante"/>
+              </div>
+              <div>
+                <label class="form-label">Cédula</label>
+                <input type="text" class="form-input form-input--mono" placeholder="___-_______-_"/>
+              </div>
+              <div>
+                <label class="form-label">Teléfono</label>
+                <input type="tel" class="form-input form-input--mono" placeholder="809-000-0000"/>
+              </div>
+              <div>
+                <label class="form-label">Relación con el cliente</label>
+                <select class="form-select" id="guarantor-relation" onchange="toggleGuarantorOther()">
+                  <option value="">Seleccionar...</option>
+                  <option value="familiar">Familiar</option>
+                  <option value="conyugue">Cónyugue</option>
+                  <option value="amigo">Amigo/a</option>
+                  <option value="socio">Socio comercial</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              <div class="col-span-2" id="guarantor-other-wrapper" style="display:none;">
+                <label class="form-label">Especifique la relación</label>
+                <input type="text" class="form-input" placeholder="Ej: Compadre, cuñado, ex-jefe, pastor..."/>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-8 mt-8 rule-t">
+            <button onclick="goToStep(3)" class="h-10 px-5 inline-flex items-center gap-2 text-[13px] font-medium text-sage-700 rounded border border-forest-900/15 hover:border-forest-900/30 hover:bg-forest-900/[0.02] transition-all">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Atrás
+            </button>
+            <button onclick="goToStep(5)" class="h-10 pl-4 pr-5 flex items-center gap-2 text-[13px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded transition-colors">
+              Revisar y confirmar<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 5: Confirmar                                             -->
+        <!-- ============================================================ -->
+        <div class="wizard-step" id="step-5">
+          <h2 class="font-display text-[20px] font-bold text-forest-900 mb-1">Confirmar préstamo</h2>
+          <p class="text-[12px] text-sage-600 mb-8">Revise los datos antes de crear el préstamo.</p>
+
+          <div class="border border-forest-900/10 rounded bg-white divide-y divide-forest-900/[0.06]">
+            <!-- Cliente -->
+            <div class="px-6 py-5">
+              <div class="flex items-center justify-between mb-4">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Cliente</span>
+                <button onclick="goToStep(1)" class="font-mono text-[10px] uppercase tracking-widest text-sage-500 hover:text-forest-900 transition-colors">Editar</button>
+              </div>
+              <div class="grid grid-cols-4 gap-x-6 gap-y-3">
+                <div class="col-span-2"><span class="font-display text-[15px] font-bold text-forest-900">Ana Ramírez</span></div>
+                <div><div class="font-mono text-[9px] uppercase tracking-widest text-sage-400 mb-0.5">Cédula</div><div class="font-mono text-[12px] text-forest-900 tabular-nums">001-5678901-4</div></div>
+                <div><div class="font-mono text-[9px] uppercase tracking-widest text-sage-400 mb-0.5">Código</div><div class="font-mono text-[12px] text-forest-900 tabular-nums">C-0891</div></div>
+              </div>
+            </div>
+            <!-- Préstamo -->
+            <div class="px-6 py-5">
+              <div class="flex items-center justify-between mb-4">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Préstamo</span>
+                <button onclick="goToStep(2)" class="font-mono text-[10px] uppercase tracking-widest text-sage-500 hover:text-forest-900 transition-colors">Editar</button>
+              </div>
+              <div class="grid grid-cols-4 gap-x-6 gap-y-3">
+                <div><div class="font-mono text-[9px] uppercase tracking-widest text-sage-400 mb-0.5">Monto</div><div class="font-mono text-[14px] font-medium text-forest-900 tabular-nums">RD$ 100,000</div></div>
+                <div><div class="font-mono text-[9px] uppercase tracking-widest text-sage-400 mb-0.5">Tipo</div><div class="text-[12px] text-forest-900">Personal</div></div>
+                <div class="col-span-2"><div class="font-mono text-[9px] uppercase tracking-widest text-sage-400 mb-0.5">Propósito</div><div class="text-[12px] text-forest-900">Consolidación de deudas y mejora de vivienda</div></div>
+              </div>
+            </div>
+            <!-- Condiciones -->
+            <div class="px-6 py-5">
+              <div class="flex items-center justify-between mb-4">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Condiciones</span>
+                <button onclick="goToStep(3)" class="font-mono text-[10px] uppercase tracking-widest text-sage-500 hover:text-forest-900 transition-colors">Editar</button>
+              </div>
+              <div class="grid grid-cols-4 gap-x-6 gap-y-3">
+                <div><div class="font-mono text-[9px] uppercase tracking-widest text-sage-400 mb-0.5">Tasa</div><div class="font-mono text-[12px] text-forest-900 tabular-nums">2.5% mensual</div></div>
+                <div><div class="font-mono text-[9px] uppercase tracking-widest text-sage-400 mb-0.5">Plazo</div><div class="font-mono text-[12px] text-forest-900 tabular-nums">24 cuotas</div></div>
+                <div><div class="font-mono text-[9px] uppercase tracking-widest text-sage-400 mb-0.5">Frecuencia</div><div class="text-[12px] text-forest-900">Mensual</div></div>
+                <div><div class="font-mono text-[9px] uppercase tracking-widest text-sage-400 mb-0.5">Cuota</div><div class="font-mono text-[12px] text-forest-900 tabular-nums font-medium">RD$ 5,284</div></div>
+              </div>
+            </div>
+            <!-- Garantías -->
+            <div class="px-6 py-5">
+              <div class="flex items-center justify-between mb-4">
+                <span class="font-mono text-[10px] uppercase tracking-widest text-sage-500">Garantías y garante</span>
+                <button onclick="goToStep(4)" class="font-mono text-[10px] uppercase tracking-widest text-sage-500 hover:text-forest-900 transition-colors">Editar</button>
+              </div>
+              <div class="text-[12px] text-sage-400">Sin garantía · Sin garante</div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-8 mt-8 rule-t">
+            <button onclick="goToStep(4)" class="h-10 px-5 inline-flex items-center gap-2 text-[13px] font-medium text-sage-700 rounded border border-forest-900/15 hover:border-forest-900/30 hover:bg-forest-900/[0.02] transition-all">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Atrás
+            </button>
+            <button class="h-10 pl-4 pr-5 flex items-center gap-2 text-[13px] font-medium text-white bg-forest-900 hover:bg-forest-950 rounded transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Crear préstamo
+            </button>
+          </div>
+        </div>
+
+        <!-- Colophon -->
+        <div class="mt-14 pt-4 border-t border-forest-900/[0.08] flex items-center justify-between text-[10px]">
+          <div class="flex items-center gap-4 font-mono uppercase tracking-widest text-sage-400">
+            <span class="tabular-nums">CrediFlux · v2.0</span><span class="text-sage-300">·</span>
+            <span>Santiago de los Caballeros</span><span class="text-sage-300">·</span>
+            <span>Rep. Dominicana</span>
+          </div>
+          <div class="font-mono uppercase tracking-widest text-sage-400 tabular-nums">Sesión · 2h 14m</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Dev banner -->
+  <div class="dev-banner" role="presentation">
+    <span class="dev-banner__label">tenant-primary →</span>
+    <div class="dev-banner__swatches">
+      <button class="dev-banner__swatch active" data-color="#163300" data-name="Forest (default)" style="background:#163300;"></button>
+      <button class="dev-banner__swatch" data-color="#3a0e1e" data-name="Burgundy" style="background:#3a0e1e;"></button>
+      <button class="dev-banner__swatch" data-color="#0c1e38" data-name="Deep Navy" style="background:#0c1e38;"></button>
+      <button class="dev-banner__swatch" data-color="#1a4d3a" data-name="Teal" style="background:#1a4d3a;"></button>
+      <button class="dev-banner__swatch" data-color="#2d1b4e" data-name="Violet" style="background:#2d1b4e;"></button>
+    </div>
+  </div>
+
+  <style>
+    @keyframes pulse{0%,100%{opacity:0.4;transform:scale(1);}50%{opacity:0;transform:scale(2);}}
+    @media(prefers-reduced-motion:reduce){@keyframes pulse{0%,100%{opacity:0.4;transform:none;}}}
+  </style>
+  <script>
+    function toggleGroup(h){const g=h.closest('.nav-group');if(!g)return;const c=g.dataset.collapsed==='true';g.dataset.collapsed=c?'false':'true';h.setAttribute('aria-expanded',c?'true':'false');}
+
+    // Show/hide guarantee sub-fields based on type
+    function toggleGuaranteeFields() {
+      const type = document.getElementById('guarantee-type').value;
+      const vehicleFields = document.getElementById('vehicle-fields');
+      const photoFields = document.getElementById('guarantee-photos');
+      const showPhotos = ['vehiculo', 'inmueble', 'maquinaria'].includes(type);
+      vehicleFields.style.display = type === 'vehiculo' ? 'block' : 'none';
+      photoFields.style.display = showPhotos ? 'block' : 'none';
+    }
+
+    // Vehicle brands and models — matches backend VEHICLE_BRAND_MODELS
+    const VEHICLE_BRAND_MODELS = {
+      'Toyota': ['4Runner','Agya','Avalon','Axio','Camry','Corolla','Corolla Cross','Fortuner','Hilux','Highlander','Land Cruiser','Prado','Raize','RAV4','Rush','Sequoia','Sienna','Tacoma','Tundra','Veloz','Vitz','Yaris'],
+      'Honda': ['Accord','BR-V','City','Civic','CR-V','Fit','HR-V','Odyssey','Passport','Pilot','Ridgeline'],
+      'Hyundai': ['Accent','Creta','Elantra','Grand i10','H-1','Kona','Palisade','Santa Fe','Sonata','Staria','Tucson','Venue'],
+      'Kia': ['Carens','Carnival','K3','K5','Morning','Picanto','Rio','Seltos','Sonet','Sorento','Soul','Sportage','Stonic','Telluride'],
+      'Nissan': ['Altima','Armada','Frontier','Kicks','March','Murano','Navara','Pathfinder','Patrol','Qashqai','Rogue','Sentra','Sunny','Terra','Versa','X-Trail'],
+      'Ford': ['Bronco','EcoSport','Edge','Escape','Everest','Explorer','F-150','Fiesta','Focus','Maverick','Mustang','Ranger','Transit'],
+      'Chevrolet': ['Blazer','Captiva','Colorado','Cruze','Equinox','Groove','Onix','Prisma','S10','Silverado','Spark','Suburban','Tahoe','Tracker','Traverse'],
+      'Mazda': ['BT-50','CX-3','CX-30','CX-5','CX-9','CX-90','Mazda 2','Mazda 3','Mazda 6'],
+      'Mitsubishi': ['ASX','L200','Mirage','Montero','Montero Sport','Outlander','Xpander'],
+      'BMW': ['Serie 1','Serie 2','Serie 3','Serie 4','Serie 5','X1','X2','X3','X4','X5','X6','X7'],
+      'Mercedes-Benz': ['Clase A','Clase C','Clase CLA','Clase E','Clase GLA','Clase GLB','Clase GLC','Clase GLE','Clase GLS','Sprinter','Vito'],
+      'Lexus': ['CT','ES','GX','IS','LX','NX','RX','UX'],
+      'Jeep': ['Cherokee','Compass','Gladiator','Grand Cherokee','Renegade','Wrangler'],
+      'Volkswagen': ['Amarok','Atlas','Cross','Gol','Golf','Jetta','Nivus','Passat','Polo','Taos','T-Cross','Tiguan'],
+      'Suzuki': ['Baleno','Celerio','Ciaz','Dzire','Ertiga','Grand Vitara','Jimny','S-Cross','Swift','Vitara'],
+      'Isuzu': ['D-Max','MU-X'],
+      'Audi': ['A3','A4','A5','A6','Q3','Q5','Q7','Q8'],
+      'Land Rover': ['Defender','Discovery','Discovery Sport','Range Rover','Range Rover Evoque','Range Rover Sport','Range Rover Velar'],
+      'Porsche': ['Cayenne','Macan','Panamera'],
+      'Dodge': ['Challenger','Charger','Durango','Journey','RAM 1500','RAM 2500'],
+      'RAM': ['700','1000','1200','1500','2500','3500'],
+      'Chrysler': ['300','Pacifica'],
+      'Subaru': ['Crosstrek','Forester','Impreza','Outback','WRX','XV'],
+      'Peugeot': ['2008','208','3008','5008','Landtrek','Partner'],
+      'Renault': ['Duster','Koleos','Kwid','Logan','Oroch','Sandero','Stepway'],
+      'Fiat': ['500','Argo','Cronos','Mobi','Strada','Toro'],
+      'Mini': ['Clubman','Cooper','Countryman'],
+      'Infiniti': ['Q50','QX50','QX55','QX60','QX80'],
+      'Acura': ['ILX','MDX','RDX','TLX'],
+      'Daihatsu': ['Bego','Charade','Mira','Sirion','Terios'],
+      'Alfa Romeo': ['Giulia','Stelvio','Tonale'],
+      'Great Wall': ['Cannon','Haval H6','Haval Jolion','Poer','Wingle'],
+      'Changan': ['Alsvin','CS35','CS55','CS75','Hunter'],
+      'Chery': ['Arrizo 5','Tiggo 2','Tiggo 4','Tiggo 7','Tiggo 8'],
+      'Geely': ['Azkarra','Coolray','Emgrand','GX3 Pro','Okavango'],
+      'BYD': ['Dolphin','Qin Plus','Seagull','Song Plus','Yuan Plus'],
+      'JAC': ['JS2','JS4','JS8','T6','T8'],
+      'MG': ['GT','HS','RX5','ZS'],
+      'Volvo': ['S60','S90','XC40','XC60','XC90'],
+      'Tesla': ['Model 3','Model S','Model X','Model Y'],
+      'Otros': ['Otro modelo'],
+    };
+
+    // Populate brand dropdown
+    function populateBrands() {
+      const brandSelect = document.getElementById('vehicle-brand');
+      if (!brandSelect) return;
+      Object.keys(VEHICLE_BRAND_MODELS).sort().forEach(brand => {
+        const opt = document.createElement('option');
+        opt.value = brand;
+        opt.textContent = brand;
+        brandSelect.appendChild(opt);
+      });
+    }
+
+    // Update models based on selected brand
+    function updateModels() {
+      const brand = document.getElementById('vehicle-brand').value;
+      const modelSelect = document.getElementById('vehicle-model');
+      modelSelect.innerHTML = '';
+      if (!brand) {
+        modelSelect.innerHTML = '<option value="">Primero seleccione marca...</option>';
+        return;
+      }
+      const models = VEHICLE_BRAND_MODELS[brand] || [];
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = 'Seleccionar modelo...';
+      modelSelect.appendChild(defaultOpt);
+      models.forEach(model => {
+        const opt = document.createElement('option');
+        opt.value = model;
+        opt.textContent = model;
+        modelSelect.appendChild(opt);
+      });
+    }
+
+    // Show "specify" input when guarantor relation = otro
+    function toggleGuarantorOther() {
+      const rel = document.getElementById('guarantor-relation').value;
+      document.getElementById('guarantor-other-wrapper').style.display = rel === 'otro' ? 'block' : 'none';
+    }
+
+    // Init on load
+    populateBrands();
+    toggleGuaranteeFields();
+
+    let currentStep = 1;
+    const totalSteps = 5;
+
+    function goToStep(n) {
+      if (n < 1 || n > totalSteps) return;
+      document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
+      document.getElementById('step-' + n).classList.add('active');
+      const steps = document.querySelectorAll('.progress-step');
+      const lines = [];
+      for (let i = 1; i < totalSteps; i++) {
+        lines.push(document.getElementById('line-' + i + '-' + (i + 1)));
+      }
+      steps.forEach((step, idx) => {
+        step.classList.remove('active', 'completed', 'disabled');
+        if (idx + 1 === n) step.classList.add('active');
+        else if (idx + 1 < n) step.classList.add('completed');
+        else step.classList.add('disabled');
+      });
+      lines.forEach((line, idx) => {
+        if (line) line.classList.toggle('completed', idx + 1 < n);
+      });
+      currentStep = n;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    document.querySelectorAll('.dev-banner__swatch').forEach(btn=>{btn.addEventListener('click',()=>{document.documentElement.style.setProperty('--color-tenant-primary',btn.dataset.color);document.querySelectorAll('.dev-banner__swatch').forEach(s=>s.classList.remove('active'));btn.classList.add('active');});});
+  </script>
+  <script src="_design-notes.js"></script>
+</body>
+</html>

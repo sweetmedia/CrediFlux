@@ -1,7 +1,5 @@
-'use client';
-
 import { useState } from 'react';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -154,7 +152,6 @@ export function TwoFactorSetup({ isOpen, onClose, onSuccess }: TwoFactorSetupPro
           <div className="space-y-4">
             <div className="flex justify-center">
               <div className="bg-white p-2 rounded-lg border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={setupData.qr_code}
                   alt="QR Code for 2FA"

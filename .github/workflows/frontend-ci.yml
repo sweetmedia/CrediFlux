@@ -1,0 +1,62 @@
+name: frontend-ci
+
+# Typecheck + vitest + build para `frontend/` (mismo esquema que frontend-ci de
+# NexConnect). jsdom con `fetch` simulado: no necesita servicios.
+
+on:
+  push:
+    # SOLO `main`, como backend-ci.yml: ramas aquí además de `pull_request`
+    # corren el job dos veces sobre el mismo commit.
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    # SIN filtro `paths:` a propósito: si se marca como check requerido, un
+    # filtro dejaría bloqueadas las PRs que no tocan el frontend. Cuesta ~2 min.
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci`: instala exactamente el lockfile y falla si package.json y
+      # package-lock.json se desincronizaron.
+      - name: Install dependencies
+        run: npm ci
+
+      # Informativo por ahora: el frontend arrastra ~26 errores de tipos
+      # previos a la suite. Cuando `npm run typecheck` salga limpio, quitar el
+      # `continue-on-error` para que sea compuerta (como en NexConnect).
+      - name: Typecheck (tsc --noEmit)
+        continue-on-error: true
+        run: npm run typecheck
+
+      - name: Tests (vitest)
+        run: npm test
+
+      # El build de Vite tarda segundos y caza imports rotos que vitest no
+      # toca (no hay Vercel construyendo cada PR, a diferencia de NexConnect).
+      - name: Build (vite)
+        run: npm run build
+
+      # Sin Playwright aquí: el e2e necesita backend + datos sembrados y se
+      # corre a mano (`npm run test:e2e`) contra el stack local.

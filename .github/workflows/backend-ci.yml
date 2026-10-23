@@ -1,0 +1,149 @@
+name: backend-ci
+
+# Suite de pytest del backend (Django + django-tenants) contra Postgres real.
+# Mismo esquema que api-ci de NexConnect: Postgres y Redis como servicios,
+# chequeo de migraciones, ruff y pytest con cobertura.
+
+on:
+  push:
+    # SOLO `main`. Con ramas aquí además de `pull_request`, cada push a una
+    # rama con PR abierta corre la suite DOS veces: el grupo de concurrencia
+    # lleva `github.ref`, distinto en cada evento, y ninguno cancela al otro.
+    # La unidad de CI es la PR.
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    # SIN filtro `paths:` a propósito: si este job se marca como check
+    # requerido, un filtro haría que las PRs que no tocan el backend esperen
+    # para siempre un check que nunca reporta. El job `cambios` salta la suite
+    # en segundos cuando la PR no toca el backend (un job saltado SÍ cumple el
+    # check requerido).
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  cambios:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.ver.outputs.backend }}
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENTO: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$EVENTO" != "pull_request" ]; then echo "backend=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # Ante la duda (la API falla o la lista sale vacía) la suite CORRE.
+          if ! archivos=$(gh api --paginate "repos/${{ github.repository }}/pulls/$PR/files" --jq '.[].filename') || [ -z "$archivos" ]; then
+            echo "No se pudo leer la lista de archivos: la suite corre."; echo "backend=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if echo "$archivos" | grep -qE '^(backend/|\.github/workflows/backend-ci\.yml$)'; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "La PR no toca el backend: la suite se salta."
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    needs: cambios
+    # `!cancelled()` + «si `cambios` falló, corre»: un job saltado cumple el
+    # check requerido, así que ante la duda la suite corre.
+    if: >-
+      !cancelled() &&
+      (needs.cambios.result != 'success' || needs.cambios.outputs.backend == 'true')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: crediflux_db
+          POSTGRES_USER: crediflux_user
+          POSTGRES_PASSWORD: crediflux_pass
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U crediflux_user"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DJANGO_SECRET_KEY: test-secret
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_NAME: crediflux_db
+      DB_USER: crediflux_user
+      DB_PASSWORD: crediflux_pass
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: redis://localhost:6379/0
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.7"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      # La misma que docker/backend/Dockerfile (backend/.python-version).
+      - name: Install Python
+        run: uv python install
+
+      # psycopg2 (no -binary) compila contra libpq.
+      - name: Install system libs
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpq-dev
+
+      # --frozen: falla si uv.lock no corresponde a pyproject.toml.
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      # Sólo las apps de CrediFlux: djangosdk (tercero) trae un rename de
+      # índice pendiente en su propio paquete que no podemos commitear, y
+      # `core` no tiene migraciones a propósito (PadronJCE es managed=False).
+      - name: Django migrations up-to-date
+        run: >-
+          uv run python manage.py makemigrations --check --dry-run
+          tenants users audit loans communications billing cashbox ai
+
+      # Ruff es compuerta sólo para la infraestructura de pruebas. El resto del
+      # backend todavía tiene deuda de lint/formato (≈300 avisos, 120 ficheros
+      # sin formatear): se reporta sin bloquear hasta que se limpie en una PR
+      # propia; entonces se quita el `continue-on-error`.
+      - name: Ruff (tests, bloqueante)
+        run: |
+          uv run ruff check conftest.py tests config/settings/test.py
+          uv run ruff format --check conftest.py tests config/settings/test.py
+
+      - name: Ruff (backend completo, informativo)
+        continue-on-error: true
+        run: uv run ruff check . --statistics
+
+      - name: Run tests
+        run: uv run pytest --create-db --cov --cov-report=term-missing
