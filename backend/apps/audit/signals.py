@@ -13,16 +13,41 @@ TRACKED_MODELS = {
     'apps.loans.models.LoanPayment': 'LoanPayment',
     'apps.loans.models.Customer': 'Customer',
     'apps.loans.models.Collateral': 'Collateral',
-    'apps.contracts.models.Contract': 'Contract',
+    'apps.loans.models_contracts.Contract': 'Contract',
     'apps.users.models.User': 'User',
     'apps.tenants.models.Tenant': 'Tenant',
+    'apps.cashbox.models.CashSession': 'CashSession',
+    'apps.cashbox.models.CashMovement': 'CashMovement',
+    'apps.billing.models.Invoice': 'Invoice',
+    'apps.billing.models.FiscalSequence': 'FiscalSequence',
+    'apps.billing.models.DigitalCertificate': 'DigitalCertificate',
 }
 
-# Fields to exclude from change tracking
+# Fields to exclude from change tracking (never written to AuditLog.changes)
 EXCLUDED_FIELDS = {
     'password', 'totp_secret', 'backup_codes', 'last_login',
     'modified_at', 'updated_at', 'created_at',
+    # Secretos del Tenant / facturación
+    'smtp_password', 'imap_password',
+    'whatsapp_access_token', 'whatsapp_token', 'whatsapp_app_secret', 'whatsapp_verify_token',
+    'ai_api_key', 'nexconnect_api_key', 'nexconnect_webhook_secret',
+    'ecf_provider_api_key', 'ecf_provider_api_secret',
+    'stripe_secret_key', 'paypal_client_secret',
+    'certificate_password',
 }
+
+# Cualquier campo cuyo nombre contenga uno de estos fragmentos se trata como secreto.
+SENSITIVE_NAME_FRAGMENTS = ('password', 'secret', 'token', 'api_key')
+
+
+def is_sensitive_field(field_name):
+    """True si el nombre del campo sugiere un secreto (password, secret, token, api_key)."""
+    name = field_name.lower()
+    return any(fragment in name for fragment in SENSITIVE_NAME_FRAGMENTS)
+
+
+def is_excluded_field(field_name):
+    return field_name in EXCLUDED_FIELDS or is_sensitive_field(field_name)
 
 
 def get_model_key(instance):
@@ -45,22 +70,41 @@ def should_track_model(instance):
     return False
 
 
+def _real_tenant(candidate):
+    """Devuelve `candidate` sólo si es un Tenant persistido (no el FakeTenant de django-tenants)."""
+    from apps.tenants.models import Tenant
+
+    if isinstance(candidate, Tenant) and candidate.pk:
+        return candidate
+    return None
+
+
 def get_tenant_for_instance(instance):
-    """Get the tenant for an instance."""
-    # Check if instance has a tenant attribute
-    if hasattr(instance, 'tenant') and instance.tenant:
-        return instance.tenant
-    # Check if instance IS a tenant
+    """
+    Tenant al que pertenece el registro auditado.
+
+    1. FK `tenant` en la instancia (o la instancia ES un Tenant).
+    2. `request.tenant` del request en curso (modelos de schema sin FK a Tenant).
+    3. `connection.tenant` (schema activo; cubre Celery, shell y comandos).
+    Devuelve None sólo si nada de lo anterior existe.
+    """
     if instance.__class__.__name__ == 'Tenant':
         return instance
-    # Check if instance is a User with a tenant
-    if hasattr(instance, 'tenant_id'):
-        from apps.tenants.models import Tenant
+    if getattr(instance, 'tenant_id', None):
         try:
-            return Tenant.objects.get(pk=instance.tenant_id)
-        except Tenant.DoesNotExist:
-            pass
-    return None
+            tenant = _real_tenant(instance.tenant)
+        except Exception:
+            tenant = None
+        if tenant:
+            return tenant
+
+    request = get_current_request()
+    tenant = _real_tenant(getattr(request, 'tenant', None)) if request else None
+    if tenant:
+        return tenant
+
+    from django.db import connection
+    return _real_tenant(getattr(connection, 'tenant', None))
 
 
 def get_field_value(instance, field_name):
@@ -95,8 +139,8 @@ def get_changes(old_instance, new_instance):
     for field in new_instance._meta.fields:
         field_name = field.name
 
-        # Skip excluded fields
-        if field_name in EXCLUDED_FIELDS:
+        # Skip excluded / secret fields (ni old ni new llegan al log)
+        if is_excluded_field(field_name):
             continue
 
         old_value = get_field_value(old_instance, field_name)
@@ -111,33 +155,33 @@ def get_changes(old_instance, new_instance):
     return changes
 
 
-# Store for pre_save values
-_pre_save_instances = {}
-
-
 @receiver(pre_save)
 def audit_pre_save(sender, instance, **kwargs):
     """
     Capture the state of the instance before save.
     This allows us to compare old vs new values.
+
+    El snapshot vive en la propia instancia (`_audit_old_instance`) y
+    `audit_post_save` lo consume; no hay estado de módulo que crezca.
     """
     if not should_track_model(instance):
         return
 
-    # Only capture if this is an update (has pk)
-    if instance.pk:
-        try:
-            old_instance = sender.objects.get(pk=instance.pk)
-            # Store in thread-local-like dict keyed by model+pk
-            key = f'{sender.__name__}_{instance.pk}'
-            _pre_save_instances[key] = old_instance
-        except sender.DoesNotExist:
-            pass
+    # Only capture if this is an update (has pk) and the log can be attributed
+    if not instance.pk or get_tenant_for_instance(instance) is None:
+        return
+    try:
+        instance._audit_old_instance = sender._default_manager.get(pk=instance.pk)
+    except sender.DoesNotExist:
+        pass
 
 
 @receiver(post_save)
 def audit_post_save(sender, instance, created, **kwargs):
     """Log create and update actions."""
+    # Consumir el snapshot antes de cualquier return para no dejarlo colgado
+    old_instance = instance.__dict__.pop('_audit_old_instance', None)
+
     if not should_track_model(instance):
         return
 
@@ -159,8 +203,6 @@ def audit_post_save(sender, instance, created, **kwargs):
     changes = {}
 
     if not created:
-        key = f'{sender.__name__}_{instance.pk}'
-        old_instance = _pre_save_instances.pop(key, None)
         changes = get_changes(old_instance, instance)
 
         # Skip if no meaningful changes
