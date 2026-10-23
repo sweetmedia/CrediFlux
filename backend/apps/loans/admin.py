@@ -11,6 +11,8 @@ from .models_contacts import CustomerPhone, CustomerEmail
 from .models_guarantors import Guarantor
 from .models_collections import CollectionReminder, CollectionContact
 from .models_contracts import ContractTemplate, Contract, ContractSignatureToken
+from rest_framework.exceptions import ValidationError
+from .policy import validate_approval, validate_disbursement
 
 
 def is_tenant_schema():
@@ -407,18 +409,25 @@ class LoanAdmin(ModelAdmin):
             self.message_user(request, 'No hay préstamos pendientes para aprobar', messages.WARNING)
             return
 
-        # Update all pending loans
+        approved = 0
         for loan in pending_loans:
+            try:
+                validate_approval(loan, request)
+            except ValidationError as exc:
+                self._report_policy_violation(request, loan, exc)
+                continue
             loan.status = 'approved'
             loan.approval_date = timezone.now().date()
             loan.approved_by = request.user
             loan.save()
+            approved += 1
 
-        self.message_user(
-            request,
-            f'{count} préstamo(s) aprobado(s) exitosamente',
-            messages.SUCCESS
-        )
+        if approved:
+            self.message_user(
+                request,
+                f'{approved} préstamo(s) aprobado(s) exitosamente',
+                messages.SUCCESS
+            )
 
     @admin.action(description='Rechazar préstamos seleccionados')
     def reject_loans(self, request, queryset):
@@ -460,8 +469,13 @@ class LoanAdmin(ModelAdmin):
             self.message_user(request, 'No hay préstamos aprobados para desembolsar', messages.WARNING)
             return
 
-        # Update all approved loans
+        disbursed = 0
         for loan in approved_loans:
+            try:
+                validate_disbursement(loan, request.user, request)
+            except ValidationError as exc:
+                self._report_policy_violation(request, loan, exc)
+                continue
             loan.status = 'active'
             loan.disbursement_date = timezone.now().date()
 
@@ -490,11 +504,27 @@ class LoanAdmin(ModelAdmin):
                 loan.maturity_date = loan.first_payment_date + relativedelta(days=num_payments - 1)
 
             loan.save()
+            disbursed += 1
 
+        if disbursed:
+            self.message_user(
+                request,
+                f'{disbursed} préstamo(s) desembolsado(s) exitosamente',
+                messages.SUCCESS
+            )
+
+    def _report_policy_violation(self, request, loan, exc):
+        from django.contrib import messages
+
+        detail = exc.detail
+        if isinstance(detail, dict):
+            parts = [str(msg) for msgs in detail.values() for msg in (msgs if isinstance(msgs, list) else [msgs])]
+        else:
+            parts = [str(msg) for msg in detail]
         self.message_user(
             request,
-            f'{count} préstamo(s) desembolsado(s) exitosamente',
-            messages.SUCCESS
+            f'{loan.loan_number}: ' + ' '.join(parts),
+            messages.ERROR
         )
 
 

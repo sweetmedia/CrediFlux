@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
@@ -29,6 +30,7 @@ from .serializers import (
     GuarantorSerializer, GuarantorListSerializer,
 )
 from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, CanRegisterPayments
+from .policy import validate_approval, validate_disbursement
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -381,6 +383,11 @@ class LoanViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        try:
+            validate_approval(loan, request)
+        except ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+
         # Get approval notes from request
         approval_notes = request.data.get('notes', '')
 
@@ -422,6 +429,11 @@ class LoanViewSet(viewsets.ModelViewSet):
                 {'error': 'Only approved loans can be disbursed'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        try:
+            validate_disbursement(loan, request.user, request)
+        except ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
 
         contract = loan.contracts.filter(is_archived=False).order_by('-generated_at').first()
         if not contract:

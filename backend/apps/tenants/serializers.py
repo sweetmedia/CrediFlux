@@ -455,6 +455,44 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Primary color must be a valid hex color (e.g., #6366f1).")
         return value
 
+    POLICY_RANGES = (
+        ('min_interest_rate', 'max_interest_rate', 'La tasa mínima no puede ser mayor que la tasa máxima.'),
+        ('min_loan_amount', 'max_loan_amount', 'El monto mínimo no puede ser mayor que el monto máximo.'),
+        ('min_loan_term_months', 'max_loan_term_months', 'El plazo mínimo no puede ser mayor que el plazo máximo.'),
+    )
+    NON_NEGATIVE_AMOUNTS = (
+        'min_loan_amount', 'max_loan_amount', 'collateral_required_above',
+        'guarantor_required_above', 'auto_approval_max_amount', 'enhanced_verification_amount',
+    )
+
+    def validate(self, attrs):
+        """Coherencia de la política de originación (los valores ausentes salen de la instancia)."""
+        def current(field):
+            if field in attrs:
+                value = attrs[field]
+            else:
+                value = getattr(self.instance, field, None)
+            return getattr(value, 'amount', value)
+
+        errors = {}
+        for field in self.NON_NEGATIVE_AMOUNTS:
+            value = current(field)
+            if value is not None and value < 0:
+                errors[field] = 'El monto no puede ser negativo.'
+
+        for low_field, high_field, message in self.POLICY_RANGES:
+            low, high = current(low_field), current(high_field)
+            if low_field not in errors and low is not None and high is not None and low > high:
+                errors[low_field] = message
+
+        max_loans = current('max_active_loans_per_customer')
+        if max_loans is not None and max_loans < 1:
+            errors['max_active_loans_per_customer'] = 'Debe permitir al menos 1 préstamo activo por cliente.'
+
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
     def update(self, instance, validated_data):
         """Custom update to handle logo deletion and schema switching"""
         from django.db import connection

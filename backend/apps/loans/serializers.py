@@ -7,6 +7,7 @@ from .models_collections import CollectionReminder, CollectionContact
 from .models_contracts import ContractTemplate, Contract
 from .models_guarantors import Guarantor
 from .fields import TenantUserField
+from .policy import validate_origination
 
 
 class MoneyAmountField(serializers.DecimalField):
@@ -567,6 +568,20 @@ class LoanSerializer(serializers.ModelSerializer):
             'maturity_date', 'approved_by', 'rejected_by', 'approval_notes',
         ]
 
+    def validate(self, attrs):
+        # Un PATCH/PUT no puede sacar el préstamo de la política del tenant.
+        policy_fields = ('customer', 'interest_rate', 'term_months')
+        if self.instance is not None and any(f in attrs for f in policy_fields):
+            merged = {
+                'interest_rate': attrs.get('interest_rate', self.instance.interest_rate),
+                'term_months': attrs.get('term_months', self.instance.term_months),
+            }
+            customer = attrs.get('customer', self.instance.customer)
+            validate_origination(
+                merged, customer, self.context.get('request'), instance=self.instance
+            )
+        return attrs
+
     def get_days_overdue(self, obj):
         """
         Calculate the maximum days overdue from all pending/overdue schedules
@@ -738,6 +753,8 @@ class LoanCreateSerializer(serializers.ModelSerializer):
 
         if attrs['term_months'] < 1:
             raise serializers.ValidationError("Term must be at least 1 month")
+
+        validate_origination(attrs, attrs.get('customer'), self.context.get('request'))
 
         template = self._get_default_contract_template(attrs['loan_type'])
         if not template:

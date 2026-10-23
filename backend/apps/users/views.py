@@ -10,6 +10,8 @@ from drf_yasg import openapi
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from django.conf import settings
+from django.db import transaction
+from apps.tenants.models import Tenant
 from allauth.account.views import ConfirmEmailView
 from allauth.account.models import EmailConfirmation, EmailConfirmationHMAC
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -454,17 +456,21 @@ class TeamMemberCreateView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = TeamMemberCreateSerializer(
-            data=request.data,
-            context={'request': request}
-        )
-
-        if serializer.is_valid():
-            user = serializer.save()
-            return Response(
-                TeamMemberListSerializer(user).data,
-                status=status.HTTP_201_CREATED
+        # El bloqueo de la fila del tenant serializa las altas concurrentes:
+        # dos requests no pueden pasar a la vez el control de max_users.
+        with transaction.atomic():
+            tenant = Tenant.objects.select_for_update().get(pk=request.user.tenant_id)
+            serializer = TeamMemberCreateSerializer(
+                data=request.data,
+                context={'request': request, 'tenant': tenant}
             )
+
+            if serializer.is_valid():
+                user = serializer.save()
+                return Response(
+                    TeamMemberListSerializer(user).data,
+                    status=status.HTTP_201_CREATED
+                )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

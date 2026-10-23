@@ -561,6 +561,15 @@ class TeamMemberCreateSerializer(serializers.ModelSerializer):
 
         return value
 
+    def validate(self, attrs):
+        """Respeta el cupo de usuarios activos del plan (Tenant.max_users)."""
+        tenant = self.context.get('tenant') or self.context['request'].user.tenant
+        if tenant is not None:
+            active_users = User.objects.filter(tenant=tenant, is_active=True).count()
+            if active_users >= tenant.max_users:
+                raise serializers.ValidationError('Límite de usuarios del plan alcanzado.')
+        return attrs
+
     def create(self, validated_data):
         """Create new staff user"""
         password = validated_data.pop('password')
