@@ -27,7 +27,7 @@ from .services.ecf_generator import ECFGenerator
 from .services.ecf_signer import ECFSigner, ECFSignerError
 from .services.dgii_client import DGIIClient, DGIIClientError
 from .services.ecf_provider import (
-    ECFProviderError, current_tenant, get_ecf_provider, tenant_provider_key,
+    ECFInvoiceStateError, ECFProviderError, current_tenant, get_ecf_provider, tenant_provider_key,
 )
 from .services.nexconnect.provider import PROVIDER_KEY as NEXCONNECT, nexconnect_invoice_id
 
@@ -466,6 +466,8 @@ class ECFProviderViewSet(viewsets.ViewSet):
             provider = get_ecf_provider()
             result = provider.submit_invoice(invoice)
             return Response(result)
+        except ECFInvoiceStateError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except ECFProviderError as e:
             return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
 

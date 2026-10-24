@@ -13,7 +13,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from ...models import ECFSubmission, Invoice, InvoiceItem
-from ..ecf_provider import ECFProvider, ECFProviderError
+# Estados emitibles y anulables: los mismos guardas que el resto de proveedores.
+from ..ecf_provider import CANCELLABLE_STATUSES, EMITTABLE_STATUSES, ECFProvider, ECFProviderError
 from . import mapping
 from .client import NexConnectClient, NexConnectError
 from .credentials import NexConnectCredentialsError, credentials_for_tenant
@@ -22,11 +23,6 @@ logger = logging.getLogger(__name__)
 
 PROVIDER_KEY = 'nexconnect'
 
-# Estados locales desde los que se puede emitir.
-EMITTABLE_STATUSES = {'draft', 'generated'}
-
-# Estados en que NexConnect deja anular con una E34 (su regla 5, en local).
-CANCELLABLE_STATUSES = {'accepted', 'conditionally_accepted'}
 
 # Una NC de anulación que terminó así ya no cuenta: se puede intentar otra.
 DEAD_NOTE_STATUSES = {'rejected', 'cancelled'}

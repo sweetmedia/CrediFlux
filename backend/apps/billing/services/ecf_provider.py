@@ -31,8 +31,39 @@ class ECFProviderError(Exception):
     pass
 
 
+class ECFInvoiceStateError(ECFProviderError):
+    """La factura no está en un estado que permita la operación (regla de negocio → 400)."""
+
+
+# Estados locales desde los que se puede emitir.
+EMITTABLE_STATUSES = {'draft', 'generated'}
+
+# Estados en que se puede anular (NexConnect con una E34; DGMax/EF2 por su API).
+CANCELLABLE_STATUSES = {'accepted', 'conditionally_accepted'}
+
+
 class ECFProvider(ABC):
     """Abstract base class for e-CF providers."""
+
+    @staticmethod
+    def _require_emittable(invoice, statuses=EMITTABLE_STATUSES):
+        """Guarda común a todos los proveedores: sólo se envía una factura emitible y no enviada."""
+        if invoice.status not in statuses:
+            raise ECFInvoiceStateError(
+                f'No se puede enviar una factura en estado "{invoice.get_status_display()}"'
+            )
+        if invoice.dgii_trackid:
+            raise ECFInvoiceStateError(
+                f'La factura ya fue enviada (trackid {invoice.dgii_trackid}); consulte su estado'
+            )
+
+    @staticmethod
+    def _require_cancellable(invoice):
+        if invoice.status not in CANCELLABLE_STATUSES:
+            raise ECFInvoiceStateError(
+                f'Solo se puede anular una factura aceptada por la DGII '
+                f'(estado actual: "{invoice.get_status_display()}")'
+            )
 
     @abstractmethod
     def submit_invoice(self, invoice) -> dict:
@@ -90,6 +121,9 @@ class DirectDGIIProvider(ECFProvider):
     def submit_invoice(self, invoice) -> dict:
         from .dgii_client import DGIIClient, DGIIClientError
         from ..models import DigitalCertificate
+
+        # El flujo directo envía el XML ya firmado (Generar XML → Firmar → Enviar).
+        self._require_emittable(invoice, statuses={'signed'})
 
         # Get active certificate for this tenant
         cert = DigitalCertificate.objects.filter(
@@ -209,6 +243,7 @@ class DGMaxProvider(ECFProvider):
         }
 
     def submit_invoice(self, invoice) -> dict:
+        self._require_emittable(invoice)
         if not self.api_key:
             raise ECFProviderError('API key de DGMax no configurada')
 
@@ -280,6 +315,7 @@ class DGMaxProvider(ECFProvider):
             raise ECFProviderError(f'Error conexión DGMax: {e}')
 
     def cancel_invoice(self, invoice, reason: str) -> dict:
+        self._require_cancellable(invoice)
         try:
             response = requests.post(
                 f'{self.base_url}/ecf/cancel',
@@ -378,6 +414,7 @@ class EF2Provider(ECFProvider):
         }
 
     def submit_invoice(self, invoice) -> dict:
+        self._require_emittable(invoice)
         if not self.api_key:
             raise ECFProviderError('API key de EF2 no configurada')
 
@@ -449,6 +486,7 @@ class EF2Provider(ECFProvider):
             raise ECFProviderError(f'Error conexión EF2: {e}')
 
     def cancel_invoice(self, invoice, reason: str) -> dict:
+        self._require_cancellable(invoice)
         try:
             response = requests.post(
                 f'{self.base_url}/comprobantes/{invoice.dgii_trackid}/anular',
