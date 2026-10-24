@@ -2,11 +2,13 @@
 Serializers for Tenant API endpoints
 """
 import re
+import secrets
 from datetime import timedelta
 
 from rest_framework import serializers
 from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
+from django.core.cache import cache
 from django.db import connection, transaction
 from django.utils import timezone
 from django_tenants.utils import schema_exists
@@ -49,6 +51,35 @@ def _schema_unavailable(schema_name):
         or Tenant.objects.filter(schema_name=schema_name).exists()
         or schema_exists(schema_name)
     )
+
+
+def _available_username(email):
+    """Prefijo del correo como username; si ya existe, con un sufijo aleatorio.
+
+    El login es por correo: el username sólo debe ser único. Comprobarlo antes de crear
+    el tenant evita aprovisionar un schema entero para revertirlo por un IntegrityError.
+    """
+    base = email.split('@')[0][:140]
+    candidate = base
+    for _ in range(10):
+        if not User.objects.filter(username__iexact=candidate).exists():
+            return candidate
+        candidate = f'{base}-{secrets.token_hex(3)}'
+    raise serializers.ValidationError(REGISTRATION_REJECTED)
+
+
+def _spend_daily_budget(key, ttl=60 * 60 * 25):
+    """Suma un intento al contador del día en la caché y devuelve el total.
+
+    La caché no participa de la transacción: un alta que falla y se revierte después de
+    aprovisionar el schema sigue contando.
+    """
+    cache.add(key, 0, ttl)
+    try:
+        return cache.incr(key)
+    except ValueError:  # la clave caducó entre add e incr
+        cache.set(key, 1, ttl)
+        return 1
 
 
 class TenantRegistrationSerializer(serializers.Serializer):
@@ -242,6 +273,11 @@ class TenantRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError(REGISTRATION_REJECTED)
         if _schema_unavailable(schema_name) or Tenant.objects.filter(name=tenant_name).exists():
             raise serializers.ValidationError(REGISTRATION_REJECTED)
+        username = _available_username(owner_data['email'])
+
+        # Cada aprovisionamiento gasta el tope del día, también si luego se revierte.
+        if _spend_daily_budget(f'tenant_provisioning:{timezone.now():%Y%m%d}') > settings.MAX_TENANTS_PER_DAY:
+            raise serializers.ValidationError(REGISTRATION_REJECTED)
 
         # 1. Create Tenant
         tenant = Tenant.objects.create(**tenant_data)
@@ -257,9 +293,7 @@ class TenantRegistrationSerializer(serializers.Serializer):
             is_primary=True
         )
 
-        # 3. Create Owner User
-        username = owner_data['email'].split('@')[0]  # Use email prefix as username
-
+        # 3. Create Owner User (username libre elegido antes de aprovisionar)
         owner = User.objects.create_user(
             username=username,
             email=owner_data['email'],
