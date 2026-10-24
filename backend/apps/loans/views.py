@@ -375,6 +375,21 @@ class LoanViewSet(viewsets.ModelViewSet):
 
             self._generate_initial_contract(loan)
 
+    def perform_update(self, serializer):
+        # LoanSerializer sólo deja cambiar términos en un préstamo pendiente sin firmas;
+        # si cambian, la cuota y el contrato por firmar se rehacen para que el cliente
+        # firme exactamente lo que se aprobará y desembolsará.
+        from .utils_contracts import regenerate_latest_loan_contract
+
+        fields = serializer.TERM_FIELDS
+        before = {f: getattr(serializer.instance, f) for f in fields}
+        with transaction.atomic():
+            loan = serializer.save()
+            if any(getattr(loan, f) != before[f] for f in fields):
+                loan.payment_amount = self._calculate_payment_amount(loan)
+                loan.save(update_fields=['payment_amount', 'updated_at'])
+                regenerate_latest_loan_contract(loan)
+
     @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
     def approve(self, request, pk=None):
         """

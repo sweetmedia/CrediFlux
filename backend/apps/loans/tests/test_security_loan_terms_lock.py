@@ -97,6 +97,33 @@ def test_non_economic_fields_stay_editable_and_same_values_pass(officer_client, 
     assert response.status_code == 200, response.data
 
 
+def test_term_edit_on_pending_loan_regenerates_contract_and_installment(officer_client, customer_factory):
+    from apps.loans.models import Loan
+    from apps.loans.models_contracts import ContractTemplate
+
+    ContractTemplate.objects.create(
+        name="Base", content="Tasa {{interest_rate}} cuota {{monthly_payment}}", is_active=True, is_default=True
+    )
+    created = officer_client.post("/api/loans/", {
+        "customer": str(customer_factory().id), "loan_type": "personal",
+        "principal_amount": "10000.00", "principal_amount_currency": "DOP",
+        "interest_rate": "1.50", "interest_type": "flat", "term_months": 4,
+        "payment_frequency": "monthly", "payment_amount": "0.01", "payment_amount_currency": "DOP",
+    }, format="json")
+    assert created.status_code == 201, created.data
+    loan = Loan.objects.get(pk=created.data["id"])
+    old_payment = loan.payment_amount
+    old_content = loan.contracts.get().content
+
+    response = officer_client.patch(f"/api/loans/{loan.pk}/", {"interest_rate": "2.75"}, format="json")
+    assert response.status_code == 200, response.data
+    loan.refresh_from_db()
+    contract = loan.contracts.get()
+    assert loan.payment_amount != old_payment
+    assert contract.content != old_content
+    assert "2.75" in contract.content
+
+
 def test_disburse_reapplies_the_approval_policy(tenant_schema, approved_loan, user_factory):
     snapshot = (tenant_schema.require_credit_score, tenant_schema.minimum_credit_score)
     tenant_schema.require_credit_score = True
