@@ -677,21 +677,16 @@ class TenantLoginSerializer(serializers.Serializer):
         request = self.context.get('request')
         current_tenant = getattr(request, 'tenant', None)
 
-        # DEBUG LOGGING
-        logger.warning(f"🔐 TENANT LOGIN VALIDATION")
-        logger.warning(f"   User: {user.email}")
-        logger.warning(f"   User's Tenant: {user.tenant.schema_name if user.tenant else 'None (System Admin)'}")
-        logger.warning(f"   Current Request Tenant: {current_tenant.schema_name if current_tenant else 'None (Public Schema)'}")
-
-        # Superusers with no tenant can access any domain (system admins)
+        # Sin correo ni schema en WARNING: este es el camino de cada login (Global Constraint).
         if user.is_superuser and user.tenant is None:
-            logger.warning(f"   ✅ ALLOWED: System admin can access any tenant")
+            pass  # Los admins de plataforma (sin tenant) pueden entrar por cualquier dominio.
         else:
             # Validate user belongs to current tenant
             if current_tenant and user.tenant != current_tenant:
-                logger.warning(f"   ❌ BLOCKED: Tenant mismatch!")
-                logger.warning(f"   User tenant ID: {user.tenant.id if user.tenant else None}")
-                logger.warning(f"   Request tenant ID: {current_tenant.id}")
+                logger.info(
+                    'Login bloqueado: el usuario %s no pertenece al tenant %s',
+                    user.pk, current_tenant.pk,
+                )
                 raise serializers.ValidationError(
                     "Invalid credentials for this organization. "
                     "Please ensure you are using the correct login portal."
@@ -699,13 +694,11 @@ class TenantLoginSerializer(serializers.Serializer):
 
             # If no tenant in request (public schema), only allow system admins
             if not current_tenant and user.tenant is not None:
-                logger.warning(f"   ❌ BLOCKED: Tenant user trying to access public schema")
+                logger.info('Login bloqueado: usuario %s de tenant en el schema público', user.pk)
                 raise serializers.ValidationError(
                     "Invalid credentials for this portal. "
                     "Please use your organization's specific domain."
                 )
-
-            logger.warning(f"   ✅ ALLOWED: User belongs to this tenant")
 
         # Check if user has 2FA enabled
         if user.is_2fa_enabled:
@@ -718,7 +711,7 @@ class TenantLoginSerializer(serializers.Serializer):
             # Store user ID in cache for 5 minutes
             cache.set(f'2fa_pending_{temp_token}', str(user.pk), timeout=300)
 
-            logger.warning(f"   🔐 2FA REQUIRED: User has 2FA enabled")
+            logger.debug("Login: segundo factor requerido")
 
             return {
                 'requires_2fa': True,

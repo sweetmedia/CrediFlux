@@ -227,6 +227,21 @@ def _proxied_login(client, email, password, xff):
     )
 
 
+def test_login_does_not_log_email_or_schema_at_warning(api_client, user_factory, caplog):
+    import logging
+
+    user = user_factory(email="privado@crediflux.test")
+    with caplog.at_level(logging.DEBUG):
+        assert _login(api_client, user.email, PASSWORD).status_code == 200
+        # Un intento fallido tampoco deja el correo en WARNING.
+        _login(api_client, user.email, "incorrecta-xyz")
+    for record in caplog.records:
+        if record.levelno >= logging.WARNING:
+            message = record.getMessage()
+            assert user.email not in message, message
+            assert user.tenant.schema_name not in message, message
+
+
 def test_ip_counter_uses_forwarded_client_ip_behind_proxy(api_client, user_factory):
     user = user_factory(email="detras-proxy@crediflux.test")
     with _one_proxy():
