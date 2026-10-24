@@ -189,13 +189,16 @@ class PublicContractSerializer(SignedFilesModelSerializer):
     """Minimal contract payload safe for tokenized public access"""
     customer = PublicContractCustomerSerializer(source='loan.customer', read_only=True)
     loan_number = serializers.CharField(source='loan.loan_number', read_only=True)
+    # La página pública de firma (frontend/app/sign/[token]) lee customer_name y content.
+    customer_name = serializers.CharField(source='loan.customer.get_full_name', read_only=True)
 
     class Meta:
         model = Contract
         fields = [
-            'id', 'contract_number', 'status', 'contract_type', 'customer',
-            'loan_number', 'contract_date', 'customer_signed_at', 'officer_signed_at'
+            'id', 'contract_number', 'status', 'content', 'customer', 'customer_name',
+            'loan_number', 'generated_at', 'customer_signed_at', 'officer_signed_at'
         ]
+        read_only_fields = fields
 
 
 class CustomerListSerializer(SignedFilesModelSerializer):

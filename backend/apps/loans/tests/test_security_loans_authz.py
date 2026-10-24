@@ -376,3 +376,41 @@ def test_calculator_term_is_bounded(viewer_client):
     assert "term" in response.data
     response = viewer_client.post("/api/loans/calculate/", {**payload, "term": 600}, format="json")
     assert response.status_code == 200, response.content
+
+
+# PNG 1x1 transparente
+_PNG_1X1 = (
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
+)
+
+
+def test_public_contract_view_and_sign_happy_path(api_client, contract):
+    """Enlace válido: la vista pública devuelve el contrato y la firma lo consume."""
+    from apps.loans.models_contracts import Contract
+
+    token = _token(contract)
+
+    response = api_client.get(f"/api/loans/public/contracts/{token.token}/")
+    assert response.status_code == 200, response.content
+    payload = response.json()["contract"]
+    assert payload["contract_number"] == contract.contract_number
+    assert payload["content"] == "Contenido original"
+    assert payload["customer_name"] == contract.loan.customer.get_full_name()
+    assert payload["status"] == "pending_signature"
+    assert response.json()["token_permissions"]["can_sign_as_customer"] is True
+    # Nada interno del contrato ni del préstamo
+    for field in ("notes", "special_terms", "generated_by", "pdf_file", "template"):
+        assert field not in payload
+
+    response = api_client.post(
+        f"/api/loans/public/contracts/{token.token}/sign/",
+        {"signature_data": _PNG_1X1},
+        format="json",
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["signed_as"] == "customer"
+    assert Contract.objects.get(pk=contract.pk).customer_signed_at is not None
+
+    token.refresh_from_db()
+    assert token.used_at is not None
+    assert api_client.get(f"/api/loans/public/contracts/{token.token}/").status_code == 410
