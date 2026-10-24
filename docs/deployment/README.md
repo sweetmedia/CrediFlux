@@ -870,6 +870,11 @@ Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en e
   Ojo: con la configuración actual media y estáticos comparten `AWS_LOCATION = 'static'`, así que no hay un prefijo que separe solo media; no aplicar `--acl private` a ciegas sobre `static/` o se rompen los estáticos (si pasa, volver a ponerlos en `public-read`). Revisar también *Object Ownership* / *Block Public Access* del bucket: con `BucketOwnerEnforced` las ACL se ignoran y la privacidad depende de la bucket policy.
 - **Superusuario inicial**: `admin@crediflux.com`, creado por el `setup_initial_tenant.py` antiguo, conserva la contraseña antigua (conocida). **Rotarla.** El script nuevo lee `INITIAL_SUPERUSER_PASSWORD` o, si no está, genera una y la imprime una sola vez.
 
+### Pendiente (follow-up)
+
+- **Alta de tenants (#38)**: el aprovisionamiento (CREATE SCHEMA + migraciones) sigue siendo síncrono dentro de la petición de registro; sólo lo acotan el throttle por IP y `MAX_TENANTS_PER_DAY`.
+- Falta limpiar los tenants abandonados (no verificados) y pasar el aprovisionamiento a una tarea asíncrona; queda como follow-up.
+
 ---
 
 ## Troubleshooting en Producción
