@@ -983,6 +983,8 @@ class ContractSerializer(SignedFilesModelSerializer):
             # Contenido, estado y firmas sólo cambian por las acciones del contrato.
             'content', 'status', 'customer_signed_at', 'customer_signature',
             'officer_signed_at', 'officer_signature', 'witness_signature', 'witness_signed_at',
+            # El PDF lo genera el servidor (generate_pdf); nunca se sube por la API.
+            'pdf_file',
         ]
 
 

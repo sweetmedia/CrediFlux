@@ -378,6 +378,28 @@ def test_calculator_term_is_bounded(viewer_client):
     assert response.status_code == 200, response.content
 
 
+def test_officer_cannot_upload_pdf_file_to_signed_contract(officer_client, contract):
+    """El PDF se genera en el servidor: un PATCH no puede adjuntar otro archivo."""
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from apps.loans.models_contracts import Contract
+
+    Contract.objects.filter(pk=contract.pk).update(
+        status="signed", pdf_file="contracts/original.pdf",
+        customer_signed_at=timezone.now(), officer_signed_at=timezone.now(),
+    )
+    forged = SimpleUploadedFile("falso.pdf", b"%PDF-1.4 falso", content_type="application/pdf")
+    response = officer_client.patch(
+        f"/api/loans/contracts/{contract.id}/",
+        {"pdf_file": forged, "notes": "nota"},
+        format="multipart",
+    )
+    assert response.status_code == 200, response.content
+    stored = Contract.objects.get(pk=contract.pk)
+    assert stored.pdf_file.name == "contracts/original.pdf"
+    assert stored.notes == "nota"
+
+
 # PNG 1x1 transparente
 _PNG_1X1 = (
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
