@@ -70,3 +70,6 @@ frontend/coverage/
 frontend/test-results/
 frontend/playwright-report/
 frontend/playwright/.cache/
+
+# Credenciales de cuentas demo locales (no subir)
+DEMO_CREDENTIALS.local.md
