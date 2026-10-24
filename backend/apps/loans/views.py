@@ -272,6 +272,12 @@ class LoanViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'disbursement_date', 'principal_amount']
     ordering = ['-created_at']
 
+    def perform_destroy(self, instance):
+        # Un préstamo aprobado o desembolsado no desaparece de los libros con su calendario.
+        if instance.status not in ('pending', 'rejected'):
+            raise ValidationError({'status': 'Solo se pueden eliminar préstamos pendientes o rechazados.'})
+        instance.delete()
+
     def get_queryset(self):
         queryset = super().get_queryset().annotate(
             normalized_customer_id_number=Replace(
