@@ -7,21 +7,15 @@ import os
 from decimal import Decimal
 
 from django.conf import settings
-from reportlab import rl_config
-
-# Ningún recurso remoto ni `file:` desde el markup de Paragraph (`<img src=...>`).
-# Se fija antes de importar platypus: reportlab lee estos valores en el primer
-# `open_for_read`. Las rutas locales simples (logo del tenant) no dependen de esto;
-# el texto de usuario se escapa con `_esc` para que nunca llegue como etiqueta.
-rl_config.trustedSchemes = []
-rl_config.trustedHosts = []
-
-from reportlab.lib import colors  # noqa: E402
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT  # noqa: E402
-from reportlab.lib.pagesizes import letter  # noqa: E402
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet  # noqa: E402
-from reportlab.lib.units import inch  # noqa: E402
-from reportlab.platypus import (  # noqa: E402
+# La configuración de reportlab (trustedSchemes/trustedHosts vacíos) se fija en
+# `LoansConfig.ready()` (apps/loans/apps.py). El control real es escapar todo texto de
+# usuario con `_esc` antes de `Paragraph`.
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import (
     HRFlowable,
     Image,
     Paragraph,

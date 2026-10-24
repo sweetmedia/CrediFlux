@@ -17,6 +17,11 @@ ID_NUMBER_RE = re.compile(r'^[A-Za-z0-9 -]+$')
 ID_NUMBER_DIGITS = {'cedula': 11, 'rnc': 9}
 
 
+def normalize_id_number(value):
+    """id_number sin guiones ni espacios, para comparar valores equivalentes."""
+    return re.sub(r'[-\s]', '', value or '')
+
+
 class MoneyAmountField(serializers.DecimalField):
     """Decimal field that can safely serialize djmoney Money objects."""
 
@@ -146,6 +151,13 @@ class CustomerSerializer(SignedFilesModelSerializer):
         id_number = attrs.get('id_number', getattr(instance, 'id_number', None)) or ''
         id_type = attrs.get('id_type', getattr(instance, 'id_type', None))
 
+        # El formulario de edición envía un PUT completo: un cliente heredado con un
+        # id que no cumple la regla debe poder editarse si el id no cambia.
+        if instance is not None and id_type == instance.id_type and (
+            normalize_id_number(id_number) == normalize_id_number(instance.id_number)
+        ):
+            return attrs
+
         if not ID_NUMBER_RE.match(id_number):
             raise serializers.ValidationError({
                 'id_number': 'El número de identificación sólo admite letras, dígitos, guiones y espacios.'
@@ -153,7 +165,7 @@ class CustomerSerializer(SignedFilesModelSerializer):
 
         expected_digits = ID_NUMBER_DIGITS.get(id_type)
         if expected_digits:
-            digits = re.sub(r'[-\s]', '', id_number)
+            digits = normalize_id_number(id_number)
             if not (digits.isdigit() and len(digits) == expected_digits):
                 label = 'La cédula' if id_type == 'cedula' else 'El RNC'
                 raise serializers.ValidationError({

@@ -53,9 +53,8 @@ def test_contract_pdf_escapes_user_markup(contract):
 
 
 def test_reportlab_trusts_no_remote_schemes():
+    """Fijado en `LoansConfig.ready()`: vale tras `django.setup()`, sin importar utils_pdf."""
     from reportlab import rl_config
-
-    import apps.loans.utils_pdf  # noqa: F401  (fija la configuración al cargar)
 
     assert rl_config.trustedSchemes == []
     assert rl_config.trustedHosts == []
@@ -134,3 +133,45 @@ def test_customer_partial_update_checks_id_number_against_stored_type(officer_cl
 
     assert response.status_code == 400
     assert "id_number" in response.json()
+
+
+@pytest.fixture
+def legacy_customer(customer_factory):
+    # Cliente previo a la validación: cédula de 8 dígitos guardada por ORM.
+    return customer_factory(id_type="cedula", id_number="001-23456")
+
+
+def _full_payload(client, customer, **changes):
+    data = client.get(f"/api/loans/customers/{customer.id}/").json()
+    payload = {k: v for k, v in data.items() if v is not None and k not in (
+        "id", "customer_id", "full_name", "total_loans", "active_loans", "documents",
+        "created_at", "updated_at", "id_document", "photo", "monthly_income",
+    )}
+    payload.update(changes)
+    return payload
+
+
+def test_legacy_customer_full_put_without_id_change_is_allowed(officer_client, legacy_customer):
+    payload = _full_payload(officer_client, legacy_customer, phone="+18095559999")
+
+    response = officer_client.put(
+        f"/api/loans/customers/{legacy_customer.id}/", payload, format="json"
+    )
+
+    assert response.status_code == 200, response.content
+    legacy_customer.refresh_from_db()
+    assert str(legacy_customer.phone) == "+18095559999"
+    assert legacy_customer.id_number == "001-23456"
+
+
+def test_legacy_customer_full_put_changing_id_is_validated(officer_client, legacy_customer):
+    payload = _full_payload(officer_client, legacy_customer, id_number="001-99999")
+
+    response = officer_client.put(
+        f"/api/loans/customers/{legacy_customer.id}/", payload, format="json"
+    )
+
+    assert response.status_code == 400
+    assert "id_number" in response.json()
+    legacy_customer.refresh_from_db()
+    assert legacy_customer.id_number == "001-23456"
