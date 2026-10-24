@@ -175,3 +175,14 @@ def test_legacy_customer_full_put_changing_id_is_validated(officer_client, legac
     assert "id_number" in response.json()
     legacy_customer.refresh_from_db()
     assert legacy_customer.id_number == "001-23456"
+
+
+def test_unchanged_id_whitespace_variant_keeps_stored_value(officer_client, customer_factory):
+    customer = customer_factory(id_type="cedula", id_number="00112345678")
+    payload = _full_payload(officer_client, customer, id_number="001\t12345678")
+
+    response = officer_client.put(f"/api/loans/customers/{customer.id}/", payload, format="json")
+
+    assert response.status_code == 200, response.content
+    customer.refresh_from_db()
+    assert customer.id_number == "00112345678"

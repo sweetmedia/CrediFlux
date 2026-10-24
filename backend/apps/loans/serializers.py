@@ -156,6 +156,8 @@ class CustomerSerializer(SignedFilesModelSerializer):
         if instance is not None and id_type == instance.id_type and (
             normalize_id_number(id_number) == normalize_id_number(instance.id_number)
         ):
+            if 'id_number' in attrs:
+                attrs['id_number'] = instance.id_number  # se conserva tal cual (sin variantes)
             return attrs
 
         if not ID_NUMBER_RE.match(id_number):
