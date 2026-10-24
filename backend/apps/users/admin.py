@@ -7,6 +7,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.hashers import make_password
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from django.utils.crypto import get_random_string
@@ -17,6 +18,7 @@ from allauth.account.utils import send_email_confirmation
 from rest_framework import serializers
 from .lockout import validate_strength
 from .models import User
+from .quota import SEAT_LIMIT_MESSAGE, seats_left
 from .tokens import revoke_user_credentials
 
 # Campos que sólo el superusuario de plataforma (tenant=None) puede ver o editar.
@@ -296,7 +298,15 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     @action(description="✅ Activar usuarios seleccionados", permissions=['change'])
     def activate_users(self, request, queryset):
         """Activate selected users"""
-        count = queryset.filter(is_active=False).update(is_active=True)
+        with transaction.atomic():
+            pending = queryset.filter(is_active=False)
+            # El changelist del admin de tenant sólo muestra su tenant: el cupo es el suyo.
+            if not _is_platform_admin(request.user):
+                left = seats_left(request.user.tenant_id)
+                if left is not None and pending.count() > left:
+                    self.message_user(request, SEAT_LIMIT_MESSAGE, level=messages.ERROR)
+                    return
+            count = pending.update(is_active=True)
         if count:
             self.message_user(
                 request,
@@ -499,4 +509,11 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         # `tenant` es read-only para el admin de tenant: los usuarios que crea quedan en su tenant.
         if not change and not _is_platform_admin(request.user):
             obj.tenant_id = request.user.tenant_id
-        super().save_model(request, obj, form, change)
+        with transaction.atomic():
+            # Alta activa o reactivación: ocupa un cupo del plan (mismo control que la API).
+            becomes_active = obj.is_active and (not change or 'is_active' in form.changed_data)
+            if becomes_active and not _is_platform_admin(request.user):
+                left = seats_left(obj.tenant_id)
+                if left is not None and left <= 0:
+                    raise PermissionDenied(SEAT_LIMIT_MESSAGE)
+            super().save_model(request, obj, form, change)
