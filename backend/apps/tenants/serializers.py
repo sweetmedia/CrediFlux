@@ -29,6 +29,13 @@ RESERVED_TENANT_NAMES = {
 }
 _RESERVED_SCHEMAS = {name.replace('-', '_') for name in RESERVED_TENANT_NAMES}
 
+# Nombre del tenant = schema de PostgreSQL: letra inicial, máximo 63 caracteres.
+TENANT_NAME_RE = re.compile(r'[a-z][a-z0-9-]{0,62}')
+TENANT_NAME_FORMAT_ERROR = (
+    'El nombre del tenant debe empezar con una letra minúscula y contener sólo letras '
+    'minúsculas, números y guiones (máximo 63 caracteres).'
+)
+
 
 def schema_name_for(tenant_name):
     """Schema de PostgreSQL derivado del nombre del tenant (guiones → guiones bajos)."""
@@ -144,11 +151,15 @@ class TenantRegistrationSerializer(serializers.Serializer):
     )
 
     def validate_tenant_name(self, value):
-        """Formato del nombre (la existencia se comprueba en `validate`)."""
-        if not re.match(r'^[a-z0-9-]+$', value):
-            raise serializers.ValidationError(
-                "Tenant name must contain only lowercase letters, numbers, and hyphens."
-            )
+        """Formato del nombre (la existencia se comprueba en `validate`, con mensaje genérico).
+
+        Es también el nombre del schema (guiones → guiones bajos): PostgreSQL limita los
+        identificadores a 63 caracteres y uno que empieza por dígito no sirve sin comillas.
+        Se valida antes de crear nada para no fallar a mitad del CREATE SCHEMA.
+        """
+        value = (value or '').strip().lower()
+        if not TENANT_NAME_RE.fullmatch(value):
+            raise serializers.ValidationError(TENANT_NAME_FORMAT_ERROR)
         return value
 
     def validate_subdomain(self, value):

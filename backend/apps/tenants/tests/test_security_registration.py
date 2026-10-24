@@ -112,6 +112,32 @@ def test_legacy_media_folder_names_are_reserved(public_client, name):
     assert counts() == before
 
 
+TENANT_NAME_FORMAT = (
+    "El nombre del tenant debe empezar con una letra minúscula y contener sólo letras "
+    "minúsculas, números y guiones (máximo 63 caracteres)."
+)
+
+
+@pytest.mark.parametrize("name", ["1abc", "a" * 64, "-abc", "abc_def", "abc def", ""])
+def test_tenant_name_format_errors_are_specific(public_client, name):
+    before = counts()
+    response = public_client.post(URL, payload(tenant_name=name), format="json")
+    assert response.status_code == 400
+    if name:  # vacío: lo rechaza antes el CharField ("This field may not be blank.")
+        assert response.json() == {"tenant_name": [TENANT_NAME_FORMAT]}
+    assert counts() == before
+
+
+@pytest.mark.parametrize("raw, normalized", [("abc-1", "abc-1"), ("  Abc-1 ", "abc-1"), ("a" * 63, "a" * 63)])
+def test_tenant_name_format_accepts_valid_names(raw, normalized):
+    from apps.tenants.serializers import TenantRegistrationSerializer
+
+    serializer = TenantRegistrationSerializer(data=payload(tenant_name=raw))
+    serializer.is_valid()
+    assert "tenant_name" not in serializer.errors
+    assert serializer.validate_tenant_name(raw) == normalized
+
+
 def test_every_legacy_media_dir_is_a_reserved_schema():
     from apps.core.media import LEGACY_TOP_DIRS
     from apps.tenants.serializers import _RESERVED_SCHEMAS
@@ -145,7 +171,7 @@ def test_existence_of_email_name_or_subdomain_is_indistinguishable(public_client
 
 
 def test_format_errors_keep_their_specific_messages(public_client):
-    response = public_client.post(URL, payload(owner_email="no-es-un-correo", tenant_name="Mayus"), format="json")
+    response = public_client.post(URL, payload(owner_email="no-es-un-correo", tenant_name="1mayus"), format="json")
     assert response.status_code == 400
     body = response.json()
     assert "owner_email" in body and "tenant_name" in body
