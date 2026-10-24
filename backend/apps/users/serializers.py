@@ -770,16 +770,16 @@ class TwoFactorVerifySerializer(serializers.Serializer):
 
     def save(self):
         """Enable 2FA and generate backup codes"""
-        import secrets
+        from .backup_codes import generate_backup_codes
 
         user = self.context['request'].user
 
-        # Generate 10 backup codes
-        backup_codes = [secrets.token_hex(4).upper() for _ in range(10)]
+        # 10 códigos: en claro sólo en esta respuesta; en BD, hashes.
+        backup_codes, hashed = generate_backup_codes()
 
         # Enable 2FA
         user.is_2fa_enabled = True
-        user.backup_codes = backup_codes
+        user.backup_codes = hashed
         user.save(update_fields=['is_2fa_enabled', 'backup_codes'])
 
         return {
@@ -855,15 +855,13 @@ class TwoFactorLoginSerializer(serializers.Serializer):
 
         # Verify backup code
         elif backup_code:
-            backup_code = backup_code.upper()
-            if backup_code not in user.backup_codes:
+            from .backup_codes import consume_backup_code
+
+            # Compara contra los hashes y lo gasta bajo select_for_update (un solo uso).
+            if not consume_backup_code(user, backup_code):
                 raise serializers.ValidationError({
                     'backup_code': 'Invalid backup code.'
                 })
-
-            # Remove used backup code
-            user.backup_codes.remove(backup_code)
-            user.save(update_fields=['backup_codes'])
 
         reset_2fa(user)
 
@@ -955,7 +953,7 @@ class BackupCodesRegenerateSerializer(serializers.Serializer):
 
     def save(self):
         """Generate new backup codes"""
-        import secrets
+        from .backup_codes import generate_backup_codes
 
         user = self.context['request'].user
 
@@ -964,10 +962,10 @@ class BackupCodesRegenerateSerializer(serializers.Serializer):
                 'non_field_errors': '2FA is not enabled for this account.'
             })
 
-        # Generate 10 new backup codes
-        backup_codes = [secrets.token_hex(4).upper() for _ in range(10)]
+        # 10 códigos nuevos: en claro sólo en esta respuesta; en BD, hashes.
+        backup_codes, hashed = generate_backup_codes()
 
-        user.backup_codes = backup_codes
+        user.backup_codes = hashed
         user.save(update_fields=['backup_codes'])
 
         return {
