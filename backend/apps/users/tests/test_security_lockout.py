@@ -204,3 +204,67 @@ def test_admin_login_is_rate_limited_per_ip(tenant_schema):
         assert client.post("/admin/login/", data, REMOTE_ADDR="10.1.1.1").status_code == 200
     data = {"username": "nuevo@y.test", "password": "mala"}
     assert client.post("/admin/login/", data, REMOTE_ADDR="10.1.1.1").status_code == 403
+
+
+# --- IP real del cliente detrás del proxy (NUM_PROXIES) ---------------------------------
+
+PROXY_IP = "172.18.0.5"  # REMOTE_ADDR de todas las peticiones: el nginx de borde
+
+
+def _one_proxy():
+    from django.conf import settings
+
+    return override_settings(REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 1})
+
+
+def _proxied_login(client, email, password, xff):
+    return client.post(
+        LOGIN_URL,
+        {"email": email, "password": password},
+        format="json",
+        REMOTE_ADDR=PROXY_IP,
+        HTTP_X_FORWARDED_FOR=xff,
+    )
+
+
+def test_ip_counter_uses_forwarded_client_ip_behind_proxy(api_client, user_factory):
+    user = user_factory(email="detras-proxy@crediflux.test")
+    with _one_proxy():
+        for i in range(lockout.LOGIN_FAIL_IP_LIMIT):
+            _proxied_login(api_client, f"atacante{i}@crediflux.test", "incorrecta-xyz", f"203.0.113.{i}")
+        response = _proxied_login(api_client, user.email, PASSWORD, "198.51.100.7")
+    assert response.status_code == 200, response.content
+
+
+def test_ip_counter_still_applies_to_one_forwarded_client(api_client, user_factory):
+    user = user_factory(email="mismo-cliente@crediflux.test")
+    with _one_proxy():
+        for i in range(lockout.LOGIN_FAIL_IP_LIMIT):
+            # El cliente inventa la parte izquierda; el proxy añade su IP real al final.
+            _proxied_login(
+                api_client, f"spray{i}@crediflux.test", "incorrecta-xyz", f"10.9.9.{i}, 203.0.113.50"
+            )
+        response = _proxied_login(api_client, user.email, PASSWORD, "203.0.113.50")
+    assert LOCKOUT_MSG in _errors(response)
+
+
+def _proxied_admin_login(client, username, xff):
+    return client.post(
+        "/admin/login/",
+        {"username": username, "password": "mala"},
+        REMOTE_ADDR=PROXY_IP,
+        HTTP_X_FORWARDED_FOR=xff,
+    )
+
+
+def test_admin_ip_limit_uses_forwarded_client_ip_behind_proxy(tenant_schema):
+    client = Client(HTTP_HOST="tenant.test.localhost")
+    with _one_proxy():
+        for i in range(20):
+            assert _proxied_admin_login(client, f"p{i}@y.test", f"203.0.113.{i}").status_code == 200
+        # Otro cliente detrás del mismo proxy no hereda el contador.
+        assert _proxied_admin_login(client, "otro@y.test", "198.51.100.7").status_code == 200
+        # Pero un mismo cliente sí se bloquea al pasar de 20.
+        for i in range(19):
+            _proxied_admin_login(client, f"q{i}@y.test", "198.51.100.7")
+        assert _proxied_admin_login(client, "ultimo@y.test", "198.51.100.7").status_code == 403

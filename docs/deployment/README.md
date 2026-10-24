@@ -801,8 +801,8 @@ Varios controles de seguridad dependen de cómo está montada la red. El código
   ```
 
   (los proxies internos posteriores sí pueden usar `$proxy_add_x_forwarded_for`).
-- Si esto no se cumple, los throttles de DRF se agrupan por una IP que elige el atacante (puede evadir los límites o agotar los de otro), y la IP del audit log (`apps/audit/middleware.py`, toma el primer valor de `X-Forwarded-For`) queda falsificable.
-- El bloqueo de login (`apps/users/lockout.py`) usa `REMOTE_ADDR` como clave por IP (20 fallos / 5 min) y no lee `X-Forwarded-For`. Nada en el código reescribe `REMOTE_ADDR`, así que detrás de un proxy esa clave es la IP del proxy: el contador por IP es compartido por todos los clientes (20 fallos de cualquiera bloquean el login por IP a todos durante la ventana). El límite por cuenta (5 fallos) no se ve afectado.
+- Si esto no se cumple, los throttles de DRF se agrupan por una IP que elige el atacante (puede evadir los límites o agotar los de otro), y la IP del audit log (`apps/audit/middleware.py`) queda falsificable.
+- El bloqueo de login por IP (`apps/users/lockout.py`, 20 fallos / 5 min), el rate limit por IP del login del admin y la IP del audit log usan `apps/core/net.py:client_ip`, que respeta `DRF_NUM_PROXIES` igual que los throttles de DRF: con `N > 0` toma la N-ésima entrada de `X-Forwarded-For` desde la derecha; con `0`, `REMOTE_ADDR`. Por eso `DRF_NUM_PROXIES` debe igualar los proxies reales: con un valor menor, todos los clientes comparten la IP del proxy (20 fallos de cualquiera bloquean el login por IP a todos); con uno mayor, el cliente elige su IP. El límite por cuenta (5 fallos) no depende de la IP.
 
 ### b) Puerto de Postgres
 

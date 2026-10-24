@@ -262,3 +262,19 @@ def test_failed_audit_insert_does_not_break_outer_transaction(tenant_schema):
             customer.save()
         # La transacción externa sigue usable
         assert Customer.objects.filter(pk=customer.pk, city="Moca").exists()
+
+
+def test_audit_client_ip_honours_num_proxies():
+    """La IP del audit log es la del cliente según NUM_PROXIES, no el primer valor de XFF."""
+    from django.conf import settings
+    from django.test import RequestFactory, override_settings
+
+    from apps.audit.middleware import get_client_ip
+
+    request = RequestFactory().get(
+        "/", REMOTE_ADDR="172.18.0.5", HTTP_X_FORWARDED_FOR="6.6.6.6, 203.0.113.9"
+    )
+    with override_settings(REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 1}):
+        assert get_client_ip(request) == "203.0.113.9"
+    with override_settings(REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 0}):
+        assert get_client_ip(request) == "172.18.0.5"

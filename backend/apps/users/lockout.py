@@ -14,6 +14,8 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from apps.core.net import client_ip
+
 LOGIN_FAIL_LIMIT = 5  # por cuenta
 LOGIN_FAIL_IP_LIMIT = 20  # por IP (varias personas detrás de un mismo NAT)
 LOGIN_FAIL_WINDOW = 300  # segundos
@@ -26,8 +28,9 @@ def _email_key(email):
 
 
 def _ip_key(request):
-    ip = request.META.get('REMOTE_ADDR', '') if request is not None else ''
-    return f'login_fail_ip:{ip}'
+    # IP real del cliente según NUM_PROXIES: detrás del proxy, REMOTE_ADDR es el proxy
+    # y un contador por REMOTE_ADDR lo compartirían todos los clientes.
+    return f'login_fail_ip:{client_ip(request)}'
 
 
 def _increment(key):
@@ -96,8 +99,14 @@ def _admin_username_key(group, request):
     return (request.POST.get('username') or '').strip().lower()
 
 
+def _admin_ip_key(group, request):
+    return client_ip(request)
+
+
 def ratelimit_admin_login():
     """Envuelve `admin.site.login` con django-ratelimit: 5 POST por usuario y 20 por IP cada 5 min.
+
+    La IP es la del cliente según `NUM_PROXIES` (`apps.core.net.client_ip`), no `REMOTE_ADDR`.
 
     Idempotente: lo llaman `config/urls.py` y `config/urls_public.py` antes de incluir
     `admin.site.urls`. Al bloquear lanza `Ratelimited` (PermissionDenied) → 403.
@@ -108,7 +117,7 @@ def ratelimit_admin_login():
     if getattr(admin.site.login, '_crediflux_ratelimited', False):
         return
     by_user = ratelimit(key=_admin_username_key, rate='5/5m', method='POST', block=True)
-    by_ip = ratelimit(key='ip', rate='20/5m', method='POST', block=True)
+    by_ip = ratelimit(key=_admin_ip_key, rate='20/5m', method='POST', block=True)
     limited = by_ip(by_user(admin.site.login))
     limited._crediflux_ratelimited = True
     admin.site.login = limited

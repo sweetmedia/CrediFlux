@@ -1,5 +1,7 @@
 import threading
 
+from apps.core.net import client_ip
+
 # Thread-local storage for request context
 _thread_locals = threading.local()
 
@@ -10,13 +12,8 @@ def get_current_request():
 
 
 def get_client_ip(request):
-    """Extract client IP from request, handling proxies."""
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0].strip()
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
+    """IP del cliente según NUM_PROXIES (ver `apps.core.net.client_ip`); None si no hay."""
+    return client_ip(request) or None
 
 
 def get_user_agent(request):
