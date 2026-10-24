@@ -502,7 +502,7 @@ class PasswordChangeSerializer(serializers.Serializer):
 
         # Check current password
         user = self.context['request'].user
-        if not user.check_password(attrs['current_password']):
+        if not lockout.check_reauth_password(user, attrs['current_password']):
             raise serializers.ValidationError({
                 'current_password': 'Current password is incorrect.'
             })
@@ -885,15 +885,15 @@ class TwoFactorDisableSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Verify password and TOTP code"""
-        from .lockout import check_and_count_2fa, reset_2fa
+        from .lockout import check_and_count_2fa, check_reauth_password, reset_2fa
         from .totp import verify_totp_once
 
         user = self.context['request'].user
         password = attrs['password']
         code = attrs['code']
 
-        # Verify password
-        if not user.check_password(password):
+        # Verify password (con su propio límite de intentos, antes del contador 2FA)
+        if not check_reauth_password(user, password):
             raise serializers.ValidationError({
                 'password': 'Incorrect password.'
             })
@@ -934,7 +934,7 @@ class BackupCodesRegenerateSerializer(serializers.Serializer):
     def validate_password(self, value):
         """Verify password"""
         user = self.context['request'].user
-        if not user.check_password(value):
+        if not lockout.check_reauth_password(user, value):
             raise serializers.ValidationError("Incorrect password.")
         return value
 

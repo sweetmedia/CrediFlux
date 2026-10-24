@@ -86,6 +86,29 @@ def reset_2fa(user):
     cache.delete(_twofa_key(user))
 
 
+REAUTH_FAIL_LIMIT = 5  # contraseñas actuales por usuario y ventana (cambio de clave, 2FA)
+
+
+def _reauth_key(user):
+    # Por usuario y no por correo + IP: quien tenga el token de la víctima no la bloquea
+    # en la puerta de login, sólo agota su propio presupuesto de re-autenticación.
+    return f'reauth_fail:{user.pk}'
+
+
+def check_reauth_password(user, password):
+    """Cuenta el intento antes de verificar la contraseña actual de un usuario autenticado.
+
+    Lanza ValidationError al superar el límite (aunque la contraseña sea correcta, hasta
+    que caduque la ventana). Devuelve True si coincide (y borra el contador), False si no.
+    """
+    if _increment(_reauth_key(user)) > REAUTH_FAIL_LIMIT:
+        raise serializers.ValidationError(LOCKOUT_MESSAGE)
+    if not user.check_password(password):
+        return False
+    cache.delete(_reauth_key(user))
+    return True
+
+
 def validate_strength(password, user=None):
     """Aplica AUTH_PASSWORD_VALIDATORS y traduce el error al formato de DRF."""
     try:
