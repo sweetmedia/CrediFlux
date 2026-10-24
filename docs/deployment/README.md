@@ -837,12 +837,12 @@ Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en e
   | `MEDIA_SIGNED_URL_MAX_AGE` | `3600` (s) | vida de las URLs firmadas de media |
 
   `MEDIA_SIGNED_URL_MAX_AGE` es un setting de Django (se lee con `getattr`), no una variable de entorno: para cambiarlo hay que añadirlo al settings.
-- **Política de préstamos por tenant**: ahora se aplica en el backend. Defaults del modelo (`apps/tenants/models.py`): `require_id_document=True`, `require_disbursement_approval=True`, `max_interest_rate=36.00` (tasa **anual**). Se compara contra la tasa **mensual** del préstamo × 12, así que con el default se rechaza un préstamo al 5 % mensual (60 % anual). Revisar la política de cada tenant antes de salir en vivo.
+- **Política de préstamos por tenant**: ahora se aplica en el backend. Defaults del modelo (`apps/tenants/models.py`): `require_id_document=True`, `require_disbursement_approval=True`, `max_interest_rate=36.00` (tasa **anual**). Se compara contra la tasa **mensual** del préstamo × 12, así que con el default se rechaza un préstamo al 5 % mensual (60 % anual). La migración `tenants 0017` pone a **todos los tenants existentes** una política permisiva (montos 0–100,000,000, tasa anual 0–600 %, plazo 1–600 meses, 99 préstamos activos por cliente, sin requisitos de cédula, garante, garantía, score ni aprobación de desembolso): los tenants existentes conservan su comportamiento previo; revisar y endurecer la política por tenant en Configuración. Los defaults estrictos sólo aplican a tenants nuevos.
 - **Frontend**: desplegar a la vez los cambios de frontend de la Task 22 (la regeneración de códigos de respaldo envía `code`; logout al recibir `401 token_revoked`; las URLs firmadas de media caducan a la hora). El frontend anterior no funciona bien con este backend.
 
 ### Durante el despliegue
 
-- Migraciones nuevas en esta rama: `billing 0005`, `loans 0021`, `tenants 0015` y `0016`, `users 0007` y `0008`.
+- Migraciones nuevas en esta rama: `billing 0005`, `loans 0021`, `tenants 0015`, `0016` y `0017`, `users 0007` y `0008`.
 
   ```bash
   docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas
