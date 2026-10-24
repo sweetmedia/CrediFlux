@@ -11,6 +11,8 @@ from django.db import connection
 from django_tenants.utils import get_public_schema_name
 from rest_framework import serializers
 
+from .amortization import PAYMENTS_PER_MONTH, normalize_method
+
 # Estados que cuentan como préstamo "vivo" para max_active_loans_per_customer.
 OPEN_LOAN_STATUSES = ('pending', 'approved', 'active')
 ID_DOCUMENT_TYPES = ('id_card', 'passport', 'drivers_license')
@@ -21,6 +23,21 @@ def _amount(value):
     if value is None:
         return None
     return Decimal(str(getattr(value, 'amount', value)))
+
+
+def annual_nominal_rate(rate, interest_type=None, frequency=None):
+    """Tasa anual nominal (%) de `Loan.interest_rate` según el método de amortización.
+
+    Para casi todos los métodos la tasa es MENSUAL (anual = mensual × 12). Con
+    `variable_rd` es una tasa directa POR CUOTA (ver `amortization.build_installments`):
+    anual = tasa × cuotas al año, con las mismas cuotas por mes que el calendario.
+    """
+    rate = Decimal(str(rate))
+    if normalize_method(interest_type) == 'variable_rd':
+        if frequency == 'quarterly':
+            return (rate * 4).quantize(Decimal('0.01'))
+        return (rate * PAYMENTS_PER_MONTH.get(frequency, Decimal('1')) * 12).quantize(Decimal('0.01'))
+    return (rate * 12).quantize(Decimal('0.01'))
 
 
 def get_policy_tenant(request=None):
@@ -57,16 +74,19 @@ def validate_origination(attrs, customer, request=None, instance=None):
 
     rate = attrs.get('interest_rate')
     if rate is not None:
-        # Loan.interest_rate es MENSUAL; los límites del tenant son ANUALES (nominal = mensual × 12).
-        annual = (Decimal(str(rate)) * 12).quantize(Decimal('0.01'))
+        # Los límites del tenant son ANUALES; la tasa del préstamo es mensual o, con
+        # variable_rd, por cuota: se anualiza según el método y la frecuencia.
+        interest_type, frequency = attrs.get('interest_type'), attrs.get('payment_frequency')
+        annual = annual_nominal_rate(rate, interest_type, frequency)
+        per = 'por cuota' if normalize_method(interest_type) == 'variable_rd' else 'mensual'
         low, high = tenant.min_interest_rate, tenant.max_interest_rate
         if high is not None and annual > high:
             errors['interest_rate'] = (
-                f'La tasa {rate:.2f}% mensual ({annual:.2f}% anual) excede el máximo anual de {high:.2f}%.'
+                f'La tasa {rate:.2f}% {per} ({annual:.2f}% anual) excede el máximo anual de {high:.2f}%.'
             )
         elif low is not None and annual < low:
             errors['interest_rate'] = (
-                f'La tasa {rate:.2f}% mensual ({annual:.2f}% anual) es menor al mínimo anual de {low:.2f}%.'
+                f'La tasa {rate:.2f}% {per} ({annual:.2f}% anual) es menor al mínimo anual de {low:.2f}%.'
             )
 
     term = attrs.get('term_months')

@@ -618,11 +618,14 @@ class LoanSerializer(SignedFilesModelSerializer):
 
     def validate(self, attrs):
         # Un PATCH/PUT no puede sacar el préstamo de la política del tenant.
-        policy_fields = ('customer', 'interest_rate', 'term_months')
+        policy_fields = ('customer', 'interest_rate', 'term_months', 'interest_type', 'payment_frequency')
         if self.instance is not None and any(f in attrs for f in policy_fields):
             merged = {
                 'interest_rate': attrs.get('interest_rate', self.instance.interest_rate),
                 'term_months': attrs.get('term_months', self.instance.term_months),
+                # El tope de tasa depende del método y la frecuencia (variable_rd es por cuota).
+                'interest_type': attrs.get('interest_type', self.instance.interest_type),
+                'payment_frequency': attrs.get('payment_frequency', self.instance.payment_frequency),
             }
             # El tope de préstamos por cliente sólo se revisa si el préstamo cambia de cliente.
             customer = attrs.get('customer')
