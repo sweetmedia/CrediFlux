@@ -40,7 +40,9 @@ def test_tenant_admin_cannot_reset_a_superuser(admin_client, user_factory):
 def test_tenant_admin_cannot_reset_user_of_other_tenant(admin_client, other_tenant, user_factory):
     outsider = user_factory(tenant=other_tenant)
     r = admin_client.post(reset_url(outsider), {"generate_random": "true"})
-    assert r.status_code == 403
+    # Mismo redirect que un pk inexistente (sin oráculo de existencia entre tenants).
+    assert r.status_code == 302
+    assert r["Location"] == reverse("admin:users_user_changelist")
     outsider.refresh_from_db()
     assert outsider.check_password(PASSWORD)
 
@@ -187,3 +189,134 @@ def test_platform_superuser_can_create_tenant_with_schema_name(user_factory, mon
     r = platform_client.post(url, body)
     assert r.status_code == 302, r.context["adminform"].form.errors if r.context else r.content
     assert Tenant.objects.filter(schema_name="financiera_nueva", name="Financiera Nueva").exists()
+
+
+# --- Un admin que no es dueño no puede tomar la cuenta del dueño ------------------------
+
+@pytest.fixture
+def owner(tenant_admin):
+    return tenant_admin  # role=admin, is_tenant_owner=True
+
+
+@pytest.fixture
+def non_owner_admin(user_factory):
+    return user_factory(role="admin", is_tenant_owner=False, is_staff=True)
+
+
+@pytest.fixture
+def non_owner_client(non_owner_admin):
+    client = Client(HTTP_HOST=HOST)
+    client.force_login(non_owner_admin)
+    return client
+
+
+def _change_body(user, **overrides):
+    body = {
+        "username": user.username,
+        "email": user.email,
+        "first_name": user.first_name or "Nombre",
+        "last_name": user.last_name or "Apellido",
+        "role": user.role,
+        "is_active": "on",
+        "receive_notifications": "on",
+    }
+    body.update(overrides)
+    return body
+
+
+def test_non_owner_admin_cannot_reset_owner_password(non_owner_client, owner):
+    assert non_owner_client.post(reset_url(owner), new_password_body()).status_code == 403
+    assert non_owner_client.post(reset_url(owner), {"generate_random": "true"}).status_code == 403
+    owner.refresh_from_db()
+    assert owner.check_password(PASSWORD)
+
+
+def test_bulk_reset_skips_owner_for_non_owner_admin(non_owner_client, owner, user_factory):
+    member = user_factory()
+    r = non_owner_client.post(
+        reverse("admin:users_user_changelist"),
+        {"action": "reset_password_action", "_selected_action": [member.pk, owner.pk]},
+    )
+    assert r.status_code == 302
+    owner.refresh_from_db()
+    member.refresh_from_db()
+    assert owner.check_password(PASSWORD)
+    assert not member.check_password(PASSWORD)
+
+
+def test_non_owner_admin_cannot_edit_owner(non_owner_client, owner):
+    url = reverse("admin:users_user_change", args=[owner.pk])
+    original_email = owner.email
+    r = non_owner_client.post(url, _change_body(owner, email="tomado@atacante.test"))
+    assert r.status_code == 403
+    owner.refresh_from_db()
+    assert owner.email == original_email
+
+
+def test_owner_can_promote_member_to_admin(admin_client, user_factory):
+    member = user_factory(role="loan_officer")
+    url = reverse("admin:users_user_change", args=[member.pk])
+    r = admin_client.post(url, _change_body(member, role="admin"))
+    assert r.status_code == 302, r.context["adminform"].form.errors if r.context else r.content
+    member.refresh_from_db()
+    assert member.role == "admin"
+
+
+def test_non_owner_admin_cannot_promote_to_admin(non_owner_client, user_factory):
+    member = user_factory(role="loan_officer")
+    url = reverse("admin:users_user_change", args=[member.pk])
+    r = non_owner_client.post(url, _change_body(member, role="admin"))
+    assert r.status_code == 200  # el formulario vuelve con el error
+    assert "role" in r.context["adminform"].form.errors
+    member.refresh_from_db()
+    assert member.role == "loan_officer"
+
+
+def test_non_owner_admin_cannot_create_admin(non_owner_client):
+    from apps.users.models import User
+
+    body = {
+        "email": "nuevo-admin@crediflux.test",
+        "username": "nuevo-admin",
+        "first_name": "Nuevo",
+        "last_name": "Admin",
+        "role": "admin",
+        "password1": "Nueva-Clave-456!",
+        "password2": "Nueva-Clave-456!",
+    }
+    r = non_owner_client.post(reverse("admin:users_user_add"), body)
+    assert r.status_code == 200
+    assert "role" in r.context["adminform"].form.errors
+    assert not User.objects.filter(email="nuevo-admin@crediflux.test").exists()
+
+
+def test_non_owner_admin_can_edit_existing_admin_without_changing_role(non_owner_client, user_factory):
+    other_admin = user_factory(role="admin", is_tenant_owner=False)
+    url = reverse("admin:users_user_change", args=[other_admin.pk])
+    r = non_owner_client.post(url, _change_body(other_admin, first_name="Cambiado"))
+    assert r.status_code == 302, r.context["adminform"].form.errors if r.context else r.content
+
+
+def test_non_owner_admin_cannot_toggle_is_tenant_owner(non_owner_client, user_factory):
+    member = user_factory(role="loan_officer")
+    url = reverse("admin:users_user_change", args=[member.pk])
+    assert "is_tenant_owner" not in non_owner_client.get(url).context["adminform"].form.fields
+    r = non_owner_client.post(url, _change_body(member, is_tenant_owner="on"))
+    assert r.status_code == 302
+    member.refresh_from_db()
+    assert member.is_tenant_owner is False
+
+
+def test_reset_view_foreign_pk_looks_like_missing_pk(admin_client, other_tenant, user_factory):
+    from apps.users.models import User
+
+    outsider = user_factory(tenant=other_tenant)
+    missing_pk = (User.objects.order_by("-pk").values_list("pk", flat=True).first() or 0) + 1000
+    r_foreign = admin_client.post(reset_url(outsider), {"generate_random": "true"})
+    r_missing = admin_client.post(
+        reverse("admin:users_user_reset_password", args=[missing_pk]), {"generate_random": "true"}
+    )
+    assert r_foreign.status_code == r_missing.status_code == 302
+    assert r_foreign["Location"] == r_missing["Location"]
+    outsider.refresh_from_db()
+    assert outsider.check_password(PASSWORD)

@@ -1,6 +1,7 @@
 """
 User admin configuration with Unfold best practices
 """
+from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.hashers import make_password
@@ -24,6 +25,20 @@ PRIVILEGE_FIELDS = ('is_superuser', 'is_staff', 'groups', 'user_permissions', 't
 
 def _is_platform_admin(user):
     return user.is_superuser and user.tenant_id is None
+
+
+def _can_assign_admin(user):
+    """Misma regla que la API (TeamMember*Serializer.validate_role): dueño o superusuario."""
+    return user.is_tenant_owner or user.is_superuser
+
+
+def _protects_owner(actor, target):
+    """Un admin que no es dueño no toca la cuenta del dueño (clave, datos, rol)."""
+    return target.is_tenant_owner and not (actor.is_tenant_owner or _is_platform_admin(actor))
+
+
+ROLE_ADMIN_FORBIDDEN = 'Sólo el dueño del tenant puede asignar el rol de administrador.'
+OWNER_ROLE_LOCKED = 'No se puede cambiar el rol del dueño del tenant.'
 
 
 def _strength_errors(password, user):
@@ -171,8 +186,9 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
 
     def reset_password_view(self, request, user_id):
         """View to reset a specific user's password with a form"""
+        # Vía get_queryset: un pk de otro tenant responde igual que uno inexistente.
         try:
-            user = User.objects.get(pk=user_id)
+            user = self.get_queryset(request).get(pk=user_id)
         except User.DoesNotExist:
             messages.error(request, 'Usuario no encontrado.')
             return redirect(reverse('admin:users_user_changelist'))
@@ -239,6 +255,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             and actor.tenant_id is not None
             and target.tenant_id == actor.tenant_id
             and not target.is_superuser
+            and not _protects_owner(actor, target)
         )
 
     @action(description="🔑 Resetear contraseña", permissions=['change'])
@@ -425,6 +442,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             return (
                 obj.tenant_id == request.user.tenant_id
                 and not obj.is_superuser
+                and not _protects_owner(request.user, obj)
                 and request.user.can_manage_users()
             )
         return request.user.can_manage_users()
@@ -439,6 +457,26 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     # ------------------------------------------------------------------
     # Privilege fields: only the platform superuser sees or edits them
     # ------------------------------------------------------------------
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Añade al formulario (alta y edición) la regla de la API para `role`."""
+        form_class = super().get_form(request, obj, **kwargs)
+        if 'role' not in form_class.base_fields:
+            return form_class
+        actor = request.user
+        parent_clean_role = getattr(form_class, 'clean_role', None)
+
+        def clean_role(form):
+            role = parent_clean_role(form) if parent_clean_role else form.cleaned_data.get('role')
+            instance = form.instance
+            previous = instance.role if instance.pk else None
+            if instance.pk and instance.is_tenant_owner and role != previous:
+                raise forms.ValidationError(OWNER_ROLE_LOCKED)
+            if role == 'admin' and previous != 'admin' and not _can_assign_admin(actor):
+                raise forms.ValidationError(ROLE_ADMIN_FORBIDDEN)
+            return role
+
+        return type(form_class.__name__, (form_class,), {'clean_role': clean_role})
 
     def get_fieldsets(self, request, obj=None):
         fieldsets = super().get_fieldsets(request, obj)
