@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.db import connection, transaction
 from django.utils import timezone
 from django_tenants.utils import schema_exists
-from apps.core.media import PUBLIC_SCHEMA, SignedImageField, signed_media_url
+from apps.core.media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, SignedImageField, signed_media_url
 from apps.users import lockout
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
@@ -23,7 +23,9 @@ REGISTRATION_REJECTED = 'No se pudo completar el registro con estos datos.'
 
 RESERVED_TENANT_NAMES = {
     'public', 'pg-catalog', 'pg-toast', 'information-schema', 'www', 'admin',
-    'api', 'app', 'mail', 'ftp', 'localhost', 'test',
+    'api', 'app', 'mail', 'ftp', 'localhost', 'test', 'media', 'static',
+    # Carpetas antiguas de media (customer_documents → customer-documents, etc.).
+    *(name.replace('_', '-') for name in LEGACY_TOP_DIRS),
 }
 _RESERVED_SCHEMAS = {name.replace('-', '_') for name in RESERVED_TENANT_NAMES}
 

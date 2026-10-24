@@ -15,6 +15,14 @@ from rest_framework import serializers
 
 MEDIA_SIGNER_SALT = 'media'
 PUBLIC_SCHEMA = 'public'
+# Primer segmento de los nombres antiguos de media, anteriores a `<schema>/<prefijo>/...`.
+LEGACY_TOP_DIRS = frozenset({
+    'avatars', 'billing', 'collateral_documents', 'collateral_photos', 'collector_visits',
+    'contract_templates', 'contracts', 'customer_documents', 'customer_photos',
+    'guarantor_documents', 'loan_contracts', 'payment_receipts', 'tenants',
+})
+# apps/tenants/serializers.py los reserva como nombres de tenant: un schema con uno de
+# estos nombres saltaría el chequeo schema/archivo de SignedMediaView.
 
 
 def _signer():

@@ -10,19 +10,13 @@ from django.http import FileResponse, HttpResponse
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
-from .media import PUBLIC_SCHEMA, unsign_media
+from .media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, unsign_media
 
 DEFAULT_MAX_AGE = 3600
 INLINE_CONTENT_TYPES = {'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'}
 # Activos de plataforma firmados con schema `public` que se sirven en cualquier host:
 # el logo del tenant (`tenants/logos/` es su ruta antigua, anterior a `public/tenant_logos/`).
 PUBLIC_ASSET_PREFIXES = ('public/tenant_logos/', 'tenants/logos/')
-# Primer segmento de los nombres antiguos, anteriores a `<schema>/<prefijo>/...`.
-LEGACY_TOP_DIRS = frozenset({
-    'avatars', 'billing', 'collateral_documents', 'collateral_photos', 'collector_visits',
-    'contract_templates', 'contracts', 'customer_documents', 'customer_photos',
-    'guarantor_documents', 'loan_contracts', 'payment_receipts', 'tenants',
-})
 
 
 def _name_matches_schema(schema, name):

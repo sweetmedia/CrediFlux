@@ -99,6 +99,27 @@ def test_reserved_or_existing_schema_names_are_rejected(public_client, tenant, n
     assert counts() == before
 
 
+@pytest.mark.parametrize(
+    "name", ["contracts", "billing", "tenants", "avatars", "customer-documents", "media", "static"]
+)
+def test_legacy_media_folder_names_are_reserved(public_client, name):
+    # Un schema con el nombre de una carpeta antigua de media saltaría el chequeo
+    # schema/archivo de SignedMediaView (_name_matches_schema).
+    before = counts()
+    response = public_client.post(URL, payload(tenant_name=name, subdomain=f"{name}-x"), format="json")
+    assert response.status_code == 400
+    assert response.json() == {"non_field_errors": [GENERIC]}
+    assert counts() == before
+
+
+def test_every_legacy_media_dir_is_a_reserved_schema():
+    from apps.core.media import LEGACY_TOP_DIRS
+    from apps.tenants.serializers import _RESERVED_SCHEMAS
+
+    assert LEGACY_TOP_DIRS <= _RESERVED_SCHEMAS
+    assert {"media", "static", "public"} <= _RESERVED_SCHEMAS
+
+
 def test_name_whose_schema_exists_only_in_postgres_is_rejected(public_client):
     with connection.cursor() as cursor:
         cursor.execute("CREATE SCHEMA huerfano_schema")
