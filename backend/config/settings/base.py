@@ -282,6 +282,8 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
 # Tope global de tenants creados por autoservicio en las últimas 24 h
 # (cada alta crea un schema y corre todas las migraciones).
 MAX_TENANTS_PER_DAY = config('MAX_TENANTS_PER_DAY', default=20, cast=int)
+# Y por cliente (IP según NUM_PROXIES) y día: uno solo no puede agotar el tope de todos.
+MAX_TENANTS_PER_IP_PER_DAY = config('MAX_TENANTS_PER_IP_PER_DAY', default=2, cast=int)
 
 # dj-rest-auth configuration (v6.0+)
 REST_AUTH = {

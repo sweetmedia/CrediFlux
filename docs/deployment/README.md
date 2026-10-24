@@ -833,7 +833,8 @@ Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en e
   | `DRF_THROTTLE_TENANT_REGISTRATION` | `3/hour` | registro de tenants por IP |
   | `DRF_THROTTLE_VALIDATE_RNC` | `10/minute` | consultas a `validate-rnc` |
   | `DRF_THROTTLE_CEDULA_LOOKUP` | `30/minute` | consultas al Padrón JCE (`validate-cedula`) por usuario |
-  | `MAX_TENANTS_PER_DAY` | `20` | tenants nuevos por día (global) |
+  | `MAX_TENANTS_PER_DAY` | `20` | intentos de aprovisionamiento de tenants por día (global; cuentan también los que se revierten) |
+  | `MAX_TENANTS_PER_IP_PER_DAY` | `2` | intentos de aprovisionamiento por IP de cliente y día (se cobra antes que el global) |
   | `MEDIA_SIGNED_URL_MAX_AGE` | `3600` (s) | vida de las URLs firmadas de media |
 
   `MEDIA_SIGNED_URL_MAX_AGE` es un setting de Django (se lee con `getattr`), no una variable de entorno: para cambiarlo hay que añadirlo al settings.

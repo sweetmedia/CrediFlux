@@ -69,3 +69,28 @@ def test_failed_provisioning_attempt_spends_the_daily_cap(public_client, no_sche
     assert response.status_code == 400
     assert GENERIC in str(response.json())
     assert calls == []  # rechazado antes de aprovisionar
+
+
+def _register(client, n, ip):
+    data = payload(tenant_name=f"financiera-{n}", subdomain=f"financiera-{n}", owner_email=f"dueno{n}@nueva.test")
+    return client.post(URL, data, format="json", REMOTE_ADDR=ip)
+
+
+@override_settings(MAX_TENANTS_PER_DAY=100, MAX_TENANTS_PER_IP_PER_DAY=2)
+def test_one_client_cannot_spend_the_whole_daily_cap(public_client, no_schema):
+    attacker, legit = "198.51.100.20", "203.0.113.50"
+    assert _register(public_client, 1, attacker).status_code == 201
+    assert _register(public_client, 2, attacker).status_code == 201
+    response = _register(public_client, 3, attacker)
+    assert response.status_code == 400
+    assert GENERIC in str(response.json())
+    assert _register(public_client, 4, legit).status_code == 201
+
+
+@override_settings(MAX_TENANTS_PER_DAY=2, MAX_TENANTS_PER_IP_PER_DAY=1)
+def test_client_over_its_budget_does_not_spend_the_global_cap(public_client, no_schema, no_recent_tenants):
+    attacker = "198.51.100.20"
+    assert _register(public_client, 1, attacker).status_code == 201
+    for n in (2, 3):  # el throttle de 3/hora por IP corta antes de un 4.º intento
+        assert _register(public_client, n, attacker).status_code == 400
+    assert _register(public_client, 9, "203.0.113.50").status_code == 201

@@ -1,6 +1,7 @@
 """
 Serializers for Tenant API endpoints
 """
+import logging
 import re
 import secrets
 from datetime import timedelta
@@ -13,11 +14,13 @@ from django.db import connection, transaction
 from django.utils import timezone
 from django_tenants.utils import schema_exists
 from apps.core.media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, SignedImageField, signed_media_url
+from apps.core.net import client_ip
 from apps.users import lockout
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 # Mensaje único para cualquier dato ya existente o reservado: no revela si
 # lo que choca es el correo, el nombre del tenant o el subdominio.
@@ -275,8 +278,16 @@ class TenantRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError(REGISTRATION_REJECTED)
         username = _available_username(owner_data['email'])
 
+        # Presupuesto por cliente antes del global: un solo cliente no agota el tope de
+        # todos, y quien ya gastó el suyo no sigue gastando el global.
+        day = f'{timezone.now():%Y%m%d}'
+        ip = client_ip(self.context.get('request'))
+        if _spend_daily_budget(f'tenant_provisioning_ip:{ip}:{day}') > settings.MAX_TENANTS_PER_IP_PER_DAY:
+            raise serializers.ValidationError(REGISTRATION_REJECTED)
         # Cada aprovisionamiento gasta el tope del día, también si luego se revierte.
-        if _spend_daily_budget(f'tenant_provisioning:{timezone.now():%Y%m%d}') > settings.MAX_TENANTS_PER_DAY:
+        if _spend_daily_budget(f'tenant_provisioning:{day}') > settings.MAX_TENANTS_PER_DAY:
+            logger.warning('Tope diario de registros de tenants alcanzado (MAX_TENANTS_PER_DAY=%s)',
+                           settings.MAX_TENANTS_PER_DAY)
             raise serializers.ValidationError(REGISTRATION_REJECTED)
 
         # 1. Create Tenant
