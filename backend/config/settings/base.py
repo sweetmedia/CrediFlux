@@ -198,7 +198,8 @@ SITE_ID = 1
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'apps.users.authentication.CrediFluxJWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
+        # Sin SessionAuthentication: la SPA usa Bearer JWT y una sesión del admin de Django
+        # no debe autenticar la API (el 2FA sólo se exige en la puerta JWT y en el login del admin).
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',

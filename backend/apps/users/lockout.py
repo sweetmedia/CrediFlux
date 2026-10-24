@@ -106,6 +106,8 @@ def _admin_ip_key(group, request):
 def ratelimit_admin_login():
     """Envuelve `admin.site.login` con django-ratelimit: 5 POST por usuario y 20 por IP cada 5 min.
 
+    También instala el formulario con segundo factor (`admin_forms.TwoFactorAdminAuthenticationForm`).
+
     La IP es la del cliente según `NUM_PROXIES` (`apps.core.net.client_ip`), no `REMOTE_ADDR`.
 
     Idempotente: lo llaman `config/urls.py` y `config/urls_public.py` antes de incluir
@@ -114,6 +116,10 @@ def ratelimit_admin_login():
     from django.contrib import admin
     from django_ratelimit.decorators import ratelimit
 
+    from .admin_forms import TwoFactorAdminAuthenticationForm
+
+    # Segundo factor en la puerta del admin: sin esto, la contraseña sola abre una sesión.
+    admin.site.login_form = TwoFactorAdminAuthenticationForm
     if getattr(admin.site.login, '_crediflux_ratelimited', False):
         return
     by_user = ratelimit(key=_admin_username_key, rate='5/5m', method='POST', block=True)

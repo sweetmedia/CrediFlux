@@ -50,7 +50,8 @@ def test_own_host_session_does_not_cover_a_foreign_bearer(tenant_schema, user_fa
     client = APIClient(HTTP_HOST=TENANT)
     client.force_login(own)
     assert client.get("/api/users/profile/", **bearer(foreign_admin)).status_code == 403
-    assert client.get("/api/users/profile/").status_code == 200
+    # La sesión ya no autentica la API (run-2): el control es el propio bearer del usuario.
+    assert client.get("/api/users/profile/", **bearer(own)).status_code == 200
 
 def test_session_user_is_rejected_on_other_host(tenant_schema, user_factory, other_tenant):
     user = user_factory(role="admin")
