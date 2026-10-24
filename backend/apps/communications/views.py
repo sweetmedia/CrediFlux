@@ -10,7 +10,10 @@ from django.db.models import F
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
+from apps.core.permissions import TenantMatches
+
 from .models import Task
+from .permissions import CanManageTasks
 from .serializers import (
     TaskListSerializer,
     TaskSerializer,
@@ -30,7 +33,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     - Getting tasks by status
     """
     queryset = Task.objects.select_related('assignee', 'created_by', 'customer').all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, TenantMatches, CanManageTasks]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'priority', 'assignee', 'customer']
     search_fields = ['title', 'description', 'tags']
@@ -246,7 +249,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 
             for task_data in tasks_data:
                 try:
-                    task = Task.objects.get(pk=task_data['id'])
+                    task = self.get_queryset().get(pk=task_data['id'])
                     task.position = task_data['position']
                     task.save(update_fields=['position', 'updated_at'])
                     updated_count += 1
