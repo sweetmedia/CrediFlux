@@ -5,13 +5,15 @@ import logging
 
 from rest_framework import serializers as drf_serializers, status
 from rest_framework.settings import api_settings
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+
+from apps.core.net import client_ip
 from .serializers import (
     TenantRegistrationSerializer,
     TenantSerializer,
@@ -23,10 +25,18 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 
 
-class TenantRegistrationThrottle(AnonRateThrottle):
-    """Límite propio por IP para el alta pública de tenants."""
+class TenantRegistrationThrottle(SimpleRateThrottle):
+    """Límite propio por IP del cliente para el alta de tenants, autenticado o no.
+
+    No hereda de AnonRateThrottle: ese no limita a usuarios autenticados, y la ruta
+    también está montada en los hosts de tenant (un usuario con token agotaría el tope
+    global MAX_TENANTS_PER_DAY). La IP sale de `client_ip` (respeta NUM_PROXIES).
+    """
 
     scope = 'tenant_registration'
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {'scope': self.scope, 'ident': client_ip(request)}
 
     def get_rate(self):
         # Se lee en cada petición (no al importar) para respetar override_settings.

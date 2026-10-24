@@ -59,6 +59,37 @@ def test_fourth_registration_from_same_ip_in_an_hour_is_throttled(public_client)
     assert counts() == before
 
 
+def test_authenticated_tenant_user_is_throttled_too(auth_client):
+    # /api/tenants/register/ también está montado en los hosts de tenant: un usuario
+    # autenticado no puede saltarse el throttle (ni agotar MAX_TENANTS_PER_DAY).
+    bad = payload(owner_email="no-es-un-correo")
+    with throttled_settings():
+        for _ in range(3):
+            assert auth_client.post(URL, bad, format="json").status_code == 400
+        before = counts()
+        response = auth_client.post(URL, payload(), format="json")
+    assert response.status_code == 429
+    assert counts() == before
+
+
+def test_registration_throttle_keys_on_client_ip_behind_proxy(public_client):
+    bad = payload(owner_email="no-es-un-correo")
+    rf = dict(api_settings.user_settings)
+    rf["DEFAULT_THROTTLE_RATES"] = {"tenant_registration": "3/hour"}
+    rf["NUM_PROXIES"] = 1
+    with override_settings(REST_FRAMEWORK=rf):
+        for i in range(3):
+            response = public_client.post(
+                URL, bad, format="json", REMOTE_ADDR="172.18.0.5", HTTP_X_FORWARDED_FOR=f"203.0.113.{i}"
+            )
+            assert response.status_code == 400
+        # Otro cliente detrás del mismo proxy conserva su cupo.
+        response = public_client.post(
+            URL, bad, format="json", REMOTE_ADDR="172.18.0.5", HTTP_X_FORWARDED_FOR="198.51.100.7"
+        )
+        assert response.status_code == 400
+
+
 @pytest.mark.parametrize("name", ["public", "test", "pg-catalog", "pg-foo", "information-schema", "www"])
 def test_reserved_or_existing_schema_names_are_rejected(public_client, tenant, name):
     before = counts()
