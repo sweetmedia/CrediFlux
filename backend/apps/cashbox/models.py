@@ -46,7 +46,8 @@ class CashSession(UUIDModel, AuditModel):
     A cash register session (apertura/cierre de caja).
     Each day the cashier opens and closes the register.
     """
-    register = models.ForeignKey(CashRegister, on_delete=models.CASCADE, related_name='sessions')
+    # PROTECT: borrar una caja no puede arrastrar sesiones (ni sus movimientos y conteos).
+    register = models.ForeignKey(CashRegister, on_delete=models.PROTECT, related_name='sessions')
     cashier = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,

@@ -59,6 +59,15 @@ class CashRegisterViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'code']
 
+    def perform_destroy(self, instance):
+        # Borrar una caja arrastraría sus sesiones cerradas (y su diferencia) del libro.
+        user = self.request.user
+        if not (user.is_superuser or user.is_tenant_owner or user.role == 'admin'):
+            raise PermissionDenied('Solo el dueño o un administrador puede eliminar cajas.')
+        if instance.sessions.exists():
+            raise ValidationError({'detail': 'La caja tiene sesiones registradas; desactívela en lugar de eliminarla.'})
+        instance.delete()
+
 
 class CashSessionViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -241,3 +250,22 @@ class DenominationCountViewSet(viewsets.ModelViewSet):
     permission_classes = [CanManageCashOperations]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['session', 'count_type']
+
+    @staticmethod
+    def _ensure_session_open(session):
+        # Mismo invariante que los movimientos: el conteo físico de un turno cerrado no se reescribe.
+        if session.status != 'open':
+            raise ValidationError({'detail': 'La sesión de caja no está abierta.'})
+
+    def perform_create(self, serializer):
+        self._ensure_session_open(serializer.validated_data['session'])
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._ensure_session_open(serializer.instance.session)
+        self._ensure_session_open(serializer.validated_data.get('session', serializer.instance.session))
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._ensure_session_open(instance.session)
+        instance.delete()
