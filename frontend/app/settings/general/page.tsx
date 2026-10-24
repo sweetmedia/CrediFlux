@@ -144,6 +144,8 @@ export default function TenantSettingsPage() {
   const [backupCodesStatus, setBackupCodesStatus] = useState<{ is_2fa_enabled: boolean; backup_codes_remaining: number } | null>(null);
   const [isRegeneratingBackupCodes, setIsRegeneratingBackupCodes] = useState(false);
   const [regeneratePassword, setRegeneratePassword] = useState('');
+  const [regenerateCode, setRegenerateCode] = useState('');
+  const [regenerateCodeError, setRegenerateCodeError] = useState('');
   const [showRegenerateForm, setShowRegenerateForm] = useState(false);
   const [newBackupCodes, setNewBackupCodes] = useState<string[]>([]);
 
@@ -640,21 +642,31 @@ export default function TenantSettingsPage() {
       setTwoFAError('Ingresa tu contrasena');
       return;
     }
+    if (!/^\d{6}$/.test(regenerateCode)) {
+      setTwoFAError('');
+      setRegenerateCodeError('Ingresa el codigo de 6 digitos de tu aplicacion de autenticacion');
+      return;
+    }
 
     try {
       setIsRegeneratingBackupCodes(true);
       setTwoFAError('');
+      setRegenerateCodeError('');
 
-      const response = await authAPI.regenerateBackupCodes(regeneratePassword);
+      const response = await authAPI.regenerateBackupCodes(regeneratePassword, regenerateCode);
       setNewBackupCodes(response.backup_codes);
       setShowRegenerateForm(false);
       setRegeneratePassword('');
+      setRegenerateCode('');
       await load2FAStatus();
       setTwoFASuccess('Codigos de respaldo regenerados');
       setTimeout(() => setTwoFASuccess(''), 5000);
     } catch (err: any) {
       console.error('Error regenerating backup codes:', err);
-      if (err.response?.data?.password) {
+      const codeError = err.response?.data?.code;
+      if (codeError) {
+        setRegenerateCodeError(Array.isArray(codeError) ? codeError[0] : String(codeError));
+      } else if (err.response?.data?.password) {
         setTwoFAError(`Contrasena: ${err.response.data.password[0]}`);
       } else if (err.response?.data?.error) {
         setTwoFAError(err.response.data.error);
@@ -1191,18 +1203,45 @@ export default function TenantSettingsPage() {
                       {showRegenerateForm && (
                         <div className="p-4 bg-slate-50 rounded-lg border space-y-4">
                           <p className="text-sm text-slate-700">
-                            Ingresa tu contrasena para regenerar los codigos de respaldo.
-                            Los codigos anteriores seran invalidados.
+                            Ingresa tu contrasena y un codigo de tu aplicacion de autenticacion para
+                            regenerar los codigos de respaldo. Los codigos anteriores seran invalidados.
                           </p>
-                          <div className="space-y-2">
-                            <Label htmlFor="regenerate_password">Contrasena</Label>
-                            <Input
-                              id="regenerate_password"
-                              type="password"
-                              value={regeneratePassword}
-                              onChange={(e) => setRegeneratePassword(e.target.value)}
-                              disabled={isRegeneratingBackupCodes}
-                            />
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="regenerate_password">Contrasena</Label>
+                              <Input
+                                id="regenerate_password"
+                                type="password"
+                                autoComplete="current-password"
+                                value={regeneratePassword}
+                                onChange={(e) => setRegeneratePassword(e.target.value)}
+                                disabled={isRegeneratingBackupCodes}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="regenerate_code">Código de verificación</Label>
+                              <Input
+                                id="regenerate_code"
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                maxLength={6}
+                                placeholder="000000"
+                                value={regenerateCode}
+                                onChange={(e) => {
+                                  setRegenerateCode(e.target.value.replace(/\D/g, ''));
+                                  setRegenerateCodeError('');
+                                }}
+                                aria-invalid={!!regenerateCodeError}
+                                aria-describedby={regenerateCodeError ? 'regenerate_code_error' : undefined}
+                                disabled={isRegeneratingBackupCodes}
+                              />
+                              {regenerateCodeError && (
+                                <p id="regenerate_code_error" className="text-sm text-red-600">
+                                  {regenerateCodeError}
+                                </p>
+                              )}
+                            </div>
                           </div>
                           <div className="flex gap-2">
                             <Button
@@ -1211,6 +1250,8 @@ export default function TenantSettingsPage() {
                               onClick={() => {
                                 setShowRegenerateForm(false);
                                 setRegeneratePassword('');
+                                setRegenerateCode('');
+                                setRegenerateCodeError('');
                               }}
                               disabled={isRegeneratingBackupCodes}
                             >

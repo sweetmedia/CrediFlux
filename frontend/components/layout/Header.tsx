@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Link from '@/lib/navigation/link';
 import { useRouter, usePathname } from '@/lib/navigation';
 import Image from '@/components/ui/image';
@@ -13,6 +14,8 @@ export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, tenant, logout } = useAuth();
+  // URL firmada del logo que falló al cargar (p. ej. expirada): se usa el logo por defecto.
+  const [failedLogo, setFailedLogo] = useState<string | null>(null);
 
   const handleLogout = async () => {
     try {
@@ -39,7 +42,7 @@ export function Header() {
         <div className="flex items-center justify-between h-20">
           {/* Logo & Tenant */}
           <div className="flex items-center gap-8">
-            {tenant?.logo ? (
+            {tenant?.logo && failedLogo !== tenant.logo ? (
               <img
                 src={
                   tenant.logo.startsWith('http')
@@ -48,6 +51,7 @@ export function Header() {
                 }
                 alt={tenant.business_name}
                 className="h-8 w-auto object-contain"
+                onError={() => setFailedLogo(tenant.logo ?? null)}
               />
             ) : (
               <Image

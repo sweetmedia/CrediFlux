@@ -332,6 +332,8 @@ export interface Tenant {
   subscription_plan: 'basic' | 'professional' | 'enterprise';
   is_active: boolean;
   domain: string;
+  /** URL firmada del logo (expira; ver Task 17). */
+  logo?: string | null;
 }
 
 // Auth Types

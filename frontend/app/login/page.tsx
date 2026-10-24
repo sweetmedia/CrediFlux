@@ -18,6 +18,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import { TwoFactorVerify } from '@/components/auth';
+import { toast } from 'sonner';
+import { consumeSessionEndNotice } from '@/lib/api/session';
 
 const loginSchema = z.object({
   email: z.string().email('Email invalido'),
@@ -43,6 +45,12 @@ export default function LoginPage() {
       setShowVerified(true);
     }
   }, [searchParams]);
+
+  // Aviso dejado por el cliente HTTP al cerrar una sesión revocada.
+  useEffect(() => {
+    const notice = consumeSessionEndNotice();
+    if (notice) toast.info(notice, { id: 'session-end-notice' });
+  }, []);
 
   const {
     register,

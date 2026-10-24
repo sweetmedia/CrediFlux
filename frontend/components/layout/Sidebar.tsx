@@ -77,6 +77,8 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, tenant, logout } = useAuth();
+  // URL firmada del logo que falló al cargar (p. ej. expirada): se usa el logo por defecto.
+  const [failedLogo, setFailedLogo] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<string[]>(['contracts']);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
@@ -169,7 +171,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     >
       {/* Logo & Tenant */}
       <div className="px-5 py-5 border-b border-white/10">
-        {tenant?.logo ? (
+        {tenant?.logo && failedLogo !== tenant.logo ? (
           <img
             src={
               tenant.logo.startsWith('http')
@@ -178,6 +180,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             }
             alt={tenant.business_name}
             className="h-7 w-auto object-contain mb-3 brightness-0 invert"
+            onError={() => setFailedLogo(tenant.logo ?? null)}
           />
         ) : (
           <Image

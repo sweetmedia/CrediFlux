@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { clearStoredSession } from './session';
 import {
   LoginCredentials,
   TenantLoginResponse,
@@ -99,11 +100,7 @@ export const authAPI = {
         }
       }
 
-      // Clear all auth data
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('tenant');
+      clearStoredSession();
     }
   },
 
@@ -313,9 +310,9 @@ export const authAPI = {
   },
 
   /**
-   * Regenerate backup codes (requires password)
+   * Regenerate backup codes (requires password and current TOTP code)
    */
-  async regenerateBackupCodes(password: string): Promise<TwoFactorVerifyResponse> {
-    return apiClient.post<TwoFactorVerifyResponse>('/api/users/auth/2fa/backup-codes/', { password });
+  async regenerateBackupCodes(password: string, code: string): Promise<TwoFactorVerifyResponse> {
+    return apiClient.post<TwoFactorVerifyResponse>('/api/users/auth/2fa/backup-codes/', { password, code });
   },
 };

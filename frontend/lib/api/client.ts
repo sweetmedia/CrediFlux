@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
+import { endSession } from './session';
 
 /**
  * Get API URL based on current browser hostname
@@ -51,6 +52,43 @@ if (typeof window !== 'undefined') {
   console.log('  - Hostname:', window.location.hostname);
   console.log('  - VITE_API_URL:', import.meta.env.VITE_API_URL);
   console.log('  - API_URL (dynamic):', getApiUrl());
+}
+
+const REFRESH_PATH = '/api/auth/token/refresh/';
+
+// Un solo refresh en vuelo: los 401 concurrentes esperan la misma promesa.
+let refreshPromise: Promise<string> | null = null;
+
+/**
+ * Pide un access nuevo. El backend rota el refresh (el usado queda en lista
+ * negra), así que se guardan ambos. Si el refresh es rechazado (401/400:
+ * revocado, en lista negra, expirado) se cierra la sesión una sola vez; un
+ * error de red o 5xx no cierra la sesión.
+ * Usa `axios` directo (no la instancia), así que el refresh no pasa por el interceptor.
+ */
+function refreshAccessToken(refreshToken: string): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post(`${getApiUrl()}${REFRESH_PATH}`, { refresh: refreshToken })
+      .then((response) => {
+        const { access, refresh } = response.data as { access: string; refresh?: string };
+        localStorage.setItem('access_token', access);
+        if (refresh) localStorage.setItem('refresh_token', refresh);
+        return access;
+      })
+      .catch((refreshError: unknown) => {
+        const status = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined;
+        if (status === 401 || status === 400) {
+          const data = axios.isAxiosError(refreshError) ? (refreshError.response?.data as { code?: string } | undefined) : undefined;
+          endSession(data?.code === 'token_revoked' ? 'token_revoked' : undefined);
+        }
+        throw refreshError;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
 }
 
 class APIClient {
@@ -116,33 +154,26 @@ class APIClient {
           return Promise.reject(error);
         }
 
-        // If error is 401 and we haven't retried yet
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // 401: intentar un refresh (una sola vez por petición, nunca sobre el propio refresh)
+        if (
+          error.response?.status === 401 &&
+          originalRequest &&
+          !originalRequest._retry &&
+          !String(originalRequest.url ?? '').includes(REFRESH_PATH)
+        ) {
           originalRequest._retry = true;
 
-          try {
-            // Try to refresh token
-            const refreshToken = localStorage.getItem('refresh_token');
-            if (refreshToken) {
-              const response = await axios.post(`${getApiUrl()}/api/auth/token/refresh/`, {
-                refresh: refreshToken,
-              });
-
-              const { access } = response.data;
-              localStorage.setItem('access_token', access);
-
-              // Retry original request
+          const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null;
+          if (refreshToken) {
+            try {
+              const access = await refreshAccessToken(refreshToken);
               if (originalRequest.headers) {
                 originalRequest.headers.Authorization = `Bearer ${access}`;
               }
               return this.client(originalRequest);
+            } catch (refreshError) {
+              return Promise.reject(refreshError);
             }
-          } catch (refreshError) {
-            // Refresh failed, logout user
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            window.location.href = '/login';
-            return Promise.reject(refreshError);
           }
         }
 

@@ -54,6 +54,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (typeof window !== 'undefined') {
           localStorage.setItem('user', JSON.stringify(freshUser));
         }
+
+        // El tenant guardado trae URLs de archivos firmadas que expiran (1 h):
+        // se refresca al cargar la app, sin bloquear ni cerrar sesión si falla.
+        import('@/lib/api/tenants')
+          .then(({ tenantsAPI }) => tenantsAPI.getSettings())
+          .then((freshTenant) => {
+            // `tenantsAPI.Tenant` y `@/types` Tenant divergen (deuda previa, igual que en refreshTenant).
+            setTenant(freshTenant as unknown as Tenant);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('tenant', JSON.stringify(freshTenant));
+            }
+          })
+          .catch((tenantError) => console.error('Failed to refresh tenant:', tenantError));
       } catch (error) {
         // If API call fails, logout
         console.error('Failed to fetch user profile:', error);
