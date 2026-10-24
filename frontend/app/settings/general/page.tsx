@@ -670,6 +670,9 @@ export default function TenantSettingsPage() {
         setTwoFAError(`Contrasena: ${err.response.data.password[0]}`);
       } else if (err.response?.data?.error) {
         setTwoFAError(err.response.data.error);
+      } else if (err.response?.data?.non_field_errors?.[0] ?? err.response?.data?.detail) {
+        // Bloqueo de 2FA y "2FA no habilitado" llegan como non_field_errors.
+        setTwoFAError(err.response.data.non_field_errors?.[0] ?? err.response.data.detail);
       } else {
         setTwoFAError('Error al regenerar codigos de respaldo');
       }

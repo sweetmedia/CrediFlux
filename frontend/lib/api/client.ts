@@ -68,27 +68,54 @@ let refreshPromise: Promise<string> | null = null;
  */
 function refreshAccessToken(refreshToken: string): Promise<string> {
   if (!refreshPromise) {
-    refreshPromise = axios
-      .post(`${getApiUrl()}${REFRESH_PATH}`, { refresh: refreshToken })
-      .then((response) => {
-        const { access, refresh } = response.data as { access: string; refresh?: string };
-        localStorage.setItem('access_token', access);
-        if (refresh) localStorage.setItem('refresh_token', refresh);
-        return access;
-      })
-      .catch((refreshError: unknown) => {
-        const status = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined;
-        if (status === 401 || status === 400) {
-          const data = axios.isAxiosError(refreshError) ? (refreshError.response?.data as { code?: string } | undefined) : undefined;
-          endSession(data?.code === 'token_revoked' ? 'token_revoked' : undefined);
-        }
-        throw refreshError;
-      })
-      .finally(() => {
-        refreshPromise = null;
-      });
+    refreshPromise = withRefreshLock(() => doRefresh(refreshToken)).finally(() => {
+      refreshPromise = null;
+    });
   }
   return refreshPromise;
+}
+
+/**
+ * Serializa el refresh entre pestañas con Web Locks cuando el navegador lo
+ * soporta; sin Web Locks corre directo (la comparación de tokens en
+ * `doRefresh` cubre la carrera igualmente).
+ */
+function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  if (locks?.request) return locks.request('crediflux-token-refresh', fn) as Promise<T>;
+  return fn();
+}
+
+/** Otra pestaña ya rotó el refresh: el que enviamos ya no es el guardado. */
+function rotatedElsewhere(sent: string): string | null {
+  const stored = localStorage.getItem('refresh_token');
+  const access = localStorage.getItem('access_token');
+  return stored && stored !== sent && access ? access : null;
+}
+
+async function doRefresh(sentRefresh: string): Promise<string> {
+  // Con el lock, otra pestaña pudo terminar su refresh mientras esperábamos.
+  const already = rotatedElsewhere(sentRefresh);
+  if (already) return already;
+
+  try {
+    const response = await axios.post(`${getApiUrl()}${REFRESH_PATH}`, { refresh: sentRefresh });
+    const { access, refresh } = response.data as { access: string; refresh?: string };
+    localStorage.setItem('access_token', access);
+    if (refresh) localStorage.setItem('refresh_token', refresh);
+    return access;
+  } catch (refreshError: unknown) {
+    const status = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined;
+    if (status === 401 || status === 400) {
+      // Carrera entre pestañas: la otra ganó la rotación y el nuestro quedó en
+      // lista negra. Usar sus tokens en vez de cerrar la sesión de todas.
+      const winner = rotatedElsewhere(sentRefresh);
+      if (winner) return winner;
+      const data = axios.isAxiosError(refreshError) ? (refreshError.response?.data as { code?: string } | undefined) : undefined;
+      endSession(data?.code === 'token_revoked' ? 'token_revoked' : undefined);
+    }
+    throw refreshError;
+  }
 }
 
 class APIClient {
@@ -174,6 +201,10 @@ class APIClient {
             } catch (refreshError) {
               return Promise.reject(refreshError);
             }
+          }
+          // Access guardado pero sin refresh: no hay forma de renovar, cerrar la sesión.
+          if (typeof window !== 'undefined' && localStorage.getItem('access_token')) {
+            endSession();
           }
         }
 

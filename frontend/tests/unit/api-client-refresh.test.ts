@@ -78,6 +78,45 @@ describe('apiClient: refresh rechazado', () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it('carrera entre pestañas: si otra rotó el refresh, no cierra la sesión y reintenta con su access', async () => {
+    vi.spyOn(axios, 'post').mockImplementation(async () => {
+      // Mientras nuestro refresh viajaba, otra pestaña rotó y guardó tokens nuevos.
+      localStorage.setItem('access_token', 'acceso-otra-pestana');
+      localStorage.setItem('refresh_token', 'refresh-otra-pestana');
+      throw httpError({ headers: {} } as InternalAxiosRequestConfig, 401, {
+        detail: 'El token está en lista negra',
+        code: 'token_not_valid',
+      });
+    });
+    const seen: string[] = [];
+    const adapter: AxiosAdapter = (config) => {
+      const auth = String(config.headers?.Authorization ?? '');
+      seen.push(auth);
+      if (auth === 'Bearer acceso-otra-pestana') {
+        return Promise.resolve({ data: { ok: true }, status: 200, statusText: 'OK', headers: {}, config });
+      }
+      return Promise.reject(httpError(config, 401, { detail: 'expirado' }));
+    };
+    await expect(apiClient.get('/api/loans/', { adapter })).resolves.toEqual({ ok: true });
+    expect(endSession).not.toHaveBeenCalled();
+    expect(seen.at(-1)).toBe('Bearer acceso-otra-pestana');
+    expect(localStorage.getItem('refresh_token')).toBe('refresh-otra-pestana');
+  });
+
+  it('401 con access guardado pero sin refresh token cierra la sesión', async () => {
+    localStorage.removeItem('refresh_token');
+    const refresh = vi.spyOn(axios, 'post');
+    await expect(apiClient.get('/api/loans/', { adapter: unauthorized })).rejects.toBeTruthy();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('401 sin ninguna sesión guardada no redirige', async () => {
+    localStorage.clear();
+    await expect(apiClient.get('/api/loans/', { adapter: unauthorized })).rejects.toBeTruthy();
+    expect(endSession).not.toHaveBeenCalled();
+  });
+
   it('con refresh exitoso reintenta la petición con el token nuevo', async () => {
     vi.spyOn(axios, 'post').mockResolvedValue({ data: { access: 'acceso-nuevo', refresh: 'refresh-nuevo' } });
     const adapter: AxiosAdapter = (config) => {

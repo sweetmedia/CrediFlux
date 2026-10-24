@@ -6,7 +6,8 @@
 const SESSION_KEYS = ['access_token', 'refresh_token', 'user', 'tenant'] as const;
 const NOTICE_KEY = 'session_end_notice';
 
-export const SESSION_REVOKED_MESSAGE = 'Tu sesión fue cerrada por un cambio de contraseña.';
+// Neutro: token_revoked cubre cambio de contraseña, usuario inactivo y tenant distinto.
+export const SESSION_REVOKED_MESSAGE = 'Tu sesión fue cerrada. Inicia sesión de nuevo.';
 
 export function clearStoredSession(): void {
   if (typeof window === 'undefined') return;
