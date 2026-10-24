@@ -431,6 +431,8 @@ class LoanViewSet(viewsets.ModelViewSet):
             )
 
         try:
+            # La política de aprobación se vuelve a aplicar: el préstamo que sale es el de hoy.
+            validate_approval(loan, request)
             validate_disbursement(loan, request.user, request)
         except ValidationError as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)

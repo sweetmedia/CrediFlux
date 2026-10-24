@@ -163,6 +163,9 @@ def signed_loan(loan_factory, admin_user):
     from apps.loans.models_contracts import Contract
 
     loan = loan_factory(status="approved")
+    # El desembolso vuelve a aplicar la política de aprobación (cédula cargada por defecto).
+    loan.customer.id_document.name = "customer_documents/ids/cedula.pdf"
+    loan.customer.save(update_fields=["id_document"])
     Contract.objects.create(
         loan=loan,
         content="Contrato",

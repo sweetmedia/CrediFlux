@@ -3,6 +3,7 @@ Serializers for loan module
 """
 import re
 
+from django.db.models import Q
 from rest_framework import serializers
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
@@ -616,7 +617,29 @@ class LoanSerializer(SignedFilesModelSerializer):
             'maturity_date', 'approved_by', 'rejected_by', 'approval_notes',
         ]
 
+    # Deudor y términos económicos: lo que el aprobador revisó y el cliente firmó.
+    TERM_FIELDS = (
+        'customer', 'loan_type', 'principal_amount', 'interest_rate', 'interest_type',
+        'term_months', 'payment_frequency', 'first_payment_date',
+    )
+
+    def _ensure_terms_editable(self, attrs):
+        """Tras aprobar o firmar el contrato, deudor y términos ya no cambian por PATCH/PUT."""
+        changed = [f for f in self.TERM_FIELDS if f in attrs and attrs[f] != getattr(self.instance, f)]
+        if not changed:
+            return
+        signed = self.instance.contracts.filter(is_archived=False).filter(
+            Q(customer_signed_at__isnull=False) | Q(officer_signed_at__isnull=False)
+        ).exists()
+        if self.instance.status != 'pending' or signed:
+            raise serializers.ValidationError({
+                f: 'No se puede modificar después de aprobado el préstamo o firmado el contrato.'
+                for f in changed
+            })
+
     def validate(self, attrs):
+        if self.instance is not None:
+            self._ensure_terms_editable(attrs)
         # Un PATCH/PUT no puede sacar el préstamo de la política del tenant.
         policy_fields = ('customer', 'interest_rate', 'term_months', 'interest_type', 'payment_frequency')
         if self.instance is not None and any(f in attrs for f in policy_fields):
