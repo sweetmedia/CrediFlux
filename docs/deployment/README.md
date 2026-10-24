@@ -832,6 +832,7 @@ Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en e
   |---|---|---|
   | `DRF_THROTTLE_TENANT_REGISTRATION` | `3/hour` | registro de tenants por IP |
   | `DRF_THROTTLE_VALIDATE_RNC` | `10/minute` | consultas a `validate-rnc` |
+  | `DRF_THROTTLE_CEDULA_LOOKUP` | `30/minute` | consultas al Padrón JCE (`validate-cedula`) por usuario |
   | `MAX_TENANTS_PER_DAY` | `20` | tenants nuevos por día (global) |
   | `MEDIA_SIGNED_URL_MAX_AGE` | `3600` (s) | vida de las URLs firmadas de media |
 

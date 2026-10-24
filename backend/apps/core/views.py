@@ -69,6 +69,7 @@ class CanLookupCedula(CanManageCollections):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, TenantMatches, CanLookupCedula])
+@throttle_classes([ScopedRateThrottle])
 def validate_cedula_view(request):
     """
     Busca una cédula en el Padrón JCE (~7.9M registros).
@@ -268,6 +269,8 @@ def rnc_database_status(request):
 
 # @api_view no propaga throttle_scope a la vista envuelta: se fija en la clase generada.
 validate_rnc_view.cls.throttle_scope = 'validate_rnc'
+# Padrón JCE: datos personales de ~7.9M ciudadanos; límite propio por usuario.
+validate_cedula_view.cls.throttle_scope = 'cedula_lookup'
 rnc_database_status.cls.throttle_scope = 'validate_rnc'
 
 

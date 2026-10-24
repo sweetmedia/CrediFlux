@@ -168,6 +168,23 @@ def test_collector_can_query_cedula(api_client, user_factory):
     assert response.status_code == 400  # pasa el permiso y llega a la validación
 
 
+def test_cedula_view_uses_scoped_throttle():
+    view = views.validate_cedula_view
+    assert view.cls.throttle_scope == "cedula_lookup"
+    assert list(view.cls.throttle_classes) == [ScopedRateThrottle]
+    assert settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["cedula_lookup"] == "30/minute"
+
+
+def test_cedula_lookup_is_throttled_per_user(api_client, user_factory):
+    api_client.force_authenticate(user=user_factory(role="collector"))
+    limit = int(ScopedRateThrottle.THROTTLE_RATES["cedula_lookup"].split("/")[0])
+    assert limit == 30
+    for _ in range(limit):
+        # Cédula corta: 400, pero el throttle corre antes de la vista y cuenta igual.
+        assert api_client.get(CEDULA_URL, {"cedula": "123"}).status_code == 400
+    assert api_client.get(CEDULA_URL, {"cedula": "123"}).status_code == 429
+
+
 # --- Fix round 1: claves sin relleno y TTL de registros > TTL del meta ---------
 
 def _record(name):
