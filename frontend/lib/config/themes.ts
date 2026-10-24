@@ -8,34 +8,28 @@
 
 export type ThemeVersion = 'v1' | 'v2';
 
+// v2 agrega los tonos 0 y 25 (más claros que 50)
+export interface ColorScale {
+  0?: string;
+  25?: string;
+  50: string;
+  100: string;
+  200: string;
+  300: string;
+  400: string;
+  500: string;
+  600: string;
+  700: string;
+  800: string;
+  900: string;
+}
+
 export interface ThemeConfig {
   version: ThemeVersion;
   name: string;
   colors: {
-    primary: {
-      50: string;
-      100: string;
-      200: string;
-      300: string;
-      400: string;
-      500: string;
-      600: string;
-      700: string;
-      800: string;
-      900: string;
-    };
-    secondary: {
-      50: string;
-      100: string;
-      200: string;
-      300: string;
-      400: string;
-      500: string;
-      600: string;
-      700: string;
-      800: string;
-      900: string;
-    };
+    primary: ColorScale;
+    secondary: ColorScale;
   };
   fonts: {
     heading: string;

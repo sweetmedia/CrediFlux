@@ -68,6 +68,9 @@ class WhatsAppWebhookHandler:
                 changes = entry.get('changes', [])
 
                 for change in changes:
+                    if change.get('field') == 'message_template_status_update':
+                        self._handle_template_status(change.get('value', {}))
+                        continue
                     if change.get('field') != 'messages':
                         continue
 
@@ -136,6 +139,16 @@ class WhatsAppWebhookHandler:
         except Exception as e:
             logger.error(f"Error handling inbound message: {str(e)}")
             raise
+
+    def _handle_template_status(self, value: dict):
+        """Meta approved/rejected/paused one of our templates (runs in the tenant schema)."""
+        from apps.communications.whatsapp_template_service import apply_status_update
+
+        if not apply_status_update(value):
+            logger.info(
+                f"Template status update for unknown template "
+                f"{value.get('message_template_name')} in tenant {self.tenant.name}"
+            )
 
     def _handle_status(self, status: dict):
         """

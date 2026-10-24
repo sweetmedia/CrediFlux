@@ -31,6 +31,7 @@ export const loansAPI = {
   // Get all loans
   async getLoans(params?: {
     page?: number;
+    page_size?: number;
     search?: string;
     status?: string;
     loan_type?: string;
@@ -425,7 +426,7 @@ export const collectionsAPI = {
   },
 
   async getContactsByCollector(params?: {
-    user_id?: string;
+    user_id?: number;
     start_date?: string;
     end_date?: string;
   }): Promise<CollectionContact[]> {

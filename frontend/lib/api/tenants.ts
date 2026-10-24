@@ -104,6 +104,7 @@ export interface Tenant {
   whatsapp_business_account_id?: string;
   whatsapp_verify_token?: string;
   currency_symbol?: string;
+  timezone?: string;  // IANA, ej. America/New_York
 
   // SMTP/IMAP Email Configuration
   smtp_host?: string;
@@ -207,6 +208,7 @@ export interface TenantUpdateData {
   whatsapp_business_account_id?: string;
   whatsapp_verify_token?: string;
   currency_symbol?: string;
+  timezone?: string;  // IANA, ej. America/New_York
 
   // SMTP/IMAP Email Configuration
   smtp_host?: string;

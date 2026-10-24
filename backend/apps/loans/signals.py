@@ -118,7 +118,7 @@ def recalculate_schedules_from_payments(loan):
             payment.schedule = first_schedule
             payment.save(update_fields=['schedule'])
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     for schedule in loan.payment_schedules.all():
         if schedule.status in ['pending', 'partial'] and schedule.due_date < today:
             schedule.status = 'overdue'
@@ -187,11 +187,11 @@ def update_loan_status(sender, instance, created, **kwargs):
     """Update overdue schedules for active loans."""
     if not created and instance.status == 'active':
         overdue_schedules = instance.payment_schedules.filter(
-            due_date__lt=timezone.now().date(),
+            due_date__lt=timezone.localdate(),
             status__in=['pending', 'partial']
         )
 
         for schedule in overdue_schedules:
             schedule.status = 'overdue'
-            schedule.days_overdue = (timezone.now().date() - schedule.due_date).days
+            schedule.days_overdue = (timezone.localdate() - schedule.due_date).days
             schedule.save(update_fields=['status', 'days_overdue', 'updated_at'])

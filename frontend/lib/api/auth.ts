@@ -3,6 +3,7 @@ import { clearStoredSession } from './session';
 import {
   LoginCredentials,
   TenantLoginResponse,
+  AuthResponse,
   TenantRegistrationData,
   EmailVerificationRequest,
   EmailVerificationConfirm,
@@ -62,12 +63,13 @@ export const authAPI = {
   /**
    * Verify 2FA code during login and complete authentication
    */
-  async verify2FALogin(code: string, tempToken: string, useBackupCode: boolean = false): Promise<TenantLoginResponse> {
+  async verify2FALogin(code: string, tempToken: string, useBackupCode: boolean = false): Promise<AuthResponse> {
     const data = useBackupCode
       ? { backup_code: code, temp_token: tempToken }
       : { code, temp_token: tempToken };
 
-    const response = await apiClient.post<TenantLoginResponse>(
+    // El endpoint 2FA devuelve { access, refresh, user } (sin tenant)
+    const response = await apiClient.post<AuthResponse>(
       '/api/users/auth/2fa/login/',
       data
     );

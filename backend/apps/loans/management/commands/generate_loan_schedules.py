@@ -102,7 +102,7 @@ class Command(BaseCommand):
             current_date = loan.application_date + timedelta(days=30)
 
         # Today's date for status determination
-        today = timezone.now().date()
+        today = timezone.localdate()
 
         # Create schedule entries
         for i, row in enumerate(rows, start=1):

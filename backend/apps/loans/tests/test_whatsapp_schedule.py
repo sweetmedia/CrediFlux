@@ -34,6 +34,7 @@ def wa(tenant_schema):
     service = mock.MagicMock()
     service.is_configured.return_value = True
     service.send_payment_reminder.return_value = True
+    service.send_overdue_notice.return_value = True
     service._format_phone.side_effect = lambda phone: str(phone)
     with mock.patch("apps.loans.tasks.get_whatsapp_service", return_value=service):
         yield service
@@ -52,7 +53,7 @@ def _due_in(loan, installment, days, status="pending"):
 def _run(task_name):
     from apps.loans import tasks
 
-    return getattr(tasks, task_name).delay().get()
+    return getattr(tasks, task_name).delay(force=True).get()
 
 
 def test_recordatorio_antes_del_vencimiento_usa_los_dias_del_tenant(wa, active_loan):
@@ -85,7 +86,10 @@ def test_aviso_de_mora_a_los_15_dias_una_sola_vez_por_dia(wa, active_loan):
 
     assert _run("send_overdue_notice")["total_sent"] == 1
     assert _run("send_overdue_notice")["total_sent"] == 0
-    assert wa.wa_client.send_message.call_count == 1
+    # Plantilla `cuota_vencida`, nunca texto libre (Meta lo rechaza fuera de las 24 h)
+    assert wa.send_overdue_notice.call_count == 1
+    assert wa.send_overdue_notice.call_args.kwargs["days_overdue"] == 15
+    wa.wa_client.send_message.assert_not_called()
 
 
 def test_tenant_sin_whatsapp_habilitado_no_envia(tenant, active_loan):
@@ -97,20 +101,3 @@ def test_tenant_sin_whatsapp_habilitado_no_envia(tenant, active_loan):
     with mock.patch("apps.loans.tasks.get_whatsapp_service") as factory:
         assert _run("send_payment_reminders")["total_sent"] == 0
     factory.assert_not_called()
-
-
-def test_setup_periodic_tasks_programa_whatsapp_en_horario_laboral(public_schema):
-    from django_celery_beat.models import PeriodicTask
-
-    call_command("setup_periodic_tasks", stdout=mock.MagicMock())
-    call_command("setup_periodic_tasks", stdout=mock.MagicMock())
-
-    expected = {
-        "loans.send_payment_reminders": ("0", "9"),
-        "loans.send_overdue_notice": ("30", "9"),
-    }
-    for task_name, (minute, hour) in expected.items():
-        task = PeriodicTask.objects.get(task=task_name)
-        assert task.enabled
-        assert (task.crontab.minute, task.crontab.hour, task.crontab.day_of_week) == (minute, hour, "*")
-        assert str(task.crontab.timezone) == "America/Santo_Domingo"

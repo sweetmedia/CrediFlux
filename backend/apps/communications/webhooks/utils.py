@@ -68,6 +68,33 @@ def find_tenant_by_phone_id(phone_number_id: str):
     return matches[0]
 
 
+def find_tenant_by_waba_id(waba_id: str):
+    """
+    Find a tenant by its WhatsApp Business Account ID (webhook `entry[].id`).
+    Used for events without phone metadata, e.g. `message_template_status_update`.
+    """
+    if not waba_id:
+        return None
+
+    from apps.tenants.models import Tenant
+
+    return Tenant.objects.filter(
+        whatsapp_business_account_id=str(waba_id),
+        is_active=True
+    ).first()
+
+
+def extract_waba_id(payload: dict) -> Optional[str]:
+    """`entry[0].id`: the WhatsApp Business Account the event belongs to."""
+    try:
+        entries = payload.get('entry', [])
+        if entries:
+            return entries[0].get('id')
+    except (AttributeError, TypeError):
+        pass
+    return None
+
+
 def extract_phone_number_id(payload: dict) -> Optional[str]:
     """
     Extract the phone_number_id from a webhook payload.

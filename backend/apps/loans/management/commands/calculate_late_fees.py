@@ -10,6 +10,7 @@ from django_tenants.utils import schema_context
 from apps.tenants.models import Tenant
 from apps.loans.models import LoanSchedule
 from apps.loans.late_fees import calculate_late_fee, policy_for
+from apps.tenants.timezones import use_tenant_timezone
 
 
 class Command(BaseCommand):
@@ -40,7 +41,8 @@ class Command(BaseCommand):
         for tenant in tenants:
             self.stdout.write(f'\nProcessing tenant: {tenant.name} ({tenant.schema_name})')
 
-            with schema_context(tenant.schema_name):
+            # Días de atraso contados con el "hoy" de la zona del tenant
+            with schema_context(tenant.schema_name), use_tenant_timezone(tenant):
                 updated_count = self._calculate_late_fees_for_tenant(tenant)
                 total_updated += updated_count
                 self.stdout.write(
@@ -57,7 +59,7 @@ class Command(BaseCommand):
 
     def _calculate_late_fees_for_tenant(self, tenant):
         """Calculate late fees for all overdue schedules in a tenant"""
-        today = timezone.now().date()
+        today = timezone.localdate()
         policy = policy_for(tenant)
 
         # Cuotas vencidas sin saldar (las parciales también generan mora)

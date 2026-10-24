@@ -4,6 +4,7 @@ import Link from '@/lib/navigation/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { EMPLOYMENT_STATUSES, ID_TYPES } from '@/types';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { customersAPI } from '@/lib/api/customers';
 import { contactsAPI } from '@/lib/api/contacts';
@@ -53,7 +54,7 @@ const customerSchema = z.object({
   gender: z.enum(['M', 'F', 'O']).optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
-  id_type: z.string().min(1, 'Tipo de identificación requerido'),
+  id_type: z.enum(ID_TYPES, { message: 'Tipo de identificación requerido' }),
   id_number: z.string().min(5, 'Número de identificación requerido'),
   address_line1: z.string().min(5, 'Dirección requerida'),
   address_line2: z.string().optional(),
@@ -61,7 +62,7 @@ const customerSchema = z.object({
   state: z.string().min(2, 'Estado/Provincia requerido'),
   postal_code: z.string().min(2, 'Código postal requerido'),
   country: z.string().min(2, 'País requerido'),
-  employment_status: z.string().optional(),
+  employment_status: z.union([z.enum(EMPLOYMENT_STATUSES), z.literal('')]).optional(),
   employer_name: z.string().optional(),
   occupation: z.string().optional(),
   employment_start_date: z.string().optional(),
@@ -144,7 +145,6 @@ export default function NewCustomerPage() {
   const validateRncNumber = async (rnc: string) => {
     if (!rnc || rnc.length < 9) {
       setRncData(null);
-      setRncValidationMessage('');
       setRncValidationStatus(null);
       return;
     }
@@ -367,6 +367,7 @@ export default function NewCustomerPage() {
         phone: primaryPhone.phone,
         email: primaryEmail.email,
         monthly_income: data.monthly_income ? parseFloat(data.monthly_income) : undefined,
+        employment_status: data.employment_status || undefined,
       };
 
       const customer = await customersAPI.createCustomer(submitData);

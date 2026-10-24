@@ -668,11 +668,11 @@ class LoanSerializer(SignedFilesModelSerializer):
         # Get the most overdue payment schedule (pending, overdue, or partial)
         most_overdue = obj.payment_schedules.filter(
             status__in=['pending', 'overdue', 'partial'],
-            due_date__lt=timezone.now().date()
+            due_date__lt=timezone.localdate()
         ).order_by('due_date').first()
 
         if most_overdue:
-            return (timezone.now().date() - most_overdue.due_date).days
+            return (timezone.localdate() - most_overdue.due_date).days
         return 0
 
     def _get_primary_contract(self, obj):
@@ -766,11 +766,11 @@ class LoanListSerializer(SignedFilesModelSerializer):
 
         most_overdue = obj.payment_schedules.filter(
             status__in=['pending', 'overdue', 'partial'],
-            due_date__lt=timezone.now().date()
+            due_date__lt=timezone.localdate()
         ).order_by('due_date').first()
 
         if most_overdue:
-            return (timezone.now().date() - most_overdue.due_date).days
+            return (timezone.localdate() - most_overdue.due_date).days
         return 0
 
     def get_contract_id(self, obj):

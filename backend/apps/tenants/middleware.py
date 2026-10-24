@@ -89,3 +89,27 @@ class TenantAccessControlMiddleware:
             )
 
         return self.get_response(request)
+
+
+class TenantTimezoneMiddleware:
+    """
+    Activa la zona horaria del tenant del request (va justo después de
+    TenantMainMiddleware, que pone `request.tenant`).
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from django.utils import timezone
+
+        from .timezones import tenant_zone
+
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            return self.get_response(request)
+        timezone.activate(tenant_zone(tenant))
+        try:
+            return self.get_response(request)
+        finally:
+            timezone.deactivate()

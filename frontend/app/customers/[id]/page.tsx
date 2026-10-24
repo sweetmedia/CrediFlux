@@ -77,7 +77,7 @@ interface Loan {
   interest_rate: number;
   term_months: number;
   payment_frequency: string;
-  disbursement_date: string;
+  disbursement_date?: string;
   status: string;
   outstanding_balance: number;
   total_paid: number;
@@ -603,7 +603,7 @@ export default function CustomerDetailPage() {
                                   <p className="text-sm text-slate-600">
                                     {getLoanTypeBadge(loan.loan_type)} • {loan.payment_frequency} • {loan.term_months} meses • {loan.interest_rate}% mensual
                                   </p>
-                                  <p className="mt-1 text-xs text-slate-500">Desembolsado: {formatDate(loan.disbursement_date)}</p>
+                                  <p className="mt-1 text-xs text-slate-500">Desembolsado: {loan.disbursement_date ? formatDate(loan.disbursement_date) : '—'}</p>
                                 </div>
                               </div>
 

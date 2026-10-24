@@ -248,3 +248,34 @@ def send_whatsapp_message(
     except Exception as e:
         logger.error(f"Error sending WhatsApp message in {tenant_schema}: {str(e)}")
         raise
+
+
+@shared_task(name='communications.sync_whatsapp_templates')
+def sync_whatsapp_templates(tenant_schema: str = None):
+    """
+    Crea en la cuenta de WhatsApp de cada financiera las plantillas del catálogo
+    que falten y refresca su estado (apps.communications.whatsapp_template_service).
+    Sólo tenants con phone_id, token y WABA. Un tenant que falla no frena al resto.
+    """
+    from django.db.models import Q
+
+    from apps.communications.whatsapp_template_service import sync_tenant_templates
+    from apps.tenants.models import Tenant
+
+    tenants = Tenant.objects.filter(is_active=True).exclude(
+        Q(whatsapp_phone_id='') | Q(whatsapp_phone_id__isnull=True)
+        | Q(whatsapp_token='') | Q(whatsapp_token__isnull=True)
+        | Q(whatsapp_business_account_id='') | Q(whatsapp_business_account_id__isnull=True)
+    )
+    if tenant_schema:
+        tenants = tenants.filter(schema_name=tenant_schema)
+
+    results, failed = {}, []
+    for tenant in tenants:
+        try:
+            with schema_context(tenant.schema_name):
+                results[tenant.schema_name] = sync_tenant_templates(tenant)
+        except Exception:
+            logger.exception("Error sincronizando plantillas de WhatsApp de %s", tenant.schema_name)
+            failed.append(tenant.schema_name)
+    return {'results': results, 'failed': failed}

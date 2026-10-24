@@ -73,3 +73,6 @@ frontend/playwright/.cache/
 
 # Scratch de superpowers (ledgers, briefs)
 .superpowers/
+
+# Credenciales de cuentas demo locales (no subir)
+DEMO_CREDENTIALS.local.md

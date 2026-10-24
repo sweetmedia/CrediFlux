@@ -59,58 +59,39 @@ class Command(BaseCommand):
                 self.style.WARNING('  Updated existing task: Update RNC Database from DGII')
             )
 
-        # Daily late-fee calculation (mora) — 00:30 Santo Domingo
-        daily_schedule, _ = CrontabSchedule.objects.get_or_create(
-            minute='30',
-            hour='0',
-            day_of_week='*',
-            day_of_month='*',
-            month_of_year='*',
-            timezone='America/Santo_Domingo'
-        )
-        late_fee_task, created = PeriodicTask.objects.update_or_create(
-            name='Calculate late fees (mora)',
-            defaults={
-                'task': 'loans.calculate_late_fees',
-                'crontab': daily_schedule,
-                'enabled': True,
-                'description': 'Recalcula la mora de las cuotas vencidas en todos los tenants (diario 00:30)',
-            }
-        )
-        self.stdout.write(
-            self.style.SUCCESS(
-                f'✓ {"Created" if created else "Updated"} periodic task: {late_fee_task.name} (daily 00:30)'
-            )
-        )
-
-        # WhatsApp: recordatorios de pago (09:00) y avisos de mora (09:30), Santo Domingo.
-        # Sólo envían en tenants con enable_whatsapp_reminders y WhatsApp configurado.
-        for task_name, label, minute, hour, description in [
-            ('loans.send_payment_reminders', 'WhatsApp payment reminders', '0', '9',
-             'Recordatorios de cuota por WhatsApp (antes, el día y después del vencimiento)'),
-            ('loans.send_overdue_notice', 'WhatsApp overdue notices', '30', '9',
-             'Avisos de mora por WhatsApp a los 15, 30, 60 y 90 días de atraso'),
+        # Tareas diarias por tenant. Beat las dispara CADA HORA y cada tarea procesa
+        # sólo los tenants donde ahora es la hora local que le toca (Tenant.timezone):
+        # mora 00:30, recordatorios WhatsApp 09:00, avisos de mora 09:30.
+        for task_name, label, minute, description in [
+            ('loans.calculate_late_fees', 'Calculate late fees (mora)', '30',
+             'Recalcula la mora a las 00:30 locales de cada tenant'),
+            ('loans.send_payment_reminders', 'WhatsApp payment reminders', '0',
+             'Recordatorios de cuota por WhatsApp a las 09:00 locales de cada tenant'),
+            ('loans.send_overdue_notice', 'WhatsApp overdue notices', '30',
+             'Avisos de mora por WhatsApp (15/30/60/90 días) a las 09:30 locales de cada tenant'),
+            ('communications.sync_whatsapp_templates', 'WhatsApp templates sync', '15',
+             'Crea en Meta las plantillas que falten y refresca su estado (cada hora, todas las financieras)'),
         ]:
-            wa_schedule, _ = CrontabSchedule.objects.get_or_create(
+            hourly, _ = CrontabSchedule.objects.get_or_create(
                 minute=minute,
-                hour=hour,
+                hour='*',
                 day_of_week='*',
                 day_of_month='*',
                 month_of_year='*',
-                timezone='America/Santo_Domingo'
+                timezone='UTC'
             )
-            wa_task, created = PeriodicTask.objects.update_or_create(
+            periodic, created = PeriodicTask.objects.update_or_create(
                 name=label,
                 defaults={
                     'task': task_name,
-                    'crontab': wa_schedule,
+                    'crontab': hourly,
                     'enabled': True,
                     'description': description,
                 }
             )
             self.stdout.write(
                 self.style.SUCCESS(
-                    f'✓ {"Created" if created else "Updated"} periodic task: {wa_task.name} (daily {hour}:{minute.zfill(2)})'
+                    f'✓ {"Created" if created else "Updated"} periodic task: {periodic.name} (hourly at :{minute.zfill(2)})'
                 )
             )
 

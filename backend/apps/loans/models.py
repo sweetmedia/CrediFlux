@@ -248,7 +248,7 @@ class CustomerDocument(UUIDModel, AuditModel):
         """Check if document has expired"""
         if not self.expiry_date:
             return False
-        return self.expiry_date < timezone.now().date()
+        return self.expiry_date < timezone.localdate()
 
     @property
     def file_size_mb(self):
@@ -457,9 +457,9 @@ class Loan(UUIDModel, AuditModel):
             # Generate unique loan number
             self.loan_number = f"LN-{timezone.now().year}-{uuid.uuid4().hex[:8].upper()}"
         if self.status == 'approved' and not self.approval_date:
-            self.approval_date = timezone.now().date()
+            self.approval_date = timezone.localdate()
         if self.status == 'rejected' and not self.rejection_date:
-            self.rejection_date = timezone.now().date()
+            self.rejection_date = timezone.localdate()
         super().save(*args, **kwargs)
 
     @property
@@ -485,7 +485,7 @@ class Loan(UUIDModel, AuditModel):
         if self.status != 'active':
             return False
         overdue_schedules = self.payment_schedules.filter(
-            due_date__lt=timezone.now().date(),
+            due_date__lt=timezone.localdate(),
             status='pending'
         )
         return overdue_schedules.exists()

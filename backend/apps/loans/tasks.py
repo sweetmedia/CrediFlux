@@ -13,21 +13,35 @@ from django.utils import timezone
 from django_tenants.utils import schema_context
 
 from apps.tenants.models import Tenant
+from apps.tenants.timezones import tenant_now, use_tenant_timezone
 from .models import LoanSchedule, Loan
 from .utils_whatsapp import get_whatsapp_service
 
 logger = logging.getLogger(__name__)
 
 
+# Hora LOCAL de cada tenant a la que corre cada tarea diaria. Beat dispara las
+# tareas cada hora y cada tenant se procesa cuando en su zona es esta hora.
+LATE_FEES_LOCAL_HOUR = 0         # mora: 00:30 local
+REMINDERS_LOCAL_HOUR = 9         # recordatorios: 09:00 local
+OVERDUE_NOTICE_LOCAL_HOUR = 9    # avisos de mora: 09:30 local
+
+
+def _is_local_hour(tenant, hour):
+    return tenant_now(tenant).hour == hour
+
+
 @shared_task(name='loans.calculate_late_fees')
-def calculate_late_fees():
+def calculate_late_fees(force=False):
     """
-    Tarea diaria: recalcula la mora de las cuotas vencidas en cada tenant
-    (comando `calculate_late_fees`; reglas en apps.loans.late_fees).
-    Un tenant que falla no detiene a los demás.
+    Recalcula la mora de las cuotas vencidas (comando `calculate_late_fees`;
+    reglas en apps.loans.late_fees) en los tenants donde ahora es medianoche
+    local, o en todos con `force=True`. Un tenant que falla no detiene a los demás.
     """
     processed, failed = [], []
     for tenant in Tenant.objects.exclude(schema_name='public'):
+        if not force and not _is_local_hour(tenant, LATE_FEES_LOCAL_HOUR):
+            continue
         try:
             call_command('calculate_late_fees', tenant=tenant.schema_name)
             processed.append(tenant.schema_name)
@@ -59,10 +73,11 @@ def _sent_key(kind, tenant, schedule, today):
 
 
 @shared_task(name='loans.send_payment_reminders')
-def send_payment_reminders():
+def send_payment_reminders(force=False):
     """
     Daily task to send payment reminders for upcoming and overdue payments.
-    Runs for all tenants that have WhatsApp reminders enabled.
+    Runs for tenants with WhatsApp reminders enabled where it is now 09:xx
+    local time (or all of them with force=True).
     """
     logger.info("Starting payment reminders task")
 
@@ -73,10 +88,12 @@ def send_payment_reminders():
     total_failed = 0
 
     for tenant in tenants:
+        if not force and not _is_local_hour(tenant, REMINDERS_LOCAL_HOUR):
+            continue
         logger.info(f"Processing payment reminders for tenant: {tenant.name}")
 
         try:
-            with schema_context(tenant.schema_name):
+            with schema_context(tenant.schema_name), use_tenant_timezone(tenant):
                 sent, failed = send_tenant_payment_reminders(tenant)
                 total_sent += sent
                 total_failed += failed
@@ -171,12 +188,15 @@ def send_tenant_payment_reminders(tenant: Tenant):
             # Calculate amount due (remaining amount)
             amount_due = schedule.total_amount - (schedule.paid_amount or Decimal('0'))
 
-            # Send reminder
+            # Send reminder (plantilla Utility; si ya venció, con la mora pendiente)
+            late_fee_pending = schedule.late_fee_amount.amount - schedule.late_fee_paid.amount
             success = whatsapp_service.send_payment_reminder(
                 loan=schedule.loan,
                 phone=phone,
                 days_until_due=days_until_due,
-                amount_due=amount_due.amount if hasattr(amount_due, 'amount') else amount_due
+                amount_due=amount_due.amount if hasattr(amount_due, 'amount') else amount_due,
+                due_date=schedule.due_date,
+                late_fee=max(late_fee_pending, Decimal('0')),
             )
 
             if success:
@@ -236,22 +256,25 @@ def send_payment_confirmation(payment_id: str, tenant_schema: str):
 
 
 @shared_task(name='loans.send_overdue_notice')
-def send_overdue_notice():
+def send_overdue_notice(force=False):
     """
     Daily task to send overdue notices for significantly past-due payments.
     More urgent than reminders — sent for 15, 30, 60, 90 days overdue.
+    Runs where it is now 09:xx local time (or everywhere with force=True).
     """
     logger.info("Starting overdue notices task")
 
     tenants = _whatsapp_tenants()
 
     total_sent = 0
-    today = timezone.localdate()
     overdue_thresholds = [15, 30, 60, 90]
 
     for tenant in tenants:
+        if not force and not _is_local_hour(tenant, OVERDUE_NOTICE_LOCAL_HOUR):
+            continue
         try:
-            with schema_context(tenant.schema_name):
+            with schema_context(tenant.schema_name), use_tenant_timezone(tenant):
+                today = timezone.localdate()
                 whatsapp_service = get_whatsapp_service(tenant)
                 if not whatsapp_service.is_configured():
                     continue
@@ -271,29 +294,25 @@ def send_overdue_notice():
                         if not phone:
                             continue
 
-                        customer_name = schedule.loan.customer.get_full_name()
-                        amount = schedule.total_amount.amount - (schedule.paid_amount.amount if schedule.paid_amount else 0)
-                        company = tenant.business_name
-
-                        message = (
-                            f"⚠️ *Aviso de Mora — {threshold} días*\n\n"
-                            f"Estimado/a {customer_name},\n\n"
-                            f"Su cuota del préstamo {schedule.loan.loan_number} "
-                            f"tiene {threshold} días de atraso.\n\n"
-                            f"💰 *Monto pendiente:* RD${float(amount):,.2f}\n"
-                            f"📅 *Fecha vencimiento:* {schedule.due_date.strftime('%d/%m/%Y')}\n\n"
-                            f"Le invitamos a regularizar su pago lo antes posible "
-                            f"para evitar cargos adicionales por mora.\n\n"
-                            f"{company}"
+                        # Monto pendiente de la cuota más la mora sin pagar
+                        balance = schedule.total_amount.amount - (
+                            schedule.paid_amount.amount if schedule.paid_amount else Decimal('0')
+                        )
+                        late_fee = max(
+                            schedule.late_fee_amount.amount - schedule.late_fee_paid.amount, Decimal('0')
                         )
 
                         try:
-                            formatted = whatsapp_service._format_phone(phone)
-                            whatsapp_service.wa_client.send_message(to=formatted, text=message)
-                            _mark_sent('overdue', tenant, schedule, today)
-                            total_sent += 1
+                            sent = whatsapp_service.send_overdue_notice(
+                                schedule.loan, phone, days_overdue=threshold,
+                                due_date=schedule.due_date, amount_due=balance + late_fee,
+                            )
                         except Exception as e:
                             logger.error(f"Failed overdue notice for {schedule.loan.loan_number}: {e}")
+                            continue
+                        if sent:
+                            _mark_sent('overdue', tenant, schedule, today)
+                            total_sent += 1
 
         except Exception as e:
             logger.error(f"Error processing overdue notices for {tenant.name}: {e}")

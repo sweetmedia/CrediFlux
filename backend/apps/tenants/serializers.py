@@ -411,6 +411,9 @@ class TenantSerializer(serializers.ModelSerializer):
             'require_guarantor', 'guarantor_required_above', 'guarantor_required_above_currency',
             'max_active_loans_per_customer',
 
+            # Zona horaria (define "hoy" y la hora local de las tareas diarias)
+            'timezone',
+
             # Late Fee Configuration
             'late_fee_type', 'late_fee_percentage', 'late_fee_fixed_amount',
             'late_fee_fixed_amount_currency', 'late_fee_frequency', 'grace_period_days',
@@ -491,6 +494,9 @@ class TenantUpdateSerializer(serializers.ModelSerializer):
             'allow_early_repayment', 'early_repayment_penalty',
             'require_guarantor', 'guarantor_required_above',
             'max_active_loans_per_customer',
+
+            # Zona horaria (define "hoy" y la hora local de las tareas diarias)
+            'timezone',
 
             # Late Fee Configuration
             'late_fee_type', 'late_fee_percentage', 'late_fee_fixed_amount',

@@ -385,6 +385,48 @@ class WhatsAppMessage(models.Model):
         return f"{direction_symbol} {content_preview} ({self.from_phone} → {self.to_phone})"
 
 
+class WhatsAppTemplate(models.Model):
+    """
+    Estado de una plantilla del catálogo (apps.communications.whatsapp_templates)
+    en la cuenta de WhatsApp de esta financiera. Vive en el schema del tenant.
+    Sólo se envían las que Meta aprobó.
+    """
+
+    STATUS_CHOICES = [
+        ('PENDING', 'En revisión'),
+        ('APPROVED', 'Aprobada'),
+        ('REJECTED', 'Rechazada'),
+        ('PAUSED', 'Pausada'),
+        ('DISABLED', 'Desactivada'),
+        ('ERROR', 'Error al crearla'),
+    ]
+
+    key = models.CharField(max_length=60, help_text='Clave en el catálogo (ej: recordatorio_cuota)')
+    name = models.CharField(max_length=120, help_text='Nombre en Meta (ej: crediflux_recordatorio_cuota)')
+    language = models.CharField(max_length=10, default='es')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    meta_template_id = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    rejected_reason = models.TextField(blank=True, default='')
+    button_base_url = models.URLField(
+        max_length=300, blank=True, default='',
+        help_text='URL base fija del botón (sólo firma_contrato); el envío agrega el sufijo'
+    )
+    synced_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = [('name', 'language')]
+        ordering = ['key']
+        verbose_name = 'Plantilla de WhatsApp'
+        verbose_name_plural = 'Plantillas de WhatsApp'
+
+    def __str__(self):
+        return f'{self.name} ({self.language}) · {self.status}'
+
+    @property
+    def is_approved(self):
+        return self.status == 'APPROVED'
+
+
 class Task(models.Model):
     """
     Task model for Kanban board task management
@@ -509,7 +551,7 @@ class Task(models.Model):
     @property
     def is_overdue(self):
         """Check if task is overdue"""
-        from datetime import date
+        from django.utils import timezone
         if self.due_date and self.status != 'done':
-            return self.due_date < date.today()
+            return self.due_date < timezone.localdate()
         return False

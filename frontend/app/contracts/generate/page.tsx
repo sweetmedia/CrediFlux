@@ -3,7 +3,8 @@ import { useRouter, useSearchParams } from '@/lib/navigation';
 import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { contractsAPI, contractTemplatesAPI, ContractTemplate } from '@/lib/api/contracts';
-import { loansAPI, Loan } from '@/lib/api/loans';
+import { loansAPI } from '@/lib/api/loans';
+import type { Loan } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -291,7 +292,7 @@ export default function GenerateContractPage() {
                       <div>
                         <p className="text-blue-700 mb-1">Plazo</p>
                         <p className="text-blue-900 font-medium">
-                          {selectedLoan.loan_term_months} meses
+                          {selectedLoan.term_months} meses
                         </p>
                       </div>
                       <div>

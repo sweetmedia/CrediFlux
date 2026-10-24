@@ -417,7 +417,7 @@ class LoanAdmin(ModelAdmin):
                 self._report_policy_violation(request, loan, exc)
                 continue
             loan.status = 'approved'
-            loan.approval_date = timezone.now().date()
+            loan.approval_date = timezone.localdate()
             loan.approved_by = request.user
             loan.save()
             approved += 1
@@ -445,7 +445,7 @@ class LoanAdmin(ModelAdmin):
         # Update all pending loans
         for loan in pending_loans:
             loan.status = 'rejected'
-            loan.rejection_date = timezone.now().date()
+            loan.rejection_date = timezone.localdate()
             loan.rejected_by = request.user
             loan.save()
 
@@ -477,7 +477,7 @@ class LoanAdmin(ModelAdmin):
                 self._report_policy_violation(request, loan, exc)
                 continue
             loan.status = 'active'
-            loan.disbursement_date = timezone.now().date()
+            loan.disbursement_date = timezone.localdate()
 
             # Set first payment date if not set (one month from disbursement)
             if not loan.first_payment_date:
@@ -815,7 +815,7 @@ class CustomerDocumentAdmin(ModelAdmin):
             return 'danger', f'Expired ({obj.expiry_date})'
 
         from django.utils import timezone
-        days_until_expiry = (obj.expiry_date - timezone.now().date()).days
+        days_until_expiry = (obj.expiry_date - timezone.localdate()).days
 
         if days_until_expiry <= 30:
             return 'warning', f'Expires Soon ({obj.expiry_date})'

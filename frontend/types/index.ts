@@ -3,7 +3,7 @@ export * from './billing';
 
 // User Types
 export interface User {
-  id: string;
+  id: number;  // PK entero de users.User
   username: string;
   email: string;
   first_name: string;
@@ -55,6 +55,12 @@ export interface TwoFactorBackupCodesStatus {
 }
 
 // Customer Types
+// Mismas opciones que Customer.id_type en el backend
+export const ID_TYPES = ['cedula', 'rnc', 'nss', 'ncf', 'passport', 'driver_license'] as const;
+export type IdType = (typeof ID_TYPES)[number];
+export const EMPLOYMENT_STATUSES = ['employed', 'self_employed', 'unemployed', 'retired'] as const;
+export type EmploymentStatus = (typeof EMPLOYMENT_STATUSES)[number];
+
 export interface Customer {
   id: string;
   customer_id: string;
@@ -73,11 +79,11 @@ export interface Customer {
   state: string;
   country: string;
   postal_code: string;
-  id_type: 'cedula' | 'passport' | 'driver_license';
+  id_type: IdType;
   id_number: string;
   id_expiry_date?: string;
   id_document?: string;
-  employment_status?: 'employed' | 'self_employed' | 'unemployed' | 'retired';
+  employment_status?: EmploymentStatus;
   employer_name?: string;
   occupation?: string;
   monthly_income?: number;
@@ -331,9 +337,11 @@ export interface Tenant {
   business_name: string;
   subscription_plan: 'basic' | 'professional' | 'enterprise';
   is_active: boolean;
-  domain: string;
+  // El login de tenant trae `domain`; /api/tenants/settings/ trae logo/colores.
+  domain?: string;
   /** URL firmada del logo (expira; ver Task 17). */
   logo?: string | null;
+  primary_color?: string;
 }
 
 // Auth Types

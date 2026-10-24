@@ -238,7 +238,7 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def expired(self, request):
         """Get all expired documents"""
-        today = timezone.now().date()
+        today = timezone.localdate()
         expired_docs = self.get_queryset().filter(
             expiry_date__lt=today
         ).exclude(verification_status='expired')
@@ -414,7 +414,7 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         # Update loan
         loan.status = 'approved'
-        loan.approval_date = timezone.now().date()
+        loan.approval_date = timezone.localdate()
         loan.approved_by = request.user
         loan.approval_notes = approval_notes
         loan.save()
@@ -486,7 +486,7 @@ class LoanViewSet(viewsets.ModelViewSet):
                     )
 
             loan.status = 'active'
-            loan.disbursement_date = timezone.now().date()
+            loan.disbursement_date = timezone.localdate()
             loan.outstanding_balance = loan.principal_amount
             loan.save()
 
@@ -526,7 +526,7 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         # Update loan
         loan.status = 'rejected'
-        loan.rejection_date = timezone.now().date()
+        loan.rejection_date = timezone.localdate()
         loan.rejected_by = request.user
         loan.approval_notes = rejection_notes
         loan.save()
@@ -578,7 +578,7 @@ class LoanViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
 
         loans = self.get_queryset()
-        today = timezone.now().date()
+        today = timezone.localdate()
 
         # Count overdue loans from real overdue schedules, not only defaulted loans.
         overdue_loans = loans.filter(
@@ -614,7 +614,7 @@ class LoanViewSet(viewsets.ModelViewSet):
         from datetime import timedelta
 
         loans = self.get_queryset()
-        today = timezone.now().date()
+        today = timezone.localdate()
         six_months_ago = today - timedelta(days=180)
 
         overdue_loan_ids = LoanSchedule.objects.filter(
@@ -1118,7 +1118,7 @@ class LoanScheduleViewSet(viewsets.ReadOnlyModelViewSet):
     def overdue(self, request):
         """Get all overdue schedules"""
         overdue = self.get_queryset().filter(
-            due_date__lt=timezone.now().date(),
+            due_date__lt=timezone.localdate(),
             status__in=['pending', 'partial', 'overdue']
         )
         serializer = self.get_serializer(overdue, many=True)
@@ -1249,7 +1249,7 @@ class CollectionReminderViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def scheduled_today(self, request):
         """Get reminders scheduled for today"""
-        today = timezone.now().date()
+        today = timezone.localdate()
         reminders = self.get_queryset().filter(
             scheduled_for__date=today,
             status='pending'
@@ -1338,7 +1338,7 @@ class CollectionContactViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def promises_due_today(self, request):
         """Get contacts with promises due today"""
-        today = timezone.now().date()
+        today = timezone.localdate()
         contacts = self.get_queryset().filter(
             promise_date=today,
             promise_kept__isnull=True

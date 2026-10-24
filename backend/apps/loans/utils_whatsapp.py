@@ -1,19 +1,21 @@
 """
-WhatsApp messaging utilities using PyWa (WhatsApp Cloud API)
+WhatsApp messaging for loans (WhatsApp Cloud API).
 
-This module provides functions to send WhatsApp messages for:
-- Payment reminders
-- Contract signature links
-- Payment receipts
+Business-initiated messages (payment reminders, overdue notices, receipts,
+contract signature links, loan approval) go out as approved Utility TEMPLATES
+(apps.communications.whatsapp_templates): outside the 24 h customer service
+window Meta rejects free text. The pywa client stays for free-text replies
+inside that window (apps.communications.tasks.send_whatsapp_message).
 """
 import logging
 from typing import Optional, Dict, Any
 from decimal import Decimal
-from datetime import datetime, date
+from datetime import date, timedelta
 
 from pywa import WhatsApp
-from pywa.types import Button
+from django.utils import timezone
 
+from apps.communications.whatsapp_template_service import format_whatsapp_phone, send_template
 from apps.tenants.models import Tenant
 from .models import Loan, LoanPayment
 from .models_contracts import Contract
@@ -63,29 +65,13 @@ class WhatsAppService:
         )
 
     def _format_phone(self, phone: str) -> str:
-        """
-        Format phone number for WhatsApp (remove special characters, ensure country code).
-
-        Args:
-            phone: Phone number string
-
-        Returns:
-            Formatted phone number (e.g., "18095551234")
-        """
-        # Remove all non-numeric characters
-        cleaned = ''.join(filter(str.isdigit, phone))
-
-        # If doesn't start with country code, assume Dominican Republic (+1-809/829/849)
-        if not cleaned.startswith('1') and len(cleaned) == 10:
-            cleaned = '1' + cleaned
-
-        return cleaned
+        """Format phone number for WhatsApp (digits only, DR numbers get the leading 1)."""
+        return format_whatsapp_phone(phone)
 
     def _format_currency(self, amount: Decimal) -> str:
-        """Format currency amount for display"""
-        currency = self.tenant.default_currency or 'DOP'
+        """RD$4,500.00 (VOICE.md: «RD$» y el monto, sin el código ISO)."""
         symbol = self.tenant.currency_symbol or 'RD$'
-        return f"{symbol}{amount:,.2f} {currency}"
+        return f"{symbol}{Decimal(str(amount)):,.2f}"
 
     def _format_date(self, date_obj: date) -> str:
         """Format date for Spanish locale"""
@@ -96,82 +82,60 @@ class WhatsAppService:
         }
         return f"{date_obj.day} de {months[date_obj.month]} de {date_obj.year}"
 
+    def _send(self, key: str, phone: str, values: list, *, customer=None, button_value=None) -> bool:
+        """Envía una plantilla aprobada del catálogo (ver apps.communications.whatsapp_templates)."""
+        if not self.is_configured():
+            logger.warning(f"WhatsApp not configured for tenant {self.tenant.name}")
+            return False
+        message = send_template(
+            self.tenant, key, phone, values, customer=customer, button_value=button_value,
+        )
+        return message is not None
+
     def send_payment_reminder(
         self,
         loan: Loan,
         phone: str,
         days_until_due: int,
-        amount_due: Decimal
+        amount_due: Decimal,
+        due_date: Optional[date] = None,
+        late_fee: Decimal = Decimal('0'),
     ) -> bool:
         """
-        Send payment reminder via WhatsApp.
+        Recordatorio de cuota (plantilla Utility).
 
-        Args:
-            loan: Loan instance
-            phone: Recipient phone number
-            days_until_due: Days until payment is due
-            amount_due: Amount due for payment
-
-        Returns:
-            True if message sent successfully, False otherwise
+        days_until_due >= 0 → `recordatorio_cuota`; < 0 → `cuota_vencida` con la
+        mora incluida en el monto pendiente.
         """
-        if not self.is_configured():
-            logger.warning(f"WhatsApp not configured for tenant {self.tenant.name}")
-            return False
+        customer = loan.customer
+        if due_date is None:
+            due_date = timezone.localdate() + timedelta(days=days_until_due)
+        if days_until_due >= 0:
+            values = [
+                customer.first_name, self.tenant.business_name, loan.loan_number,
+                self._format_date(due_date), self._format_currency(amount_due),
+            ]
+            return self._send('recordatorio_cuota', phone, values, customer=customer)
+        return self.send_overdue_notice(
+            loan, phone, days_overdue=-days_until_due, due_date=due_date,
+            amount_due=Decimal(str(amount_due)) + Decimal(str(late_fee or 0)),
+        )
 
-        try:
-            formatted_phone = self._format_phone(phone)
-            customer_name = loan.customer.get_full_name()
-            amount_formatted = self._format_currency(amount_due)
-            company_name = self.tenant.business_name
-
-            # Determine urgency message
-            if days_until_due == 0:
-                urgency = "⚠️ *HOY VENCE*"
-                time_msg = "hoy"
-            elif days_until_due == 1:
-                urgency = "⏰ *VENCE MAÑANA*"
-                time_msg = "mañana"
-            elif days_until_due < 0:
-                urgency = "🚨 *VENCIDO*"
-                time_msg = f"hace {abs(days_until_due)} día(s)"
-            else:
-                urgency = "📅 Recordatorio de Pago"
-                time_msg = f"en {days_until_due} día(s)"
-
-            # Build message
-            message = f"""
-{urgency}
-
-Hola {customer_name},
-
-Le recordamos que su pago del préstamo *{loan.loan_number}* vence {time_msg}.
-
-💰 *Monto a pagar:* {amount_formatted}
-📅 *Préstamo:* {loan.loan_number}
-
-Para más información, comuníquese con nosotros.
-
-Gracias por su confianza en {company_name}.
-""".strip()
-
-            # Send message
-            self.wa_client.send_message(
-                to=formatted_phone,
-                text=message
-            )
-
-            logger.info(
-                f"Payment reminder sent via WhatsApp to {formatted_phone} "
-                f"for loan {loan.loan_number}"
-            )
-            return True
-
-        except Exception as e:
-            logger.error(
-                f"Error sending WhatsApp payment reminder for loan {loan.loan_number}: {str(e)}"
-            )
-            return False
+    def send_overdue_notice(
+        self,
+        loan: Loan,
+        phone: str,
+        days_overdue: int,
+        due_date: date,
+        amount_due: Decimal,
+    ) -> bool:
+        """Aviso de cuota vencida (`cuota_vencida`); amount_due ya incluye la mora."""
+        customer = loan.customer
+        values = [
+            customer.first_name, self.tenant.business_name, loan.loan_number,
+            self._format_date(due_date), str(days_overdue), self._format_currency(amount_due),
+        ]
+        return self._send('cuota_vencida', phone, values, customer=customer)
 
     def send_contract_signature_link(
         self,
@@ -180,187 +144,39 @@ Gracias por su confianza en {company_name}.
         signature_url: str
     ) -> bool:
         """
-        Send contract signature link via WhatsApp.
-
-        Args:
-            contract: Contract instance
-            phone: Recipient phone number
-            signature_url: URL for signing the contract
-
-        Returns:
-            True if message sent successfully, False otherwise
+        Enlace de firma (`firma_contrato`). El botón de la plantilla tiene la URL
+        base fija (https://<dominio>/sign/); aquí sólo va el token del final.
         """
-        if not self.is_configured():
-            logger.warning(f"WhatsApp not configured for tenant {self.tenant.name}")
-            return False
-
-        try:
-            formatted_phone = self._format_phone(phone)
-            customer_name = contract.customer_name
-            company_name = self.tenant.business_name
-            contract_number = contract.contract_number
-
-            message = f"""
-📝 *Firma de Contrato*
-
-Hola {customer_name},
-
-Su contrato *{contract_number}* está listo para ser firmado.
-
-Para revisar y firmar su contrato, haga clic en el siguiente enlace:
-
-🔗 {signature_url}
-
-Este enlace es seguro y personal. Solo usted puede acceder a él.
-
-Si tiene alguna pregunta, no dude en contactarnos.
-
-Atentamente,
-{company_name}
-""".strip()
-
-            # Send message
-            self.wa_client.send_message(
-                to=formatted_phone,
-                text=message
-            )
-
-            logger.info(
-                f"Contract signature link sent via WhatsApp to {formatted_phone} "
-                f"for contract {contract_number}"
-            )
-            return True
-
-        except Exception as e:
-            logger.error(
-                f"Error sending WhatsApp contract link for {contract.contract_number}: {str(e)}"
-            )
-            return False
+        customer = contract.loan.customer
+        token = signature_url.rstrip('/').rsplit('/', 1)[-1]
+        values = [customer.first_name, contract.contract_number, self.tenant.business_name]
+        return self._send('firma_contrato', phone, values, customer=customer, button_value=token)
 
     def send_payment_receipt(
         self,
         payment: LoanPayment,
         phone: str
     ) -> bool:
-        """
-        Send payment receipt via WhatsApp.
-
-        Args:
-            payment: LoanPayment instance
-            phone: Recipient phone number
-
-        Returns:
-            True if message sent successfully, False otherwise
-        """
-        if not self.is_configured():
-            logger.warning(f"WhatsApp not configured for tenant {self.tenant.name}")
-            return False
-
-        try:
-            formatted_phone = self._format_phone(phone)
-            customer_name = payment.loan.customer.get_full_name()
-            company_name = self.tenant.business_name
-            amount_formatted = self._format_currency(payment.amount.amount)
-            payment_date = self._format_date(payment.payment_date)
-
-            message = f"""
-✅ *Recibo de Pago*
-
-Hola {customer_name},
-
-Confirmamos la recepción de su pago:
-
-💰 *Monto:* {amount_formatted}
-📅 *Fecha:* {payment_date}
-📋 *Préstamo:* {payment.loan.loan_number}
-🔢 *Recibo:* #{payment.id}
-💳 *Método:* {payment.get_payment_method_display()}
-
-{f"📝 *Nota:* {payment.notes}" if payment.notes else ""}
-
-Gracias por su pago puntual.
-
-{company_name}
-""".strip()
-
-            # Send message
-            self.wa_client.send_message(
-                to=formatted_phone,
-                text=message
-            )
-
-            logger.info(
-                f"Payment receipt sent via WhatsApp to {formatted_phone} "
-                f"for payment {payment.id}"
-            )
-            return True
-
-        except Exception as e:
-            logger.error(
-                f"Error sending WhatsApp payment receipt for payment {payment.id}: {str(e)}"
-            )
-            return False
+        """Recibo de pago (`recibo_pago`), con el número del pago como recibo."""
+        customer = payment.loan.customer
+        values = [
+            customer.first_name, self.tenant.business_name, self._format_currency(payment.amount.amount),
+            self._format_date(payment.payment_date), payment.loan.loan_number, payment.payment_number,
+        ]
+        return self._send('recibo_pago', phone, values, customer=customer)
 
     def send_loan_approved(
         self,
         loan: Loan,
         phone: str
     ) -> bool:
-        """
-        Send loan approval notification via WhatsApp.
-
-        Args:
-            loan: Loan instance
-            phone: Recipient phone number
-
-        Returns:
-            True if message sent successfully, False otherwise
-        """
-        if not self.is_configured():
-            logger.warning(f"WhatsApp not configured for tenant {self.tenant.name}")
-            return False
-
-        try:
-            formatted_phone = self._format_phone(phone)
-            customer_name = loan.customer.get_full_name()
-            company_name = self.tenant.business_name
-            amount_formatted = self._format_currency(loan.principal_amount.amount)
-
-            message = f"""
-🎉 *¡Préstamo Aprobado!*
-
-Hola {customer_name},
-
-Le informamos que su préstamo ha sido *APROBADO*.
-
-💰 *Monto aprobado:* {amount_formatted}
-📋 *Número de préstamo:* {loan.loan_number}
-📅 *Fecha de inicio:* {self._format_date(loan.start_date)}
-
-En breve nos pondremos en contacto con usted para coordinar el desembolso.
-
-¡Felicidades!
-
-{company_name}
-""".strip()
-
-            # Send message
-            self.wa_client.send_message(
-                to=formatted_phone,
-                text=message
-            )
-
-            logger.info(
-                f"Loan approval sent via WhatsApp to {formatted_phone} "
-                f"for loan {loan.loan_number}"
-            )
-            return True
-
-        except Exception as e:
-            logger.error(
-                f"Error sending WhatsApp loan approval for {loan.loan_number}: {str(e)}"
-            )
-            return False
+        """Préstamo aprobado (`prestamo_aprobado`)."""
+        customer = loan.customer
+        values = [
+            customer.first_name, self.tenant.business_name, loan.loan_number,
+            self._format_currency(loan.principal_amount.amount),
+        ]
+        return self._send('prestamo_aprobado', phone, values, customer=customer)
 
 
 def get_whatsapp_service(tenant: Tenant) -> WhatsAppService:
