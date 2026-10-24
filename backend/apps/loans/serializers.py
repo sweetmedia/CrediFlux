@@ -1007,7 +1007,7 @@ class LoanCalculatorInputSerializer(serializers.Serializer):
         max_digits=7, decimal_places=4,
         help_text="Monthly interest rate as a percentage (e.g. 3.5 means 3.5% per month)"
     )
-    term = serializers.IntegerField(min_value=1, help_text="Number of payments")
+    term = serializers.IntegerField(min_value=1, max_value=600, help_text="Number of payments")
     payment_frequency = serializers.ChoiceField(
         choices=['daily', 'weekly', 'biweekly', 'monthly']
     )

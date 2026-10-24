@@ -8,17 +8,19 @@ from django.contrib import admin
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
-from django.core.management import call_command
 from unfold.admin import ModelAdmin
 from unfold.widgets import UnfoldAdminSelectWidget, UnfoldAdminTextInputWidget
 from unfold.decorators import action
 from constance import config as constance_config
 from constance.admin import ConstanceAdmin, Config
-import io
+import logging
 import sys
 
 from .models import PadronJCE
+
+logger = logging.getLogger(__name__)
 
 # Import custom allauth admin configurations
 # These are auto-registered via @admin.register decorators
@@ -124,36 +126,29 @@ class CustomConstanceAdmin(ConstanceAdmin):
         return custom_urls + urls
 
     def update_rnc_database_view(self, request):
-        """Execute the update_rnc_database management command"""
+        """Encola la actualización del RNC (sólo superusuarios de plataforma)."""
+        if not (request.user.is_superuser and request.user.tenant_id is None):
+            raise PermissionDenied
+
         if request.method == 'POST':
-            force = request.POST.get('force', 'false') == 'true'
+            # Check if RNC is enabled
+            if not constance_config.DGII_RNC_ENABLED:
+                messages.warning(
+                    request,
+                    'La validación del RNC de la DGII está desactivada. '
+                    'Actívela en la configuración para actualizar la base de datos.'
+                )
+                return redirect('admin:constance_config_changelist')
+
+            from apps.core.tasks import update_rnc_database
 
             try:
-                # Check if RNC is enabled
-                if not constance_config.DGII_RNC_ENABLED:
-                    messages.warning(
-                        request,
-                        'DGII RNC validation is currently disabled. '
-                        'Enable it in the configuration to update the database.'
-                    )
-                    return redirect('admin:constance_config_changelist')
-
-                # Capture command output
-                output = io.StringIO()
-                call_command('update_rnc_database', force=force, stdout=output)
-
-                # Show success message with output
-                output_text = output.getvalue()
-                messages.success(
-                    request,
-                    f'RNC database updated successfully!\n\n{output_text}'
-                )
-
-            except Exception as e:
-                messages.error(
-                    request,
-                    f'Error updating RNC database: {str(e)}'
-                )
+                update_rnc_database.delay()
+            except Exception:
+                logger.exception('No se pudo encolar la actualización del RNC')
+                messages.error(request, 'No se pudo encolar la actualización del RNC.')
+            else:
+                messages.success(request, 'Actualización del RNC encolada.')
 
             return redirect('admin:constance_config_changelist')
 

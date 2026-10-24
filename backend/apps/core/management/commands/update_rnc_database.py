@@ -5,14 +5,55 @@ Management command to download and cache DGII RNC database
 import csv
 import requests
 import zipfile
-import tempfile
-from pathlib import Path
 from io import BytesIO
+from urllib.parse import urlsplit
 from django.core.management.base import BaseCommand
-from django.conf import settings
 from constance import config as constance_config
 
 from apps.core.services.rnc_lookup import RNCLookupService, store_rnc_records
+
+# Únicos hosts desde los que se descarga el padrón de la DGII. La URL vive en
+# Constance (editable desde el admin), así que se valida antes de cualquier red.
+ALLOWED_RNC_HOSTS = {'dgii.gov.do', 'www.dgii.gov.do'}
+
+_HEADERS = {
+    # Cabeceras de navegador para evitar el 403 de la DGII
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+}
+
+
+def _validate_rnc_url(url):
+    """`ValueError` si la URL no es https en un host de ALLOWED_RNC_HOSTS."""
+    try:
+        parts = urlsplit(url or '')
+        port = parts.port
+    except ValueError:
+        raise ValueError('URL de descarga del RNC no permitida')
+    if (
+        parts.scheme != 'https'
+        or '@' in parts.netloc
+        or (parts.hostname or '') not in ALLOWED_RNC_HOSTS
+        or port not in (None, 443)
+    ):
+        raise ValueError('URL de descarga del RNC no permitida')
+
+
+def _download_rnc_file(url, timeout=120):
+    """Descarga el ZIP del RNC desde un host de la DGII y devuelve sus bytes.
+
+    No sigue redirecciones: una 3xx podría llevar fuera de la lista permitida.
+    """
+    _validate_rnc_url(url)
+    response = requests.get(
+        url, headers=_HEADERS, stream=True, timeout=timeout, allow_redirects=False,
+    )
+    try:
+        if 300 <= response.status_code < 400:
+            raise ValueError('La descarga del RNC devolvió una redirección; no se sigue')
+        response.raise_for_status()
+        return response.content
+    finally:
+        response.close()
 
 
 class Command(BaseCommand):
@@ -52,7 +93,7 @@ class Command(BaseCommand):
 
         try:
             # Download the ZIP file
-            rnc_data = self._download_rnc_file()
+            rnc_data = self._download_and_parse()
 
             # Parse and load into cache
             self._load_to_cache(rnc_data)
@@ -72,23 +113,15 @@ class Command(BaseCommand):
             )
             raise
 
-    def _download_rnc_file(self):
+    def _download_and_parse(self):
         """Download and extract the RNC CSV file from DGII"""
-        dgii_url = constance_config.DGII_RNC_DATABASE_URL
+        content = _download_rnc_file(constance_config.DGII_RNC_DATABASE_URL, timeout=120)
 
-        # Download with browser headers to avoid 403
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        }
-
-        response = requests.get(dgii_url, headers=headers, timeout=120)
-        response.raise_for_status()
-
-        self.stdout.write(f'Downloaded {len(response.content) / 1024 / 1024:.1f} MB')
+        self.stdout.write(f'Downloaded {len(content) / 1024 / 1024:.1f} MB')
 
         # Extract ZIP file
         self.stdout.write('Extracting ZIP file...')
-        with zipfile.ZipFile(BytesIO(response.content)) as zip_file:
+        with zipfile.ZipFile(BytesIO(content)) as zip_file:
             # Get the CSV file name (should be only one file in the ZIP)
             csv_filename = zip_file.namelist()[0]
             self.stdout.write(f'Found file: {csv_filename}')

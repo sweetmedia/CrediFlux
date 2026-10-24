@@ -361,3 +361,18 @@ def test_collections_gate_on_customer_phones(viewer_client, user_factory, custom
     collector_client = _client_for(user_factory(role="collector"))
     response = collector_client.post("/api/loans/customer-phones/", body, format="json")
     assert response.status_code == 201, response.content
+
+
+def test_calculator_term_is_bounded(viewer_client):
+    payload = {
+        "principal_amount": "10000.00",
+        "interest_rate": "3.5",
+        "payment_frequency": "monthly",
+        "amortization_method": "french",
+        "start_date": "2026-11-01",
+    }
+    response = viewer_client.post("/api/loans/calculate/", {**payload, "term": 601}, format="json")
+    assert response.status_code == 400, response.content
+    assert "term" in response.data
+    response = viewer_client.post("/api/loans/calculate/", {**payload, "term": 600}, format="json")
+    assert response.status_code == 200, response.content

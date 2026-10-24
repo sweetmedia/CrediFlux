@@ -10,6 +10,8 @@ from celery import shared_task
 from django.conf import settings
 import logging
 
+from apps.core.management.commands.update_rnc_database import _download_rnc_file
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,20 +69,14 @@ def _download_and_parse_rnc_file():
 
     logger.info(f"Downloading RNC file from {DGII_CSV_URL}")
 
-    # Download with browser headers to avoid 403
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-    }
+    content = _download_rnc_file(DGII_CSV_URL, timeout=180)
 
-    response = requests.get(DGII_CSV_URL, headers=headers, timeout=180)
-    response.raise_for_status()
-
-    logger.info(f"Downloaded {len(response.content) / 1024 / 1024:.1f} MB")
+    logger.info(f"Downloaded {len(content) / 1024 / 1024:.1f} MB")
 
     # Extract and parse ZIP file
     rnc_data = {}
 
-    with zipfile.ZipFile(BytesIO(response.content)) as zip_file:
+    with zipfile.ZipFile(BytesIO(content)) as zip_file:
         # Get the CSV file name (should be only one file in the ZIP)
         csv_filename = zip_file.namelist()[0]
         logger.info(f"Extracting file: {csv_filename}")
