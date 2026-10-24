@@ -11,6 +11,8 @@
 - [Backups](#backups)
 - [Actualización de Código](#actualización-de-código)
 - [Rollback](#rollback)
+- [Supuestos de red que el código asume](#supuestos-de-red-que-el-código-asume)
+- [Checklist de despliegue de la remediación de seguridad](#checklist-de-despliegue-de-la-remediación-de-seguridad)
 - [Troubleshooting en Producción](#troubleshooting-en-producción)
 
 ---
@@ -780,6 +782,92 @@ git checkout tags/v1.0.0
 docker-compose -f docker-compose.prod.yml build
 docker-compose -f docker-compose.prod.yml up -d
 ```
+
+---
+
+## Supuestos de red que el código asume
+
+Varios controles de seguridad dependen de cómo está montada la red. El código no puede comprobarlo; lo garantiza quien despliega.
+
+### a) Proxies de confianza y `X-Forwarded-For`
+
+- `DRF_NUM_PROXIES` (setting `REST_FRAMEWORK['NUM_PROXIES']`, default `1`, en `config/settings/base.py`) debe ser **exactamente** el número de reverse proxies de confianza delante de Django (p. ej. nginx = 1; Cloudflare + nginx = 2).
+- Sin proxy delante (Django expuesto directo) debe ser `0`.
+- El proxy de borde debe **sobrescribir** `X-Forwarded-For` con la IP del cliente, no añadir a lo que trae la petición. El ejemplo de nginx de esta guía usa `$proxy_add_x_forwarded_for`, que **añade**; en el proxy de borde usar:
+
+  ```nginx
+  proxy_set_header X-Forwarded-For $remote_addr;
+  proxy_set_header X-Real-IP $remote_addr;
+  ```
+
+  (los proxies internos posteriores sí pueden usar `$proxy_add_x_forwarded_for`).
+- Si esto no se cumple, los throttles de DRF se agrupan por una IP que elige el atacante (puede evadir los límites o agotar los de otro), y la IP del audit log (`apps/audit/middleware.py`, toma el primer valor de `X-Forwarded-For`) queda falsificable.
+- El bloqueo de login (`apps/users/lockout.py`) usa `REMOTE_ADDR` como clave por IP (20 fallos / 5 min) y no lee `X-Forwarded-For`. Nada en el código reescribe `REMOTE_ADDR`, así que detrás de un proxy esa clave es la IP del proxy: el contador por IP es compartido por todos los clientes (20 fallos de cualquiera bloquean el login por IP a todos durante la ventana). El límite por cuenta (5 fallos) no se ve afectado.
+
+### b) Puerto de Postgres
+
+- Nunca publicar el puerto de Postgres fuera de `127.0.0.1` en ningún compose. El `docker-compose.yml` de desarrollo usa `"127.0.0.1:5433:5432"`.
+- En producción lo correcto es no publicarlo (el backend llega por la red interna `db:5432`).
+- Pendiente: `docker-compose.sweetmediabox.yml` aún publica `"5434:5432"` en todas las interfaces (también Redis `6381`, Mailhog `1625/8625`). Cambiarlo a `127.0.0.1:` o quitar el `ports:`.
+
+### c) WhatsApp: una Meta App / número por tenant
+
+- Cada tenant tiene su propia Meta App y su propio `phone_number_id`. No compartir un número entre tenants.
+- `Tenant.whatsapp_phone_id` es único en BD (migración `tenants 0015`).
+- El webhook resuelve el tenant por el `phone_number_id` del payload, verifica la firma con el `whatsapp_app_secret` **de ese tenant** (sin secreto configurado, rechaza) y descarta cualquier `change` cuyo `metadata.phone_number_id` no coincida con el del tenant (`apps/communications/webhooks/`).
+
+---
+
+## Checklist de despliegue de la remediación de seguridad
+
+Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en el despliegue que la incluya.
+
+### Antes de desplegar
+
+- **Base de datos**: definir `DATABASE_URL` o `DB_PASSWORD`. `config/settings/production.py` lanza `ImproperlyConfigured` si no hay contraseña (ya no hay default). En `DATABASE_URL`, codificar en porcentaje `@ : / #` de la contraseña (`@` → `%40`, `:` → `%3A`, `/` → `%2F`, `#` → `%23`).
+- **Proxies**: `DRF_NUM_PROXIES` según la sección anterior.
+- **Límites** (opcionales; defaults en `config/settings/base.py` y `apps/core/media_views.py`):
+
+  | Variable / setting | Default | Qué limita |
+  |---|---|---|
+  | `DRF_THROTTLE_TENANT_REGISTRATION` | `3/hour` | registro de tenants por IP |
+  | `DRF_THROTTLE_VALIDATE_RNC` | `10/minute` | consultas a `validate-rnc` |
+  | `MAX_TENANTS_PER_DAY` | `20` | tenants nuevos por día (global) |
+  | `MEDIA_SIGNED_URL_MAX_AGE` | `3600` (s) | vida de las URLs firmadas de media |
+
+  `MEDIA_SIGNED_URL_MAX_AGE` es un setting de Django (se lee con `getattr`), no una variable de entorno: para cambiarlo hay que añadirlo al settings.
+- **Política de préstamos por tenant**: ahora se aplica en el backend. Defaults del modelo (`apps/tenants/models.py`): `require_id_document=True`, `require_disbursement_approval=True`, `max_interest_rate=36.00` (tasa **anual**). Se compara contra la tasa **mensual** del préstamo × 12, así que con el default se rechaza un préstamo al 5 % mensual (60 % anual). Revisar la política de cada tenant antes de salir en vivo.
+- **Frontend**: desplegar a la vez los cambios de frontend de la Task 22 (la regeneración de códigos de respaldo envía `code`; logout al recibir `401 token_revoked`; las URLs firmadas de media caducan a la hora). El frontend anterior no funciona bien con este backend.
+
+### Durante el despliegue
+
+- Migraciones nuevas en esta rama: `billing 0005`, `loans 0021`, `tenants 0015` y `0016`, `users 0007` y `0008`.
+
+  ```bash
+  docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas
+  ```
+
+- `tenants 0015` pone `NULL` en `whatsapp_phone_id` duplicados (se queda con el tenant de id más alto) y deja un `warning` con los schemas afectados. Revisar el log del migrate y reconfigurar esos tenants.
+
+### Después de desplegar
+
+- **Sesiones**: los JWT quedan ligados a `password_changed_at` (claim `pwd_ts`). Los tokens emitidos antes no lo llevan, así que **todos los usuarios tendrán que volver a iniciar sesión una vez**. Avisar.
+- **Caché de RNC**: cambió el formato de la caché (una clave por RNC). Hasta recargarla, `validate-rnc` responde `503`. Recargar ya:
+
+  ```bash
+  docker compose -f docker-compose.prod.yml exec backend python manage.py update_rnc_database --force
+  ```
+
+  o esperar a la tarea periódica de Celery (`apps.core.tasks.update_rnc_database`, programada con `setup_periodic_tasks`).
+- **S3** (si `USE_S3=True`): los objetos nuevos de media se suben privados (`AWS_DEFAULT_ACL = 'private'`) y los estáticos con `PublicStaticS3Storage` (`public-read`). Los objetos de media que ya estaban en el bucket conservan su ACL antigua: pasarlos a privado una vez, p. ej.:
+
+  ```bash
+  aws s3 cp s3://$AWS_STORAGE_BUCKET_NAME/<prefijo-media>/ s3://$AWS_STORAGE_BUCKET_NAME/<prefijo-media>/ \
+    --recursive --acl private --metadata-directive COPY
+  ```
+
+  Ojo: con la configuración actual media y estáticos comparten `AWS_LOCATION = 'static'`, así que no hay un prefijo que separe solo media; no aplicar `--acl private` a ciegas sobre `static/` o se rompen los estáticos (si pasa, volver a ponerlos en `public-read`). Revisar también *Object Ownership* / *Block Public Access* del bucket: con `BucketOwnerEnforced` las ACL se ignoran y la privacidad depende de la bucket policy.
+- **Superusuario inicial**: `admin@crediflux.com`, creado por el `setup_initial_tenant.py` antiguo, conserva la contraseña antigua (conocida). **Rotarla.** El script nuevo lee `INITIAL_SUPERUSER_PASSWORD` o, si no está, genera una y la imprime una sola vez.
 
 ---
 
