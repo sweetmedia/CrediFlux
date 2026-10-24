@@ -5,6 +5,7 @@ from rest_framework import status, generics, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.exceptions import AuthenticationFailed
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.contrib.auth import get_user_model
@@ -202,6 +203,19 @@ class PasswordResetConfirmView(APIView):
 class TenantAwareTokenRefreshView(TokenRefreshView):
     """Refresh de JWT ligado a la credencial y al tenant del host."""
     serializer_class = TenantAwareTokenRefreshSerializer
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except AuthenticationFailed as exc:
+            # DRF no incluye el `code` en el cuerpo; el frontend lo usa para
+            # avisar que la sesión se cerró por un cambio de contraseña.
+            if exc.get_codes() != 'token_revoked':
+                raise
+            return Response(
+                {'detail': str(exc.detail), 'code': 'token_revoked'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
 
 # ============================================================================

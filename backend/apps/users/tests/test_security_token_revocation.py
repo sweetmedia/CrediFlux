@@ -140,3 +140,14 @@ def test_password_rehash_on_login_does_not_revoke_tokens(user_factory, settings)
     user.refresh_from_db()
     assert user.password.startswith("md5$")
     assert user.password_changed_at == before
+
+def test_revoked_refresh_body_carries_token_revoked_code(api_client, user_factory):
+    user = user_factory(role="admin")
+    tokens = login(api_client, user)
+    # pwd_ts desfasado sin pasar por la lista negra (p. ej. cambio hecho en otro nodo/vía).
+    from django.utils import timezone
+    from apps.users.models import User
+    User.objects.filter(pk=user.pk).update(password_changed_at=timezone.now() + timezone.timedelta(seconds=5))
+    r = api_client.post("/api/auth/token/refresh/", {"refresh": tokens["refresh_token"]}, format="json")
+    assert r.status_code == 401
+    assert r.json() == {"detail": "Token revocado.", "code": "token_revoked"}
