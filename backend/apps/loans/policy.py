@@ -30,6 +30,10 @@ LOAN_TERM_FIELDS = (
     'term_months', 'payment_frequency', 'first_payment_date',
 )
 
+# Términos + documento del contrato: congelados con loan_terms_locked (API y admin); sólo
+# LOAN_TERM_FIELDS rehacen la cuota y el contrato por firmar.
+LOAN_LOCKED_FIELDS = LOAN_TERM_FIELDS + ('contract_document',)
+
 
 def loan_terms_locked(loan):
     """¿Quedan fijos deudor y términos? Sí si el préstamo ya no está pendiente o tiene firma.

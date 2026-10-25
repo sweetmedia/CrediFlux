@@ -14,7 +14,8 @@ from .models_contracts import ContractTemplate, Contract, ContractSignatureToken
 from rest_framework.exceptions import ValidationError
 from django.core.exceptions import PermissionDenied
 from .policy import (
-    LOAN_LIFECYCLE_FIELDS, LOAN_TERM_FIELDS, loan_terms_locked, validate_approval, validate_origination,
+    LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS, loan_terms_locked,
+    validate_approval, validate_origination,
 )
 from .disbursement import apply_disbursement, calculate_payment_amount, check_disbursable
 
@@ -296,8 +297,8 @@ class LoanAdmin(ModelAdmin):
     # Estado y fechas del ciclo sólo cambian por las acciones approve/reject/disburse
     # (que aplican la política); la cuota sale del cálculo de amortización.
     LIFECYCLE_FIELDS = LOAN_LIFECYCLE_FIELDS + ('payment_amount',)
-    # Deudor y términos: los mismos que fija la API (loan_terms_locked) más el documento.
-    TERM_FIELDS = LOAN_TERM_FIELDS + ('contract_document',)
+    # Deudor, términos y documento: los mismos que fija la API (loan_terms_locked).
+    TERM_FIELDS = LOAN_LOCKED_FIELDS
 
     def has_module_permission(self, request):
         """Only show in tenant schemas"""

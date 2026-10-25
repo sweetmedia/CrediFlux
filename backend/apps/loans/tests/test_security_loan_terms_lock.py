@@ -140,3 +140,77 @@ def test_disburse_reapplies_the_approval_policy(tenant_schema, approved_loan, us
         assert approved_loan.status == "approved"
     finally:
         tenant_schema.require_credit_score, tenant_schema.minimum_credit_score = snapshot
+
+
+# --- contract_document: parte del instrumento firmado, se bloquea con los términos (ronda 5) ---
+
+def _upload(name="contrato.pdf"):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    return SimpleUploadedFile(name, b"%PDF-1.4 documento de prueba", content_type="application/pdf")
+
+
+@pytest.fixture
+def media_root(settings, tmp_path):
+    settings.MEDIA_ROOT = str(tmp_path)
+    return tmp_path
+
+
+def _with_document(loan):
+    loan.contract_document.save("original.pdf", _upload("original.pdf"), save=True)
+    loan.refresh_from_db()
+    return loan.contract_document.name
+
+
+def test_contract_document_of_an_approved_loan_cannot_change(officer_client, approved_loan, media_root):
+    original = _with_document(approved_loan)
+    response = officer_client.patch(
+        f"/api/loans/{approved_loan.pk}/", {"contract_document": _upload()}, format="multipart"
+    )
+    assert response.status_code == 400, response.data
+    assert "contract_document" in response.data
+    approved_loan.refresh_from_db()
+    assert approved_loan.contract_document.name == original
+
+
+def test_contract_document_of_a_pending_signed_loan_cannot_change(officer_client, loan_factory, media_root):
+    loan = loan_factory(status="pending", disbursement_date=None)
+    _contract(loan, signed=True)
+    response = officer_client.patch(
+        f"/api/loans/{loan.pk}/", {"contract_document": _upload()}, format="multipart"
+    )
+    assert response.status_code == 400, response.data
+    assert "contract_document" in response.data
+    loan.refresh_from_db()
+    assert not loan.contract_document
+
+
+def test_contract_document_upload_on_pending_unsigned_loan_does_not_regenerate(
+    officer_client, customer_factory, media_root
+):
+    from apps.loans.models import Loan
+    from apps.loans.models_contracts import ContractTemplate
+
+    ContractTemplate.objects.create(
+        name="Base", content="Tasa {{interest_rate}} cuota {{monthly_payment}}", is_active=True, is_default=True
+    )
+    created = officer_client.post("/api/loans/", {
+        "customer": str(customer_factory().id), "loan_type": "personal",
+        "principal_amount": "10000.00", "principal_amount_currency": "DOP",
+        "interest_rate": "1.50", "interest_type": "flat", "term_months": 4,
+        "payment_frequency": "monthly", "payment_amount": "0.01", "payment_amount_currency": "DOP",
+    }, format="json")
+    assert created.status_code == 201, created.data
+    loan = Loan.objects.get(pk=created.data["id"])
+    contract = loan.contracts.get()
+    before = (contract.pk, contract.content, contract.updated_at, loan.payment_amount)
+
+    response = officer_client.patch(
+        f"/api/loans/{loan.pk}/", {"contract_document": _upload()}, format="multipart"
+    )
+    assert response.status_code == 200, response.data
+    loan.refresh_from_db()
+    assert loan.contract_document.name.endswith(".pdf")
+    assert loan.contracts.count() == 1
+    contract = loan.contracts.get()
+    assert (contract.pk, contract.content, contract.updated_at, loan.payment_amount) == before

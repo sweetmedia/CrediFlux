@@ -3,6 +3,7 @@ Serializers for loan module
 """
 import re
 
+from django.core.files.uploadedfile import UploadedFile
 from rest_framework import serializers
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
@@ -10,7 +11,9 @@ from .models_contracts import ContractTemplate, Contract
 from .models_guarantors import Guarantor
 from apps.core.media import SignedFilesModelSerializer
 from .fields import TenantUserField
-from .policy import LOAN_LIFECYCLE_FIELDS, LOAN_TERM_FIELDS, loan_terms_locked, validate_origination
+from .policy import (
+    LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS, loan_terms_locked, validate_origination,
+)
 
 # `id_number` del cliente: sin caracteres que una hoja de cálculo interprete (=, +, @...).
 ID_NUMBER_RE = re.compile(r'^[A-Za-z0-9 -]+$')
@@ -615,12 +618,15 @@ class LoanSerializer(SignedFilesModelSerializer):
             *LOAN_LIFECYCLE_FIELDS,
         ]
 
-    # Deudor y términos económicos: lo que el aprobador revisó y el cliente firmó.
+    # Deudor y términos económicos: lo que el aprobador revisó y el cliente firmó. Si cambian,
+    # LoanViewSet.perform_update rehace cuota y contrato.
     TERM_FIELDS = LOAN_TERM_FIELDS
+    # Lo que queda congelado con loan_terms_locked: los términos más el documento del contrato.
+    LOCKED_FIELDS = LOAN_LOCKED_FIELDS
 
     def _ensure_terms_editable(self, attrs):
-        """Tras aprobar o firmar el contrato, deudor y términos ya no cambian por PATCH/PUT."""
-        changed = [f for f in self.TERM_FIELDS if f in attrs and attrs[f] != getattr(self.instance, f)]
+        """Tras aprobar o firmar el contrato, deudor, términos y documento ya no cambian por PATCH/PUT."""
+        changed = [f for f in self.LOCKED_FIELDS if f in attrs and self._differs(f, attrs[f])]
         if not changed:
             return
         if loan_terms_locked(self.instance):
@@ -628,6 +634,12 @@ class LoanSerializer(SignedFilesModelSerializer):
                 f: 'No se puede modificar después de aprobado el préstamo o firmado el contrato.'
                 for f in changed
             })
+
+    def _differs(self, field, value):
+        # Un archivo subido siempre es un cambio (FieldFile compara sólo por nombre).
+        if isinstance(value, UploadedFile):
+            return True
+        return value != getattr(self.instance, field)
 
     def validate(self, attrs):
         if self.instance is not None:
