@@ -275,6 +275,23 @@ def _terminal_contract_response(contract):
     return None
 
 
+def _lock_contract(contract):
+    """Vuelve a leer el contrato con SELECT ... FOR UPDATE (sólo su fila, sin joins).
+
+    Llamar dentro de `transaction.atomic()`. Todas las comprobaciones y escrituras de la acción
+    se hacen sobre la instancia devuelta, nunca sobre la copia de `get_object()`. El orden de
+    bloqueo en el código es préstamo → contrato: después de esto no se bloquea el préstamo.
+    """
+    from .models_contracts import Contract
+
+    return Contract.objects.select_for_update(of=('self',)).get(pk=contract.pk)
+
+
+# Estados del préstamo anteriores al desembolso: sólo con éstos se puede cancelar su contrato.
+# (`disbursement_date` también marca el desembolso, pero el estado es la condición principal.)
+LOAN_STATUSES_BEFORE_DISBURSEMENT = ('pending', 'approved', 'rejected')
+
+
 class LoanViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing loans
@@ -1416,32 +1433,36 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         contract = self.get_object()
 
-        if (
-            contract.customer_signed_at
-            or contract.officer_signed_at
-            or contract.status in ('signed', 'active', 'completed', 'cancelled')
-        ):
-            return Response(
-                {'error': 'No se puede regenerar un contrato firmado.'},
-                status=status.HTTP_400_BAD_REQUEST
+        with transaction.atomic():
+            # Se decide sobre la fila bloqueada: una firma concurrente no se pisa.
+            contract = _lock_contract(contract)
+
+            if (
+                contract.customer_signed_at
+                or contract.officer_signed_at
+                or contract.status in ('signed', 'active', 'completed', 'cancelled')
+            ):
+                return Response(
+                    {'error': 'No se puede regenerar un contrato firmado.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not contract.template:
+                return Response(
+                    {'error': 'No se puede regenerar un contrato sin plantilla'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            tenant = getattr(request, 'tenant', None)
+
+            rendered_content = replace_contract_variables(
+                contract.template.content,
+                contract.loan,
+                tenant
             )
 
-        if not contract.template:
-            return Response(
-                {'error': 'No se puede regenerar un contrato sin plantilla'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        tenant = getattr(request, 'tenant', None)
-
-        rendered_content = replace_contract_variables(
-            contract.template.content,
-            contract.loan,
-            tenant
-        )
-
-        contract.content = rendered_content
-        contract.save()
+            contract.content = rendered_content
+            contract.save()
 
         serializer = self.get_serializer(contract)
         return Response(serializer.data)
@@ -1451,51 +1472,56 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Mark contract as signed by customer"""
         contract = self.get_object()
 
-        # Cancelado o completado es definitivo: firmar o activar lo reviviría.
-        terminal = _terminal_contract_response(contract)
-        if terminal is not None:
-            return terminal
+        with transaction.atomic():
+            # Se decide sobre la fila bloqueada: dos firmas simultáneas no pasan ambas la
+            # comprobación, y una cancelación concurrente no se revive.
+            contract = _lock_contract(contract)
 
-        if contract.customer_signed_at:
-            return Response(
-                {'error': 'El cliente ya firmó este contrato'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Cancelado o completado es definitivo: firmar o activar lo reviviría.
+            terminal = _terminal_contract_response(contract)
+            if terminal is not None:
+                return terminal
 
-        # Handle signature - can be file or base64 string
-        signature_file = request.FILES.get('signature')
-        signature_data = request.data.get('signature_data')  # base64 from canvas
-
-        if signature_file:
-            contract.customer_signature = signature_file
-        elif signature_data:
-            # Handle base64 signature from canvas
-            import base64
-            from django.core.files.base import ContentFile
-            import uuid
-
-            try:
-                # Remove data URL prefix if present
-                if ',' in signature_data:
-                    signature_data = signature_data.split(',')[1]
-
-                signature_binary = base64.b64decode(signature_data)
-                signature_file = ContentFile(signature_binary, name=f'signature_{uuid.uuid4()}.png')
-                contract.customer_signature = signature_file
-            except Exception as e:
+            if contract.customer_signed_at:
                 return Response(
-                    {'error': f'Error al procesar firma: {str(e)}'},
+                    {'error': 'El cliente ya firmó este contrato'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-        contract.customer_signed_at = timezone.now()
+            # Handle signature - can be file or base64 string
+            signature_file = request.FILES.get('signature')
+            signature_data = request.data.get('signature_data')  # base64 from canvas
 
-        if contract.status == 'draft':
-            contract.status = 'pending_signature'
-        elif contract.is_fully_signed:
-            contract.status = 'signed'
+            if signature_file:
+                contract.customer_signature = signature_file
+            elif signature_data:
+                # Handle base64 signature from canvas
+                import base64
+                from django.core.files.base import ContentFile
+                import uuid
 
-        contract.save()
+                try:
+                    # Remove data URL prefix if present
+                    if ',' in signature_data:
+                        signature_data = signature_data.split(',')[1]
+
+                    signature_binary = base64.b64decode(signature_data)
+                    signature_file = ContentFile(signature_binary, name=f'signature_{uuid.uuid4()}.png')
+                    contract.customer_signature = signature_file
+                except Exception as e:
+                    return Response(
+                        {'error': f'Error al procesar firma: {str(e)}'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            contract.customer_signed_at = timezone.now()
+
+            if contract.status == 'draft':
+                contract.status = 'pending_signature'
+            elif contract.is_fully_signed:
+                contract.status = 'signed'
+
+            contract.save()
 
         return Response({'message': 'Contrato firmado por el cliente'})
 
@@ -1504,51 +1530,55 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Mark contract as signed by loan officer"""
         contract = self.get_object()
 
-        # Cancelado o completado es definitivo: firmar o activar lo reviviría.
-        terminal = _terminal_contract_response(contract)
-        if terminal is not None:
-            return terminal
+        with transaction.atomic():
+            # Se decide sobre la fila bloqueada: una cancelación concurrente no se revive.
+            contract = _lock_contract(contract)
 
-        if contract.officer_signed_at:
-            return Response(
-                {'error': 'El oficial ya firmó este contrato'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Cancelado o completado es definitivo: firmar o activar lo reviviría.
+            terminal = _terminal_contract_response(contract)
+            if terminal is not None:
+                return terminal
 
-        # Handle signature - can be file or base64 string
-        signature_file = request.FILES.get('signature')
-        signature_data = request.data.get('signature_data')  # base64 from canvas
-
-        if signature_file:
-            contract.officer_signature = signature_file
-        elif signature_data:
-            # Handle base64 signature from canvas
-            import base64
-            from django.core.files.base import ContentFile
-            import uuid
-
-            try:
-                # Remove data URL prefix if present
-                if ',' in signature_data:
-                    signature_data = signature_data.split(',')[1]
-
-                signature_binary = base64.b64decode(signature_data)
-                signature_file = ContentFile(signature_binary, name=f'signature_{uuid.uuid4()}.png')
-                contract.officer_signature = signature_file
-            except Exception as e:
+            if contract.officer_signed_at:
                 return Response(
-                    {'error': f'Error al procesar firma: {str(e)}'},
+                    {'error': 'El oficial ya firmó este contrato'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-        contract.officer_signed_at = timezone.now()
+            # Handle signature - can be file or base64 string
+            signature_file = request.FILES.get('signature')
+            signature_data = request.data.get('signature_data')  # base64 from canvas
 
-        if contract.status == 'draft':
-            contract.status = 'pending_signature'
-        elif contract.is_fully_signed:
-            contract.status = 'signed'
+            if signature_file:
+                contract.officer_signature = signature_file
+            elif signature_data:
+                # Handle base64 signature from canvas
+                import base64
+                from django.core.files.base import ContentFile
+                import uuid
 
-        contract.save()
+                try:
+                    # Remove data URL prefix if present
+                    if ',' in signature_data:
+                        signature_data = signature_data.split(',')[1]
+
+                    signature_binary = base64.b64decode(signature_data)
+                    signature_file = ContentFile(signature_binary, name=f'signature_{uuid.uuid4()}.png')
+                    contract.officer_signature = signature_file
+                except Exception as e:
+                    return Response(
+                        {'error': f'Error al procesar firma: {str(e)}'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            contract.officer_signed_at = timezone.now()
+
+            if contract.status == 'draft':
+                contract.status = 'pending_signature'
+            elif contract.is_fully_signed:
+                contract.status = 'signed'
+
+            contract.save()
 
         return Response({'message': 'Contrato firmado por el oficial'})
 
@@ -1557,19 +1587,23 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Activate a signed contract"""
         contract = self.get_object()
 
-        # Cancelado o completado es definitivo: firmar o activar lo reviviría.
-        terminal = _terminal_contract_response(contract)
-        if terminal is not None:
-            return terminal
+        with transaction.atomic():
+            # Se decide sobre la fila bloqueada: una cancelación concurrente no se revive.
+            contract = _lock_contract(contract)
 
-        if not contract.is_fully_signed:
-            return Response(
-                {'error': 'El contrato debe estar firmado por todas las partes'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Cancelado o completado es definitivo: firmar o activar lo reviviría.
+            terminal = _terminal_contract_response(contract)
+            if terminal is not None:
+                return terminal
 
-        contract.status = 'active'
-        contract.save()
+            if not contract.is_fully_signed:
+                return Response(
+                    {'error': 'El contrato debe estar firmado por todas las partes'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            contract.status = 'active'
+            contract.save()
 
         return Response({'message': 'Contrato activado'})
 
@@ -1578,17 +1612,32 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Cancel a contract"""
         contract = self.get_object()
 
-        if contract.status in ['completed', 'cancelled']:
-            return Response(
-                {'error': 'No se puede cancelar un contrato completado o ya cancelado'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        with transaction.atomic():
+            # Se decide sobre la fila bloqueada: si un desembolso tenía el contrato bloqueado,
+            # esto espera a que termine y ve el préstamo ya desembolsado.
+            contract = _lock_contract(contract)
 
-        contract.status = 'cancelled'
-        contract.notes = f"{contract.notes}\n\nCancelado el {timezone.now().strftime('%Y-%m-%d %H:%M')} por {request.user.get_full_name()}"
-        contract.save()
-        # Los enlaces públicos de firma pendientes dejan de servir.
-        contract.signature_tokens.filter(used_at__isnull=True).update(used_at=timezone.now())
+            if contract.status in ['completed', 'cancelled']:
+                return Response(
+                    {'error': 'No se puede cancelar un contrato completado o ya cancelado'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # El contrato de un préstamo ya desembolsado no se cancela: dejaría un préstamo
+            # activo sin contrato vigente. Se lee el préstamo sin bloquearlo (orden préstamo →
+            # contrato); el desembolso bloquea el contrato que valida, así que si es éste no
+            # puede colarse entre esta comprobación y la escritura.
+            if contract.loan.status not in LOAN_STATUSES_BEFORE_DISBURSEMENT:
+                return Response(
+                    {'error': 'No se puede cancelar el contrato de un préstamo ya desembolsado.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            contract.status = 'cancelled'
+            contract.notes = f"{contract.notes}\n\nCancelado el {timezone.now().strftime('%Y-%m-%d %H:%M')} por {request.user.get_full_name()}"
+            contract.save()
+            # Los enlaces públicos de firma pendientes dejan de servir.
+            contract.signature_tokens.filter(used_at__isnull=True).update(used_at=timezone.now())
 
         return Response({'message': 'Contrato cancelado'})
 
@@ -1597,22 +1646,26 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Archive a contract (only for cancelled contracts)"""
         contract = self.get_object()
 
-        if contract.status != 'cancelled':
-            return Response(
-                {'error': 'Solo se pueden archivar contratos cancelados'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        with transaction.atomic():
+            # Se decide y se escribe sobre la fila bloqueada, no sobre la copia de get_object().
+            contract = _lock_contract(contract)
 
-        if contract.is_archived:
-            return Response(
-                {'error': 'Este contrato ya está archivado'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if contract.status != 'cancelled':
+                return Response(
+                    {'error': 'Solo se pueden archivar contratos cancelados'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        contract.is_archived = True
-        contract.archived_at = timezone.now()
-        contract.archived_by = request.user
-        contract.save()
+            if contract.is_archived:
+                return Response(
+                    {'error': 'Este contrato ya está archivado'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            contract.is_archived = True
+            contract.archived_at = timezone.now()
+            contract.archived_by = request.user
+            contract.save()
 
         return Response({'message': 'Contrato archivado exitosamente'})
 
@@ -1621,23 +1674,27 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Unarchive a contract"""
         contract = self.get_object()
 
-        if not contract.is_archived:
-            return Response(
-                {'error': 'Este contrato no está archivado'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        with transaction.atomic():
+            # Se decide y se escribe sobre la fila bloqueada, no sobre la copia de get_object().
+            contract = _lock_contract(contract)
 
-        if contract.status == 'cancelled':
-            # La cancelación es definitiva: revivirlo reusaría una firma sobre términos viejos.
-            return Response(
-                {'error': 'Un contrato cancelado no se puede desarchivar; genere uno nuevo.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if not contract.is_archived:
+                return Response(
+                    {'error': 'Este contrato no está archivado'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        contract.is_archived = False
-        contract.archived_at = None
-        contract.archived_by = None
-        contract.save()
+            if contract.status == 'cancelled':
+                # La cancelación es definitiva: revivirlo reusaría una firma sobre términos viejos.
+                return Response(
+                    {'error': 'Un contrato cancelado no se puede desarchivar; genere uno nuevo.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            contract.is_archived = False
+            contract.archived_at = None
+            contract.archived_by = None
+            contract.save()
 
         return Response({'message': 'Contrato desarchivado exitosamente'})
 
@@ -1913,78 +1970,86 @@ def public_contract_sign(request, token):
     from .models_contracts import ContractSignatureToken
 
     try:
-        # Get signature token
+        # Get signature token (sin bloquear: sólo para el 404 y para saber qué contrato es)
         signature_token = ContractSignatureToken.objects.select_related('contract').get(token=token)
 
-        # Check if token is valid
-        if not signature_token.is_valid:
-            if signature_token.is_expired:
+        with transaction.atomic():
+            # Orden contrato → token, el mismo que `cancel` (bloquea el contrato y luego
+            # actualiza sus tokens): al revés, una firma y una cancelación simultáneas se
+            # interbloquearían. Con ambas filas bloqueadas, el mismo enlace no firma dos veces
+            # y una cancelación concurrente se ve antes de decidir.
+            contract = _lock_contract(signature_token.contract)
+            signature_token = ContractSignatureToken.objects.select_for_update(
+                of=('self',)
+            ).get(pk=signature_token.pk)
+
+            # Check if token is valid
+            if not signature_token.is_valid:
+                if signature_token.is_expired:
+                    return Response(
+                        {'error': 'Este enlace ha expirado'},
+                        status=status.HTTP_410_GONE
+                    )
+                elif signature_token.is_used:
+                    return Response(
+                        {'error': 'Este enlace ya ha sido utilizado'},
+                        status=status.HTTP_410_GONE
+                    )
+
+            if contract.status != 'pending_signature' or contract.is_archived:
                 return Response(
-                    {'error': 'Este enlace ha expirado'},
+                    {'error': 'Este contrato ya no está disponible para firma'},
                     status=status.HTTP_410_GONE
                 )
-            elif signature_token.is_used:
+
+            # Get signature data
+            signature_data = request.data.get('signature_data')
+
+            if not signature_data:
                 return Response(
-                    {'error': 'Este enlace ya ha sido utilizado'},
-                    status=status.HTTP_410_GONE
+                    {'error': 'Se requiere una firma'},
+                    status=status.HTTP_400_BAD_REQUEST
                 )
 
-        contract = signature_token.contract
+            # Process signature
+            try:
+                # Remove data URL prefix if present
+                if ',' in signature_data:
+                    signature_data = signature_data.split(',')[1]
 
-        if contract.status != 'pending_signature' or contract.is_archived:
-            return Response(
-                {'error': 'Este contrato ya no está disponible para firma'},
-                status=status.HTTP_410_GONE
-            )
+                signature_binary = base64.b64decode(signature_data)
+                signature_file = ContentFile(signature_binary, name=f'signature_{uuid.uuid4()}.png')
+            except Exception as e:
+                return Response(
+                    {'error': f'Error al procesar firma: {str(e)}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # Get signature data
-        signature_data = request.data.get('signature_data')
+            # Apply signature based on permissions
+            if signature_token.can_sign_as_customer and not contract.customer_signed_at:
+                contract.customer_signature = signature_file
+                contract.customer_signed_at = timezone.now()
+                signature_type = 'customer'
+            elif signature_token.can_sign_as_officer and not contract.officer_signed_at:
+                contract.officer_signature = signature_file
+                contract.officer_signed_at = timezone.now()
+                signature_type = 'officer'
+            else:
+                return Response(
+                    {'error': 'No tienes permisos para firmar este contrato o ya ha sido firmado'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
-        if not signature_data:
-            return Response(
-                {'error': 'Se requiere una firma'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Update contract status
+            if contract.status == 'draft':
+                contract.status = 'pending_signature'
+            elif contract.is_fully_signed:
+                contract.status = 'signed'
 
-        # Process signature
-        try:
-            # Remove data URL prefix if present
-            if ',' in signature_data:
-                signature_data = signature_data.split(',')[1]
+            contract.save()
 
-            signature_binary = base64.b64decode(signature_data)
-            signature_file = ContentFile(signature_binary, name=f'signature_{uuid.uuid4()}.png')
-        except Exception as e:
-            return Response(
-                {'error': f'Error al procesar firma: {str(e)}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Apply signature based on permissions
-        if signature_token.can_sign_as_customer and not contract.customer_signed_at:
-            contract.customer_signature = signature_file
-            contract.customer_signed_at = timezone.now()
-            signature_type = 'customer'
-        elif signature_token.can_sign_as_officer and not contract.officer_signed_at:
-            contract.officer_signature = signature_file
-            contract.officer_signed_at = timezone.now()
-            signature_type = 'officer'
-        else:
-            return Response(
-                {'error': 'No tienes permisos para firmar este contrato o ya ha sido firmado'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Update contract status
-        if contract.status == 'draft':
-            contract.status = 'pending_signature'
-        elif contract.is_fully_signed:
-            contract.status = 'signed'
-
-        contract.save()
-
-        # Mark token as used
-        signature_token.mark_as_used()
+            # Mark token as used (en la misma transacción que la firma)
+            signature_token.mark_as_used()
 
         return Response({
             'message': 'Contrato firmado exitosamente',
