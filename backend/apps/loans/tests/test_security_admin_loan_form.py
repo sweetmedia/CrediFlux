@@ -508,3 +508,35 @@ def test_bulk_delete_action_respects_the_lifecycle(admin_client, active_loan, lo
         "action": "delete_selected", "_selected_action": [pending.pk], "post": "yes",
     })
     assert not Loan.objects.filter(pk=pending.pk).exists()
+
+
+# --- Respaldos de save_model que el formulario ya no alcanza con entrada honesta -------------
+
+def test_save_model_backstop_still_refuses_policy_violations(superuser, tenant_schema, loan_factory):
+    """Un POST manipulado que esquiva el formulario sigue chocando con la política en save_model."""
+    from apps.loans.models import Loan
+
+    original = tenant_schema.max_interest_rate
+    tenant_schema.max_interest_rate = Decimal("36.00")
+    tenant_schema.save()
+    try:
+        loan = _pending(loan_factory)
+        loan.interest_rate = Decimal("9.00")  # 108 % anual > 36 %
+        with pytest.raises(PermissionDenied):
+            _loan_admin().save_model(_request(superuser), loan, _CraftedForm(["interest_rate"]), change=True)
+        assert Loan.objects.get(pk=loan.pk).interest_rate == Decimal("1.50")
+    finally:
+        tenant_schema.max_interest_rate = original
+        tenant_schema.save()
+
+
+def test_save_model_refuses_crafted_late_fees_on_a_live_loan(superuser, loan_factory):
+    from apps.loans.models import Loan
+    from moneyed import Money
+
+    loan = loan_factory(status="active")
+    before = Loan.objects.get(pk=loan.pk).late_fees
+    loan.late_fees = Money("999.00", "DOP")
+    with pytest.raises(PermissionDenied):
+        _loan_admin().save_model(_request(superuser), loan, _CraftedForm(["late_fees"]), change=True)
+    assert Loan.objects.get(pk=loan.pk).late_fees == before
