@@ -300,11 +300,10 @@ class CollateralSerializer(SignedFilesModelSerializer):
 
         collateral = super().create(validated_data)
 
-        try:
-            from .utils_contracts import regenerate_latest_loan_contract
-            regenerate_latest_loan_contract(collateral.loan, tenant)
-        except Exception:
-            pass
+        # Sin silenciar errores: corre dentro de la transacción de la vista y un fallo al
+        # rehacer el contrato debe deshacer también la escritura de la garantía.
+        from .utils_contracts import regenerate_latest_loan_contract
+        regenerate_latest_loan_contract(collateral.loan, tenant)
 
         return collateral
 
@@ -330,11 +329,10 @@ class CollateralSerializer(SignedFilesModelSerializer):
 
         collateral = super().update(instance, validated_data)
 
-        try:
-            from .utils_contracts import regenerate_latest_loan_contract
-            regenerate_latest_loan_contract(collateral.loan, tenant)
-        except Exception:
-            pass
+        # Sin silenciar errores: corre dentro de la transacción de la vista y un fallo al
+        # rehacer el contrato debe deshacer también la escritura de la garantía.
+        from .utils_contracts import regenerate_latest_loan_contract
+        regenerate_latest_loan_contract(collateral.loan, tenant)
 
         return collateral
 
@@ -1157,24 +1155,22 @@ class GuarantorSerializer(SignedFilesModelSerializer):
 
     def create(self, validated_data):
         guarantor = super().create(validated_data)
-        try:
-            from .utils_contracts import regenerate_latest_loan_contract
-            request = self.context.get('request')
-            tenant = getattr(request, 'tenant', None) if request else None
-            regenerate_latest_loan_contract(guarantor.loan, tenant)
-        except Exception:
-            pass
+        # Sin silenciar errores: corre dentro de la transacción de la vista y un fallo al
+        # rehacer el contrato debe deshacer también la escritura del garante.
+        from .utils_contracts import regenerate_latest_loan_contract
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request else None
+        regenerate_latest_loan_contract(guarantor.loan, tenant)
         return guarantor
 
     def update(self, instance, validated_data):
         guarantor = super().update(instance, validated_data)
-        try:
-            from .utils_contracts import regenerate_latest_loan_contract
-            request = self.context.get('request')
-            tenant = getattr(request, 'tenant', None) if request else None
-            regenerate_latest_loan_contract(guarantor.loan, tenant)
-        except Exception:
-            pass
+        # Sin silenciar errores: corre dentro de la transacción de la vista y un fallo al
+        # rehacer el contrato debe deshacer también la escritura del garante.
+        from .utils_contracts import regenerate_latest_loan_contract
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request else None
+        regenerate_latest_loan_contract(guarantor.loan, tenant)
         return guarantor
 
     def get_full_name(self, obj):

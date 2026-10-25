@@ -154,6 +154,8 @@ def test_pending_loan_writes_still_work(api, loan_factory, kind):
     assert response.status_code == 200, response.content
     row.refresh_from_db()
     assert _name(kind, row) == "Editada"
+    if kind == "guarantor":
+        assert row.updated_by_id is not None
 
     assert _request(api, kind, "delete", loan, row).status_code == 204
     assert not model.objects.filter(pk=row.pk).exists()
@@ -190,7 +192,13 @@ def test_api_write_locks_the_loan_before_writing(api, template, loan_factory, ki
     assert writes
     assert locks[0] < writes[0]
     savepoints = [i for i, sql in enumerate(sqls) if sql.startswith("SAVEPOINT")]
-    assert any(i < locks[0] for i in savepoints), "el bloqueo no va dentro de una transacción"
+    opened_before = [i for i in savepoints if i < locks[0]]
+    assert opened_before, "el bloqueo no va dentro de una transacción"
+    # Y ese savepoint sigue abierto hasta pasada la escritura: no hay RELEASE entre medias.
+    releases = [i for i, sql in enumerate(sqls) if sql.startswith("RELEASE SAVEPOINT")]
+    assert not [i for i in releases if opened_before[-1] < i < writes[0]], (
+        "la transacción se cierra antes de la escritura"
+    )
 
 
 # (c) carrera: el préstamo se aprueba justo antes del bloqueo
@@ -269,3 +277,57 @@ def test_moving_a_row_regenerates_both_contracts(api, template, loan_factory, ki
     else:
         assert "Garante: N/A" in old_contract.content
         assert "Movida Gómez" in new_contract.content
+
+
+# (e) ronda 14.1: un error al rehacer el contrato ya no se silencia en el serializer; deshace la
+# escritura de la fila (si no, un error de base de datos dejaría la transacción abortada y la API
+# respondería éxito con la fila perdida).
+
+def _break_rendering(monkeypatch):
+    def _boom(*args, **kwargs):
+        raise RuntimeError("fallo al renderizar")
+
+    monkeypatch.setattr("apps.loans.utils_contracts.replace_contract_variables", _boom)
+
+
+@pytest.fixture
+def raw_api(user_factory, policy):
+    client = APIClient(HTTP_HOST=HOST, raise_request_exception=False)
+    client.force_authenticate(user=user_factory(role="manager"))
+    return client
+
+
+@KINDS
+def test_create_rolls_back_when_the_contract_cannot_be_regenerated(
+    raw_api, template, loan_factory, monkeypatch, kind
+):
+    model = _model(kind)
+    loan = _pending(loan_factory)
+    contract = _contract(loan, template)
+    before = model.objects.count()
+    _break_rendering(monkeypatch)
+
+    response = _request(raw_api, kind, "create", loan, name="Huérfana")
+
+    assert response.status_code == 500
+    assert model.objects.count() == before
+    contract.refresh_from_db()
+    assert contract.content == "texto viejo"
+
+
+@KINDS
+def test_update_rolls_back_when_the_contract_cannot_be_regenerated(
+    raw_api, template, loan_factory, monkeypatch, kind
+):
+    loan = _pending(loan_factory)
+    row = _row(kind, loan)
+    contract = _contract(loan, template)
+    _break_rendering(monkeypatch)
+
+    response = _request(raw_api, kind, "update", loan, row, name="Cambiada")
+
+    assert response.status_code == 500
+    row.refresh_from_db()
+    assert _name(kind, row) == "Fila vieja"
+    contract.refresh_from_db()
+    assert contract.content == "texto viejo"

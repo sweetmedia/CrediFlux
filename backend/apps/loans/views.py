@@ -1077,6 +1077,7 @@ class _PendingLoanRowMixin:
                 # El serializer rehace el contrato del préstamo con el préstamo ya bloqueado.
                 serializer.save(created_by=self.request.user)
         except LoanNotPending:
+            assert self.write_message, 'write_message sin definir en la vista'
             raise ValidationError({'loan': self.write_message})
 
     def perform_update(self, serializer):
@@ -1093,6 +1094,7 @@ class _PendingLoanRowMixin:
                 if new_loan_id != previous_loan_id:
                     self._regenerate(previous_loan_id)
         except LoanNotPending:
+            assert self.write_message, 'write_message sin definir en la vista'
             raise ValidationError({'loan': self.write_message})
 
     def perform_destroy(self, instance):
@@ -1104,6 +1106,7 @@ class _PendingLoanRowMixin:
                 # El contrato por firmar deja de nombrar la garantía/el garante borrado.
                 self._regenerate(loan_id)
         except LoanNotPending:
+            assert self.delete_message, 'delete_message sin definir en la vista'
             raise ValidationError({'loan': self.delete_message})
 
 
