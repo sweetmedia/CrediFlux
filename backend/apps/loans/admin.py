@@ -19,6 +19,7 @@ from .policy import (
     validate_approval, validate_origination,
 )
 from .disbursement import apply_disbursement, calculate_payment_amount, check_disbursable
+from .locks import LoanNotPending, lock_pending_loans, lock_row_loans
 
 
 def is_tenant_schema():
@@ -45,39 +46,28 @@ def _regenerate_loan_contracts(request, loan_ids):
 
 
 def _lock_pending_loans(loan_ids, message):
-    """Bloquea los préstamos indicados y exige que todos sigan pendientes.
+    """Adaptador del admin sobre locks.lock_pending_loans: LoanNotPending → PermissionDenied(message).
 
     Debe llamarse dentro de una transacción (changeform_view/delete_view ya la abren; los
-    delete_queryset abren la suya). Descarta None y duplicados, bloquea con SELECT ... FOR UPDATE
-    en una sola consulta ordenada por pk —orden de bloqueo determinista cuando son dos préstamos
-    (garantía/garante movido entre préstamos)— y lanza PermissionDenied(message) si alguno no
-    está pendiente o ya no existe. No bloquea el contrato: se respeta el orden préstamo →
-    contrato → token del módulo, y _regenerate_loan_contracts después sólo escribe el contrato.
+    delete_queryset abren la suya). Bloquea los préstamos ordenados por pk y exige que sigan
+    pendientes; ver apps/loans/locks.py (orden préstamo → contrato → token).
     """
-    ids = {pk for pk in loan_ids if pk is not None}
-    locked = list(
-        Loan.objects.select_for_update(of=('self',))
-        .filter(pk__in=ids).order_by('pk').values_list('pk', 'status')
-    )
-    if len(locked) != len(ids) or any(status != 'pending' for _, status in locked):
+    try:
+        return lock_pending_loans(loan_ids)
+    except LoanNotPending:
         raise PermissionDenied(message)
-    return ids
 
 
 def _lock_row_loans(model, obj, loan_ids, message):
-    """Para save_model/delete_model de garantías/garantes: bloquea y revalida el préstamo de la fila.
+    """Adaptador del admin sobre locks.lock_row_loans para save_model/delete_model.
 
-    El préstamo anterior de la fila se leyó antes del bloqueo; otra petición pudo moverla
-    entretanto. Tras bloquear se vuelve a leer su loan_id: si ya no es uno de los préstamos
-    bloqueados, se rechaza (cualquier movimiento desde un préstamo bloqueado necesita su
-    bloqueo, así que la relectura es estable). En el alta la fila aún no existe (el pk UUID ya
-    viene asignado), así que la relectura no devuelve nada y no hay nada que validar.
+    Bloquea los préstamos de la fila y vuelve a leer su loan_id tras el bloqueo: si otra petición
+    la movió a un préstamo no bloqueado, rechaza con PermissionDenied(message).
     """
-    locked = _lock_pending_loans(loan_ids, message)
-    current = model.objects.filter(pk=obj.pk).values_list('loan_id', flat=True).first()
-    if current is not None and current not in locked:
+    try:
+        return lock_row_loans(model, obj, loan_ids)
+    except LoanNotPending:
         raise PermissionDenied(message)
-    return locked
 
 
 def _lock_related_loans(queryset, message):

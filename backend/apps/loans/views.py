@@ -31,6 +31,7 @@ from .serializers import (
 )
 from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, CanRegisterPayments
 from .policy import validate_approval
+from .locks import LoanNotPending, lock_pending_loans, lock_row_loans
 from .disbursement import (
     apply_disbursement, calculate_payment_amount, check_disbursable, generate_payment_schedule,
 )
@@ -1046,7 +1047,67 @@ class LoanScheduleViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
-class CollateralViewSet(viewsets.ModelViewSet):
+class _PendingLoanRowMixin:
+    """Garantías y garantes por la API: sólo se agregan, editan, mueven o borran mientras el
+    préstamo está pendiente (lo que el aprobador revisó y lo que describe el contrato por firmar).
+
+    Igual que los admins (ronda 13): la decisión se toma sobre los préstamos bloqueados con
+    SELECT ... FOR UPDATE dentro de una transacción (apps/loans/locks.py, orden préstamo →
+    contrato → token). Si no, 400 con el mensaje bajo «loan». El borrado y el préstamo anterior
+    de una fila movida rehacen su contrato aquí, sin silenciar errores: un fallo al renderizar
+    deshace también el cambio de la fila.
+    """
+    write_message = None
+    delete_message = None
+
+    def _update_kwargs(self):
+        return {}
+
+    def _regenerate(self, loan_id):
+        from .utils_contracts import regenerate_latest_loan_contract
+
+        loan = Loan.objects.filter(pk=loan_id).first()
+        if loan is not None:
+            regenerate_latest_loan_contract(loan, getattr(self.request, 'tenant', None))
+
+    def perform_create(self, serializer):
+        try:
+            with transaction.atomic():
+                lock_pending_loans([serializer.validated_data['loan'].pk])
+                # El serializer rehace el contrato del préstamo con el préstamo ya bloqueado.
+                serializer.save(created_by=self.request.user)
+        except LoanNotPending:
+            raise ValidationError({'loan': self.write_message})
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        previous_loan_id = instance.loan_id
+        new_loan = serializer.validated_data.get('loan')
+        new_loan_id = new_loan.pk if new_loan is not None else previous_loan_id
+        try:
+            with transaction.atomic():
+                lock_row_loans(type(instance), instance, [previous_loan_id, new_loan_id])
+                serializer.save(**self._update_kwargs())
+                # El serializer rehace el contrato del préstamo nuevo; si la fila cambió de
+                # préstamo, el anterior también se rehace porque la pierde (igual que el admin).
+                if new_loan_id != previous_loan_id:
+                    self._regenerate(previous_loan_id)
+        except LoanNotPending:
+            raise ValidationError({'loan': self.write_message})
+
+    def perform_destroy(self, instance):
+        loan_id = instance.loan_id
+        try:
+            with transaction.atomic():
+                lock_row_loans(type(instance), instance, [loan_id])
+                instance.delete()
+                # El contrato por firmar deja de nombrar la garantía/el garante borrado.
+                self._regenerate(loan_id)
+        except LoanNotPending:
+            raise ValidationError({'loan': self.delete_message})
+
+
+class CollateralViewSet(_PendingLoanRowMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing collaterals
     """
@@ -1069,8 +1130,8 @@ class CollateralViewSet(viewsets.ModelViewSet):
             logger.warning(f"Collateral validation errors: {serializer.errors}")
         return super().create(request, *args, **kwargs)
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+    write_message = 'Las garantías sólo se modifican mientras el préstamo está pendiente.'
+    delete_message = 'Las garantías sólo se eliminan mientras el préstamo está pendiente.'
 
     @action(detail=True, methods=['post'])
     def release(self, request, pk=None):
@@ -2153,7 +2214,7 @@ class LoanCalculatorView(APIView):
         }
 
 
-class GuarantorViewSet(viewsets.ModelViewSet):
+class GuarantorViewSet(_PendingLoanRowMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing loan guarantors (garantes/fiadores)
     """
@@ -2170,11 +2231,11 @@ class GuarantorViewSet(viewsets.ModelViewSet):
             return GuarantorListSerializer
         return GuarantorSerializer
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+    write_message = 'Los garantes sólo se modifican mientras el préstamo está pendiente.'
+    delete_message = 'Los garantes sólo se eliminan mientras el préstamo está pendiente.'
 
-    def perform_update(self, serializer):
-        serializer.save(updated_by=self.request.user)
+    def _update_kwargs(self):
+        return {'updated_by': self.request.user}
 
 
 # === Multi-Contact ViewSets ===
