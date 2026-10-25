@@ -14,7 +14,7 @@ from django.db import connection, transaction
 from django.utils import timezone
 from django_tenants.utils import schema_exists
 from apps.core.media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, SignedImageField, signed_media_url
-from apps.core.net import client_ip
+from apps.core.net import client_network_key
 from apps.users import lockout
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
@@ -281,7 +281,8 @@ class TenantRegistrationSerializer(serializers.Serializer):
         # Presupuesto por cliente antes del global: un solo cliente no agota el tope de
         # todos, y quien ya gastó el suyo no sigue gastando el global.
         day = f'{timezone.now():%Y%m%d}'
-        ip = client_ip(self.context.get('request'))
+        # Por IPv4 o por red IPv6 /64: cada dirección de una /64 no es un cliente nuevo.
+        ip = client_network_key(self.context.get('request'))
         if _spend_daily_budget(f'tenant_provisioning_ip:{ip}:{day}') > settings.MAX_TENANTS_PER_IP_PER_DAY:
             raise serializers.ValidationError(REGISTRATION_REJECTED)
         # Cada aprovisionamiento gasta el tope del día, también si luego se revierte.

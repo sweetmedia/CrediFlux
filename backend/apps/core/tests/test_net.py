@@ -57,3 +57,30 @@ def test_blank_entry_falls_back_to_remote_addr():
 
 def test_none_request_returns_empty_string():
     assert client_ip(None) == ""
+
+
+# --- client_network_key: identidad para presupuestos por cliente --------------------------
+
+from apps.core.net import client_network_key  # noqa: E402
+
+
+@pytest.mark.parametrize("remote, expected", [
+    ("198.51.100.7", "198.51.100.7"),
+    ("2001:db8:7:7::1", "2001:db8:7:7::/64"),
+    ("2001:db8:7:7:abcd:ef01:2345:6789", "2001:db8:7:7::/64"),
+    ("::ffff:198.51.100.7", "198.51.100.7"),  # IPv4 mapeada: la IPv4, no una /64 compartida
+    ("no-es-una-ip", "no-es-una-ip"),
+    ("", ""),
+])
+def test_client_network_key(remote, expected):
+    with _proxies(0):
+        assert client_network_key(_request(remote=remote)) == expected
+
+
+def test_client_network_key_respects_num_proxies():
+    with _proxies(1):
+        assert client_network_key(_request("2001:db8:1:2::99")) == "2001:db8:1:2::/64"
+
+
+def test_client_network_key_none_request():
+    assert client_network_key(None) == ""

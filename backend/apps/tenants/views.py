@@ -13,7 +13,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from apps.core.net import client_ip
+from apps.core.net import client_network_key
 from .serializers import (
     TenantRegistrationSerializer,
     TenantSerializer,
@@ -30,13 +30,14 @@ class TenantRegistrationThrottle(SimpleRateThrottle):
 
     No hereda de AnonRateThrottle: ese no limita a usuarios autenticados, y la ruta
     también está montada en los hosts de tenant (un usuario con token agotaría el tope
-    global MAX_TENANTS_PER_DAY). La IP sale de `client_ip` (respeta NUM_PROXIES).
+    global MAX_TENANTS_PER_DAY). La identidad sale de `client_network_key` (respeta
+    NUM_PROXIES): la IPv4 o la red IPv6 /64, la misma que el presupuesto diario por cliente.
     """
 
     scope = 'tenant_registration'
 
     def get_cache_key(self, request, view):
-        return self.cache_format % {'scope': self.scope, 'ident': client_ip(request)}
+        return self.cache_format % {'scope': self.scope, 'ident': client_network_key(request)}
 
     def get_rate(self):
         # Se lee en cada petición (no al importar) para respetar override_settings.
