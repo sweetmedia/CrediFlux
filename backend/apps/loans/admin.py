@@ -12,7 +12,8 @@ from .models_guarantors import Guarantor
 from .models_collections import CollectionReminder, CollectionContact
 from .models_contracts import ContractTemplate, Contract, ContractSignatureToken
 from rest_framework.exceptions import ValidationError
-from .policy import validate_approval
+from django.core.exceptions import PermissionDenied
+from .policy import LOAN_TERM_FIELDS, loan_terms_locked, validate_approval
 from .disbursement import apply_disbursement, check_disbursable
 
 
@@ -205,38 +206,63 @@ class CustomerAdmin(ModelAdmin):
     )
 
 
-class LoanScheduleInline(TabularInline):
-    """Inline admin for loan schedules"""
-    model = LoanSchedule
+class _ReadOnlyLoanInline(TabularInline):
+    """Filas que sólo cambian por sus flujos (desembolso, pagos, reversos), nunca por el formulario."""
     extra = 0
+    can_delete = False
+
+    def get_readonly_fields(self, request, obj=None):
+        return list(self.fields)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class LoanScheduleInline(_ReadOnlyLoanInline):
+    """Inline admin for loan schedules (solo lectura: el cronograma sale del desembolso)"""
+    model = LoanSchedule
     fields = [
         'installment_number', 'due_date', 'total_amount',
         'principal_amount', 'interest_amount', 'paid_amount', 'status'
     ]
-    readonly_fields = ['installment_number']
-    can_delete = False
 
 
-class LoanPaymentInline(TabularInline):
-    """Inline admin for loan payments"""
+class LoanPaymentInline(_ReadOnlyLoanInline):
+    """Inline admin for loan payments (solo lectura: los pagos tienen su propio flujo)"""
     model = LoanPayment
-    extra = 0
     fields = [
         'payment_number', 'payment_date', 'amount',
         'payment_method', 'status'
     ]
-    readonly_fields = ['payment_number']
-    can_delete = False
     show_change_link = True
 
 
 class CollateralInline(TabularInline):
-    """Inline admin for collaterals"""
+    """Inline admin for collaterals (editables sólo mientras el préstamo está pendiente)"""
     model = Collateral
     extra = 0
     fields = [
         'collateral_type', 'description', 'estimated_value', 'status'
     ]
+
+    @staticmethod
+    def _editable(obj):
+        return obj is None or obj.status == 'pending'
+
+    def has_add_permission(self, request, obj=None):
+        return self._editable(obj) and super().has_add_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        return self._editable(obj) and super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return self._editable(obj) and super().has_delete_permission(request, obj)
 
 
 @admin.register(Loan)
@@ -269,6 +295,15 @@ class LoanAdmin(ModelAdmin):
     inlines = [CollateralInline, LoanScheduleInline, LoanPaymentInline]
     save_on_top = True
 
+    # Estado y fechas del ciclo sólo cambian por las acciones approve/reject/disburse
+    # (que aplican la política); la cuota sale del cálculo de amortización.
+    LIFECYCLE_FIELDS = (
+        'status', 'approval_date', 'rejection_date', 'disbursement_date', 'maturity_date',
+        'payment_amount', 'approved_by', 'rejected_by', 'approval_notes',
+    )
+    # Deudor y términos: los mismos que fija la API (loan_terms_locked) más el documento.
+    TERM_FIELDS = LOAN_TERM_FIELDS + ('contract_document',)
+
     def has_module_permission(self, request):
         """Only show in tenant schemas"""
         return is_tenant_schema()
@@ -286,8 +321,44 @@ class LoanAdmin(ModelAdmin):
         return is_tenant_schema() and super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        """Only allow delete in tenant schemas"""
+        """Sólo en tenants y, como LoanViewSet.perform_destroy, sólo pendientes o rechazados."""
+        if obj is not None and obj.status not in ('pending', 'rejected'):
+            return False
         return is_tenant_schema() and super().has_delete_permission(request, obj)
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        readonly += [f for f in self.LIFECYCLE_FIELDS if f not in readonly]
+        if obj is not None and loan_terms_locked(obj):
+            readonly += [f for f in self.TERM_FIELDS if f not in readonly]
+        return readonly
+
+    def save_model(self, request, obj, form, change):
+        """Defensa en profundidad: un POST manipulado no cambia estado ni términos bloqueados."""
+        changed = set(getattr(form, 'changed_data', ()))
+        if change and 'status' in changed:
+            raise PermissionDenied(
+                'El estado del préstamo sólo cambia con las acciones aprobar, rechazar o desembolsar.'
+            )
+        terms_changed = bool(changed & set(self.TERM_FIELDS))
+        if change and terms_changed and loan_terms_locked(Loan.objects.get(pk=obj.pk)):
+            raise PermissionDenied(
+                'No se puede modificar el deudor ni los términos después de aprobado el préstamo '
+                'o firmado el contrato.'
+            )
+
+        if not change or terms_changed:
+            # La cuota sale del mismo cálculo que la API, nunca del formulario.
+            from .views import LoanViewSet
+            obj.payment_amount = LoanViewSet._calculate_payment_amount(obj)
+        if not change:
+            obj.outstanding_balance = obj.principal_amount
+        super().save_model(request, obj, form, change)
+
+        if change and terms_changed:
+            # Igual que LoanViewSet.perform_update: el contrato por firmar refleja los términos.
+            from .utils_contracts import regenerate_latest_loan_contract
+            regenerate_latest_loan_contract(obj, getattr(request, 'tenant', None))
 
     @display(description="Status", label=True)
     def show_status(self, obj):

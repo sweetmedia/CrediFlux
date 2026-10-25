@@ -8,6 +8,7 @@ respaldo) y lanzan `serializers.ValidationError` con las reglas incumplidas.
 from decimal import Decimal
 
 from django.db import connection
+from django.db.models import Q
 from django_tenants.utils import get_public_schema_name
 from rest_framework import serializers
 
@@ -16,6 +17,30 @@ from .amortization import PAYMENTS_PER_MONTH, normalize_method
 # Estados que cuentan como préstamo "vivo" para max_active_loans_per_customer.
 OPEN_LOAN_STATUSES = ('pending', 'approved', 'active')
 ID_DOCUMENT_TYPES = ('id_card', 'passport', 'drivers_license')
+
+# Deudor y términos económicos: fijos tras aprobar o firmar (API y admin, ver loan_terms_locked).
+LOAN_TERM_FIELDS = (
+    'customer', 'loan_type', 'principal_amount', 'interest_rate', 'interest_type',
+    'term_months', 'payment_frequency', 'first_payment_date',
+)
+
+
+def loan_terms_locked(loan):
+    """¿Quedan fijos deudor y términos? Sí si el préstamo ya no está pendiente o tiene firma.
+
+    Un contrato firmado bloquea mientras no esté cancelado, archivado o no: archivar no
+    desbloquea. Uno cancelado ya no bloquea, y tampoco sirve para desembolsar ni puede
+    desarchivarse (LoanViewSet.disburse, ContractViewSet.unarchive): cambiar términos
+    tras una firma exige cancelar y firmar un contrato nuevo. Única regla para el
+    serializer (LoanSerializer._ensure_terms_editable) y el admin (LoanAdmin).
+    """
+    if loan.status != 'pending':
+        return True
+    if loan._state.adding:
+        return False
+    return loan.contracts.exclude(status='cancelled').filter(
+        Q(customer_signed_at__isnull=False) | Q(officer_signed_at__isnull=False)
+    ).exists()
 
 
 def _amount(value):

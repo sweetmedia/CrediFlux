@@ -3,7 +3,6 @@ Serializers for loan module
 """
 import re
 
-from django.db.models import Q
 from rest_framework import serializers
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
@@ -11,7 +10,7 @@ from .models_contracts import ContractTemplate, Contract
 from .models_guarantors import Guarantor
 from apps.core.media import SignedFilesModelSerializer
 from .fields import TenantUserField
-from .policy import validate_origination
+from .policy import LOAN_TERM_FIELDS, loan_terms_locked, validate_origination
 
 # `id_number` del cliente: sin caracteres que una hoja de cálculo interprete (=, +, @...).
 ID_NUMBER_RE = re.compile(r'^[A-Za-z0-9 -]+$')
@@ -618,24 +617,14 @@ class LoanSerializer(SignedFilesModelSerializer):
         ]
 
     # Deudor y términos económicos: lo que el aprobador revisó y el cliente firmó.
-    TERM_FIELDS = (
-        'customer', 'loan_type', 'principal_amount', 'interest_rate', 'interest_type',
-        'term_months', 'payment_frequency', 'first_payment_date',
-    )
+    TERM_FIELDS = LOAN_TERM_FIELDS
 
     def _ensure_terms_editable(self, attrs):
         """Tras aprobar o firmar el contrato, deudor y términos ya no cambian por PATCH/PUT."""
         changed = [f for f in self.TERM_FIELDS if f in attrs and attrs[f] != getattr(self.instance, f)]
         if not changed:
             return
-        # Un contrato firmado bloquea mientras no esté cancelado, archivado o no: archivar no
-        # desbloquea. Uno cancelado ya no bloquea, y tampoco sirve para desembolsar ni puede
-        # desarchivarse (LoanViewSet.disburse, ContractViewSet.unarchive): cambiar términos
-        # tras una firma exige cancelar y firmar un contrato nuevo.
-        signed = self.instance.contracts.exclude(status='cancelled').filter(
-            Q(customer_signed_at__isnull=False) | Q(officer_signed_at__isnull=False)
-        ).exists()
-        if self.instance.status != 'pending' or signed:
+        if loan_terms_locked(self.instance):
             raise serializers.ValidationError({
                 f: 'No se puede modificar después de aprobado el préstamo o firmado el contrato.'
                 for f in changed
