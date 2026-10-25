@@ -66,9 +66,10 @@ def test_failed_provisioning_attempt_spends_the_daily_cap(public_client, no_sche
         URL, payload(tenant_name="otra-financiera", subdomain="otra-financiera", owner_email="luis@otra.test"),
         format="json",
     )
-    assert response.status_code == 400
-    assert GENERIC in str(response.json())
-    assert calls == []  # rechazado antes de aprovisionar
+    # Por encima del tope el registro queda pendiente: sin aprovisionamiento automático.
+    assert response.status_code == 202, response.content
+    assert calls == []
+    assert Tenant.objects.get(name="otra-financiera").provisioning_pending is True
 
 
 def _register(client, n, ip):
@@ -96,18 +97,19 @@ def test_client_over_its_budget_does_not_spend_the_global_cap(public_client, no_
     assert _register(public_client, 9, "203.0.113.50").status_code == 201
 
 
-# --- Identidad del cliente: IPv4 exacta o red IPv6 /64 (run-3) ---------------------------
-# Cada dirección de una misma /64 era un cliente nuevo: un solo host IPv6 agotaba el tope global.
+# --- Identidad del cliente: IPv4 exacta o red IPv6 /56 (run-3, /56 desde run-4) ----------
+# Cada dirección de una misma red era un cliente nuevo: un solo host IPv6 agotaba el tope global.
+# Una /64 tampoco basta: un cliente con una /56 o /60 tiene 16-256 redes /64.
 
 @override_settings(MAX_TENANTS_PER_DAY=100, MAX_TENANTS_PER_IP_PER_DAY=2)
-def test_addresses_in_one_ipv6_64_share_one_budget(public_client, no_schema):
+def test_addresses_in_one_ipv6_56_share_one_budget(public_client, no_schema):
     assert _register(public_client, 1, "2001:db8:7:7::1").status_code == 201
-    assert _register(public_client, 2, "2001:db8:7:7::2").status_code == 201
-    response = _register(public_client, 3, "2001:db8:7:7:abcd::3")
+    assert _register(public_client, 2, "2001:db8:7:8::2").status_code == 201  # otra /64, misma /56
+    response = _register(public_client, 3, "2001:db8:7:ff:abcd::3")
     assert response.status_code == 400
     assert GENERIC in str(response.json())
-    # Otra /64 es otro cliente.
-    assert _register(public_client, 4, "2001:db8:7:8::1").status_code == 201
+    # Otra /56 es otro cliente.
+    assert _register(public_client, 4, "2001:db8:7:100::1").status_code == 201
 
 
 @override_settings(MAX_TENANTS_PER_DAY=100, MAX_TENANTS_PER_IP_PER_DAY=2)
@@ -125,12 +127,13 @@ def test_throttle_key_uses_the_same_client_identity(rf):
         return throttle.get_cache_key(rf.post(URL, REMOTE_ADDR=ip), None)
 
     assert key("2001:db8:7:7::1") == key("2001:db8:7:7:ffff::2")
-    assert key("2001:db8:7:7::1") != key("2001:db8:7:8::1")
+    assert key("2001:db8:7:7::1") == key("2001:db8:7:8::1")  # misma /56
+    assert key("2001:db8:7:7::1") != key("2001:db8:7:100::1")
     assert key("198.51.100.20") != key("198.51.100.21")
 
 
 @override_settings(MAX_TENANTS_PER_DAY=100, MAX_TENANTS_PER_IP_PER_DAY=100)
-def test_throttle_counts_one_ipv6_64_as_one_client(public_client, no_schema):
+def test_throttle_counts_one_ipv6_56_as_one_client(public_client, no_schema):
     for n in range(1, 4):
-        assert _register(public_client, n, f"2001:db8:7:7::{n}").status_code == 201
-    assert _register(public_client, 4, "2001:db8:7:7::4").status_code == 429
+        assert _register(public_client, n, f"2001:db8:7:{n}::1").status_code == 201
+    assert _register(public_client, 4, "2001:db8:7:4::1").status_code == 429

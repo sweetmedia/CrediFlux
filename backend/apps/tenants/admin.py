@@ -1,6 +1,8 @@
 """
 Tenant admin configuration with Unfold best practices
 """
+import logging
+
 from django.contrib import admin
 from django import forms
 from django.shortcuts import render, redirect
@@ -12,6 +14,8 @@ from django.db import connection
 from unfold.admin import ModelAdmin
 from unfold.decorators import display, action
 from .models import Tenant, Domain
+
+logger = logging.getLogger(__name__)
 
 
 def _is_platform_admin(user):
@@ -43,12 +47,14 @@ class TenantAdmin(ModelAdmin):
         'name', 'business_name', 'email', 'show_subscription',
         'show_active', 'created_on', 'demo_data_actions'
     ]
-    list_filter = ['is_active', 'subscription_plan', 'created_on']
+    list_filter = ['is_active', 'provisioning_pending', 'subscription_plan', 'created_on']
     search_fields = ['name', 'business_name', 'email', 'tax_id']
-    readonly_fields = ['created_on', 'updated_on']
+    # El estado pendiente sólo lo cambia el aprovisionamiento (crea el schema): marcarlo a mano
+    # dejaría un tenant activo sin schema.
+    readonly_fields = ['created_on', 'updated_on', 'provisioning_pending', 'pending_since']
     list_per_page = 25
     save_on_top = True
-    actions = ['generate_demo_data_action']
+    actions = ['generate_demo_data_action', 'provision_pending_action']
 
     @display(description="Subscription", label=True)
     def show_subscription(self, obj):
@@ -140,6 +146,44 @@ class TenantAdmin(ModelAdmin):
                 f'⚠️ Failed to create demo data for {error_count} tenant(s)',
                 level=messages.WARNING
             )
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if not _is_platform_admin(request.user):
+            actions.pop('provision_pending_action', None)
+        return actions
+
+    @action(description="Aprovisionar registros pendientes")
+    def provision_pending_action(self, request, queryset):
+        """Crea el schema y activa los tenants pendientes seleccionados (los demás se saltan)."""
+        from .provisioning import provision_pending_tenant
+
+        if not _is_platform_admin(request.user):
+            self.message_user(
+                request,
+                'Solo un superusuario de plataforma puede aprovisionar registros pendientes.',
+                level=messages.ERROR
+            )
+            return
+
+        provisioned = skipped = failed = 0
+        for pk in queryset.order_by('pk').values_list('pk', flat=True):
+            try:
+                if provision_pending_tenant(pk):
+                    provisioned += 1
+                else:
+                    skipped += 1
+            except Exception:
+                failed += 1
+                logger.exception('No se pudo aprovisionar el tenant pendiente id=%s', pk)
+
+        logger.info('Aprovisionamiento desde el admin por %s: %s aprovisionados, %s saltados, %s con error',
+                    request.user.pk, provisioned, skipped, failed)
+        self.message_user(
+            request,
+            f'Tenants aprovisionados: {provisioned}. Saltados (no pendientes): {skipped}. Con error: {failed}.',
+            level=messages.ERROR if failed else messages.SUCCESS
+        )
 
     def get_readonly_fields(self, request, obj=None):
         # schema_name se fija al crear el tenant; renombrarlo deja el schema de Postgres huérfano.

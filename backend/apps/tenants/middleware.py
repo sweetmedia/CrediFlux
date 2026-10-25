@@ -5,7 +5,7 @@ Ensures users can only access tenants they have permission to access.
 from functools import lru_cache
 
 from django.conf import settings
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import HttpResponseForbidden, HttpResponseNotFound, JsonResponse
 from django.utils.module_loading import import_string
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -88,6 +88,26 @@ class TenantAccessControlMiddleware:
                 "<p>Only staff users can access this area.</p>"
             )
 
+        return self.get_response(request)
+
+
+class PendingTenantMiddleware:
+    """
+    Un tenant con registro pendiente (sin schema) no sirve peticiones en su dominio: 404.
+
+    Va justo después de TenantMainMiddleware. Sin schema, el search_path del tenant caería
+    en las tablas del schema público.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        tenant = getattr(request, 'tenant', None)
+        if tenant is not None and getattr(tenant, 'provisioning_pending', False):
+            if request.path.startswith('/api/'):
+                return JsonResponse({'detail': 'No encontrado.'}, status=404)
+            return HttpResponseNotFound()
         return self.get_response(request)
 
 

@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 # Mensaje único para cualquier dato ya existente o reservado: no revela si
 # lo que choca es el correo, el nombre del tenant o el subdominio.
 REGISTRATION_REJECTED = 'No se pudo completar el registro con estos datos.'
+# Registro recibido por encima del tope diario: queda pendiente de aprovisionamiento.
+REGISTRATION_PENDING = 'Registro recibido. Su cuenta quedará activa tras la revisión; le avisaremos por correo.'
 
 RESERVED_TENANT_NAMES = {
     'public', 'pg-catalog', 'pg-toast', 'information-schema', 'www', 'admin',
@@ -269,32 +271,57 @@ class TenantRegistrationSerializer(serializers.Serializer):
         # Force connection to public schema for tenant creation
         connection.set_schema_to_public()
 
-        # Tope global diario y re-comprobación dentro de la transacción
-        # (otra petición pudo crear el mismo schema tras `validate`).
-        since = timezone.now() - timedelta(days=1)
-        if Tenant.objects.filter(created_on__gte=since).count() >= settings.MAX_TENANTS_PER_DAY:
-            raise serializers.ValidationError(REGISTRATION_REJECTED)
+        # Re-comprobación dentro de la transacción (otra petición pudo crear el mismo schema
+        # tras `validate`).
         if _schema_unavailable(schema_name) or Tenant.objects.filter(name=tenant_name).exists():
             raise serializers.ValidationError(REGISTRATION_REJECTED)
         username = _available_username(owner_data['email'])
 
         # Presupuesto por cliente antes del global: un solo cliente no agota el tope de
-        # todos, y quien ya gastó el suyo no sigue gastando el global.
-        day = f'{timezone.now():%Y%m%d}'
-        # Por IPv4 o por red IPv6 /64: cada dirección de una /64 no es un cliente nuevo.
+        # todos, y quien ya gastó el suyo no sigue gastando el global. Aplica también a los
+        # registros que quedan pendientes.
+        now = timezone.now()
+        day = f'{now:%Y%m%d}'
+        # Por IPv4 o por red IPv6 /56: cada dirección de una misma red no es un cliente nuevo.
         ip = client_network_key(self.context.get('request'))
         if _spend_daily_budget(f'tenant_provisioning_ip:{ip}:{day}') > settings.MAX_TENANTS_PER_IP_PER_DAY:
             raise serializers.ValidationError(REGISTRATION_REJECTED)
-        # Cada aprovisionamiento gasta el tope del día, también si luego se revierte.
-        if _spend_daily_budget(f'tenant_provisioning:{day}') > settings.MAX_TENANTS_PER_DAY:
-            logger.warning('Tope diario de registros de tenants alcanzado (MAX_TENANTS_PER_DAY=%s)',
-                           settings.MAX_TENANTS_PER_DAY)
-            raise serializers.ValidationError(REGISTRATION_REJECTED)
 
-        # 1. Create Tenant
-        tenant = Tenant.objects.create(**tenant_data)
+        # Tope global de aprovisionamientos automáticos (tenants con schema en 24 h y
+        # contador del día). Cada aprovisionamiento gasta el contador, también si luego se
+        # revierte. Por encima no se rechaza: el registro queda pendiente, sin schema, hasta
+        # que un superusuario lo aprovisione (un solo solicitante no deja fuera a los demás).
+        since = now - timedelta(days=1)
+        pending = (
+            Tenant.objects.filter(created_on__gte=since, provisioning_pending=False).count()
+            >= settings.MAX_TENANTS_PER_DAY
+            or _spend_daily_budget(f'tenant_provisioning:{day}') > settings.MAX_TENANTS_PER_DAY
+        )
+        if pending:
+            logger.warning('Tope diario de registros de tenants alcanzado (MAX_TENANTS_PER_DAY=%s): '
+                           'registro pendiente de aprovisionamiento', settings.MAX_TENANTS_PER_DAY)
+            # Tope de cordura sobre las filas pendientes (cada una ocupa nombre, subdominio y correo).
+            if (
+                Tenant.objects.filter(provisioning_pending=True, pending_since__gte=since).count()
+                >= settings.MAX_PENDING_REGISTRATIONS_PER_DAY
+                or _spend_daily_budget(f'tenant_pending:{day}') > settings.MAX_PENDING_REGISTRATIONS_PER_DAY
+            ):
+                logger.warning('Tope diario de registros pendientes alcanzado '
+                               '(MAX_PENDING_REGISTRATIONS_PER_DAY=%s)',
+                               settings.MAX_PENDING_REGISTRATIONS_PER_DAY)
+                raise serializers.ValidationError(REGISTRATION_REJECTED)
+            tenant_data.update(is_active=False, provisioning_pending=True, pending_since=now)
 
-        # 2. Create Domain
+        # 1. Create Tenant (pendiente: sin CREATE SCHEMA ni migraciones)
+        if pending:
+            tenant = Tenant(**tenant_data)
+            tenant.auto_create_schema = False
+            tenant.save()
+        else:
+            tenant = Tenant.objects.create(**tenant_data)
+
+        # 2. Create Domain (también para un pendiente: reserva el subdominio; el middleware
+        # no sirve peticiones en el dominio de un tenant sin aprovisionar)
         # Use localhost for development, or configure based on environment
         base_domain = getattr(settings, 'TENANT_BASE_DOMAIN', 'localhost')
         domain_name = f"{subdomain}.{base_domain}" if base_domain != 'localhost' else subdomain
@@ -317,7 +344,7 @@ class TenantRegistrationSerializer(serializers.Serializer):
             is_tenant_owner=True,
             role='admin',
             is_staff=True,  # Allow access to admin panel
-            is_active=True,
+            is_active=not pending,  # pendiente: se activa al aprovisionar
             email_verified=False,  # Will need email verification
         )
 
@@ -325,6 +352,7 @@ class TenantRegistrationSerializer(serializers.Serializer):
             'tenant': tenant,
             'domain': domain,
             'owner': owner,
+            'pending': pending,
         }
 
     def to_representation(self, instance):

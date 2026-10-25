@@ -178,8 +178,10 @@ def test_format_errors_keep_their_specific_messages(public_client):
     assert GENERIC not in str(body)
 
 
-@override_settings(MAX_TENANTS_PER_DAY=0)
-def test_daily_cap_rejects_new_registrations(public_client):
+@override_settings(MAX_TENANTS_PER_DAY=0, MAX_PENDING_REGISTRATIONS_PER_DAY=0)
+def test_daily_caps_reject_new_registrations(public_client):
+    # Por encima del tope global el registro queda pendiente (202); sólo con el tope de
+    # pendientes también agotado se rechaza (ver test_security_registration_pending).
     before = counts()
     response = public_client.post(URL, payload(), format="json")
     assert response.status_code == 400

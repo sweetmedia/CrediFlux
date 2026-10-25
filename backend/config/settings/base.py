@@ -82,6 +82,7 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',
+    'apps.tenants.middleware.PendingTenantMiddleware',  # registro pendiente: sin schema, 404
     'apps.tenants.middleware.TenantTimezoneMiddleware',  # "hoy" = fecha del tenant
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -285,6 +286,9 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
 MAX_TENANTS_PER_DAY = config('MAX_TENANTS_PER_DAY', default=20, cast=int)
 # Y por cliente (IP según NUM_PROXIES) y día: uno solo no puede agotar el tope de todos.
 MAX_TENANTS_PER_IP_PER_DAY = config('MAX_TENANTS_PER_IP_PER_DAY', default=2, cast=int)
+# Por encima de MAX_TENANTS_PER_DAY el registro no se rechaza: queda pendiente (sin schema)
+# hasta que un superusuario lo aprovisione. Éste es el tope de pendientes en 24 h.
+MAX_PENDING_REGISTRATIONS_PER_DAY = config('MAX_PENDING_REGISTRATIONS_PER_DAY', default=200, cast=int)
 
 # dj-rest-auth configuration (v6.0+)
 REST_AUTH = {

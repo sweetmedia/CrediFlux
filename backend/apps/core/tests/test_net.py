@@ -66,9 +66,11 @@ from apps.core.net import client_network_key  # noqa: E402
 
 @pytest.mark.parametrize("remote, expected", [
     ("198.51.100.7", "198.51.100.7"),
-    ("2001:db8:7:7::1", "2001:db8:7:7::/64"),
-    ("2001:db8:7:7:abcd:ef01:2345:6789", "2001:db8:7:7::/64"),
-    ("::ffff:198.51.100.7", "198.51.100.7"),  # IPv4 mapeada: la IPv4, no una /64 compartida
+    ("2001:db8:7:7::1", "2001:db8:7::/56"),
+    ("2001:db8:7:7:abcd:ef01:2345:6789", "2001:db8:7::/56"),
+    ("2001:db8:7:ff::1", "2001:db8:7::/56"),  # otra /64 de la misma /56: mismo cliente
+    ("2001:db8:7:100::1", "2001:db8:7:100::/56"),  # otra /56: otro cliente
+    ("::ffff:198.51.100.7", "198.51.100.7"),  # IPv4 mapeada: la IPv4, no una /56 compartida
     ("no-es-una-ip", "no-es-una-ip"),
     ("", ""),
 ])
@@ -79,7 +81,17 @@ def test_client_network_key(remote, expected):
 
 def test_client_network_key_respects_num_proxies():
     with _proxies(1):
-        assert client_network_key(_request("2001:db8:1:2::99")) == "2001:db8:1:2::/64"
+        assert client_network_key(_request("2001:db8:1:2::99")) == "2001:db8:1::/56"
+
+
+def test_client_network_key_groups_ipv6_by_56():
+    with _proxies(0):
+        same = {client_network_key(_request(remote=ip)) for ip in ("2001:db8:5:0::1", "2001:db8:5:3f::9", "2001:db8:5:ff:ffff::1")}
+        assert len(same) == 1
+        assert client_network_key(_request(remote="2001:db8:5:100::1")) not in same
+        assert client_network_key(_request(remote="2001:db8:6::1")) not in same
+        # IPv4 sin cambios: cada dirección es su propio cliente.
+        assert client_network_key(_request(remote="198.51.100.7")) != client_network_key(_request(remote="198.51.100.8"))
 
 
 def test_client_network_key_none_request():

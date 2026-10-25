@@ -11,11 +11,14 @@ variable de entorno `DRF_NUM_PROXIES`):
   haya puesto más a la izquierda se ignora. Sin cabecera, `REMOTE_ADDR`.
 
 Para presupuestos por cliente que no deben poder multiplicarse con direcciones baratas
-(registro de tenants), `client_network_key` agrupa IPv6 por su red /64.
+(registro de tenants), `client_network_key` agrupa IPv6 por su red /56.
 """
 import ipaddress
 
 from rest_framework.settings import api_settings
+
+# Prefijo con el que se agrupa una IPv6 en una sola identidad de cliente.
+IPV6_CLIENT_PREFIX = 56
 
 
 def client_ip(request) -> str:
@@ -33,12 +36,14 @@ def client_ip(request) -> str:
 
 
 def client_network_key(request) -> str:
-    """Identidad del cliente para presupuestos por cliente: la IPv4 tal cual o su red IPv6 /64.
+    """Identidad del cliente para presupuestos por cliente: la IPv4 tal cual o su red IPv6 /56.
 
-    Una /64 es lo mínimo que se asigna a un host o una LAN IPv6: contar cada dirección por
-    separado regala a un solo host miles de millones de identidades. Una IPv4 mapeada en
-    IPv6 (`::ffff:a.b.c.d`) cuenta como esa IPv4 (si no, todas compartirían una /64). Un
-    valor que no es una IP se devuelve tal cual.
+    Contar cada dirección IPv6 por separado regala a un solo host miles de millones de
+    identidades, y agrupar por /64 (lo mínimo que se asigna a una LAN) tampoco basta: los
+    proveedores suelen delegar a un solo cliente una /56 o /60, es decir 16-256 redes /64.
+    La /56 es la delegación habitual de un cliente residencial. Una IPv4 mapeada en IPv6
+    (`::ffff:a.b.c.d`) cuenta como esa IPv4 (si no, todas compartirían una /56). Un valor
+    que no es una IP se devuelve tal cual.
     """
     ip = client_ip(request)
     try:
@@ -49,5 +54,5 @@ def client_network_key(request) -> str:
         if addr.ipv4_mapped is not None:
             return str(addr.ipv4_mapped)
         # int() descarta un posible identificador de zona (`%eth0`).
-        return str(ipaddress.IPv6Network((int(addr), 64), strict=False))
+        return str(ipaddress.IPv6Network((int(addr), IPV6_CLIENT_PREFIX), strict=False))
     return str(addr)

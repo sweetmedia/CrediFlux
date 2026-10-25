@@ -44,6 +44,16 @@ class Tenant(TenantMixin):
 
     # Settings
     is_active = models.BooleanField(default=True)
+    provisioning_pending = models.BooleanField(
+        default=False,
+        help_text='Registro de autoservicio recibido por encima del tope diario: sin schema '
+                  'hasta que un superusuario lo aprovisione',
+    )
+    pending_since = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Momento en que el registro quedó pendiente de aprovisionamiento',
+    )
     max_users = models.IntegerField(default=10)
     subscription_plan = models.CharField(
         max_length=50,

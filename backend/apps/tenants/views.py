@@ -19,6 +19,7 @@ from .serializers import (
     TenantSerializer,
     TenantLoginSerializer,
     TenantUpdateSerializer,
+    REGISTRATION_PENDING,
     REGISTRATION_REJECTED,
 )
 
@@ -31,7 +32,7 @@ class TenantRegistrationThrottle(SimpleRateThrottle):
     No hereda de AnonRateThrottle: ese no limita a usuarios autenticados, y la ruta
     también está montada en los hosts de tenant (un usuario con token agotaría el tope
     global MAX_TENANTS_PER_DAY). La identidad sale de `client_network_key` (respeta
-    NUM_PROXIES): la IPv4 o la red IPv6 /64, la misma que el presupuesto diario por cliente.
+    NUM_PROXIES): la IPv4 o la red IPv6 /56, la misma que el presupuesto diario por cliente.
     """
 
     scope = 'tenant_registration'
@@ -99,6 +100,16 @@ class TenantRegistrationView(APIView):
                     }
                 }
             ),
+            202: openapi.Response(
+                description='Registro recibido por encima del tope diario: pendiente de aprovisionamiento',
+                examples={
+                    'application/json': {
+                        'status': 'pending',
+                        'message': 'Registro recibido. Su cuenta quedará activa tras la revisión; '
+                                   'le avisaremos por correo.',
+                    }
+                }
+            ),
             400: openapi.Response(
                 description='Bad request - validation errors',
                 examples={
@@ -159,6 +170,12 @@ class TenantRegistrationView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if serializer.instance.get('pending'):
+            # Por encima del tope diario: registro guardado sin schema, sin tokens ni datos.
+            return Response(
+                {'status': 'pending', 'message': REGISTRATION_PENDING},
+                status=status.HTTP_202_ACCEPTED,
+            )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
