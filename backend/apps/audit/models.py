@@ -44,8 +44,10 @@ class AuditLog(models.Model):
     tenant = models.ForeignKey(
         'tenants.Tenant',
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='audit_logs',
-        help_text='Tenant to which this log belongs'
+        help_text='Tenant to which this log belongs (vacío = registro de plataforma, p. ej. el borrado de un tenant)'
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

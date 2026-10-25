@@ -340,6 +340,16 @@ def test_expire_pending_registrations(public_client, no_schema, no_recent_tenant
     assert Tenant.objects.filter(name="financiera-2", provisioning_pending=True).exists()
     assert Tenant.objects.filter(provisioning_pending=False).count() == provisioned_count
     assert "1" in out.getvalue()
+    # Sin rodeo: el borrado confirma y deja su traza a nivel plataforma (tenant=None)
+    from django.db import connection
+
+    from apps.audit.models import AuditLog
+
+    connection.check_constraints()  # lo que haría el COMMIT con las FK diferidas
+    assert not AuditLog.objects.filter(tenant_id=old.pk).exists()
+    assert AuditLog.objects.filter(
+        tenant__isnull=True, action="delete", model_name="Tenant", object_id=str(old.pk),
+    ).exists()
 
 
 def test_expire_pending_registrations_rejects_days_below_one():

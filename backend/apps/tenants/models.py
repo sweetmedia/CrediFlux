@@ -1,7 +1,12 @@
 """
 Tenant models for multi-tenant architecture
 """
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 from django.db import models
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 from django_tenants.models import TenantMixin, DomainMixin
 from django_tenants.utils import get_public_schema_name
 from djmoney.models.fields import MoneyField
@@ -21,7 +26,47 @@ def validate_timezone(value):
         raise ValidationError(f'Zona horaria desconocida: {value}')
 
 
+# pks de los tenants que se están borrando en este contexto (hilo/request); None = ningún
+# borrado en curso. Sólo existe dentro de `tenant_deletion()`, que lo descarta al salir aunque
+# el borrado falle: una marca colgada haría que la auditoría de un tenant vivo saliera sin tenant.
+_tenants_being_deleted = ContextVar('tenants_being_deleted', default=None)
+
+
+@contextmanager
+def tenant_deletion():
+    """Ámbito de un borrado de tenants (`Tenant.delete()` y `Tenant.objects....delete()`).
+
+    El `pre_delete` de cada Tenant anota su pk; mientras dura el ámbito, la auditoría escribe
+    las filas de ese tenant (el propio Tenant y su cascada) como filas de plataforma
+    (`tenant=None`): una fila nueva apuntando al tenant borrado rompería la FK diferida en el
+    COMMIT y desharía todo el borrado. Anidado, reutiliza el ámbito exterior.
+    """
+    if _tenants_being_deleted.get() is not None:
+        yield
+        return
+    token = _tenants_being_deleted.set(set())
+    try:
+        yield
+    finally:
+        _tenants_being_deleted.reset(token)
+
+
+def is_tenant_being_deleted(tenant_id):
+    """True si `tenant_id` se está borrando dentro del `tenant_deletion()` en curso."""
+    pks = _tenants_being_deleted.get()
+    return bool(pks) and tenant_id in pks
+
+
 class TenantQuerySet(models.QuerySet):
+    def delete(self):
+        """Borrado masivo (admin, comandos) dentro del ámbito de borrado de tenants."""
+        with tenant_deletion():
+            return super().delete()
+
+    # Como QuerySet.delete: no se copia al manager (`Tenant.objects.delete()` no existe)
+    delete.alters_data = True
+    delete.queryset_only = True
+
     def provisioned(self):
         """Tenants con schema propio: sin el público ni los registros pendientes.
 
@@ -751,6 +796,20 @@ class Tenant(TenantMixin):
 
     def __str__(self):
         return self.name
+
+    def delete(self, *args, **kwargs):
+        with tenant_deletion():
+            return super().delete(*args, **kwargs)
+
+
+@receiver(pre_delete, sender=Tenant)
+def mark_tenant_deletion(sender, instance, **kwargs):
+    """Anota el tenant en el ámbito de borrado en curso (el Collector envía todos los
+    pre_delete antes de cualquier DELETE, así que la marca ya está cuando corren los
+    post_delete de la cascada)."""
+    pks = _tenants_being_deleted.get()
+    if pks is not None:
+        pks.add(instance.pk)
 
 
 class Domain(DomainMixin):

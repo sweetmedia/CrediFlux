@@ -11,7 +11,6 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditLog
 from apps.tenants.models import Tenant
 
 logger = logging.getLogger(__name__)
@@ -35,13 +34,9 @@ class Command(BaseCommand):
                 provisioning_pending=True, pending_since__lt=cutoff,
             )
             for tenant in stale:
-                pk = tenant.pk
                 # auto_drop_schema=False y sin schema: delete() sólo borra la fila (y la cascada).
+                # La auditoría del borrado queda como fila de plataforma (tenant=None).
                 tenant.delete()
-                # Los post_delete de la auditoría (del tenant, su dominio y su dueño) insertan
-                # registros que apuntan al tenant recién borrado: la FK diferida haría fallar
-                # el COMMIT. Se quitan antes de confirmar; la expiración queda en el log.
-                AuditLog.objects.filter(tenant_id=pk).delete()
                 expired += 1
         logger.info('Registros de tenants pendientes expirados: %s (más de %s días)', expired, days)
         self.stdout.write(f'Registros pendientes expirados: {expired}.')

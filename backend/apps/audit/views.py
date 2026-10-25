@@ -7,6 +7,18 @@ from .models import AuditLog
 from .serializers import AuditLogSerializer, AuditLogDetailSerializer
 
 
+def tenant_audit_logs(user):
+    """
+    Registros visibles para `user` en la API de tenant: sólo los de su tenant.
+
+    Sin tenant (p. ej. superusuario de plataforma) no ve nada: `tenant=user.tenant` con None
+    devolvería justo las filas de plataforma (tenant=None), que sólo se ven en el admin público.
+    """
+    if user.role not in ['admin', 'manager'] or user.tenant_id is None:
+        return AuditLog.objects.none()
+    return AuditLog.objects.filter(tenant_id=user.tenant_id)
+
+
 class AuditLogFilter(FilterSet):
     """Filter set for audit logs."""
 
@@ -37,15 +49,8 @@ class AuditLogListView(generics.ListAPIView):
 
     def get_queryset(self):
         """Filter audit logs by the current user's tenant."""
-        user = self.request.user
-
-        # Only allow admin and manager roles to view audit logs
-        if user.role not in ['admin', 'manager']:
-            return AuditLog.objects.none()
-
-        return AuditLog.objects.filter(
-            tenant=user.tenant
-        ).select_related('user')
+        # Only admin and manager roles of a tenant can view audit logs
+        return tenant_audit_logs(self.request.user).select_related('user')
 
 
 class AuditLogDetailView(generics.RetrieveAPIView):
@@ -59,15 +64,8 @@ class AuditLogDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         """Filter audit logs by the current user's tenant."""
-        user = self.request.user
-
-        # Only allow admin and manager roles to view audit logs
-        if user.role not in ['admin', 'manager']:
-            return AuditLog.objects.none()
-
-        return AuditLog.objects.filter(
-            tenant=user.tenant
-        ).select_related('user')
+        # Only admin and manager roles of a tenant can view audit logs
+        return tenant_audit_logs(self.request.user).select_related('user')
 
 
 class AuditLogStatsView(generics.GenericAPIView):
@@ -95,10 +93,7 @@ class AuditLogStatsView(generics.GenericAPIView):
         # Get logs for the last 30 days
         thirty_days_ago = timezone.now() - timedelta(days=30)
 
-        logs = AuditLog.objects.filter(
-            tenant=user.tenant,
-            timestamp__gte=thirty_days_ago
-        )
+        logs = tenant_audit_logs(user).filter(timestamp__gte=thirty_days_ago)
 
         # Actions by type
         actions_by_type = logs.values('action').annotate(

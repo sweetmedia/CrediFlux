@@ -35,6 +35,19 @@ class AuditLogAdmin(ModelAdmin):
     ordering = ['-timestamp']
     date_hierarchy = 'timestamp'
 
+    def get_queryset(self, request):
+        """
+        Superusuario de plataforma (tenant=None): todo, incluidas las filas de plataforma.
+        Staff de un tenant: sólo su tenant. Cualquier otro: nada.
+        """
+        qs = super().get_queryset(request)
+        user = request.user
+        if user.is_superuser and user.tenant_id is None:
+            return qs
+        if user.tenant_id is not None:
+            return qs.filter(tenant_id=user.tenant_id)
+        return qs.none()
+
     def has_add_permission(self, request):
         """Audit logs cannot be created manually."""
         return False

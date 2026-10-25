@@ -119,6 +119,28 @@ def get_tenant_for_instance(instance):
     return _real_tenant(getattr(request, 'tenant', None)) if request else None
 
 
+def get_log_actor(request, tenant):
+    """
+    (tenant, user, user_email) con los que se escribe la fila.
+
+    Durante el borrado de un tenant (`apps.tenants.models.tenant_deletion`) la fila no puede
+    apuntar a ese tenant ni a un usuario suyo: los borra la misma cascada y la FK diferida
+    fallaría en el COMMIT. Queda como fila de plataforma (`tenant=None`), con el correo del
+    usuario aunque se pierda el enlace.
+    """
+    from apps.tenants.models import is_tenant_being_deleted
+
+    user = getattr(request, 'user', None) if request else None
+    if not (user and user.is_authenticated):
+        user = None
+    user_email = user.email if user else 'system@crediflux.app'
+    if is_tenant_being_deleted(tenant.pk):
+        tenant = None
+    if user is not None and is_tenant_being_deleted(getattr(user, 'tenant_id', None)):
+        user = None
+    return tenant, user, user_email
+
+
 def get_field_value(instance, field_name):
     """Safely get a field value, handling related fields."""
     try:
@@ -213,7 +235,7 @@ def audit_post_save(sender, instance, created, **kwargs):
         return
 
     request = get_current_request()
-    user = getattr(request, 'user', None) if request else None
+    tenant, user, user_email = get_log_actor(request, tenant)
     ip_address = get_client_ip(request) if request else None
     user_agent = get_user_agent(request) if request else None
 
@@ -234,8 +256,8 @@ def audit_post_save(sender, instance, created, **kwargs):
         with transaction.atomic():
             AuditLog.objects.create(
                 tenant=tenant,
-                user=user if user and user.is_authenticated else None,
-                user_email=user.email if user and user.is_authenticated else 'system@crediflux.app',
+                user=user,
+                user_email=user_email,
                 action=action,
                 model_name=sender.__name__,
                 object_id=str(instance.pk),
@@ -266,7 +288,7 @@ def audit_post_delete(sender, instance, **kwargs):
         return
 
     request = get_current_request()
-    user = getattr(request, 'user', None) if request else None
+    tenant, user, user_email = get_log_actor(request, tenant)
     ip_address = get_client_ip(request) if request else None
     user_agent = get_user_agent(request) if request else None
 
@@ -275,8 +297,8 @@ def audit_post_delete(sender, instance, **kwargs):
         with transaction.atomic():
             AuditLog.objects.create(
                 tenant=tenant,
-                user=user if user and user.is_authenticated else None,
-                user_email=user.email if user and user.is_authenticated else 'system@crediflux.app',
+                user=user,
+                user_email=user_email,
                 action='delete',
                 model_name=sender.__name__,
                 object_id=str(instance.pk),
