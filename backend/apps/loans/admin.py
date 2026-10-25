@@ -1,6 +1,7 @@
 """
 Loan admin configuration with Unfold best practices
 """
+from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 from django.db import connection
@@ -264,6 +265,39 @@ class CollateralInline(TabularInline):
         return self._editable(obj) and super().has_delete_permission(request, obj)
 
 
+class LoanAdminForm(forms.ModelForm):
+    """Formulario de LoanAdmin: la política de originación del tenant se informa como errores
+    del formulario (igual que el 400 de la API), no como una página 403.
+
+    `request` lo fija LoanAdmin.get_form en la clase que construye para cada petición.
+    """
+
+    request = None
+    POLICY_ATTRS = ('principal_amount', 'interest_rate', 'term_months', 'interest_type', 'payment_frequency')
+
+    def clean(self):
+        cleaned = super().clean()
+        adding = self.instance.pk is None
+        if not adding and not set(self.changed_data) & set(LOAN_TERM_FIELDS):
+            return cleaned
+        attrs = {
+            f: cleaned[f] if f in cleaned else getattr(self.instance, f, None)
+            for f in self.POLICY_ATTRS
+        }
+        # El tope por cliente sólo se revisa al crear o si el préstamo cambia de cliente.
+        customer = cleaned.get('customer') if (adding or 'customer' in self.changed_data) else None
+        try:
+            validate_origination(attrs, customer, self.request,
+                                 instance=None if adding else self.instance)
+        except ValidationError as exc:
+            detail = exc.detail if isinstance(exc.detail, dict) else {None: exc.detail}
+            for field, msgs in detail.items():
+                target = field if field in self.fields else None
+                for msg in (msgs if isinstance(msgs, list) else [msgs]):
+                    self.add_error(target, str(msg))
+        return cleaned
+
+
 @admin.register(Loan)
 class LoanAdmin(ModelAdmin):
     """Admin interface for Loan model with Unfold best practices"""
@@ -293,6 +327,7 @@ class LoanAdmin(ModelAdmin):
     ]
     inlines = [CollateralInline, LoanScheduleInline, LoanPaymentInline]
     save_on_top = True
+    form = LoanAdminForm
 
     # Estado y fechas del ciclo sólo cambian por las acciones approve/reject/disburse
     # (que aplican la política); la cuota sale del cálculo de amortización.
@@ -337,6 +372,12 @@ class LoanAdmin(ModelAdmin):
             readonly += [f for f in self.TERM_FIELDS if f not in readonly]
         return readonly
 
+    def get_form(self, request, obj=None, **kwargs):
+        # modelform_factory crea una clase nueva por llamada: el atributo no se comparte.
+        form_class = super().get_form(request, obj, **kwargs)
+        form_class.request = request
+        return form_class
+
     def save_model(self, request, obj, form, change):
         """Defensa en profundidad: un POST manipulado no cambia estado ni términos bloqueados."""
         changed = set(getattr(form, 'changed_data', ()))
@@ -368,7 +409,11 @@ class LoanAdmin(ModelAdmin):
 
     @staticmethod
     def _validate_origination(request, obj, change, changed):
-        """Política de originación del tenant, igual que la API al crear o editar términos."""
+        """Política de originación del tenant, igual que la API al crear o editar términos.
+
+        LoanAdminForm.clean ya la aplica y devuelve el formulario con errores; esto queda como
+        defensa en profundidad (403) por si se llega a save_model con un formulario que no la pasó.
+        """
         attrs = {f: getattr(obj, f) for f in (
             'principal_amount', 'interest_rate', 'term_months', 'interest_type', 'payment_frequency',
         )}

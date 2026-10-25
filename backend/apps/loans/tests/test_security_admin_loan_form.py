@@ -398,6 +398,7 @@ def test_collateral_admin_follows_the_loan_lifecycle(admin_client, active_loan, 
 
 
 def test_admin_applies_the_origination_policy(admin_client, superuser, tenant_schema, loan_factory):
+    """La violación de política en la edición vuelve al formulario con el error (no 403)."""
     original = tenant_schema.max_interest_rate
     tenant_schema.max_interest_rate = Decimal("36.00")
     tenant_schema.save()
@@ -407,11 +408,70 @@ def test_admin_applies_the_origination_policy(admin_client, superuser, tenant_sc
         body = _form_data(page)
         body["interest_rate"] = "9.00"  # 108 % anual > 36 %
         response = admin_client.post(_change_url(loan), body)
-        assert response.status_code == 403
+        assert response.status_code == 200
+        assert "excede el máximo anual" in str(response.context["adminform"].form.errors["interest_rate"])
         loan.refresh_from_db()
         assert loan.interest_rate == Decimal("1.50")
     finally:
         tenant_schema.max_interest_rate = original
+        tenant_schema.save()
+
+
+# --- Fix round 6: la política se informa como errores del formulario ---------------------
+
+def test_add_form_reports_rate_above_policy_as_field_error(admin_client, superuser, tenant_schema,
+                                                           customer_factory):
+    from apps.loans.models import Loan
+
+    original = tenant_schema.max_interest_rate
+    tenant_schema.max_interest_rate = Decimal("36.00")
+    tenant_schema.save()
+    try:
+        customer = customer_factory()
+        page = admin_client.get(reverse("admin:loans_loan_add"))
+        body = _form_data(page)
+        body.update({
+            "customer": str(customer.pk), "loan_type": "personal", "loan_officer": str(superuser.pk),
+            "principal_amount_0": "10000.00", "principal_amount_1": "DOP", "interest_rate": "5.00",
+            "term_months": "6", "payment_frequency": "monthly", "first_payment_date": "2026-12-01",
+        })
+
+        response = admin_client.post(reverse("admin:loans_loan_add"), body)
+
+        assert response.status_code == 200
+        errors = response.context["adminform"].form.errors
+        assert "excede el máximo anual de 36.00%" in str(errors["interest_rate"])
+        assert "excede el máximo anual" in response.content.decode()
+        assert not Loan.objects.filter(customer=customer).exists()
+    finally:
+        tenant_schema.max_interest_rate = original
+        tenant_schema.save()
+
+
+def test_change_form_reports_principal_above_policy_as_field_error(admin_client, superuser,
+                                                                    tenant_schema, loan_factory):
+    from moneyed import Money
+
+    original = tenant_schema.max_loan_amount
+    tenant_schema.max_loan_amount = Money(Decimal("50000.00"), "DOP")
+    tenant_schema.save()
+    try:
+        loan = _pending(loan_factory, loan_officer=superuser)
+        before = (loan.principal_amount, loan.payment_amount)
+        page = admin_client.get(_change_url(loan))
+        body = _form_data(page)
+        body["principal_amount_0"] = "999999.00"
+
+        response = admin_client.post(_change_url(loan), body)
+
+        assert response.status_code == 200
+        errors = response.context["adminform"].form.errors
+        assert "según la política de la organización" in str(errors["principal_amount"])
+        loan.refresh_from_db()
+        assert (loan.principal_amount, loan.payment_amount) == before
+        assert loan.status == "pending"
+    finally:
+        tenant_schema.max_loan_amount = original
         tenant_schema.save()
 
 
