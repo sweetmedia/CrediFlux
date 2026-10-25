@@ -3,6 +3,10 @@
 El admin estándar sólo pide contraseña. Para usuarios con 2FA activo este formulario
 exige además un código TOTP o de respaldo, con el mismo contador de intentos que la
 puerta JWT (`lockout.check_and_count_2fa`). Lo instala `lockout.ratelimit_admin_login`.
+
+Cada intento gasta también el presupuesto por cuenta de la puerta JWT
+(`lockout.check_and_count` antes de autenticar, `lockout.reset` tras un login completo):
+las dos puertas comparten un único límite por cuenta.
 """
 from django import forms
 from rest_framework import serializers
@@ -23,6 +27,21 @@ class TwoFactorAdminAuthenticationForm(AuthenticationForm):
     def __init__(self, request=None, *args, **kwargs):
         super().__init__(request, *args, **kwargs)
         self.fields['otp'].widget.attrs['class'] = self.fields['password'].widget.attrs.get('class', '')
+
+    def clean(self):
+        # `username` ya viene normalizado por el UsernameField (NFKC): todas las grafías
+        # compatibles de un correo gastan el mismo contador.
+        username = self.cleaned_data.get('username')
+        if username is not None and self.cleaned_data.get('password'):
+            try:
+                lockout.check_and_count(username, self.request)
+            except serializers.ValidationError:
+                raise forms.ValidationError(lockout.LOCKOUT_MESSAGE, code='locked')
+        cleaned_data = super().clean()
+        if self.user_cache is not None:
+            # Contraseña y, si aplica, segundo factor correctos (confirm_login_allowed no lanzó).
+            lockout.reset(username, self.request)
+        return cleaned_data
 
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)

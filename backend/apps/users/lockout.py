@@ -9,6 +9,8 @@ Flujo en los serializers de login:
 `reset` borra el contador de la cuenta y descuenta el intento exitoso del contador de
 la IP: así la IP sólo acumula fallos, y un login correcto no borra fallos ajenos.
 """
+import unicodedata
+
 from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -118,8 +120,13 @@ def validate_strength(password, user=None):
 
 
 def _admin_username_key(group, request):
-    """Usuario normalizado: allauth autentica sin distinguir mayúsculas en el correo."""
-    return (request.POST.get('username') or '').strip().lower()
+    """Usuario normalizado como lo hace el `UsernameField` de Django (NFKC) y sin mayúsculas.
+
+    Sin NFKC, cada grafía compatible del correo (letras de ancho completo, etc.) abría su
+    propio cubo del rate limit y autenticaba igualmente contra la misma cuenta.
+    """
+    raw = request.POST.get('username') or ''
+    return unicodedata.normalize('NFKC', raw).strip().casefold()
 
 
 def _admin_ip_key(group, request):
@@ -129,7 +136,8 @@ def _admin_ip_key(group, request):
 def ratelimit_admin_login():
     """Envuelve `admin.site.login` con django-ratelimit: 5 POST por usuario y 20 por IP cada 5 min.
 
-    También instala el formulario con segundo factor (`admin_forms.TwoFactorAdminAuthenticationForm`).
+    También instala el formulario con segundo factor (`admin_forms.TwoFactorAdminAuthenticationForm`),
+    que además gasta el mismo contador por cuenta que la puerta JWT (`check_and_count`/`reset`).
 
     La IP es la del cliente según `NUM_PROXIES` (`apps.core.net.client_ip`), no `REMOTE_ADDR`.
 
