@@ -70,13 +70,13 @@ def _lock_row_loans(model, obj, loan_ids, message):
     El préstamo anterior de la fila se leyó antes del bloqueo; otra petición pudo moverla
     entretanto. Tras bloquear se vuelve a leer su loan_id: si ya no es uno de los préstamos
     bloqueados, se rechaza (cualquier movimiento desde un préstamo bloqueado necesita su
-    bloqueo, así que la relectura es estable). En el alta (sin pk) no hay nada que releer.
+    bloqueo, así que la relectura es estable). En el alta la fila aún no existe (el pk UUID ya
+    viene asignado), así que la relectura no devuelve nada y no hay nada que validar.
     """
     locked = _lock_pending_loans(loan_ids, message)
-    if obj.pk is not None:
-        current = model.objects.filter(pk=obj.pk).values_list('loan_id', flat=True).first()
-        if current is not None and current not in locked:
-            raise PermissionDenied(message)
+    current = model.objects.filter(pk=obj.pk).values_list('loan_id', flat=True).first()
+    if current is not None and current not in locked:
+        raise PermissionDenied(message)
     return locked
 
 

@@ -287,5 +287,6 @@ def test_lock_row_loans_rejects_a_row_no_longer_on_a_locked_loan(loan_factory):
 
     with transaction.atomic(), pytest.raises(PermissionDenied):
         _lock_row_loans(Guarantor, row, [loan.pk], "mensaje")
-    row.refresh_from_db()
-    assert row.loan_id == other.pk
+    # Con la fila en un préstamo bloqueado, el helper acepta.
+    with transaction.atomic():
+        assert loan.pk in _lock_row_loans(Guarantor, row, [loan.pk, other.pk], "mensaje")
