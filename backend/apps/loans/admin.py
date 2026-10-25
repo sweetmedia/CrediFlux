@@ -12,7 +12,8 @@ from .models_guarantors import Guarantor
 from .models_collections import CollectionReminder, CollectionContact
 from .models_contracts import ContractTemplate, Contract, ContractSignatureToken
 from rest_framework.exceptions import ValidationError
-from .policy import validate_approval, validate_disbursement
+from .policy import validate_approval
+from .disbursement import apply_disbursement, check_disbursable
 
 
 def is_tenant_schema():
@@ -457,10 +458,9 @@ class LoanAdmin(ModelAdmin):
 
     @admin.action(description='Desembolsar préstamos aprobados')
     def disburse_loans(self, request, queryset):
-        """Disburse approved loans"""
-        from django.utils import timezone
+        """Desembolsa los aprobados que cumplen las precondiciones; informa los que no."""
         from django.contrib import messages
-        from dateutil.relativedelta import relativedelta
+        from django.db import transaction
 
         approved_loans = queryset.filter(status='approved')
         count = approved_loans.count()
@@ -471,39 +471,16 @@ class LoanAdmin(ModelAdmin):
 
         disbursed = 0
         for loan in approved_loans:
+            # Mismas precondiciones y efectos que la API (apps.loans.disbursement); sin caja:
+            # el admin no tiene sesión de caja, así que no registra egreso.
             try:
-                validate_disbursement(loan, request.user, request)
+                with transaction.atomic():
+                    locked = Loan.objects.select_for_update().get(pk=loan.pk)
+                    contract = check_disbursable(locked, request.user, request)
+                    apply_disbursement(locked, contract)
             except ValidationError as exc:
                 self._report_policy_violation(request, loan, exc)
                 continue
-            loan.status = 'active'
-            loan.disbursement_date = timezone.localdate()
-
-            # Set first payment date if not set (one month from disbursement)
-            if not loan.first_payment_date:
-                if loan.payment_frequency == 'monthly':
-                    loan.first_payment_date = loan.disbursement_date + relativedelta(months=1)
-                elif loan.payment_frequency == 'biweekly':
-                    loan.first_payment_date = loan.disbursement_date + relativedelta(weeks=2)
-                elif loan.payment_frequency == 'weekly':
-                    loan.first_payment_date = loan.disbursement_date + relativedelta(weeks=1)
-                elif loan.payment_frequency == 'daily':
-                    loan.first_payment_date = loan.disbursement_date + relativedelta(days=1)
-
-            # Calculate maturity date
-            if loan.payment_frequency == 'monthly':
-                loan.maturity_date = loan.first_payment_date + relativedelta(months=loan.term_months - 1)
-            elif loan.payment_frequency == 'biweekly':
-                num_payments = loan.term_months * 2  # Biweekly = 2 per month
-                loan.maturity_date = loan.first_payment_date + relativedelta(weeks=2 * (num_payments - 1))
-            elif loan.payment_frequency == 'weekly':
-                num_payments = loan.term_months * 4  # Weekly = 4 per month
-                loan.maturity_date = loan.first_payment_date + relativedelta(weeks=num_payments - 1)
-            elif loan.payment_frequency == 'daily':
-                num_payments = loan.term_months * 30  # Daily = 30 per month
-                loan.maturity_date = loan.first_payment_date + relativedelta(days=num_payments - 1)
-
-            loan.save()
             disbursed += 1
 
         if disbursed:
@@ -518,6 +495,8 @@ class LoanAdmin(ModelAdmin):
 
         detail = exc.detail
         if isinstance(detail, dict):
+            # contract_id/contract_status son datos para la API, no texto para el mensaje.
+            detail = {k: v for k, v in detail.items() if k not in ('contract_id', 'contract_status')}
             parts = [str(msg) for msgs in detail.values() for msg in (msgs if isinstance(msgs, list) else [msgs])]
         else:
             parts = [str(msg) for msg in detail]

@@ -30,7 +30,8 @@ from .serializers import (
     GuarantorSerializer, GuarantorListSerializer,
 )
 from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, CanRegisterPayments
-from .policy import validate_approval, validate_disbursement
+from .policy import validate_approval
+from .disbursement import apply_disbursement, check_disbursable, generate_payment_schedule
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -257,8 +258,6 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-# Estados de contrato con los que se puede desembolsar (lista positiva).
-DISBURSABLE_CONTRACT_STATUSES = ('pending_signature', 'signed', 'active')
 # Estados finales: ninguna acción vuelve a reescribir el estado de un contrato así.
 TERMINAL_CONTRACT_STATUSES = ('cancelled', 'completed')
 
@@ -462,48 +461,11 @@ class LoanViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if loan.status != 'approved':
-            return Response(
-                {'error': 'Only approved loans can be disbursed'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
-            # La política de aprobación se vuelve a aplicar: el préstamo que sale es el de hoy.
-            validate_approval(loan, request)
-            validate_disbursement(loan, request.user, request)
+            # Mismas precondiciones que la acción del admin (apps.loans.disbursement).
+            contract = check_disbursable(loan, request.user, request)
         except ValidationError as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
-
-        contract = loan.contracts.filter(is_archived=False).order_by('-generated_at').first()
-        if not contract:
-            return Response(
-                {'error': 'No se puede desembolsar este préstamo porque no tiene contrato generado.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if contract.status not in DISBURSABLE_CONTRACT_STATUSES:
-            # Lista positiva: un contrato cancelado, cumplido o en borrador no es el vigente
-            # de un desembolso, aunque alguien haya conseguido revivirlo.
-            return Response(
-                {
-                    'error': 'El contrato vigente no está en un estado válido para desembolsar '
-                             '(cancelado, completado o borrador); genere y firme uno nuevo.',
-                    'contract_id': str(contract.id),
-                    'contract_status': contract.status,
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if not contract.customer_signed_at:
-            return Response(
-                {
-                    'error': 'No se puede desembolsar hasta que el contrato esté firmado por el cliente.',
-                    'contract_id': str(contract.id),
-                    'contract_status': contract.status,
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
         with transaction.atomic():
             cash_session = None
@@ -515,17 +477,7 @@ class LoanViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-            loan.status = 'active'
-            loan.disbursement_date = timezone.localdate()
-            loan.outstanding_balance = loan.principal_amount
-            loan.save()
-
-            if contract.status != 'active':
-                contract.status = 'active'
-                contract.save(update_fields=['status', 'updated_at'])
-
-            # Generate payment schedule
-            self._generate_payment_schedule(loan)
+            apply_disbursement(loan, contract)
 
             if cash_session:
                 record_disbursement_outflow(loan, request.user, cash_session)
@@ -847,54 +799,8 @@ class LoanViewSet(viewsets.ModelViewSet):
         })
 
     def _generate_payment_schedule(self, loan):
-        """
-        Genera el cronograma con el mismo cálculo que la calculadora
-        (`apps.loans.amortization`): tasa MENSUAL, período = mes / divisor.
-        """
-        from dateutil.relativedelta import relativedelta
-        from moneyed import Money
-        from .amortization import build_installments, number_of_payments
-
-        frequency_map = {
-            'daily': {'days': 1},
-            'weekly': {'weeks': 1},
-            'biweekly': {'weeks': 2},
-            'monthly': {'months': 1},
-            'quarterly': {'months': 3},
-        }
-        period_delta = frequency_map.get(loan.payment_frequency, {'months': 1})
-        currency = loan.principal_amount.currency
-
-        num_payments = number_of_payments(loan.term_months, loan.payment_frequency)
-        rows, _, _ = build_installments(
-            loan.principal_amount.amount,
-            loan.interest_rate,
-            num_payments,
-            loan.payment_frequency,
-            getattr(loan, 'interest_type', 'fixed'),
-        )
-
-        current_date = loan.first_payment_date or loan.disbursement_date
-        schedules = []
-        for i, row in enumerate(rows, start=1):
-            schedules.append(LoanSchedule.objects.create(
-                loan=loan,
-                installment_number=i,
-                due_date=current_date,
-                total_amount=Money(row['payment'], currency),
-                principal_amount=Money(row['principal'], currency),
-                interest_amount=Money(row['interest'], currency),
-            ))
-            current_date = current_date + relativedelta(**period_delta)
-
-        # Vencimiento = fecha de la última cuota (antes quedaba un período después)
-        if schedules:
-            loan.maturity_date = schedules[-1].due_date
-            # outstanding_balance = total del cronograma (capital + interés)
-            loan.outstanding_balance = Money(sum(row['payment'] for row in rows), currency)
-            loan.payment_amount = Money(rows[0]['payment'], currency)
-
-        loan.save()
+        """Compatibilidad: el cronograma vive en `apps.loans.disbursement`."""
+        generate_payment_schedule(loan)
 
 
 class LoanPaymentViewSet(viewsets.ModelViewSet):
