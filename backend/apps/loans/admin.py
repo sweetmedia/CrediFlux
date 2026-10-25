@@ -373,10 +373,17 @@ class LoanAdmin(ModelAdmin):
         return is_tenant_schema() and super().has_delete_permission(request, obj)
 
     def delete_queryset(self, request, queryset):
-        """La acción masiva «Eliminar» aplica la misma regla que has_delete_permission."""
-        if queryset.exclude(status__in=('pending', 'rejected')).exists():
-            raise PermissionDenied('Solo se pueden eliminar préstamos pendientes o rechazados.')
-        super().delete_queryset(request, queryset)
+        """La acción masiva «Eliminar» aplica la misma regla que has_delete_permission.
+
+        delete_selected no abre transacción: se abre aquí y se bloquean los préstamos antes de
+        evaluar la regla, para que guarda y borrado sean una sola unidad y un préstamo aprobado
+        o desembolsado entretanto por la API no se borre con su calendario.
+        """
+        with transaction.atomic(using=router.db_for_write(self.model)):
+            statuses = list(queryset.select_for_update().order_by().values_list('status', flat=True))
+            if any(status not in ('pending', 'rejected') for status in statuses):
+                raise PermissionDenied('Solo se pueden eliminar préstamos pendientes o rechazados.')
+            super().delete_queryset(request, queryset)
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))

@@ -689,3 +689,70 @@ def test_change_form_adding_collateral_regenerates_the_pending_contract(
     contract.refresh_from_db()
     assert "Honda Civic 2019" in contract.content
     assert "Sin garantías" not in contract.content
+
+
+# --- Borrado masivo de préstamos: guarda y borrado en una sola transacción con bloqueo ------
+
+
+def _bulk_delete_loans(client, loans):
+    return client.post(reverse("admin:loans_loan_changelist"), {
+        "action": "delete_selected", "_selected_action": [loan.pk for loan in loans], "post": "yes",
+    })
+
+
+def _pending_contract(loan):
+    from apps.loans.models_contracts import Contract
+
+    return Contract.objects.create(loan=loan, content="x", status="pending_signature")
+
+
+def test_bulk_delete_locks_the_loans_before_deleting(admin_client, loan_factory):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+    from apps.loans.models import Loan
+
+    table = Loan._meta.db_table
+    loan = _pending(loan_factory)
+    with CaptureQueriesContext(connection) as ctx:
+        response = _bulk_delete_loans(admin_client, [loan])
+
+    assert response.status_code == 302
+    assert not Loan.objects.filter(pk=loan.pk).exists()
+    sqls = [q["sql"] for q in ctx.captured_queries]
+    locks = [i for i, sql in enumerate(sqls) if f'"{table}"' in sql and "FOR UPDATE" in sql]
+    deletes = [i for i, sql in enumerate(sqls) if sql.startswith(f'DELETE FROM "{table}"')]
+    assert locks, "el borrado masivo no bloquea los préstamos"
+    assert deletes
+    assert locks[0] < deletes[0]
+
+
+def test_bulk_delete_of_mixed_statuses_deletes_nothing(admin_client, active_loan, loan_factory):
+    from apps.loans.models import Collateral, Loan
+    from apps.loans.models_contracts import Contract
+
+    pending = _pending(loan_factory)
+    collateral = _collateral(pending)
+    contract = _pending_contract(pending)
+
+    response = _bulk_delete_loans(admin_client, [pending, active_loan])
+
+    assert response.status_code == 403
+    assert Loan.objects.filter(pk__in=[pending.pk, active_loan.pk]).count() == 2
+    assert Collateral.objects.filter(pk=collateral.pk).exists()
+    assert Contract.objects.filter(pk=contract.pk).exists()
+
+
+def test_bulk_delete_of_pending_loans_cascades(admin_client, loan_factory):
+    from apps.loans.models import Collateral, Loan
+    from apps.loans.models_contracts import Contract
+
+    loans = [_pending(loan_factory), _pending(loan_factory)]
+    collaterals = [_collateral(loan).pk for loan in loans]
+    contracts = [_pending_contract(loan).pk for loan in loans]
+
+    response = _bulk_delete_loans(admin_client, loans)
+
+    assert response.status_code == 302
+    assert not Loan.objects.filter(pk__in=[loan.pk for loan in loans]).exists()
+    assert not Collateral.objects.filter(pk__in=collaterals).exists()
+    assert not Contract.objects.filter(pk__in=contracts).exists()
