@@ -7,6 +7,8 @@ préstamos afectados con SELECT ... FOR UPDATE (ordenados por pk) dentro de la t
 comprueban el estado sobre la fila bloqueada. Un préstamo aprobado por la API entre la
 comprobación y la escritura ya no recibe la garantía/el garante ni se le rehace el contrato.
 """
+import re
+
 import pytest
 from django.contrib import admin
 from django.core.exceptions import PermissionDenied
@@ -146,7 +148,13 @@ def test_moving_a_row_locks_both_loans_in_pk_order(admin_client, template, loan_
     locks = [sqls[i] for i in _loan_locks(sqls)]
     assert locks, "el admin no bloquea los préstamos"
     lock = locks[0]
-    assert str(old_loan.pk) in lock and str(new_loan.pk) in lock
+    in_clause = re.search(r'"id" IN \(([^)]*)\)', lock)
+    assert in_clause, lock
+    # Los UUID salen como '…'::uuid: se quitan el cast y las comillas y se comparan tokens exactos.
+    locked_ids = {
+        token.strip().removesuffix("::uuid").strip("'\"") for token in in_clause.group(1).split(",")
+    }
+    assert locked_ids == {str(old_loan.pk), str(new_loan.pk)}
     assert f'ORDER BY "{Loan._meta.db_table}"."id" ASC' in lock
 
     old_contract.refresh_from_db()
@@ -210,3 +218,74 @@ def test_guarantor_bulk_delete_of_mixed_statuses_deletes_nothing(
     with pytest.raises(PermissionDenied):
         GuarantorAdmin(Guarantor, admin.site).delete_queryset(request, Guarantor.objects.filter(pk__in=ids))
     assert Guarantor.objects.filter(pk__in=ids).count() == 2
+
+
+# Ronda 13.1: una fila movida por otra petición justo antes del bloqueo hace rechazar la escritura.
+# El movimiento simulado ocurre dentro de la transacción de la petición, así que el rechazo
+# también lo deshace: la fila vuelve a su préstamo original y nada se borra ni se guarda.
+
+def _move_before_lock(monkeypatch, kind, row, target):
+    from apps.loans.models import Loan
+
+    original = Loan.objects.select_for_update
+
+    def _select_for_update(*args, **kwargs):
+        # Otra petición mueve la fila a otro préstamo pendiente justo antes del bloqueo.
+        _model(kind).objects.filter(pk=row.pk).update(loan=target)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(Loan.objects, "select_for_update", _select_for_update)
+
+
+@KINDS
+def test_bulk_delete_refuses_a_row_moved_before_the_lock(
+    admin_client, template, loan_factory, monkeypatch, kind
+):
+    loan, other = _pending(loan_factory), _pending(loan_factory)
+    row = _row(kind, loan)
+    contract, other_contract = _contract(loan, template), _contract(other, template)
+    _move_before_lock(monkeypatch, kind, row, other)
+
+    response = _post(admin_client, kind, "bulk_delete", loan, row)
+
+    assert response.status_code == 403
+    assert _model(kind).objects.filter(pk=row.pk).exists()
+    for k in (contract, other_contract):
+        k.refresh_from_db()
+        assert k.content == "texto viejo"
+
+
+@KINDS
+def test_change_refuses_a_row_moved_before_the_lock(
+    admin_client, template, loan_factory, monkeypatch, kind
+):
+    loan, other = _pending(loan_factory), _pending(loan_factory)
+    row = _row(kind, loan)
+    contract, other_contract = _contract(loan, template), _contract(other, template)
+    _move_before_lock(monkeypatch, kind, row, other)
+
+    response = _post(admin_client, kind, "change", loan, row, name="Intrusa")
+
+    assert response.status_code == 403
+    row.refresh_from_db()
+    assert _name(kind, row) == "Fila vieja"
+    assert row.loan_id == loan.pk
+    for k in (contract, other_contract):
+        k.refresh_from_db()
+        assert k.content == "texto viejo"
+
+
+def test_lock_row_loans_rejects_a_row_no_longer_on_a_locked_loan(loan_factory):
+    """Sin el retroceso de la petición: la relectura tras el bloqueo detecta la fila movida."""
+    from django.db import transaction
+    from apps.loans.admin import _lock_row_loans
+    from apps.loans.models_guarantors import Guarantor
+
+    loan, other = _pending(loan_factory), _pending(loan_factory)
+    row = _guarantor(loan)
+    Guarantor.objects.filter(pk=row.pk).update(loan=other)  # movida tras leer el préstamo anterior
+
+    with transaction.atomic(), pytest.raises(PermissionDenied):
+        _lock_row_loans(Guarantor, row, [loan.pk], "mensaje")
+    row.refresh_from_db()
+    assert row.loan_id == other.pk

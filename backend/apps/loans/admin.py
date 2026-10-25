@@ -61,21 +61,40 @@ def _lock_pending_loans(loan_ids, message):
     )
     if len(locked) != len(ids) or any(status != 'pending' for _, status in locked):
         raise PermissionDenied(message)
+    return ids
+
+
+def _lock_row_loans(model, obj, loan_ids, message):
+    """Para save_model/delete_model de garantías/garantes: bloquea y revalida el préstamo de la fila.
+
+    El préstamo anterior de la fila se leyó antes del bloqueo; otra petición pudo moverla
+    entretanto. Tras bloquear se vuelve a leer su loan_id: si ya no es uno de los préstamos
+    bloqueados, se rechaza (cualquier movimiento desde un préstamo bloqueado necesita su
+    bloqueo, así que la relectura es estable). En el alta (sin pk) no hay nada que releer.
+    """
+    locked = _lock_pending_loans(loan_ids, message)
+    if obj.pk is not None:
+        current = model.objects.filter(pk=obj.pk).values_list('loan_id', flat=True).first()
+        if current is not None and current not in locked:
+            raise PermissionDenied(message)
+    return locked
 
 
 def _lock_related_loans(queryset, message):
     """Para los delete_queryset de garantías/garantes: bloquea los préstamos de la selección.
 
     Debe llamarse dentro de la transacción del borrado. Tras bloquear se vuelven a leer los
-    préstamos de la selección: si una fila se movió a otro préstamo antes del bloqueo, ese
-    préstamo también se bloquea y se comprueba. Devuelve los ids para rehacer sus contratos.
+    préstamos de la selección: si una fila se movió a otro préstamo antes del bloqueo, se
+    rechaza el borrado (el usuario reintenta). No se toma un segundo bloqueo: iría fuera del
+    orden por pk y podría provocar un interbloqueo con un movimiento concurrente. Devuelve los
+    ids para rehacer sus contratos.
     """
     loan_ids = set(queryset.order_by().values_list('loan_id', flat=True).distinct())
-    _lock_pending_loans(loan_ids, message)
-    moved = set(queryset.order_by().values_list('loan_id', flat=True).distinct()) - loan_ids
-    if moved:
-        _lock_pending_loans(moved, message)
-    return list(loan_ids | moved)
+    locked = _lock_pending_loans(loan_ids, message)
+    current = set(queryset.order_by().values_list('loan_id', flat=True).distinct())
+    if current - locked:
+        raise PermissionDenied(message)
+    return list(locked)
 
 
 class _ReadOnlyLoanInline(TabularInline):
@@ -962,7 +981,10 @@ class CollateralAdmin(ModelAdmin):
     def delete_model(self, request, obj):
         # delete_view ya es atómica: el préstamo queda bloqueado hasta el borrado.
         loan_id = obj.loan_id
-        _lock_pending_loans([loan_id], 'Las garantías sólo se eliminan mientras el préstamo está pendiente.')
+        _lock_row_loans(
+            Collateral, obj, [loan_id],
+            'Las garantías sólo se eliminan mientras el préstamo está pendiente.',
+        )
         super().delete_model(request, obj)
         _regenerate_loan_contracts(request, [loan_id])
 
@@ -977,7 +999,10 @@ class CollateralAdmin(ModelAdmin):
             loans.append(Collateral.objects.filter(pk=obj.pk).values_list('loan_id', flat=True).first())
         # changeform_view ya es atómica: los préstamos (nuevo y anterior) quedan bloqueados
         # hasta el guardado y la regeneración del contrato.
-        _lock_pending_loans(loans, 'Las garantías sólo se modifican mientras el préstamo está pendiente.')
+        _lock_row_loans(
+            Collateral, obj, loans,
+            'Las garantías sólo se modifican mientras el préstamo está pendiente.',
+        )
         super().save_model(request, obj, form, change)
         # Igual que CollateralSerializer: el contrato por firmar refleja la garantía; si cambió de
         # préstamo, el anterior también se rehace porque la pierde.
@@ -1564,14 +1589,20 @@ class GuarantorAdmin(ModelAdmin):
             loans.append(Guarantor.objects.filter(pk=obj.pk).values_list('loan_id', flat=True).first())
         # changeform_view ya es atómica: los préstamos (nuevo y anterior) quedan bloqueados
         # hasta el guardado y la regeneración del contrato.
-        _lock_pending_loans(loans, 'Los garantes sólo se modifican mientras el préstamo está pendiente.')
+        _lock_row_loans(
+            Guarantor, obj, loans,
+            'Los garantes sólo se modifican mientras el préstamo está pendiente.',
+        )
         super().save_model(request, obj, form, change)
         _regenerate_loan_contracts(request, loans)
 
     def delete_model(self, request, obj):
         # delete_view ya es atómica: el préstamo queda bloqueado hasta el borrado.
         loan_id = obj.loan_id
-        _lock_pending_loans([loan_id], 'Los garantes sólo se eliminan mientras el préstamo está pendiente.')
+        _lock_row_loans(
+            Guarantor, obj, [loan_id],
+            'Los garantes sólo se eliminan mientras el préstamo está pendiente.',
+        )
         super().delete_model(request, obj)
         _regenerate_loan_contracts(request, [loan_id])
 
