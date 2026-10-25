@@ -9,6 +9,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+from django.db import transaction
 from django.utils import timezone
 from moneyed import Money
 from rest_framework.test import APIClient
@@ -298,7 +299,9 @@ def test_regenerate_skips_signed_contract(contract):
     Contract.objects.filter(pk=contract.pk).update(customer_signed_at=timezone.now())
     contract.refresh_from_db()
 
-    assert regenerate_latest_loan_contract(contract.loan) is None
+    # El helper exige una transacción (bloquea el contrato con SELECT ... FOR UPDATE).
+    with transaction.atomic():
+        assert regenerate_latest_loan_contract(contract.loan) is None
     assert Contract.objects.get(pk=contract.pk).content == "Contenido original"
 
 

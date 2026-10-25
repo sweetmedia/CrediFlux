@@ -369,12 +369,26 @@ class LoanViewSet(viewsets.ModelViewSet):
         # LoanSerializer sólo deja cambiar términos en un préstamo pendiente sin firmas;
         # si cambian, la cuota y el contrato por firmar se rehacen para que el cliente
         # firme exactamente lo que se aprobará y desembolsará.
+        #
+        # Se decide y se escribe sobre la fila bloqueada, no sobre la lectura de get_object():
+        # un approve/disburse o una firma confirmados entretanto quedan a la vista. Orden
+        # préstamo → contratos, como en disburse. Sólo se guardan los campos enviados: estado,
+        # desembolso y saldos conservan el valor de la fila bloqueada.
         from .utils_contracts import regenerate_latest_loan_contract
 
         fields = serializer.TERM_FIELDS
-        before = {f: getattr(serializer.instance, f) for f in fields}
         with transaction.atomic():
-            loan = serializer.save()
+            loan = Loan.objects.select_for_update(of=('self',)).get(pk=serializer.instance.pk)
+            list(loan.contracts.select_for_update(of=('self',)).values_list('pk', flat=True))
+            serializer.instance = loan
+            validated_data = serializer.validated_data
+            # La regla de campos bloqueados (y la política) se vuelve a evaluar sobre la fila
+            # bloqueada; un ValidationError da 400 y deshace la transacción.
+            serializer.validate(dict(validated_data))
+            before = {f: getattr(loan, f) for f in fields}
+            for attr, value in validated_data.items():
+                setattr(loan, attr, value)
+            loan.save(update_fields=list(validated_data) + ['updated_at'])
             if any(getattr(loan, f) != before[f] for f in fields):
                 loan.payment_amount = calculate_payment_amount(loan)
                 loan.save(update_fields=['payment_amount', 'updated_at'])
@@ -1522,6 +1536,41 @@ class ContractViewSet(viewsets.ModelViewSet):
             contract.save()
 
         return contract
+
+    def perform_update(self, serializer):
+        # Se decide y se escribe sobre la fila bloqueada: un cancel (u otra acción) confirmado
+        # entretanto queda a la vista y no se pisa con la copia leída por get_object(). Sólo se
+        # guardan los campos editables enviados; estado, contenido y firmas no se tocan.
+        with transaction.atomic():
+            contract = _lock_contract(serializer.instance)
+            if contract.status in TERMINAL_CONTRACT_STATUSES:
+                raise ValidationError(
+                    {'status': 'Este contrato está cancelado o completado; genere uno nuevo.'}
+                )
+            validated_data = serializer.validated_data
+            for attr, value in validated_data.items():
+                setattr(contract, attr, value)
+            contract.save(update_fields=list(validated_data) + ['updated_at'])
+            serializer.instance = contract
+
+    def perform_destroy(self, instance):
+        # Borrar no sustituye a cancelar: sólo se borra un contrato sin firmas, en borrador o
+        # por firmar, de un préstamo no desembolsado. Se bloquea sólo el contrato; el préstamo
+        # se lee sin bloquearlo (orden préstamo → contrato), como en cancel.
+        with transaction.atomic():
+            contract = _lock_contract(instance)
+            deletable = (
+                not contract.customer_signed_at
+                and not contract.officer_signed_at
+                and contract.status in ('draft', 'pending_signature')
+                and contract.loan.status in LOAN_STATUSES_BEFORE_DISBURSEMENT
+            )
+            if not deletable:
+                raise ValidationError({
+                    'error': 'Solo se eliminan contratos sin firmas de préstamos no desembolsados; '
+                             'use cancelar.'
+                })
+            contract.delete()
 
     @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
     def regenerate(self, request, pk=None):
