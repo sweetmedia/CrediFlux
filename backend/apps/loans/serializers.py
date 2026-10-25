@@ -628,7 +628,11 @@ class LoanSerializer(SignedFilesModelSerializer):
         changed = [f for f in self.TERM_FIELDS if f in attrs and attrs[f] != getattr(self.instance, f)]
         if not changed:
             return
-        signed = self.instance.contracts.filter(is_archived=False).filter(
+        # Un contrato firmado bloquea mientras no esté cancelado, archivado o no: archivar no
+        # desbloquea. Uno cancelado ya no bloquea, y tampoco sirve para desembolsar ni puede
+        # desarchivarse (LoanViewSet.disburse, ContractViewSet.unarchive): cambiar términos
+        # tras una firma exige cancelar y firmar un contrato nuevo.
+        signed = self.instance.contracts.exclude(status='cancelled').filter(
             Q(customer_signed_at__isnull=False) | Q(officer_signed_at__isnull=False)
         ).exists()
         if self.instance.status != 'pending' or signed:

@@ -27,11 +27,11 @@ def officer_client(user_factory):
     return _client(user_factory(role="loan_officer"))
 
 
-def _contract(loan, signed=False, archived=False):
+def _contract(loan, signed=False, archived=False, status="pending_signature"):
     from apps.loans.models_contracts import Contract
 
     return Contract.objects.create(
-        loan=loan, content="Deudor tasa plazo", status="pending_signature",
+        loan=loan, content="Deudor tasa plazo", status=status,
         customer_signed_at=timezone.now() if signed else None, is_archived=archived,
     )
 
@@ -80,7 +80,8 @@ def test_pending_loan_with_signed_contract_is_locked(officer_client, loan_factor
 
 def test_pending_unsigned_loan_stays_editable(officer_client, loan_factory):
     loan = loan_factory(status="pending", disbursement_date=None, term_months=6, interest_rate=Decimal("1.50"))
-    _contract(loan, signed=True, archived=True)  # un contrato archivado no bloquea
+    # Un contrato firmado y cancelado (la API sólo archiva cancelados) no bloquea.
+    _contract(loan, signed=True, archived=True, status="cancelled")
     _contract(loan, signed=False)
     response = officer_client.patch(f"/api/loans/{loan.pk}/", {"term_months": 3}, format="json")
     assert response.status_code == 200, response.data

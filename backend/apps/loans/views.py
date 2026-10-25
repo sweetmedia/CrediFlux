@@ -465,6 +465,17 @@ class LoanViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        if contract.status in ('cancelled', 'completed'):
+            # Un contrato cancelado (o ya cumplido) no vuelve a ser el vigente de un desembolso.
+            return Response(
+                {
+                    'error': 'El contrato vigente está cancelado o completado; genere y firme uno nuevo.',
+                    'contract_id': str(contract.id),
+                    'contract_status': contract.status,
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if not contract.customer_signed_at:
             return Response(
                 {
@@ -1705,6 +1716,13 @@ class ContractViewSet(viewsets.ModelViewSet):
         if not contract.is_archived:
             return Response(
                 {'error': 'Este contrato no está archivado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if contract.status == 'cancelled':
+            # La cancelación es definitiva: revivirlo reusaría una firma sobre términos viejos.
+            return Response(
+                {'error': 'Un contrato cancelado no se puede desarchivar; genere uno nuevo.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
