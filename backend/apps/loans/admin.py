@@ -600,32 +600,55 @@ class LoanAdmin(ModelAdmin):
         qs = super().get_queryset(request)
         return qs.select_related('customer', 'loan_officer')
 
+    def _for_each_locked_loan(self, request, queryset, expected_status, handler):
+        """Aplica handler a cada préstamo seleccionado que siga en expected_status.
+
+        El changelist no abre transacción: cada préstamo va en la suya y se bloquea
+        (SELECT ... FOR UPDATE) antes de comprobar su estado, para que un préstamo aprobado,
+        rechazado o editado por la API entre la selección y el guardado no se pise con la
+        instancia vieja. Una transacción por préstamo: el error de uno no deshace los demás.
+        Un ValidationError de handler deshace ese préstamo y se informa.
+        Devuelve (elegibles tras bloquear, procesados).
+        """
+        eligible = done = 0
+        pks = list(dict.fromkeys(queryset.order_by().values_list('pk', flat=True)))
+        for pk in pks:
+            locked = None
+            try:
+                with transaction.atomic(using=router.db_for_write(Loan)):
+                    try:
+                        # of=('self',): sólo se bloquea la fila del préstamo, como en delete_queryset.
+                        locked = Loan.objects.select_for_update(of=('self',)).get(pk=pk)
+                    except Loan.DoesNotExist:
+                        continue  # borrado entretanto: no elegible
+                    if locked.status != expected_status:
+                        continue  # cambió de estado entretanto: no elegible
+                    eligible += 1
+                    handler(locked)
+            except ValidationError as exc:
+                self._report_policy_violation(request, locked, exc)
+                continue
+            done += 1
+        return eligible, done
+
     @admin.action(description='Aprobar préstamos seleccionados')
     def approve_loans(self, request, queryset):
-        """Approve selected loans"""
+        """Aprueba los pendientes que cumplen la política; informa los que no."""
         from django.utils import timezone
         from django.contrib import messages
 
-        pending_loans = queryset.filter(status='pending')
-        count = pending_loans.count()
-
-        if count == 0:
-            self.message_user(request, 'No hay préstamos pendientes para aprobar', messages.WARNING)
-            return
-
-        approved = 0
-        for loan in pending_loans:
-            try:
-                validate_approval(loan, request)
-            except ValidationError as exc:
-                self._report_policy_violation(request, loan, exc)
-                continue
+        def approve(loan):
+            validate_approval(loan, request)
             loan.status = 'approved'
             loan.approval_date = timezone.localdate()
             loan.approved_by = request.user
             loan.save()
-            approved += 1
 
+        eligible, approved = self._for_each_locked_loan(request, queryset, 'pending', approve)
+
+        if eligible == 0:
+            self.message_user(request, 'No hay préstamos pendientes para aprobar', messages.WARNING)
+            return
         if approved:
             self.message_user(
                 request,
@@ -635,57 +658,44 @@ class LoanAdmin(ModelAdmin):
 
     @admin.action(description='Rechazar préstamos seleccionados')
     def reject_loans(self, request, queryset):
-        """Reject selected loans"""
+        """Rechaza los pendientes (estado comprobado sobre la fila bloqueada)."""
         from django.utils import timezone
         from django.contrib import messages
 
-        pending_loans = queryset.filter(status='pending')
-        count = pending_loans.count()
-
-        if count == 0:
-            self.message_user(request, 'No hay préstamos pendientes para rechazar', messages.WARNING)
-            return
-
-        # Update all pending loans
-        for loan in pending_loans:
+        def reject(loan):
             loan.status = 'rejected'
             loan.rejection_date = timezone.localdate()
             loan.rejected_by = request.user
             loan.save()
 
-        self.message_user(
-            request,
-            f'{count} préstamo(s) rechazado(s) exitosamente',
-            messages.SUCCESS
-        )
+        eligible, rejected = self._for_each_locked_loan(request, queryset, 'pending', reject)
+
+        if eligible == 0:
+            self.message_user(request, 'No hay préstamos pendientes para rechazar', messages.WARNING)
+            return
+        if rejected:
+            self.message_user(
+                request,
+                f'{rejected} préstamo(s) rechazado(s) exitosamente',
+                messages.SUCCESS
+            )
 
     @admin.action(description='Desembolsar préstamos aprobados')
     def disburse_loans(self, request, queryset):
         """Desembolsa los aprobados que cumplen las precondiciones; informa los que no."""
         from django.contrib import messages
-        from django.db import transaction
 
-        approved_loans = queryset.filter(status='approved')
-        count = approved_loans.count()
-
-        if count == 0:
-            self.message_user(request, 'No hay préstamos aprobados para desembolsar', messages.WARNING)
-            return
-
-        disbursed = 0
-        for loan in approved_loans:
+        def disburse(loan):
             # Mismas precondiciones y efectos que la API (apps.loans.disbursement); sin caja:
             # el admin no tiene sesión de caja, así que no registra egreso.
-            try:
-                with transaction.atomic():
-                    locked = Loan.objects.select_for_update().get(pk=loan.pk)
-                    contract = check_disbursable(locked, request.user, request)
-                    apply_disbursement(locked, contract)
-            except ValidationError as exc:
-                self._report_policy_violation(request, loan, exc)
-                continue
-            disbursed += 1
+            contract = check_disbursable(loan, request.user, request)
+            apply_disbursement(loan, contract)
 
+        eligible, disbursed = self._for_each_locked_loan(request, queryset, 'approved', disburse)
+
+        if eligible == 0:
+            self.message_user(request, 'No hay préstamos aprobados para desembolsar', messages.WARNING)
+            return
         if disbursed:
             self.message_user(
                 request,
