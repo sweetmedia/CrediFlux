@@ -151,9 +151,10 @@ def test_collateral_bulk_delete_regenerates_every_affected_contract(admin_client
     c1, c2 = _collateral(first, "Moto Yamaha"), _collateral(second, "Camión Isuzu")
     k1, k2 = _contract(first, template), _contract(second, template)
 
-    admin_client.post(reverse("admin:loans_collateral_changelist"), {
+    response = admin_client.post(reverse("admin:loans_collateral_changelist"), {
         "action": "delete_selected", "_selected_action": [c1.pk, c2.pk], "post": "yes",
     })
+    assert response.status_code == 302
     assert not Collateral.objects.filter(pk__in=[c1.pk, c2.pk]).exists()
 
     for contract, description in ((k1, "Moto Yamaha"), (k2, "Camión Isuzu")):
@@ -229,9 +230,10 @@ def test_guarantor_moved_or_bulk_deleted_regenerates_every_affected_contract(
     other = _guarantor(old_loan, "Marta")
     old_contract.content = "texto viejo"
     old_contract.save(update_fields=["content"])
-    admin_client.post(reverse("admin:loans_guarantor_changelist"), {
+    response = admin_client.post(reverse("admin:loans_guarantor_changelist"), {
         "action": "delete_selected", "_selected_action": [guarantor.pk, other.pk], "post": "yes",
     })
+    assert response.status_code == 302
     assert not Guarantor.objects.filter(pk__in=[guarantor.pk, other.pk]).exists()
     old_contract.refresh_from_db()
     new_contract.refresh_from_db()
@@ -240,9 +242,15 @@ def test_guarantor_moved_or_bulk_deleted_regenerates_every_affected_contract(
 
 
 # (g)
-def test_signed_contract_is_not_rewritten_by_the_collateral_admin(admin_client, template, loan_factory):
+SIGNATURES = pytest.mark.parametrize("signed_field", ["customer_signed_at", "officer_signed_at"])
+
+
+@SIGNATURES
+def test_signed_contract_is_not_rewritten_by_the_collateral_admin(
+    admin_client, template, loan_factory, signed_field
+):
     loan = _pending(loan_factory)
-    contract = _contract(loan, template, customer_signed_at=timezone.now())
+    contract = _contract(loan, template, **{signed_field: timezone.now()})
 
     _assert_saved(admin_client.post(
         reverse("admin:loans_collateral_add"), _collateral_body(loan.pk, "Toyota Corolla 2020")
@@ -250,3 +258,44 @@ def test_signed_contract_is_not_rewritten_by_the_collateral_admin(admin_client, 
 
     contract.refresh_from_db()
     assert contract.content == "texto viejo"
+
+
+@SIGNATURES
+def test_signed_contract_is_not_rewritten_by_the_guarantor_admin(
+    admin_client, template, loan_factory, signed_field
+):
+    loan = _pending(loan_factory)
+    contract = _contract(loan, template, **{signed_field: timezone.now()})
+
+    _assert_saved(admin_client.post(reverse("admin:loans_guarantor_add"), _guarantor_body(loan.pk, "Ramón")))
+
+    contract.refresh_from_db()
+    assert contract.content == "texto viejo"
+
+
+# Ronda 8.1: la acción masiva no abre transacción propia; delete_queryset debe hacerlo.
+@pytest.mark.parametrize("kind", ["collateral", "guarantor"])
+def test_bulk_delete_rolls_back_if_the_contract_render_fails(
+    superuser, template, loan_factory, monkeypatch, kind
+):
+    from apps.loans.models import Collateral
+    from apps.loans.models_guarantors import Guarantor
+
+    loan = _pending(loan_factory)
+    row = _collateral(loan, "Moto Yamaha") if kind == "collateral" else _guarantor(loan, "Lucía")
+    model = Collateral if kind == "collateral" else Guarantor
+    _contract(loan, template)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("fallo al renderizar")
+
+    monkeypatch.setattr("apps.loans.utils_contracts.replace_contract_variables", boom)
+    client = Client(HTTP_HOST=HOST, raise_request_exception=False)
+    client.force_login(superuser)
+
+    response = client.post(reverse(f"admin:loans_{kind}_changelist"), {
+        "action": "delete_selected", "_selected_action": [row.pk], "post": "yes",
+    })
+
+    assert response.status_code == 500
+    assert model.objects.filter(pk=row.pk).exists()

@@ -4,7 +4,7 @@ Loan admin configuration with Unfold best practices
 from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
-from django.db import connection
+from django.db import connection, router, transaction
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
@@ -32,8 +32,10 @@ def is_tenant_schema():
 def _regenerate_loan_contracts(request, loan_ids):
     """Rehace el contrato por firmar de cada préstamo afectado (ids distintos, sin None).
 
-    No captura excepciones: el admin corre dentro de la transacción de changeform_view/delete_view
-    y un error al renderizar debe deshacer también el cambio de la fila.
+    No captura excepciones: un error al renderizar debe deshacer también el cambio de la fila.
+    Cada llamador debe estar dentro de una transacción: changeform_view/delete_view ya la abren;
+    la acción masiva «Eliminar» (changelist_view/delete_selected) no, así que los
+    delete_queryset que llaman a este helper abren la suya.
     """
     from .utils_contracts import regenerate_latest_loan_contract
 
@@ -890,13 +892,18 @@ class CollateralAdmin(ModelAdmin):
         return is_tenant_schema() and super().has_delete_permission(request, obj)
 
     def delete_queryset(self, request, queryset):
-        """La acción masiva «Eliminar» aplica la misma regla que has_delete_permission."""
-        if queryset.exclude(loan__status='pending').exists():
-            raise PermissionDenied('Las garantías sólo se eliminan mientras el préstamo está pendiente.')
-        loan_ids = list(queryset.order_by().values_list('loan_id', flat=True).distinct())
-        super().delete_queryset(request, queryset)
-        # El contrato por firmar deja de nombrar las garantías borradas.
-        _regenerate_loan_contracts(request, loan_ids)
+        """La acción masiva «Eliminar» aplica la misma regla que has_delete_permission.
+
+        delete_selected no abre transacción: se abre aquí para que un error al rehacer el
+        contrato deshaga también el borrado.
+        """
+        with transaction.atomic(using=router.db_for_write(self.model)):
+            if queryset.exclude(loan__status='pending').exists():
+                raise PermissionDenied('Las garantías sólo se eliminan mientras el préstamo está pendiente.')
+            loan_ids = list(queryset.order_by().values_list('loan_id', flat=True).distinct())
+            super().delete_queryset(request, queryset)
+            # El contrato por firmar deja de nombrar las garantías borradas.
+            _regenerate_loan_contracts(request, loan_ids)
 
     def delete_model(self, request, obj):
         loan_id = obj.loan_id
@@ -1494,9 +1501,11 @@ class GuarantorAdmin(ModelAdmin):
         _regenerate_loan_contracts(request, [loan_id])
 
     def delete_queryset(self, request, queryset):
-        loan_ids = list(queryset.order_by().values_list('loan_id', flat=True).distinct())
-        super().delete_queryset(request, queryset)
-        _regenerate_loan_contracts(request, loan_ids)
+        # delete_selected no abre transacción: un error al rehacer el contrato deshace el borrado.
+        with transaction.atomic(using=router.db_for_write(self.model)):
+            loan_ids = list(queryset.order_by().values_list('loan_id', flat=True).distinct())
+            super().delete_queryset(request, queryset)
+            _regenerate_loan_contracts(request, loan_ids)
 
     fieldsets = (
         ('Información Personal', {
