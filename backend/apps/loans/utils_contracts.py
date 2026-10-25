@@ -366,12 +366,31 @@ def generate_initial_contract(loan, user, tenant=None):
 
 
 def regenerate_latest_loan_contract(loan, tenant=None):
-    """Regenerate the latest active/pending contract for a loan after related data changes."""
-    contract = loan.contracts.filter(is_archived=False).order_by('-generated_at').first()
+    """Rehace el último contrato por firmar de un préstamo tras cambiar sus datos relacionados.
+
+    Llamar dentro de una transacción, después de bloquear el préstamo (orden préstamo → fila →
+    contrato → token, ver apps/loans/locks.py). El contrato se bloquea (SELECT ... FOR UPDATE) y
+    se decide sobre la fila bloqueada: una firma confirmada entretanto (sign_customer,
+    sign_officer, la firma pública bloquean sólo el contrato) queda a la vista y su texto no se
+    reescribe. Igual que ContractViewSet.regenerate, tampoco se reescribe un contrato firmado,
+    activo, completado o cancelado. Devuelve el contrato reescrito o None.
+    """
+    from .models_contracts import Contract
+
+    contract = (
+        Contract.objects.select_for_update(of=('self',))
+        .filter(loan=loan, is_archived=False)
+        .order_by('-generated_at')
+        .first()
+    )
     if not contract or not contract.template:
         return None
-    # Un contrato firmado no se reescribe: el texto firmado es el que vale.
-    if contract.customer_signed_at or contract.officer_signed_at:
+    # Un contrato firmado o cerrado no se reescribe: el texto firmado es el que vale.
+    if (
+        contract.customer_signed_at
+        or contract.officer_signed_at
+        or contract.status in ('signed', 'active', 'completed', 'cancelled')
+    ):
         return None
 
     contract.content = replace_contract_variables(contract.template.content, loan, tenant)
