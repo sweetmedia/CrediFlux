@@ -310,9 +310,17 @@ class LoanViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         # Un préstamo aprobado o desembolsado no desaparece de los libros con su calendario.
-        if instance.status not in ('pending', 'rejected'):
-            raise ValidationError({'status': 'Solo se pueden eliminar préstamos pendientes o rechazados.'})
-        instance.delete()
+        # Se decide y se borra la fila bloqueada, no la lectura de get_object(): un approve o
+        # desembolso confirmado entretanto queda a la vista. El borrado en cascada de los
+        # contratos ocurre después del bloqueo del préstamo (orden préstamo → contrato).
+        with transaction.atomic():
+            try:
+                loan = Loan.objects.select_for_update(of=('self',)).get(pk=instance.pk)
+            except Loan.DoesNotExist:
+                raise NotFound()
+            if loan.status not in ('pending', 'rejected'):
+                raise ValidationError({'status': 'Solo se pueden eliminar préstamos pendientes o rechazados.'})
+            loan.delete()
 
     def get_queryset(self):
         queryset = super().get_queryset().annotate(
@@ -384,6 +392,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             validated_data = serializer.validated_data
             # La regla de campos bloqueados (y la política) se vuelve a evaluar sobre la fila
             # bloqueada; un ValidationError da 400 y deshace la transacción.
+            # Los validate_<campo> no se re-ejecutan; hoy ninguno de LoanSerializer depende de la instancia.
             serializer.validate(dict(validated_data))
             before = {f: getattr(loan, f) for f in fields}
             for attr, value in validated_data.items():

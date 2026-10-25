@@ -350,3 +350,68 @@ def test_contract_delete_allows_an_unsigned_draft_of_an_approved_loan(
 
     assert response.status_code == 204, response.content
     assert not Contract.objects.filter(pk=contract.pk).exists()
+
+
+# (e) DELETE del préstamo (ronda 18.1): se decide y se borra la fila bloqueada
+
+def test_loan_delete_locks_the_loan_before_deleting(officer_client, loan_factory):
+    from apps.loans.models import Loan
+
+    loan = _pending_loan(loan_factory)
+    _contract(loan)
+    with CaptureQueriesContext(connection) as ctx:
+        response = officer_client.delete(_loan_url(loan))
+
+    assert response.status_code == 204, response.content
+    sqls = _sqls(ctx)
+    table = Loan._meta.db_table
+    locks = _lock_indexes(sqls, table)
+    deletes = [i for i, sql in enumerate(sqls) if sql.startswith(f'DELETE FROM "{table}"')]
+    assert locks, "el DELETE no bloquea el préstamo"
+    assert deletes
+    assert locks[0] < deletes[0]
+    savepoints = [i for i, sql in enumerate(sqls) if sql.startswith("SAVEPOINT")]
+    assert any(i < locks[0] for i in savepoints), "el bloqueo no va dentro de una transacción"
+    assert not Loan.objects.filter(pk=loan.pk).exists()
+
+
+def test_loan_delete_refuses_a_loan_approved_meanwhile(
+    officer_client, user_factory, loan_factory, monkeypatch
+):
+    from apps.loans.models import Loan
+
+    approver = user_factory(role="manager")
+    loan = _pending_loan(loan_factory)
+    _change_before_lock(monkeypatch, Loan, lambda: Loan.objects.filter(pk=loan.pk).update(
+        status="approved", approved_by=approver, approval_date=date(2026, 3, 1),
+    ))
+
+    response = officer_client.delete(_loan_url(loan))
+
+    assert response.status_code == 400, response.content
+    assert response.json() == {'status': 'Solo se pueden eliminar préstamos pendientes o rechazados.'}
+    assert Loan.objects.filter(pk=loan.pk).exists()
+
+
+def test_loan_delete_of_a_loan_that_vanished_meanwhile_is_404(
+    officer_client, loan_factory, monkeypatch
+):
+    from apps.loans.models import Loan
+
+    loan = _pending_loan(loan_factory)
+    _change_before_lock(monkeypatch, Loan, lambda: Loan.objects.filter(pk=loan.pk).delete())
+
+    response = officer_client.delete(_loan_url(loan))
+
+    assert response.status_code == 404, response.content
+
+
+def test_loan_delete_of_a_pending_loan_still_works(officer_client, loan_factory):
+    from apps.loans.models import Loan
+
+    loan = _pending_loan(loan_factory)
+
+    response = officer_client.delete(_loan_url(loan))
+
+    assert response.status_code == 204, response.content
+    assert not Loan.objects.filter(pk=loan.pk).exists()
