@@ -402,11 +402,26 @@ class LoanAdmin(ModelAdmin):
             obj.outstanding_balance = obj.principal_amount
         super().save_model(request, obj, form, change)
 
+    def save_related(self, request, form, formsets, change):
+        """El contrato se genera o rehace después de guardar los inlines (garantías incluidas).
+
+        En save_model las garantías del mismo formulario aún no existen y el contrato saldría con
+        "Sin garantías". Todo sigue dentro de la transacción de changeform_view.
+        """
+        super().save_related(request, form, formsets, change)
+        obj = form.instance
+
         if not change:
             self._generate_initial_contract(request, obj)
+            return
 
-        if change and terms_changed:
-            # Igual que LoanViewSet.perform_update: el contrato por firmar refleja los términos.
+        terms_changed = bool(set(getattr(form, 'changed_data', ())) & set(LOAN_TERM_FIELDS))
+        collateral_changed = any(
+            formset.model is Collateral and formset.has_changed() for formset in formsets
+        )
+        if terms_changed or collateral_changed:
+            # Igual que la API (perform_update y altas/cambios de garantías): el contrato por
+            # firmar refleja los términos y las garantías; uno firmado no se reescribe.
             from .utils_contracts import regenerate_latest_loan_contract
             regenerate_latest_loan_contract(obj, getattr(request, 'tenant', None))
 

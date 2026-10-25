@@ -235,8 +235,12 @@ def test_only_pending_or_rejected_loans_can_be_deleted(admin_client, active_loan
 
 
 class _CraftedForm:
-    def __init__(self, changed):
+    def __init__(self, changed, instance=None):
         self.changed_data = changed
+        self.instance = instance
+
+    def save_m2m(self):
+        pass
 
 
 def test_save_model_refuses_crafted_status_or_term_changes(superuser, loan_factory):
@@ -481,7 +485,10 @@ def test_contract_document_alone_does_not_regenerate_the_contract(superuser, loa
     loan = _pending(loan_factory)
     contract = Contract.objects.create(loan=loan, content="original", status="pending_signature")
     before_payment = loan.payment_amount
-    _loan_admin().save_model(_request(superuser), loan, _CraftedForm(["contract_document"]), change=True)
+    form = _CraftedForm(["contract_document"], instance=loan)
+    model_admin = _loan_admin()
+    model_admin.save_model(_request(superuser), loan, form, change=True)
+    model_admin.save_related(_request(superuser), form, [], change=True)
     contract.refresh_from_db()
     loan.refresh_from_db()
     assert contract.content == "original"
@@ -544,7 +551,7 @@ def test_save_model_refuses_crafted_late_fees_on_a_live_loan(superuser, loan_fac
 
 # --- Fix round 7: el préstamo creado en el admin nace con su contrato, igual que en la API ---
 
-def _post_add_form(admin_client, superuser, customer, **extra):
+def _post_add_form(admin_client, superuser, customer, collateral=None, **extra):
     page = admin_client.get(reverse("admin:loans_loan_add"))
     assert page.status_code == 200
     body = _form_data(page)
@@ -554,7 +561,22 @@ def _post_add_form(admin_client, superuser, customer, **extra):
         "term_months": "6", "payment_frequency": "monthly", "first_payment_date": "2026-12-01",
         "payment_amount_0": "1.00", "payment_amount_1": "DOP",
     })
+    if collateral:
+        _add_collateral_row(body, _inline_prefix(page, "collateral"), collateral)
     return admin_client.post(reverse("admin:loans_loan_add"), body, **extra)
+
+
+def _add_collateral_row(body, prefix, description):
+    """Agrega una fila nueva al inline de garantías del cuerpo del POST."""
+    index = int(body[f"{prefix}-TOTAL_FORMS"])
+    body[f"{prefix}-TOTAL_FORMS"] = str(index + 1)
+    body.update({
+        f"{prefix}-{index}-collateral_type": "vehicle",
+        f"{prefix}-{index}-description": description,
+        f"{prefix}-{index}-estimated_value_0": "50000.00",
+        f"{prefix}-{index}-estimated_value_1": "DOP",
+        f"{prefix}-{index}-status": "active",
+    })
 
 
 def test_add_form_generates_the_initial_contract_from_the_default_template(
@@ -618,3 +640,48 @@ def test_add_form_rolls_back_the_loan_if_the_contract_fails(
         _post_add_form(admin_client, superuser, customer)
 
     assert not Loan.objects.filter(customer=customer).exists()
+
+
+# --- Fix round 7.1: el contrato se arma después de guardar las garantías del inline ----------
+
+def test_add_form_contract_includes_collateral_from_the_inline(admin_client, superuser, customer_factory):
+    from apps.loans.models import Loan
+    from apps.loans.models_contracts import Contract, ContractTemplate
+
+    ContractTemplate.objects.create(
+        name="Base", content="Garantías: {{collateral_description}}", is_active=True, is_default=True
+    )
+    customer = customer_factory()
+
+    response = _post_add_form(admin_client, superuser, customer, collateral="Toyota Corolla 2020")
+
+    assert response.status_code == 302, response.context and response.context["adminform"].form.errors
+    loan = Loan.objects.get(customer=customer)
+    assert loan.collaterals.count() == 1
+    contract = Contract.objects.get(loan=loan)
+    assert "Toyota Corolla 2020" in contract.content
+    assert "Sin garantías" not in contract.content
+
+
+def test_change_form_adding_collateral_regenerates_the_pending_contract(
+    admin_client, superuser, loan_factory
+):
+    from apps.loans.models_contracts import Contract, ContractTemplate
+
+    template = ContractTemplate.objects.create(
+        name="Base", content="Garantías: {{collateral_description}}", is_active=True, is_default=True
+    )
+    loan = _pending(loan_factory, loan_officer=superuser)
+    contract = Contract.objects.create(
+        loan=loan, template=template, content="Garantías: Sin garantías", status="pending_signature"
+    )
+    page = admin_client.get(_change_url(loan))
+    body = _form_data(page)
+    _add_collateral_row(body, _inline_prefix(page, "collateral"), "Honda Civic 2019")
+
+    _post(admin_client, loan, body)
+
+    assert loan.collaterals.count() == 1
+    contract.refresh_from_db()
+    assert "Honda Civic 2019" in contract.content
+    assert "Sin garantías" not in contract.content

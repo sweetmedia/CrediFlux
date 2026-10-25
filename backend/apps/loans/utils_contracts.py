@@ -324,18 +324,22 @@ class NoActiveContractTemplate(ValueError):
     """No hay una plantilla de contrato activa que aplique al tipo de préstamo."""
 
 
-def get_default_contract_template(loan):
-    """Plantilla activa para el tipo del préstamo: primero las marcadas por defecto, luego cualquiera."""
+def get_default_contract_template(loan_type):
+    """Plantilla activa para un tipo de préstamo: primero las marcadas por defecto, luego cualquiera.
+
+    Único selector: lo usan la validación de creación de la API y la generación del contrato,
+    para que la compuerta y el generador no puedan divergir.
+    """
     from .models_contracts import ContractTemplate
 
     queryset = ContractTemplate.objects.filter(is_active=True)
 
     for template in queryset.filter(is_default=True):
-        if not template.loan_types or loan.loan_type in template.loan_types:
+        if not template.loan_types or loan_type in template.loan_types:
             return template
 
     for template in queryset:
-        if not template.loan_types or loan.loan_type in template.loan_types:
+        if not template.loan_types or loan_type in template.loan_types:
             return template
 
     return None
@@ -348,7 +352,7 @@ def generate_initial_contract(loan, user, tenant=None):
     """
     from .models_contracts import Contract
 
-    template = get_default_contract_template(loan)
+    template = get_default_contract_template(loan.loan_type)
     if not template:
         raise NoActiveContractTemplate('No hay una plantilla de contrato activa para este tipo de préstamo.')
 

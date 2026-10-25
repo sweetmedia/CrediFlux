@@ -814,23 +814,9 @@ class LoanCreateSerializer(SignedFilesModelSerializer):
         ]
         read_only_fields = ['id']
 
-    def _get_default_contract_template(self, loan_type):
-        queryset = ContractTemplate.objects.filter(is_active=True)
-
-        # First try a default template compatible with the loan type
-        matching_default = queryset.filter(is_default=True)
-        for template in matching_default:
-            if not template.loan_types or loan_type in template.loan_types:
-                return template
-
-        # Fallback to any active compatible template
-        for template in queryset:
-            if not template.loan_types or loan_type in template.loan_types:
-                return template
-
-        return None
-
     def validate(self, attrs):
+        from .utils_contracts import get_default_contract_template
+
         # For Money fields, compare with Money objects or use .amount attribute
         if attrs['principal_amount'].amount <= 0:
             raise serializers.ValidationError("Principal amount must be greater than 0")
@@ -843,7 +829,7 @@ class LoanCreateSerializer(SignedFilesModelSerializer):
 
         validate_origination(attrs, attrs.get('customer'), self.context.get('request'))
 
-        template = self._get_default_contract_template(attrs['loan_type'])
+        template = get_default_contract_template(attrs['loan_type'])
         if not template:
             raise serializers.ValidationError({
                 'loan_type': 'No hay una plantilla de contrato activa para este tipo de préstamo.'
