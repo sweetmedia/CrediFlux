@@ -75,7 +75,13 @@ def _assert_contract_locked_before_update(ctx, extra_locked_tables=()):
     assert locks[0] < updates[0]
     # El bloqueo va dentro de la transacción de la acción (en pytest, un SAVEPOINT).
     savepoints = [i for i, sql in enumerate(sqls) if sql.startswith("SAVEPOINT")]
-    assert any(i < locks[0] for i in savepoints), "el bloqueo no va dentro de una transacción"
+    opened_before = [i for i in savepoints if i < locks[0]]
+    assert opened_before, "el bloqueo no va dentro de una transacción"
+    # Y ese savepoint sigue abierto hasta pasada la escritura: no hay RELEASE entre medias.
+    releases = [i for i, sql in enumerate(sqls) if sql.startswith("RELEASE SAVEPOINT")]
+    assert not [i for i in releases if opened_before[-1] < i < updates[0]], (
+        "la transacción se cierra antes de la escritura"
+    )
     for other in extra_locked_tables:
         other_locks = [i for i, sql in enumerate(sqls)
                        if f'FROM "{other}"' in sql and "FOR UPDATE" in sql]

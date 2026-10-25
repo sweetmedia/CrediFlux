@@ -1967,7 +1967,7 @@ def public_contract_sign(request, token):
     import base64
     import uuid
     from django.core.files.base import ContentFile
-    from .models_contracts import ContractSignatureToken
+    from .models_contracts import Contract, ContractSignatureToken
 
     try:
         # Get signature token (sin bloquear: sólo para el 404 y para saber qué contrato es)
@@ -2058,7 +2058,9 @@ def public_contract_sign(request, token):
             'is_fully_signed': contract.is_fully_signed,
         })
 
-    except ContractSignatureToken.DoesNotExist:
+    except (ContractSignatureToken.DoesNotExist, Contract.DoesNotExist):
+        # El contrato puede desaparecer entre la lectura del token y el bloqueo (el token cae en
+        # cascada): mismo 404 que un enlace inválido, no un 500.
         return Response(
             {'error': 'Enlace de firma inválido'},
             status=status.HTTP_404_NOT_FOUND
