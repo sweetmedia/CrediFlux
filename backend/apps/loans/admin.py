@@ -44,6 +44,40 @@ def _regenerate_loan_contracts(request, loan_ids):
         regenerate_latest_loan_contract(loan, tenant)
 
 
+def _lock_pending_loans(loan_ids, message):
+    """Bloquea los préstamos indicados y exige que todos sigan pendientes.
+
+    Debe llamarse dentro de una transacción (changeform_view/delete_view ya la abren; los
+    delete_queryset abren la suya). Descarta None y duplicados, bloquea con SELECT ... FOR UPDATE
+    en una sola consulta ordenada por pk —orden de bloqueo determinista cuando son dos préstamos
+    (garantía/garante movido entre préstamos)— y lanza PermissionDenied(message) si alguno no
+    está pendiente o ya no existe. No bloquea el contrato: se respeta el orden préstamo →
+    contrato → token del módulo, y _regenerate_loan_contracts después sólo escribe el contrato.
+    """
+    ids = {pk for pk in loan_ids if pk is not None}
+    locked = list(
+        Loan.objects.select_for_update(of=('self',))
+        .filter(pk__in=ids).order_by('pk').values_list('pk', 'status')
+    )
+    if len(locked) != len(ids) or any(status != 'pending' for _, status in locked):
+        raise PermissionDenied(message)
+
+
+def _lock_related_loans(queryset, message):
+    """Para los delete_queryset de garantías/garantes: bloquea los préstamos de la selección.
+
+    Debe llamarse dentro de la transacción del borrado. Tras bloquear se vuelven a leer los
+    préstamos de la selección: si una fila se movió a otro préstamo antes del bloqueo, ese
+    préstamo también se bloquea y se comprueba. Devuelve los ids para rehacer sus contratos.
+    """
+    loan_ids = set(queryset.order_by().values_list('loan_id', flat=True).distinct())
+    _lock_pending_loans(loan_ids, message)
+    moved = set(queryset.order_by().values_list('loan_id', flat=True).distinct()) - loan_ids
+    if moved:
+        _lock_pending_loans(moved, message)
+    return list(loan_ids | moved)
+
+
 class _ReadOnlyLoanInline(TabularInline):
     """Filas que sólo cambian por sus flujos (desembolso, pagos, reversos), nunca por el formulario."""
     extra = 0
@@ -918,15 +952,17 @@ class CollateralAdmin(ModelAdmin):
         contrato deshaga también el borrado.
         """
         with transaction.atomic(using=router.db_for_write(self.model)):
-            if queryset.exclude(loan__status='pending').exists():
-                raise PermissionDenied('Las garantías sólo se eliminan mientras el préstamo está pendiente.')
-            loan_ids = list(queryset.order_by().values_list('loan_id', flat=True).distinct())
+            loan_ids = _lock_related_loans(
+                queryset, 'Las garantías sólo se eliminan mientras el préstamo está pendiente.'
+            )
             super().delete_queryset(request, queryset)
             # El contrato por firmar deja de nombrar las garantías borradas.
             _regenerate_loan_contracts(request, loan_ids)
 
     def delete_model(self, request, obj):
+        # delete_view ya es atómica: el préstamo queda bloqueado hasta el borrado.
         loan_id = obj.loan_id
+        _lock_pending_loans([loan_id], 'Las garantías sólo se eliminan mientras el préstamo está pendiente.')
         super().delete_model(request, obj)
         _regenerate_loan_contracts(request, [loan_id])
 
@@ -939,8 +975,9 @@ class CollateralAdmin(ModelAdmin):
         loans = [obj.loan_id]
         if change:
             loans.append(Collateral.objects.filter(pk=obj.pk).values_list('loan_id', flat=True).first())
-        if Loan.objects.filter(pk__in=loans).exclude(status='pending').exists():
-            raise PermissionDenied('Las garantías sólo se modifican mientras el préstamo está pendiente.')
+        # changeform_view ya es atómica: los préstamos (nuevo y anterior) quedan bloqueados
+        # hasta el guardado y la regeneración del contrato.
+        _lock_pending_loans(loans, 'Las garantías sólo se modifican mientras el préstamo está pendiente.')
         super().save_model(request, obj, form, change)
         # Igual que CollateralSerializer: el contrato por firmar refleja la garantía; si cambió de
         # préstamo, el anterior también se rehace porque la pierde.
@@ -1506,24 +1543,45 @@ class GuarantorAdmin(ModelAdmin):
     raw_id_fields = ['loan']
     readonly_fields = ['created_at', 'updated_at']
 
+    # Igual que las garantías: los garantes sólo se agregan, editan, mueven o borran mientras el
+    # préstamo está pendiente (lo que el aprobador revisó). has_*_permission es el filtro de la
+    # interfaz; la decisión al escribir se toma sobre el préstamo bloqueado (_lock_pending_loans).
+    def has_change_permission(self, request, obj=None):
+        if obj is not None and obj.loan.status != 'pending':
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj is not None and obj.loan.status != 'pending':
+            return False
+        return super().has_delete_permission(request, obj)
+
     # Igual que GuarantorSerializer: el contrato por firmar nombra al primer garante, así que se
     # rehace al agregar, editar, mover o borrar garantes (uno firmado no se reescribe).
     def save_model(self, request, obj, form, change):
         loans = [obj.loan_id]
         if change:
             loans.append(Guarantor.objects.filter(pk=obj.pk).values_list('loan_id', flat=True).first())
+        # changeform_view ya es atómica: los préstamos (nuevo y anterior) quedan bloqueados
+        # hasta el guardado y la regeneración del contrato.
+        _lock_pending_loans(loans, 'Los garantes sólo se modifican mientras el préstamo está pendiente.')
         super().save_model(request, obj, form, change)
         _regenerate_loan_contracts(request, loans)
 
     def delete_model(self, request, obj):
+        # delete_view ya es atómica: el préstamo queda bloqueado hasta el borrado.
         loan_id = obj.loan_id
+        _lock_pending_loans([loan_id], 'Los garantes sólo se eliminan mientras el préstamo está pendiente.')
         super().delete_model(request, obj)
         _regenerate_loan_contracts(request, [loan_id])
 
     def delete_queryset(self, request, queryset):
-        # delete_selected no abre transacción: un error al rehacer el contrato deshace el borrado.
+        # delete_selected no abre transacción: un error al rehacer el contrato deshace el borrado,
+        # y los préstamos quedan bloqueados hasta el final.
         with transaction.atomic(using=router.db_for_write(self.model)):
-            loan_ids = list(queryset.order_by().values_list('loan_id', flat=True).distinct())
+            loan_ids = _lock_related_loans(
+                queryset, 'Los garantes sólo se eliminan mientras el préstamo está pendiente.'
+            )
             super().delete_queryset(request, queryset)
             _regenerate_loan_contracts(request, loan_ids)
 
