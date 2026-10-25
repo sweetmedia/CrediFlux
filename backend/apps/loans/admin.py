@@ -402,10 +402,34 @@ class LoanAdmin(ModelAdmin):
             obj.outstanding_balance = obj.principal_amount
         super().save_model(request, obj, form, change)
 
+        if not change:
+            self._generate_initial_contract(request, obj)
+
         if change and terms_changed:
             # Igual que LoanViewSet.perform_update: el contrato por firmar refleja los términos.
             from .utils_contracts import regenerate_latest_loan_contract
             regenerate_latest_loan_contract(obj, getattr(request, 'tenant', None))
+
+    def _generate_initial_contract(self, request, obj):
+        """Mismo contrato inicial que LoanViewSet.perform_create.
+
+        Asimetría deliberada: la API falla si no hay plantilla activa; aquí el préstamo se guarda
+        igual y se avisa, porque queda `pending` y no se puede desembolsar sin un contrato firmado.
+        Cualquier otro error se propaga y deshace también el préstamo (changeform_view es atómica).
+        """
+        from django.contrib import messages
+        from .utils_contracts import NoActiveContractTemplate, generate_initial_contract
+
+        try:
+            generate_initial_contract(obj, request.user, getattr(request, 'tenant', None))
+        except NoActiveContractTemplate:
+            self.message_user(
+                request,
+                'El préstamo se creó sin contrato porque no hay una plantilla de contrato activa para '
+                'este tipo de préstamo. Genere el contrato cuando exista una plantilla; sin contrato '
+                'firmado no se puede desembolsar.',
+                level=messages.WARNING,
+            )
 
     @staticmethod
     def _validate_origination(request, obj, change, changed):

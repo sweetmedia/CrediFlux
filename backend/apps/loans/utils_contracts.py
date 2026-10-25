@@ -320,6 +320,47 @@ def replace_contract_variables(template_content, loan, tenant=None):
     return content
 
 
+class NoActiveContractTemplate(ValueError):
+    """No hay una plantilla de contrato activa que aplique al tipo de préstamo."""
+
+
+def get_default_contract_template(loan):
+    """Plantilla activa para el tipo del préstamo: primero las marcadas por defecto, luego cualquiera."""
+    from .models_contracts import ContractTemplate
+
+    queryset = ContractTemplate.objects.filter(is_active=True)
+
+    for template in queryset.filter(is_default=True):
+        if not template.loan_types or loan.loan_type in template.loan_types:
+            return template
+
+    for template in queryset:
+        if not template.loan_types or loan.loan_type in template.loan_types:
+            return template
+
+    return None
+
+
+def generate_initial_contract(loan, user, tenant=None):
+    """Contrato inicial por firmar de un préstamo recién creado (API y admin usan el mismo camino).
+
+    Lanza NoActiveContractTemplate (un ValueError) si no hay plantilla activa para el tipo.
+    """
+    from .models_contracts import Contract
+
+    template = get_default_contract_template(loan)
+    if not template:
+        raise NoActiveContractTemplate('No hay una plantilla de contrato activa para este tipo de préstamo.')
+
+    return Contract.objects.create(
+        loan=loan,
+        template=template,
+        content=replace_contract_variables(template.content, loan, tenant),
+        status='pending_signature',
+        generated_by=user,
+    )
+
+
 def regenerate_latest_loan_contract(loan, tenant=None):
     """Regenerate the latest active/pending contract for a loan after related data changes."""
     contract = loan.contracts.filter(is_archived=False).order_by('-generated_at').first()

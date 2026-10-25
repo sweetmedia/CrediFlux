@@ -332,41 +332,9 @@ class LoanViewSet(viewsets.ModelViewSet):
             return LoanCreateSerializer
         return LoanSerializer
 
-    def _get_default_contract_template(self, loan):
-        from .models_contracts import ContractTemplate
-
-        queryset = ContractTemplate.objects.filter(is_active=True)
-
-        for template in queryset.filter(is_default=True):
-            if not template.loan_types or loan.loan_type in template.loan_types:
-                return template
-
-        for template in queryset:
-            if not template.loan_types or loan.loan_type in template.loan_types:
-                return template
-
-        return None
-
-    def _generate_initial_contract(self, loan):
-        from .models_contracts import Contract
-        from .utils_contracts import replace_contract_variables
-
-        template = self._get_default_contract_template(loan)
-        if not template:
-            raise ValueError('No hay una plantilla de contrato activa para este tipo de préstamo.')
-
-        tenant = getattr(self.request, 'tenant', None)
-        rendered_content = replace_contract_variables(template.content, loan, tenant)
-
-        return Contract.objects.create(
-            loan=loan,
-            template=template,
-            content=rendered_content,
-            status='pending_signature',
-            generated_by=self.request.user,
-        )
-
     def perform_create(self, serializer):
+        from .utils_contracts import generate_initial_contract
+
         with transaction.atomic():
             loan = serializer.save(created_by=self.request.user)
 
@@ -377,7 +345,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             loan.payment_amount = calculate_payment_amount(loan)
             loan.save()
 
-            self._generate_initial_contract(loan)
+            generate_initial_contract(loan, self.request.user, getattr(self.request, 'tenant', None))
 
     def perform_update(self, serializer):
         # LoanSerializer sólo deja cambiar términos en un préstamo pendiente sin firmas;

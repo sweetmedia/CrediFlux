@@ -540,3 +540,81 @@ def test_save_model_refuses_crafted_late_fees_on_a_live_loan(superuser, loan_fac
     with pytest.raises(PermissionDenied):
         _loan_admin().save_model(_request(superuser), loan, _CraftedForm(["late_fees"]), change=True)
     assert Loan.objects.get(pk=loan.pk).late_fees == before
+
+
+# --- Fix round 7: el préstamo creado en el admin nace con su contrato, igual que en la API ---
+
+def _post_add_form(admin_client, superuser, customer, **extra):
+    page = admin_client.get(reverse("admin:loans_loan_add"))
+    assert page.status_code == 200
+    body = _form_data(page)
+    body.update({
+        "customer": str(customer.pk), "loan_type": "personal", "loan_officer": str(superuser.pk),
+        "principal_amount_0": "10000.00", "principal_amount_1": "DOP", "interest_rate": "2.00",
+        "term_months": "6", "payment_frequency": "monthly", "first_payment_date": "2026-12-01",
+        "payment_amount_0": "1.00", "payment_amount_1": "DOP",
+    })
+    return admin_client.post(reverse("admin:loans_loan_add"), body, **extra)
+
+
+def test_add_form_generates_the_initial_contract_from_the_default_template(
+    admin_client, superuser, customer_factory
+):
+    from apps.loans.models import Loan
+    from apps.loans.models_contracts import Contract, ContractTemplate
+
+    template = ContractTemplate.objects.create(
+        name="Base", content="Préstamo {{loan_number}} tasa {{interest_rate}}", is_active=True, is_default=True
+    )
+    customer = customer_factory()
+
+    response = _post_add_form(admin_client, superuser, customer)
+
+    assert response.status_code == 302, response.context and response.context["adminform"].form.errors
+    loan = Loan.objects.get(customer=customer)
+    assert loan.status == "pending"
+    contract = Contract.objects.get(loan=loan)
+    assert contract.status == "pending_signature"
+    assert contract.generated_by == superuser
+    assert contract.template == template
+    assert contract.content == f"Préstamo {loan.loan_number} tasa 2.00%"
+
+
+def test_add_form_without_template_creates_the_loan_and_warns(admin_client, superuser, customer_factory):
+    from apps.loans.models import Loan
+    from apps.loans.models_contracts import Contract, ContractTemplate
+
+    ContractTemplate.objects.update(is_active=False)
+    customer = customer_factory()
+
+    response = _post_add_form(admin_client, superuser, customer, follow=True)
+
+    assert response.status_code == 200
+    assert response.redirect_chain, response.context and response.context["adminform"].form.errors
+    loan = Loan.objects.get(customer=customer)
+    assert loan.status == "pending"
+    assert not Contract.objects.filter(loan=loan).exists()
+    warnings = [str(m) for m in response.context["messages"] if m.level_tag == "warning"]
+    assert any("plantilla de contrato" in m for m in warnings), warnings
+
+
+def test_add_form_rolls_back_the_loan_if_the_contract_fails(
+    admin_client, superuser, customer_factory, monkeypatch
+):
+    """Un fallo distinto de "no hay plantilla" deshace también el préstamo (transacción del admin)."""
+    from apps.loans import utils_contracts
+    from apps.loans.models import Loan
+    from apps.loans.models_contracts import ContractTemplate
+
+    ContractTemplate.objects.create(name="Base", content="x", is_active=True, is_default=True)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("falla al renderizar")
+
+    monkeypatch.setattr(utils_contracts, "replace_contract_variables", boom)
+    customer = customer_factory()
+
+    with pytest.raises(RuntimeError):
+        _post_add_form(admin_client, superuser, customer)
+
+    assert not Loan.objects.filter(customer=customer).exists()
