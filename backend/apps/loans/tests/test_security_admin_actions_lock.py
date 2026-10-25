@@ -162,3 +162,108 @@ def test_disburse_locks_the_loan_before_writing(policy, superuser, loan_factory)
     assert inserts and locks[0] < inserts[0]
     loan.refresh_from_db()
     assert loan.status == "active"
+
+
+# --- Fix round 17: las acciones de aprobar/rechazar/desembolsar exigen el rol aprobador -------
+# Paridad con la API (CanApproveLoan): superusuario, dueño del tenant o rol admin/manager/
+# loan_officer. Sin `permissions=['approve']` cualquier staff con `view_loan` las veía y las
+# ejecutaba con un POST al changelist.
+
+ACTIONS = ("approve_loans", "reject_loans", "disburse_loans")
+HOST = "tenant.test.localhost"
+
+
+def _staff_client(user_factory, perms=("view_loan", "change_loan"), **user_kwargs):
+    from django.contrib.auth.models import Permission
+    from django.test import Client
+
+    user = user_factory(is_staff=True, **user_kwargs)
+    user.user_permissions.add(
+        *Permission.objects.filter(content_type__app_label="loans", codename__in=perms)
+    )
+    client = Client(HTTP_HOST=HOST)
+    client.force_login(user)
+    return user, client
+
+
+def _changelist_post(client, action, loans):
+    from django.urls import reverse
+
+    return client.post(reverse("admin:loans_loan_changelist"), {
+        "action": action, "_selected_action": [loan.pk for loan in loans], "index": "0",
+    })
+
+
+@pytest.mark.parametrize("role", ["cashier", "viewer"])
+def test_actions_are_hidden_from_staff_without_the_approver_role(
+    policy, user_factory, loan_factory, role
+):
+    from django.urls import reverse
+
+    loan = _pending(loan_factory)
+    _, client = _staff_client(user_factory, role=role)
+
+    page = client.get(reverse("admin:loans_loan_changelist"))
+    assert page.status_code == 200
+    content = page.content.decode()
+    assert loan.loan_number in content  # ve el changelist...
+    for action in ACTIONS:
+        assert f'value="{action}"' not in content  # ...pero no las acciones del ciclo de vida
+
+
+@pytest.mark.parametrize("role", ["cashier", "viewer"])
+def test_forged_lifecycle_actions_have_no_effect_without_the_approver_role(
+    policy, user_factory, loan_factory, role
+):
+    pending = _pending(loan_factory)
+    approved = _approved_loan(loan_factory)
+    _contract(approved, status="pending_signature", signed=True)
+    _, client = _staff_client(user_factory, role=role)
+
+    for action, loan in (("approve_loans", pending), ("reject_loans", pending),
+                         ("disburse_loans", approved)):
+        response = _changelist_post(client, action, [loan])
+        assert response.status_code in (200, 302)
+
+    pending.refresh_from_db()
+    assert pending.status == "pending"
+    assert pending.approved_by is None and pending.rejected_by is None
+    approved.refresh_from_db()
+    assert approved.status == "approved"
+    assert approved.disbursement_date is None
+
+
+@pytest.mark.parametrize("user_kwargs", [
+    {"role": "loan_officer"},
+    {"role": "admin", "is_tenant_owner": True},
+])
+def test_approver_roles_still_approve_from_the_changelist(policy, user_factory, loan_factory, user_kwargs):
+    from django.urls import reverse
+
+    loan = _pending(loan_factory)
+    user, client = _staff_client(user_factory, **user_kwargs)
+
+    content = client.get(reverse("admin:loans_loan_changelist")).content.decode()
+    for action in ACTIONS:
+        assert f'value="{action}"' in content
+
+    response = _changelist_post(client, "approve_loans", [loan])
+    assert response.status_code == 302
+
+    loan.refresh_from_db()
+    assert loan.status == "approved"
+    assert loan.approved_by == user
+
+
+def test_approver_role_without_change_permission_gets_no_actions(policy, user_factory, loan_factory):
+    from django.urls import reverse
+
+    loan = _pending(loan_factory)
+    _, client = _staff_client(user_factory, perms=("view_loan",), role="loan_officer")
+
+    content = client.get(reverse("admin:loans_loan_changelist")).content.decode()
+    for action in ACTIONS:
+        assert f'value="{action}"' not in content
+    _changelist_post(client, "approve_loans", [loan])
+    loan.refresh_from_db()
+    assert loan.status == "pending"

@@ -760,3 +760,170 @@ def test_bulk_delete_of_pending_loans_cascades(admin_client, loan_factory):
     assert not Loan.objects.filter(pk__in=[loan.pk for loan in loans]).exists()
     assert not Collateral.objects.filter(pk__in=collaterals).exists()
     assert not Contract.objects.filter(pk__in=contracts).exists()
+
+
+# --- Fix round 17: formulario, borrado individual e inline deciden sobre el préstamo bloqueado ---
+# Simulación en una sola conexión (como test_security_admin_actions_lock.py): otra petición
+# cambia el préstamo justo antes de que el admin lo bloquee con SELECT ... FOR UPDATE.
+
+
+def _change_before_lock(monkeypatch, change, on_call=1):
+    """Ejecuta `change()` justo antes de la llamada número `on_call` a Loan.objects.select_for_update."""
+    from apps.loans.models import Loan
+
+    original = Loan.objects.select_for_update
+    calls = {"n": 0}
+
+    def _select_for_update(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == on_call:
+            change()
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(Loan.objects, "select_for_update", _select_for_update)
+    return calls
+
+
+def _approve_meanwhile(loan, approver):
+    from datetime import date
+    from apps.loans.models import Loan
+
+    def change():
+        Loan.objects.filter(pk=loan.pk).update(
+            status="approved", approval_date=date(2026, 3, 1), approved_by=approver,
+        )
+    return change
+
+
+def test_change_form_does_not_undo_a_disbursement_made_meanwhile(
+    admin_client, superuser, user_factory, loan_factory, monkeypatch
+):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+    from apps.loans.disbursement import apply_disbursement
+    from apps.loans.models import Loan, LoanSchedule
+    from .test_security_admin_disburse import _contract
+
+    other = user_factory(role="admin")
+    loan = _pending(loan_factory, loan_officer=superuser, notes="antes")
+    contract = _contract(loan, status="pending_signature", signed=True)
+    page = admin_client.get(_change_url(loan))
+    body = _form_data(page)
+    body["notes"] = "nota nueva"
+
+    def disburse():
+        # La API aprueba y desembolsa mientras el formulario (sólo notas) se envía.
+        _approve_meanwhile(loan, other)()
+        apply_disbursement(Loan.objects.get(pk=loan.pk), contract)
+
+    _change_before_lock(monkeypatch, disburse)
+    with CaptureQueriesContext(connection) as ctx:
+        _post(admin_client, loan, body)
+
+    loan.refresh_from_db()
+    assert loan.status == "active"
+    assert loan.disbursement_date is not None
+    assert loan.approved_by == other
+    assert loan.notes == "nota nueva"
+    assert LoanSchedule.objects.filter(loan=loan).exists()
+    contract.refresh_from_db()
+    assert contract.status == "active"
+
+    table = Loan._meta.db_table
+    sqls = [q["sql"] for q in ctx.captured_queries]
+    locks = [i for i, sql in enumerate(sqls) if f'FROM "{table}"' in sql and "FOR UPDATE" in sql]
+    assert locks, "el formulario no bloquea el préstamo"
+    admin_updates = [sqls[i] for i in range(locks[0] + 1, len(sqls)) if sqls[i].startswith(f'UPDATE "{table}"')]
+    assert admin_updates, "el formulario no guardó el préstamo después del bloqueo"
+    for sql in admin_updates:
+        set_clause = sql.split(" WHERE ")[0]
+        assert '"notes"' in set_clause
+        assert '"status"' not in set_clause
+        assert '"disbursement_date"' not in set_clause
+        assert '"outstanding_balance"' not in set_clause
+
+
+def test_change_form_term_edit_refused_when_loan_approved_meanwhile(
+    admin_client, superuser, user_factory, loan_factory, monkeypatch
+):
+    from apps.loans.models import Loan
+
+    other = user_factory(role="admin")
+    loan = _pending(loan_factory, loan_officer=superuser)
+    page = admin_client.get(_change_url(loan))
+    body = _form_data(page)
+    body["interest_rate"] = "2.25"
+
+    _change_before_lock(monkeypatch, _approve_meanwhile(loan, other))
+    response = admin_client.post(_change_url(loan), body)
+
+    assert response.status_code == 403
+    current = Loan.objects.get(pk=loan.pk)
+    # El 403 deshace la transacción de changeform_view; en esta simulación de una sola conexión
+    # eso incluye el cambio "concurrente". Lo que importa: la tasa no se escribió.
+    assert current.interest_rate == Decimal("1.50")
+
+
+def test_single_delete_refused_when_loan_approved_meanwhile(
+    admin_client, user_factory, loan_factory, monkeypatch
+):
+    from apps.loans.models import Loan
+
+    other = user_factory(role="admin")
+    loan = _pending(loan_factory)
+    collateral = _collateral(loan)
+
+    _change_before_lock(monkeypatch, _approve_meanwhile(loan, other))
+    response = admin_client.post(reverse("admin:loans_loan_delete", args=[loan.pk]), {"post": "yes"})
+
+    assert response.status_code == 403
+    assert Loan.objects.filter(pk=loan.pk).exists()  # el 403 deshace también la simulación
+    assert loan.collaterals.filter(pk=collateral.pk).exists()
+
+
+def test_single_delete_of_a_pending_loan_locks_and_deletes(admin_client, loan_factory):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+    from apps.loans.models import Loan
+
+    table = Loan._meta.db_table
+    loan = _pending(loan_factory)
+    with CaptureQueriesContext(connection) as ctx:
+        response = admin_client.post(reverse("admin:loans_loan_delete", args=[loan.pk]), {"post": "yes"})
+
+    assert response.status_code == 302
+    assert not Loan.objects.filter(pk=loan.pk).exists()
+    sqls = [q["sql"] for q in ctx.captured_queries]
+    locks = [i for i, sql in enumerate(sqls) if f'FROM "{table}"' in sql and "FOR UPDATE" in sql]
+    deletes = [i for i, sql in enumerate(sqls) if sql.startswith(f'DELETE FROM "{table}"')]
+    assert locks and deletes and locks[0] < deletes[0]
+
+
+def test_collateral_inline_refused_when_loan_approved_meanwhile(
+    admin_client, superuser, user_factory, loan_factory, monkeypatch
+):
+    from apps.loans.models import Collateral, Loan
+    from apps.loans.models_contracts import Contract, ContractTemplate
+
+    template = ContractTemplate.objects.create(
+        name="Base", content="Garantías: {{collateral_description}}", is_active=True, is_default=True
+    )
+    other = user_factory(role="admin")
+    loan = _pending(loan_factory, loan_officer=superuser)
+    contract = Contract.objects.create(
+        loan=loan, template=template, content="Garantías: Sin garantías", status="pending_signature"
+    )
+    page = admin_client.get(_change_url(loan))
+    body = _form_data(page)
+    _add_collateral_row(body, _inline_prefix(page, "collateral"), "Honda Civic 2019")
+
+    # Primera llamada: el bloqueo de save_model (aún pendiente). Segunda: el del inline de garantías.
+    calls = _change_before_lock(monkeypatch, _approve_meanwhile(loan, other), on_call=2)
+    response = admin_client.post(_change_url(loan), body)
+
+    assert response.status_code == 403
+    assert calls["n"] == 2  # lo rechazó el bloqueo del inline, no el de save_model
+    assert Loan.objects.filter(pk=loan.pk).exists()  # el 403 deshace también la simulación
+    assert not Collateral.objects.filter(loan=loan).exists()
+    contract.refresh_from_db()
+    assert contract.content == "Garantías: Sin garantías"

@@ -22,6 +22,12 @@ from .disbursement import apply_disbursement, calculate_payment_amount, check_di
 from .locks import LoanNotPending, lock_pending_loans, lock_row_loans
 
 
+# Roles que pueden aprobar, rechazar y desembolsar: mismo criterio que CanApproveLoan en
+# permissions.py (superusuario, dueño del tenant o uno de estos roles). Allí la regla está
+# dentro de has_permission y lanza la excepción de DRF, así que se replica aquí.
+APPROVER_ROLES = ('admin', 'manager', 'loan_officer')
+
+
 def is_tenant_schema():
     """Check if we're in a tenant schema (not public)"""
     try:
@@ -415,6 +421,34 @@ class LoanAdmin(ModelAdmin):
             return False
         return is_tenant_schema() and super().has_delete_permission(request, obj)
 
+    def has_approve_permission(self, request, obj=None):
+        """Aprobar, rechazar y desembolsar: paridad con la API (CanApproveLoan).
+
+        Además de poder editar préstamos, el usuario debe ser superusuario, dueño del tenant o
+        tener un rol aprobador. Las acciones declaran permissions=['approve']: Django las quita de
+        get_actions para los demás y un POST manipulado al changelist no las ejecuta.
+        """
+        if not self.has_change_permission(request, obj):
+            return False
+        user = request.user
+        return bool(
+            user.is_superuser
+            or getattr(user, 'is_tenant_owner', False)
+            or getattr(user, 'role', None) in APPROVER_ROLES
+        )
+
+    def delete_model(self, request, obj):
+        """Borrado individual: la regla de has_delete_permission se decide sobre la fila bloqueada.
+
+        has_delete_permission se evaluó sobre la instancia leída sin bloqueo; un préstamo aprobado
+        o desembolsado entretanto por la API no debe borrarse con su calendario. delete_view ya
+        abre la transacción.
+        """
+        locked = Loan.objects.select_for_update(of=('self',)).get(pk=obj.pk)
+        if locked.status not in ('pending', 'rejected'):
+            raise PermissionDenied('Solo se pueden eliminar préstamos pendientes o rechazados.')
+        super().delete_model(request, locked)
+
     def delete_queryset(self, request, queryset):
         """La acción masiva «Eliminar» aplica la misma regla que has_delete_permission.
 
@@ -447,18 +481,28 @@ class LoanAdmin(ModelAdmin):
         return form_class
 
     def save_model(self, request, obj, form, change):
-        """Defensa en profundidad: un POST manipulado no cambia estado ni términos bloqueados."""
+        """Defensa en profundidad: un POST manipulado no cambia estado ni términos bloqueados.
+
+        En la edición se bloquea el préstamo (SELECT ... FOR UPDATE, dentro de la transacción de
+        changeform_view) antes de decidir, y las guardas se evalúan sobre la fila bloqueada. Sólo
+        se escriben los campos que cambió el formulario (más la cuota si cambiaron los términos):
+        estado, fechas del ciclo y saldos conservan los valores de la fila bloqueada, para que un
+        cambio de notas no deshaga una aprobación o un desembolso hecho entretanto por la API.
+        """
         changed = set(getattr(form, 'changed_data', ()))
+        current = None
+        if change:
+            current = Loan.objects.select_for_update(of=('self',)).get(pk=obj.pk)
         if change and 'status' in changed:
             raise PermissionDenied(
                 'El estado del préstamo sólo cambia con las acciones aprobar, rechazar o desembolsar.'
             )
-        if change and changed & set(self.TERM_FIELDS) and loan_terms_locked(Loan.objects.get(pk=obj.pk)):
+        if change and changed & set(self.TERM_FIELDS) and loan_terms_locked(current):
             raise PermissionDenied(
                 'No se puede modificar el deudor ni los términos después de aprobado el préstamo '
                 'o firmado el contrato.'
             )
-        if change and 'late_fees' in changed and Loan.objects.get(pk=obj.pk).status != 'pending':
+        if change and 'late_fees' in changed and current.status != 'pending':
             raise PermissionDenied('La mora de un préstamo aprobado sólo cambia por sus flujos.')
 
         terms_changed = bool(changed & set(LOAN_TERM_FIELDS))
@@ -468,7 +512,40 @@ class LoanAdmin(ModelAdmin):
             obj.payment_amount = calculate_payment_amount(obj)
         if not change:
             obj.outstanding_balance = obj.principal_amount
-        super().save_model(request, obj, form, change)
+            super().save_model(request, obj, form, change)
+            return
+        obj.save(update_fields=self._changed_update_fields(changed, terms_changed))
+
+    def _changed_update_fields(self, changed, terms_changed):
+        """Columnas a escribir en la edición: las del formulario que cambiaron (con la moneda de
+        los campos Money), la cuota si cambiaron los términos, y updated_at. Nunca las del ciclo
+        de vida ni los saldos, que no son editables en el formulario."""
+        names = set(changed)
+        if terms_changed:
+            names.add('payment_amount')
+        forbidden = set(self.LIFECYCLE_FIELDS) - {'payment_amount'}
+        concrete = {f.name: f for f in Loan._meta.concrete_fields if not f.primary_key}
+        fields = set()
+        for name in names:
+            if name in concrete and name not in forbidden:
+                fields.add(name)
+                if f'{name}_currency' in concrete:
+                    fields.add(f'{name}_currency')
+        fields.add('updated_at')
+        return sorted(fields)
+
+    def save_formset(self, request, form, formset, change):
+        """Las garantías del inline se escriben con el préstamo bloqueado y aún pendiente.
+
+        has_*_permission de CollateralInline se evaluó sobre la instancia leída sin bloqueo; aquí
+        se bloquea el préstamo y se exige que siga pendiente antes de guardar las filas. El orden
+        préstamo → fila → contrato se respeta: save_related rehace el contrato después.
+        """
+        if change and formset.model is Collateral and formset.has_changed():
+            _lock_pending_loans(
+                [form.instance.pk], 'Las garantías sólo se modifican mientras el préstamo está pendiente.'
+            )
+        super().save_formset(request, form, formset, change)
 
     def save_related(self, request, form, formsets, change):
         """El contrato se genera o rehace después de guardar los inlines (garantías incluidas).
@@ -674,7 +751,7 @@ class LoanAdmin(ModelAdmin):
             done += 1
         return eligible, done
 
-    @admin.action(description='Aprobar préstamos seleccionados')
+    @admin.action(description='Aprobar préstamos seleccionados', permissions=['approve'])
     def approve_loans(self, request, queryset):
         """Aprueba los pendientes que cumplen la política; informa los que no."""
         from django.utils import timezone
@@ -699,7 +776,7 @@ class LoanAdmin(ModelAdmin):
                 messages.SUCCESS
             )
 
-    @admin.action(description='Rechazar préstamos seleccionados')
+    @admin.action(description='Rechazar préstamos seleccionados', permissions=['approve'])
     def reject_loans(self, request, queryset):
         """Rechaza los pendientes (estado comprobado sobre la fila bloqueada)."""
         from django.utils import timezone
@@ -723,7 +800,7 @@ class LoanAdmin(ModelAdmin):
                 messages.SUCCESS
             )
 
-    @admin.action(description='Desembolsar préstamos aprobados')
+    @admin.action(description='Desembolsar préstamos aprobados', permissions=['approve'])
     def disburse_loans(self, request, queryset):
         """Desembolsa los aprobados que cumplen las precondiciones; informa los que no."""
         from django.contrib import messages
