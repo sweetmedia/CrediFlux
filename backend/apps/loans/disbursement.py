@@ -15,6 +15,22 @@ from .policy import validate_approval, validate_disbursement
 DISBURSABLE_CONTRACT_STATUSES = ('pending_signature', 'signed', 'active')
 
 
+def calculate_payment_amount(loan):
+    """Cuota del préstamo con el mismo cálculo que el cronograma (API y admin)."""
+    from moneyed import Money
+
+    from .amortization import build_installments, number_of_payments
+
+    _, payment, _ = build_installments(
+        loan.principal_amount.amount,
+        loan.interest_rate,
+        number_of_payments(loan.term_months, loan.payment_frequency),
+        loan.payment_frequency,
+        loan.interest_type,
+    )
+    return Money(payment, loan.principal_amount.currency)
+
+
 def check_disbursable(loan, user, request=None):
     """Devuelve el contrato vigente si el préstamo se puede desembolsar; si no, ValidationError."""
     if loan.status != 'approved':

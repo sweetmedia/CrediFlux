@@ -180,8 +180,8 @@ def test_pending_loan_terms_stay_editable(admin_client, superuser, loan_factory)
     assert loan.interest_rate == Decimal("2.25")
     assert loan.status == "pending"
     # La cuota sale del mismo cálculo que la API, nunca del formulario.
-    from apps.loans.views import LoanViewSet
-    assert loan.payment_amount == LoanViewSet._calculate_payment_amount(loan)
+    from apps.loans.disbursement import calculate_payment_amount
+    assert loan.payment_amount == calculate_payment_amount(loan)
 
 
 # (e)
@@ -260,7 +260,7 @@ def test_save_model_refuses_crafted_status_or_term_changes(superuser, loan_facto
 
 def test_add_form_creates_a_pending_loan_with_computed_installment(admin_client, superuser, customer_factory):
     from apps.loans.models import Loan
-    from apps.loans.views import LoanViewSet
+    from apps.loans.disbursement import calculate_payment_amount
 
     customer = customer_factory()
     page = admin_client.get(reverse("admin:loans_loan_add"))
@@ -278,5 +278,173 @@ def test_add_form_creates_a_pending_loan_with_computed_installment(admin_client,
     assert response.status_code == 302, response.context and response.context["adminform"].form.errors
     loan = Loan.objects.get(customer=customer)
     assert loan.status == "pending"
-    assert loan.payment_amount == LoanViewSet._calculate_payment_amount(loan)
+    assert loan.payment_amount == calculate_payment_amount(loan)
     assert loan.outstanding_balance == loan.principal_amount
+
+
+# --- Fix round 4.1 -----------------------------------------------------------------------
+
+def test_late_fees_lock_once_the_loan_is_not_pending(superuser, loan_factory):
+    model_admin = _loan_admin()
+    request = _request(superuser)
+    assert "late_fees" not in model_admin.get_readonly_fields(request, _pending(loan_factory))
+    assert "late_fees" in model_admin.get_readonly_fields(request, loan_factory(status="active"))
+
+
+def test_customer_loan_inline_cannot_change_status_or_principal(admin_client, loan_factory):
+    from moneyed import Money
+
+    loan = loan_factory(status="approved", disbursement_date=None)
+    customer = loan.customer
+    url = reverse("admin:loans_customer_change", args=[customer.pk])
+    page = admin_client.get(url)
+    assert page.status_code == 200
+    body = _form_data(page)
+    prefix = _inline_prefix(page, "loan")
+    body.update({
+        f"{prefix}-0-status": "active",
+        f"{prefix}-0-principal_amount_0": "999999.00",
+        f"{prefix}-0-principal_amount_1": "DOP",
+    })
+
+    response = admin_client.post(url, body)
+
+    assert response.status_code == 302
+    loan.refresh_from_db()
+    assert loan.status == "approved"
+    assert loan.principal_amount == Money(Decimal("10000.00"), "DOP")
+
+
+def test_schedule_and_payment_admins_are_read_only(admin_client, superuser, active_loan):
+    from moneyed import Money
+    from apps.loans.models import LoanPayment, LoanSchedule
+
+    row = LoanSchedule.objects.filter(loan=active_loan).order_by("installment_number").first()
+    before = (row.status, row.paid_amount, row.total_amount)
+    response = admin_client.post(
+        reverse("admin:loans_loanschedule_change", args=[row.pk]),
+        {"loan": str(active_loan.pk), "installment_number": "1", "due_date": "2026-01-01",
+         "status": "paid", "total_amount_0": "1.00", "total_amount_1": "DOP",
+         "principal_amount_0": "1.00", "principal_amount_1": "DOP",
+         "interest_amount_0": "0.00", "interest_amount_1": "DOP",
+         "paid_amount_0": "1.00", "paid_amount_1": "DOP"},
+    )
+    assert response.status_code == 403
+    row.refresh_from_db()
+    assert (row.status, row.paid_amount, row.total_amount) == before
+    assert admin_client.get(reverse("admin:loans_loanschedule_change", args=[row.pk])).status_code == 200
+
+    payment = LoanPayment.objects.create(
+        loan=active_loan, amount=Money(Decimal("500.00"), "DOP"),
+        payment_method="bank_transfer", status="completed", created_by=superuser,
+    )
+    response = admin_client.post(
+        reverse("admin:loans_loanpayment_change", args=[payment.pk]),
+        {"loan": str(active_loan.pk), "payment_date": "2026-01-01", "status": "reversed",
+         "amount_0": "1.00", "amount_1": "DOP", "payment_method": "cash"},
+    )
+    assert response.status_code == 403
+    payment.refresh_from_db()
+    assert (payment.status, payment.amount) == ("completed", Money(Decimal("500.00"), "DOP"))
+    assert admin_client.post(
+        reverse("admin:loans_loanpayment_delete", args=[payment.pk]), {"post": "yes"}
+    ).status_code == 403
+    assert LoanPayment.objects.filter(pk=payment.pk).exists()
+    assert admin_client.get(reverse("admin:loans_loanpayment_add")).status_code == 403
+
+
+def _collateral(loan):
+    from moneyed import Money
+    from apps.loans.models import Collateral
+
+    return Collateral.objects.create(
+        loan=loan, collateral_type="vehicle", description="Carro",
+        estimated_value=Money(Decimal("5000.00"), "DOP"),
+    )
+
+
+def _collateral_body(collateral, description):
+    return {
+        "loan": str(collateral.loan_id), "collateral_type": "vehicle", "description": description,
+        "status": "active", "estimated_value_0": "5000.00", "estimated_value_1": "DOP",
+        "appraisal_value_0": "", "appraisal_value_1": "DOP", "appraisal_date": "", "notes": "",
+    }
+
+
+def test_collateral_admin_follows_the_loan_lifecycle(admin_client, active_loan, loan_factory):
+    from apps.loans.models import Collateral
+
+    locked = _collateral(active_loan)
+    url = reverse("admin:loans_collateral_change", args=[locked.pk])
+    assert admin_client.post(url, _collateral_body(locked, "Cambiada")).status_code == 403
+    locked.refresh_from_db()
+    assert locked.description == "Carro"
+    assert admin_client.post(
+        reverse("admin:loans_collateral_delete", args=[locked.pk]), {"post": "yes"}
+    ).status_code == 403
+    assert Collateral.objects.filter(pk=locked.pk).exists()
+
+    # Alta contra un préstamo activo: el préstamo no es elegible y no se crea.
+    body = _collateral_body(locked, "Nueva")
+    admin_client.post(reverse("admin:loans_collateral_add"), body)
+    assert not Collateral.objects.filter(description="Nueva").exists()
+
+    editable = _collateral(_pending(loan_factory))
+    url = reverse("admin:loans_collateral_change", args=[editable.pk])
+    response = admin_client.post(url, _collateral_body(editable, "Cambiada"))
+    assert response.status_code == 302, response.context and response.context["adminform"].form.errors
+    editable.refresh_from_db()
+    assert editable.description == "Cambiada"
+
+
+def test_admin_applies_the_origination_policy(admin_client, superuser, tenant_schema, loan_factory):
+    original = tenant_schema.max_interest_rate
+    tenant_schema.max_interest_rate = Decimal("36.00")
+    tenant_schema.save()
+    try:
+        loan = _pending(loan_factory, loan_officer=superuser)
+        page = admin_client.get(_change_url(loan))
+        body = _form_data(page)
+        body["interest_rate"] = "9.00"  # 108 % anual > 36 %
+        response = admin_client.post(_change_url(loan), body)
+        assert response.status_code == 403
+        loan.refresh_from_db()
+        assert loan.interest_rate == Decimal("1.50")
+    finally:
+        tenant_schema.max_interest_rate = original
+        tenant_schema.save()
+
+
+def test_contract_document_alone_does_not_regenerate_the_contract(superuser, loan_factory):
+    from apps.loans.models_contracts import Contract
+
+    loan = _pending(loan_factory)
+    contract = Contract.objects.create(loan=loan, content="original", status="pending_signature")
+    before_payment = loan.payment_amount
+    _loan_admin().save_model(_request(superuser), loan, _CraftedForm(["contract_document"]), change=True)
+    contract.refresh_from_db()
+    loan.refresh_from_db()
+    assert contract.content == "original"
+    assert loan.payment_amount == before_payment
+
+
+def test_bulk_delete_action_respects_the_lifecycle(admin_client, active_loan, loan_factory):
+    from apps.loans.models import Collateral, Loan
+
+    pending = _pending(loan_factory)
+    admin_client.post(reverse("admin:loans_loan_changelist"), {
+        "action": "delete_selected", "_selected_action": [active_loan.pk, pending.pk], "post": "yes",
+    })
+    assert Loan.objects.filter(pk=active_loan.pk).exists()
+    assert Loan.objects.filter(pk=pending.pk).exists()
+
+    locked = _collateral(active_loan)
+    admin_client.post(reverse("admin:loans_collateral_changelist"), {
+        "action": "delete_selected", "_selected_action": [locked.pk], "post": "yes",
+    })
+    assert Collateral.objects.filter(pk=locked.pk).exists()
+
+    admin_client.post(reverse("admin:loans_loan_changelist"), {
+        "action": "delete_selected", "_selected_action": [pending.pk], "post": "yes",
+    })
+    assert not Loan.objects.filter(pk=pending.pk).exists()

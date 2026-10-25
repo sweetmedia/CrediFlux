@@ -18,6 +18,12 @@ from .amortization import PAYMENTS_PER_MONTH, normalize_method
 OPEN_LOAN_STATUSES = ('pending', 'approved', 'active')
 ID_DOCUMENT_TYPES = ('id_card', 'passport', 'drivers_license')
 
+# Estado y aprobación: sólo cambian por las acciones approve/reject/disburse (API y admin).
+LOAN_LIFECYCLE_FIELDS = (
+    'status', 'approval_date', 'rejection_date', 'disbursement_date',
+    'maturity_date', 'approved_by', 'rejected_by', 'approval_notes',
+)
+
 # Deudor y términos económicos: fijos tras aprobar o firmar (API y admin, ver loan_terms_locked).
 LOAN_TERM_FIELDS = (
     'customer', 'loan_type', 'principal_amount', 'interest_rate', 'interest_type',

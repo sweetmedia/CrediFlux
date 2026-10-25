@@ -10,7 +10,7 @@ from .models_contracts import ContractTemplate, Contract
 from .models_guarantors import Guarantor
 from apps.core.media import SignedFilesModelSerializer
 from .fields import TenantUserField
-from .policy import LOAN_TERM_FIELDS, loan_terms_locked, validate_origination
+from .policy import LOAN_LIFECYCLE_FIELDS, LOAN_TERM_FIELDS, loan_terms_locked, validate_origination
 
 # `id_number` del cliente: sin caracteres que una hoja de cálculo interprete (=, +, @...).
 ID_NUMBER_RE = re.compile(r'^[A-Za-z0-9 -]+$')
@@ -612,8 +612,7 @@ class LoanSerializer(SignedFilesModelSerializer):
             'id', 'loan_number', 'outstanding_balance', 'total_paid',
             'total_interest_paid', 'created_at', 'updated_at',
             # Estado y aprobación sólo cambian por las acciones approve/reject/disburse.
-            'status', 'approval_date', 'rejection_date', 'disbursement_date',
-            'maturity_date', 'approved_by', 'rejected_by', 'approval_notes',
+            *LOAN_LIFECYCLE_FIELDS,
         ]
 
     # Deudor y términos económicos: lo que el aprobador revisó y el cliente firmó.

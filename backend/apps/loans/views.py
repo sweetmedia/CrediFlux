@@ -31,7 +31,9 @@ from .serializers import (
 )
 from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, CanRegisterPayments
 from .policy import validate_approval
-from .disbursement import apply_disbursement, check_disbursable, generate_payment_schedule
+from .disbursement import (
+    apply_disbursement, calculate_payment_amount, check_disbursable, generate_payment_schedule,
+)
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -330,20 +332,6 @@ class LoanViewSet(viewsets.ModelViewSet):
             return LoanCreateSerializer
         return LoanSerializer
 
-    @staticmethod
-    def _calculate_payment_amount(loan):
-        from moneyed import Money
-        from .amortization import build_installments, number_of_payments
-
-        _, payment, _ = build_installments(
-            loan.principal_amount.amount,
-            loan.interest_rate,
-            number_of_payments(loan.term_months, loan.payment_frequency),
-            loan.payment_frequency,
-            loan.interest_type,
-        )
-        return Money(payment, loan.principal_amount.currency)
-
     def _get_default_contract_template(self, loan):
         from .models_contracts import ContractTemplate
 
@@ -386,7 +374,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             loan.outstanding_balance = loan.principal_amount
             # La cuota del contrato sale del mismo cálculo que el cronograma,
             # nunca del valor que envía el cliente.
-            loan.payment_amount = self._calculate_payment_amount(loan)
+            loan.payment_amount = calculate_payment_amount(loan)
             loan.save()
 
             self._generate_initial_contract(loan)
@@ -402,7 +390,7 @@ class LoanViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             loan = serializer.save()
             if any(getattr(loan, f) != before[f] for f in fields):
-                loan.payment_amount = self._calculate_payment_amount(loan)
+                loan.payment_amount = calculate_payment_amount(loan)
                 loan.save(update_fields=['payment_amount', 'updated_at'])
                 regenerate_latest_loan_contract(loan)
 
