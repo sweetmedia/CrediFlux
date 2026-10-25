@@ -29,6 +29,19 @@ def is_tenant_schema():
         return False
 
 
+def _regenerate_loan_contracts(request, loan_ids):
+    """Rehace el contrato por firmar de cada préstamo afectado (ids distintos, sin None).
+
+    No captura excepciones: el admin corre dentro de la transacción de changeform_view/delete_view
+    y un error al renderizar debe deshacer también el cambio de la fila.
+    """
+    from .utils_contracts import regenerate_latest_loan_contract
+
+    tenant = getattr(request, 'tenant', None)
+    for loan in Loan.objects.filter(pk__in={pk for pk in loan_ids if pk is not None}):
+        regenerate_latest_loan_contract(loan, tenant)
+
+
 class _ReadOnlyLoanInline(TabularInline):
     """Filas que sólo cambian por sus flujos (desembolso, pagos, reversos), nunca por el formulario."""
     extra = 0
@@ -422,8 +435,7 @@ class LoanAdmin(ModelAdmin):
         if terms_changed or collateral_changed:
             # Igual que la API (perform_update y altas/cambios de garantías): el contrato por
             # firmar refleja los términos y las garantías; uno firmado no se reescribe.
-            from .utils_contracts import regenerate_latest_loan_contract
-            regenerate_latest_loan_contract(obj, getattr(request, 'tenant', None))
+            _regenerate_loan_contracts(request, [obj.pk])
 
     def _generate_initial_contract(self, request, obj):
         """Mismo contrato inicial que LoanViewSet.perform_create.
@@ -881,7 +893,15 @@ class CollateralAdmin(ModelAdmin):
         """La acción masiva «Eliminar» aplica la misma regla que has_delete_permission."""
         if queryset.exclude(loan__status='pending').exists():
             raise PermissionDenied('Las garantías sólo se eliminan mientras el préstamo está pendiente.')
+        loan_ids = list(queryset.order_by().values_list('loan_id', flat=True).distinct())
         super().delete_queryset(request, queryset)
+        # El contrato por firmar deja de nombrar las garantías borradas.
+        _regenerate_loan_contracts(request, loan_ids)
+
+    def delete_model(self, request, obj):
+        loan_id = obj.loan_id
+        super().delete_model(request, obj)
+        _regenerate_loan_contracts(request, [loan_id])
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == 'loan':
@@ -895,6 +915,9 @@ class CollateralAdmin(ModelAdmin):
         if Loan.objects.filter(pk__in=loans).exclude(status='pending').exists():
             raise PermissionDenied('Las garantías sólo se modifican mientras el préstamo está pendiente.')
         super().save_model(request, obj, form, change)
+        # Igual que CollateralSerializer: el contrato por firmar refleja la garantía; si cambió de
+        # préstamo, el anterior también se rehace porque la pierde.
+        _regenerate_loan_contracts(request, loans)
 
     @display(description="Status", label=True)
     def show_status(self, obj):
@@ -1455,6 +1478,26 @@ class GuarantorAdmin(ModelAdmin):
     search_fields = ['first_name', 'last_name', 'id_number', 'phone', 'email']
     raw_id_fields = ['loan']
     readonly_fields = ['created_at', 'updated_at']
+
+    # Igual que GuarantorSerializer: el contrato por firmar nombra al primer garante, así que se
+    # rehace al agregar, editar, mover o borrar garantes (uno firmado no se reescribe).
+    def save_model(self, request, obj, form, change):
+        loans = [obj.loan_id]
+        if change:
+            loans.append(Guarantor.objects.filter(pk=obj.pk).values_list('loan_id', flat=True).first())
+        super().save_model(request, obj, form, change)
+        _regenerate_loan_contracts(request, loans)
+
+    def delete_model(self, request, obj):
+        loan_id = obj.loan_id
+        super().delete_model(request, obj)
+        _regenerate_loan_contracts(request, [loan_id])
+
+    def delete_queryset(self, request, queryset):
+        loan_ids = list(queryset.order_by().values_list('loan_id', flat=True).distinct())
+        super().delete_queryset(request, queryset)
+        _regenerate_loan_contracts(request, loan_ids)
+
     fieldsets = (
         ('Información Personal', {
             'fields': ('first_name', 'last_name', 'id_type', 'id_number',
