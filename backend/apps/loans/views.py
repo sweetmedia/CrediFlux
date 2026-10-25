@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
@@ -31,7 +31,7 @@ from .serializers import (
 )
 from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, CanRegisterPayments
 from .policy import validate_approval
-from .locks import LoanNotPending, lock_pending_loans, lock_row_loans
+from .locks import LoanNotPending, lock_pending_loans, lock_row, lock_row_loans
 from .disbursement import (
     apply_disbursement, calculate_payment_amount, check_disbursable, generate_payment_schedule,
 )
@@ -1053,9 +1053,15 @@ class _PendingLoanRowMixin:
 
     Igual que los admins (ronda 13): la decisión se toma sobre los préstamos bloqueados con
     SELECT ... FOR UPDATE dentro de una transacción (apps/loans/locks.py, orden préstamo →
-    contrato → token). Si no, 400 con el mensaje bajo «loan». El borrado y el préstamo anterior
-    de una fila movida rehacen su contrato aquí, sin silenciar errores: un fallo al renderizar
-    deshace también el cambio de la fila.
+    fila → contrato → token). Si no, 400 con el mensaje bajo «loan». El borrado y el préstamo
+    anterior de una fila movida rehacen su contrato aquí, sin silenciar errores: un fallo al
+    renderizar deshace también el cambio de la fila.
+
+    Ronda 15: tras bloquear los préstamos se bloquea la fila y la edición/el borrado actúan sobre
+    esa fila fresca, no sobre la instancia que DRF leyó antes del bloqueo (si no, un cambio
+    confirmado entretanto en la misma fila se pisaría con valores viejos). Fila desaparecida → 404.
+    Los admins no cambian esta ronda: Django relee el objeto dentro de su transacción y el POST
+    del formulario trae todos los campos.
     """
     write_message = None
     delete_message = None
@@ -1080,14 +1086,30 @@ class _PendingLoanRowMixin:
             assert self.write_message, 'write_message sin definir en la vista'
             raise ValidationError({'loan': self.write_message})
 
+    def _lock_fresh_row(self, model, pk):
+        try:
+            return lock_row(model, pk)
+        except model.DoesNotExist:
+            raise NotFound()
+
     def perform_update(self, serializer):
         instance = serializer.instance
-        previous_loan_id = instance.loan_id
+        model = type(instance)
+        stale_loan_id = instance.loan_id
         new_loan = serializer.validated_data.get('loan')
-        new_loan_id = new_loan.pk if new_loan is not None else previous_loan_id
         try:
             with transaction.atomic():
-                lock_row_loans(type(instance), instance, [previous_loan_id, new_loan_id])
+                lock_row_loans(
+                    model, instance,
+                    [stale_loan_id, new_loan.pk if new_loan is not None else stale_loan_id],
+                )
+                # La fila tal como está bajo bloqueo: los campos que no vienen en la petición
+                # conservan su valor actual (p. ej. un status cambiado por un release concurrente).
+                fresh = self._lock_fresh_row(model, instance.pk)
+                # El préstamo anterior es el que validó el bloqueo, no el leído antes de él.
+                previous_loan_id = fresh.loan_id
+                new_loan_id = new_loan.pk if new_loan is not None else previous_loan_id
+                serializer.instance = fresh
                 serializer.save(**self._update_kwargs())
                 # El serializer rehace el contrato del préstamo nuevo; si la fila cambió de
                 # préstamo, el anterior también se rehace porque la pierde (igual que el admin).
@@ -1098,11 +1120,14 @@ class _PendingLoanRowMixin:
             raise ValidationError({'loan': self.write_message})
 
     def perform_destroy(self, instance):
-        loan_id = instance.loan_id
+        model = type(instance)
         try:
             with transaction.atomic():
-                lock_row_loans(type(instance), instance, [loan_id])
-                instance.delete()
+                lock_row_loans(model, instance, [instance.loan_id])
+                # Se borra la fila bloqueada; su loan_id es el que validó el bloqueo.
+                fresh = self._lock_fresh_row(model, instance.pk)
+                loan_id = fresh.loan_id
+                fresh.delete()
                 # El contrato por firmar deja de nombrar la garantía/el garante borrado.
                 self._regenerate(loan_id)
         except LoanNotPending:
@@ -1140,16 +1165,24 @@ class CollateralViewSet(_PendingLoanRowMixin, viewsets.ModelViewSet):
     def release(self, request, pk=None):
         """Release a collateral"""
         collateral = self.get_object()
-        collateral.status = 'released'
-        collateral.save()
+        # Bloquea la fila y sólo escribe el estado: no pisa una edición concurrente de la
+        # garantía. No toma bloqueo de préstamo (orden fila → nada más).
+        with transaction.atomic():
+            collateral = self._lock_fresh_row(Collateral, collateral.pk)
+            collateral.status = 'released'
+            collateral.save(update_fields=['status', 'updated_at'])
         return Response({'status': 'collateral released'})
 
     @action(detail=True, methods=['post'])
     def liquidate(self, request, pk=None):
         """Mark collateral as liquidated"""
         collateral = self.get_object()
-        collateral.status = 'liquidated'
-        collateral.save()
+        # Bloquea la fila y sólo escribe el estado: no pisa una edición concurrente de la
+        # garantía. No toma bloqueo de préstamo (orden fila → nada más).
+        with transaction.atomic():
+            collateral = self._lock_fresh_row(Collateral, collateral.pk)
+            collateral.status = 'liquidated'
+            collateral.save(update_fields=['status', 'updated_at'])
         return Response({'status': 'collateral liquidated'})
 
 

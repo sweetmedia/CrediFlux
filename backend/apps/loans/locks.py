@@ -1,7 +1,8 @@
 """Bloqueos de préstamos compartidos por el admin y la API (garantías y garantes).
 
-Orden de bloqueo del módulo: préstamo → contrato → token. Estos helpers sólo toman bloqueos de
-préstamos; quien los llama escribe después la fila y, si corresponde, el contrato.
+Orden de bloqueo del módulo: préstamo → fila de garantía/garante → contrato → token.
+lock_pending_loans/lock_row_loans toman los bloqueos de préstamos; lock_row bloquea después la fila
+de garantía/garante, y quien los llama escribe esa fila y, si corresponde, el contrato.
 """
 from .models import Loan
 
@@ -21,7 +22,7 @@ def lock_pending_loans(loan_ids):
     SELECT ... FOR UPDATE en una sola consulta ordenada por pk —orden de bloqueo determinista
     cuando son dos préstamos (garantía/garante movido entre préstamos)— y lanza LoanNotPending si
     alguno no está pendiente o ya no existe. No bloquea el contrato: se respeta el orden
-    préstamo → contrato → token del módulo, y la regeneración posterior sólo escribe el contrato.
+    préstamo → fila → contrato → token del módulo, y la regeneración posterior sólo escribe el contrato.
     Devuelve el conjunto de pks bloqueados.
     """
     ids = {pk for pk in loan_ids if pk is not None}
@@ -48,3 +49,14 @@ def lock_row_loans(model, obj, loan_ids):
     if current is not None and current not in locked:
         raise LoanNotPending({'row': str(obj.pk), 'loan': str(current)})
     return locked
+
+
+def lock_row(model, pk):
+    """Bloquea y devuelve la fila de garantía/garante tal como está en la base de datos.
+
+    Debe llamarse dentro de una transacción y, si la escritura depende de préstamos, después de
+    bloquearlos (orden préstamo → fila → contrato → token). Quien escribe debe usar la fila
+    devuelta y no la instancia leída antes del bloqueo, para no pisar con valores viejos un cambio
+    confirmado entretanto. Lanza model.DoesNotExist si la fila ya no existe.
+    """
+    return model.objects.select_for_update(of=('self',)).get(pk=pk)
