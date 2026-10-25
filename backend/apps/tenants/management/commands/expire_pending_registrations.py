@@ -1,8 +1,8 @@
 """Borra los registros de tenants pendientes que nadie aprovisionó en N días.
 
 Un pendiente reserva nombre, subdominio y correo del dueño. No tiene schema, así que basta
-borrar la fila: el dominio y el usuario dueño caen en cascada. Programarlo en Celery Beat
-desde el admin de django-celery-beat (el proyecto usa DatabaseScheduler).
+borrar la fila: el dominio y el usuario dueño caen en cascada. Aún no hay tarea Celery que lo
+envuelva: correrlo a mano o desde cron (`manage.py expire_pending_registrations --days 7`).
 """
 import logging
 from datetime import timedelta

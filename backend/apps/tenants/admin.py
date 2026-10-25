@@ -159,8 +159,8 @@ class TenantAdmin(ModelAdmin):
         """Crea el schema y activa los tenants pendientes seleccionados (los demás se saltan).
 
         Equivale al comando `provision_pending_tenants [--limit N]`. Los pendientes que nadie
-        aprovisiona se borran con `expire_pending_registrations [--days 7]` (programarlo en
-        Celery Beat desde el admin de django-celery-beat).
+        aprovisiona se borran con `expire_pending_registrations [--days 7]` (a mano o desde
+        cron; aún no hay tarea Celery que lo envuelva).
         """
         from .provisioning import provision_pending_tenant
 
