@@ -480,10 +480,14 @@ def test_change_form_reports_principal_above_policy_as_field_error(admin_client,
 
 
 def test_contract_document_alone_does_not_regenerate_the_contract(superuser, loan_factory):
-    from apps.loans.models_contracts import Contract
+    from apps.loans.models_contracts import Contract, ContractTemplate
 
     loan = _pending(loan_factory)
-    contract = Contract.objects.create(loan=loan, content="original", status="pending_signature")
+    # Con plantilla: si el documento disparara la regeneración, el contenido cambiaría a "regenerado".
+    template = ContractTemplate.objects.create(name="Base", content="regenerado", is_active=True, is_default=True)
+    contract = Contract.objects.create(
+        loan=loan, template=template, content="original", status="pending_signature"
+    )
     before_payment = loan.payment_amount
     form = _CraftedForm(["contract_document"], instance=loan)
     model_admin = _loan_admin()
