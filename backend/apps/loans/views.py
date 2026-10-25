@@ -257,6 +257,23 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+# Estados de contrato con los que se puede desembolsar (lista positiva).
+DISBURSABLE_CONTRACT_STATUSES = ('pending_signature', 'signed', 'active')
+# Estados finales: ninguna acción vuelve a reescribir el estado de un contrato así.
+TERMINAL_CONTRACT_STATUSES = ('cancelled', 'completed')
+
+
+def _terminal_contract_response(contract):
+    """400 si el contrato está cancelado o completado; None si se puede seguir."""
+    if contract.status in TERMINAL_CONTRACT_STATUSES:
+        return Response(
+            {'error': 'Este contrato está cancelado o completado y ya no se puede firmar ni activar; '
+                      'genere uno nuevo.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    return None
+
+
 class LoanViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing loans
@@ -465,11 +482,13 @@ class LoanViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if contract.status in ('cancelled', 'completed'):
-            # Un contrato cancelado (o ya cumplido) no vuelve a ser el vigente de un desembolso.
+        if contract.status not in DISBURSABLE_CONTRACT_STATUSES:
+            # Lista positiva: un contrato cancelado, cumplido o en borrador no es el vigente
+            # de un desembolso, aunque alguien haya conseguido revivirlo.
             return Response(
                 {
-                    'error': 'El contrato vigente está cancelado o completado; genere y firme uno nuevo.',
+                    'error': 'El contrato vigente no está en un estado válido para desembolsar '
+                             '(cancelado, completado o borrador); genere y firme uno nuevo.',
                     'contract_id': str(contract.id),
                     'contract_status': contract.status,
                 },
@@ -1558,6 +1577,11 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Mark contract as signed by customer"""
         contract = self.get_object()
 
+        # Cancelado o completado es definitivo: firmar o activar lo reviviría.
+        terminal = _terminal_contract_response(contract)
+        if terminal is not None:
+            return terminal
+
         if contract.customer_signed_at:
             return Response(
                 {'error': 'El cliente ya firmó este contrato'},
@@ -1606,6 +1630,11 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Mark contract as signed by loan officer"""
         contract = self.get_object()
 
+        # Cancelado o completado es definitivo: firmar o activar lo reviviría.
+        terminal = _terminal_contract_response(contract)
+        if terminal is not None:
+            return terminal
+
         if contract.officer_signed_at:
             return Response(
                 {'error': 'El oficial ya firmó este contrato'},
@@ -1653,6 +1682,11 @@ class ContractViewSet(viewsets.ModelViewSet):
     def activate(self, request, pk=None):
         """Activate a signed contract"""
         contract = self.get_object()
+
+        # Cancelado o completado es definitivo: firmar o activar lo reviviría.
+        terminal = _terminal_contract_response(contract)
+        if terminal is not None:
+            return terminal
 
         if not contract.is_fully_signed:
             return Response(
