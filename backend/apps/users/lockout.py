@@ -25,8 +25,19 @@ LOGIN_FAIL_WINDOW = 300  # segundos
 LOCKOUT_MESSAGE = 'Demasiados intentos. Intenta de nuevo en unos minutos.'
 
 
+def normalize_login_identifier(value):
+    """Forma canónica del usuario/correo para las claves de los límites de login.
+
+    La misma que aplica el `UsernameField` de Django antes de autenticar (NFKC), más strip y
+    casefold: todas las grafías que abren una cuenta caen en el mismo contador. La usan
+    `_email_key` (contador compartido JWT/admin) y `_admin_username_key` (django-ratelimit),
+    así las dos claves no pueden divergir.
+    """
+    return unicodedata.normalize('NFKC', value or '').strip().casefold()
+
+
 def _email_key(email):
-    return f'login_fail:{(email or "").strip().lower()}'
+    return f'login_fail:{normalize_login_identifier(email)}'
 
 
 def _ip_key(request):
@@ -125,8 +136,7 @@ def _admin_username_key(group, request):
     Sin NFKC, cada grafía compatible del correo (letras de ancho completo, etc.) abría su
     propio cubo del rate limit y autenticaba igualmente contra la misma cuenta.
     """
-    raw = request.POST.get('username') or ''
-    return unicodedata.normalize('NFKC', raw).strip().casefold()
+    return normalize_login_identifier(request.POST.get('username'))
 
 
 def _admin_ip_key(group, request):

@@ -4,6 +4,8 @@ Django normaliza el usuario con NFKC antes de autenticar: un correo con letras d
 completo (U+FF21-U+FF5A) abre la misma cuenta que el ASCII. El rate limit por usuario y el
 contador compartido `login_fail:<email>` deben tratarlas como una sola cuenta.
 """
+import unicodedata
+
 import pytest
 from django.core.cache import cache
 from django.test import Client
@@ -54,8 +56,6 @@ def _is_logged_in(client):
 
 def test_fullwidth_spelling_normalizes_to_the_same_email():
     assert _fullwidth(EMAIL) != EMAIL
-    import unicodedata
-
     assert unicodedata.normalize("NFKC", _fullwidth(EMAIL)) == EMAIL
     assert unicodedata.normalize("NFKC", _fullwidth(EMAIL, every=2)) == EMAIL
 
@@ -70,7 +70,25 @@ def test_compatible_spelling_does_not_get_a_fresh_budget(staffer, every):
     response = _post(client, _fullwidth(EMAIL, every=every), PASSWORD)
     assert response.status_code in (200, 403)
     assert not _is_logged_in(client)
-    assert Client(HTTP_HOST=HOST).get("/admin/").status_code == 302
+
+
+@pytest.mark.parametrize("every", [1, 2])
+def test_ratelimit_layer_alone_blocks_compatible_spellings(staffer, every):
+    """Aísla django-ratelimit: sin el contador por cuenta, la clave NFKC sigue cortando."""
+    client = Client(HTTP_HOST=HOST)
+    for i in range(lockout.LOGIN_FAIL_LIMIT):
+        assert _post(client, EMAIL, f"incorrecta-{i}").status_code == 200
+    # Borra el contador compartido: sólo queda el cubo de django-ratelimit por usuario.
+    cache.delete(f"login_fail:{EMAIL}")
+    response = _post(client, _fullwidth(EMAIL, every=every), PASSWORD)
+    assert response.status_code == 403
+    assert not _is_logged_in(client)
+
+
+def test_shared_normalizer_keys_agree(rf):
+    request = rf.post(LOGIN_URL, {"username": f"  {_fullwidth(EMAIL).upper()} "})
+    assert lockout._admin_username_key(None, request) == EMAIL
+    assert lockout._email_key(f" {_fullwidth(EMAIL).upper()}") == f"login_fail:{EMAIL}"
 
 
 def test_wrong_admin_logins_spend_the_shared_account_counter(staffer):
