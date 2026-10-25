@@ -147,17 +147,27 @@ def _delete_row_before_row_lock(monkeypatch, kind, row):
 def test_write_on_a_row_that_vanished_meanwhile_is_404(
     api, template, loan_factory, monkeypatch, kind, op
 ):
+    import apps.loans.utils_contracts as utils_contracts
+
     loan = _pending(loan_factory)
     row = _row(kind, loan)
     contract = _contract(loan, template)
     _delete_row_before_row_lock(monkeypatch, kind, row)
+    # Lo que ocurra dentro de la transacción de la petición lo deshace el 404, así que la
+    # regeneración se cuenta en vez de mirar el contenido del contrato.
+    regenerations = []
+    monkeypatch.setattr(
+        utils_contracts, "regenerate_latest_loan_contract",
+        lambda *args, **kwargs: regenerations.append(args),
+    )
 
     response = _request(api, kind, op, loan, row, name="Resucitada")
 
     assert response.status_code == 404, response.content
     # El borrado simulado corre en la misma transacción de la petición y el 404 la deshace con
-    # todo lo demás; lo que importa es que la API no resucitó ni editó la fila.
-    for stored in _model(kind).objects.filter(pk=row.pk):
-        assert _name(kind, stored) == "Fila vieja"
+    # todo lo demás: la fila sigue existiendo y la API no la resucitó ni la editó.
+    stored = _model(kind).objects.get(pk=row.pk)
+    assert _name(kind, stored) == "Fila vieja"
+    assert regenerations == []
     contract.refresh_from_db()
     assert contract.content == "texto viejo"
