@@ -151,6 +151,8 @@ TENANT_MODEL = "tenants.Tenant"
 TENANT_DOMAIN_MODEL = "tenants.Domain"
 PUBLIC_SCHEMA_NAME = 'public'
 PUBLIC_SCHEMA_URLCONF = 'config.urls_public'  # URLs accessible without tenant
+# migrate_schemas salta los tenants sin schema (registros pendientes de aprovisionar).
+GET_EXECUTOR_FUNCTION = 'apps.tenants.migration_executors.get_executor'
 TENANT_BASE_DOMAIN = config('TENANT_BASE_DOMAIN', default='localhost')
 
 # Password validation

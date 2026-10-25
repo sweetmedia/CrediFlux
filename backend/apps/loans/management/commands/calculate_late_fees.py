@@ -28,13 +28,13 @@ class Command(BaseCommand):
 
         if tenant_schema:
             try:
-                tenant = Tenant.objects.get(schema_name=tenant_schema)
+                tenant = Tenant.objects.get(schema_name=tenant_schema, provisioning_pending=False)
                 tenants = [tenant]
             except Tenant.DoesNotExist:
                 self.stdout.write(self.style.ERROR(f'Tenant "{tenant_schema}" not found'))
                 return
         else:
-            tenants = Tenant.objects.exclude(schema_name='public')
+            tenants = Tenant.objects.provisioned()
 
         total_updated = 0
 

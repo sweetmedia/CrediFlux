@@ -105,7 +105,8 @@ class TenantAdmin(ModelAdmin):
         success_count = 0
         error_count = 0
 
-        for tenant in queryset:
+        # Un registro pendiente no tiene schema: set_tenant caería en el schema público.
+        for tenant in queryset.filter(provisioning_pending=False):
             try:
                 # Switch to tenant schema
                 connection.set_tenant(tenant)
@@ -155,7 +156,12 @@ class TenantAdmin(ModelAdmin):
 
     @action(description="Aprovisionar registros pendientes")
     def provision_pending_action(self, request, queryset):
-        """Crea el schema y activa los tenants pendientes seleccionados (los demás se saltan)."""
+        """Crea el schema y activa los tenants pendientes seleccionados (los demás se saltan).
+
+        Equivale al comando `provision_pending_tenants [--limit N]`. Los pendientes que nadie
+        aprovisiona se borran con `expire_pending_registrations [--days 7]` (programarlo en
+        Celery Beat desde el admin de django-celery-beat).
+        """
         from .provisioning import provision_pending_tenant
 
         if not _is_platform_admin(request.user):
@@ -184,6 +190,14 @@ class TenantAdmin(ModelAdmin):
             f'Tenants aprovisionados: {provisioned}. Saltados (no pendientes): {skipped}. Con error: {failed}.',
             level=messages.ERROR if failed else messages.SUCCESS
         )
+
+    def save_model(self, request, obj, form, change):
+        # Guardar un pendiente desde el formulario no debe crearle el schema por la puerta de
+        # atrás (TenantMixin.save crea el schema de un tenant existente que no lo tiene): eso
+        # sólo lo hace el aprovisionamiento, que además lo activa y migra.
+        if obj.provisioning_pending:
+            obj.auto_create_schema = False
+        super().save_model(request, obj, form, change)
 
     def get_readonly_fields(self, request, obj=None):
         # schema_name se fija al crear el tenant; renombrarlo deja el schema de Postgres huérfano.
@@ -222,7 +236,7 @@ class TenantAdmin(ModelAdmin):
                 return redirect('admin:tenants_tenant_changelist')
 
             try:
-                tenant = Tenant.objects.get(id=selected_tenant_id)
+                tenant = Tenant.objects.get(id=selected_tenant_id, provisioning_pending=False)
 
                 # Switch to tenant schema
                 connection.set_tenant(tenant)

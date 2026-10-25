@@ -5,7 +5,7 @@ Ensures users can only access tenants they have permission to access.
 from functools import lru_cache
 
 from django.conf import settings
-from django.http import HttpResponseForbidden, HttpResponseNotFound, JsonResponse
+from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.utils.module_loading import import_string
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -105,9 +105,8 @@ class PendingTenantMiddleware:
     def __call__(self, request):
         tenant = getattr(request, 'tenant', None)
         if tenant is not None and getattr(tenant, 'provisioning_pending', False):
-            if request.path.startswith('/api/'):
-                return JsonResponse({'detail': 'No encontrado.'}, status=404)
-            return HttpResponseNotFound()
+            # Igual que un host desconocido en TenantMainMiddleware: indistinguible.
+            raise Http404('No tenant for hostname "%s"' % request.get_host().split(':')[0])
         return self.get_response(request)
 
 

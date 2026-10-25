@@ -26,10 +26,10 @@ class Command(BaseCommand):
         tenant_filter = options.get('tenant')
 
         if tenant_filter:
-            tenants = Tenant.objects.filter(schema_name=tenant_filter)
+            tenants = Tenant.objects.filter(schema_name=tenant_filter, provisioning_pending=False)
         else:
             # Process all tenants except public
-            tenants = Tenant.objects.exclude(schema_name='public')
+            tenants = Tenant.objects.provisioned()
 
         total_loans_processed = 0
         total_schedules_created = 0

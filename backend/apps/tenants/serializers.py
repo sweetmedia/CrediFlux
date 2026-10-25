@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # lo que choca es el correo, el nombre del tenant o el subdominio.
 REGISTRATION_REJECTED = 'No se pudo completar el registro con estos datos.'
 # Registro recibido por encima del tope diario: queda pendiente de aprovisionamiento.
-REGISTRATION_PENDING = 'Registro recibido. Su cuenta quedará activa tras la revisión; le avisaremos por correo.'
+REGISTRATION_PENDING = 'Registro recibido. Su cuenta quedará activa tras la revisión.'
 
 RESERVED_TENANT_NAMES = {
     'public', 'pg-catalog', 'pg-toast', 'information-schema', 'www', 'admin',

@@ -105,8 +105,7 @@ class TenantRegistrationView(APIView):
                 examples={
                     'application/json': {
                         'status': 'pending',
-                        'message': 'Registro recibido. Su cuenta quedará activa tras la revisión; '
-                                   'le avisaremos por correo.',
+                        'message': 'Registro recibido. Su cuenta quedará activa tras la revisión.',
                     }
                 }
             ),

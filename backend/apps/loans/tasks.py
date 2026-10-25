@@ -39,7 +39,7 @@ def calculate_late_fees(force=False):
     local, o en todos con `force=True`. Un tenant que falla no detiene a los demás.
     """
     processed, failed = [], []
-    for tenant in Tenant.objects.exclude(schema_name='public'):
+    for tenant in Tenant.objects.provisioned():
         if not force and not _is_local_hour(tenant, LATE_FEES_LOCAL_HOUR):
             continue
         try:
@@ -53,10 +53,10 @@ def calculate_late_fees(force=False):
 
 def _whatsapp_tenants():
     """Tenants con recordatorios por WhatsApp activos (nunca el schema público)."""
-    return Tenant.objects.filter(
+    return Tenant.objects.provisioned().filter(
         is_active=True,
         enable_whatsapp_reminders=True,
-    ).exclude(schema_name='public')
+    )
 
 
 def _already_sent(kind, tenant, schedule, today):

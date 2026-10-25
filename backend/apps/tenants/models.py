@@ -3,6 +3,7 @@ Tenant models for multi-tenant architecture
 """
 from django.db import models
 from django_tenants.models import TenantMixin, DomainMixin
+from django_tenants.utils import get_public_schema_name
 from djmoney.models.fields import MoneyField
 from decimal import Decimal
 from zoneinfo import available_timezones
@@ -18,6 +19,17 @@ def validate_timezone(value):
     """Zona horaria IANA válida (p. ej. America/Santo_Domingo)."""
     if value not in available_timezones():
         raise ValidationError(f'Zona horaria desconocida: {value}')
+
+
+class TenantQuerySet(models.QuerySet):
+    def provisioned(self):
+        """Tenants con schema propio: sin el público ni los registros pendientes.
+
+        Un tenant pendiente no tiene schema: `schema_context` con su nombre dejaría el
+        search_path en el schema público y las lecturas/escrituras caerían en sus tablas.
+        Todo bucle sobre tenants que entra en su schema debe partir de aquí.
+        """
+        return self.filter(provisioning_pending=False).exclude(schema_name=get_public_schema_name())
 
 
 class Tenant(TenantMixin):
@@ -726,6 +738,8 @@ class Tenant(TenantMixin):
         default=3,
         help_text='Número máximo de préstamos activos por cliente'
     )
+
+    objects = TenantQuerySet.as_manager()
 
     # Automatically create schema on save
     auto_create_schema = True

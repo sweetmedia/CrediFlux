@@ -11,7 +11,7 @@ no toca las que el tenant ya tiene (pudo haberlas editado).
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
-from django_tenants.utils import get_public_schema_name, get_tenant_model, schema_context
+from django_tenants.utils import get_tenant_model, schema_context
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[2] / 'contract_templates'
 
@@ -43,11 +43,11 @@ class Command(BaseCommand):
         Tenant = get_tenant_model()
         if options['all']:
             schemas = list(
-                Tenant.objects.exclude(schema_name=get_public_schema_name())
+                Tenant.objects.provisioned()
                 .values_list('schema_name', flat=True)
             )
         else:
-            if not Tenant.objects.filter(schema_name=options['schema']).exists():
+            if not Tenant.objects.filter(schema_name=options['schema'], provisioning_pending=False).exists():
                 raise CommandError(f"No existe el tenant con schema '{options['schema']}'")
             schemas = [options['schema']]
 

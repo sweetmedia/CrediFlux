@@ -23,7 +23,7 @@ from .test_security_registration import GENERIC, URL, payload
 
 pytestmark = pytest.mark.django_db
 
-PENDING_MESSAGE = 'Registro recibido. Su cuenta quedará activa tras la revisión; le avisaremos por correo.'
+PENDING_MESSAGE = 'Registro recibido. Su cuenta quedará activa tras la revisión.'
 
 
 @pytest.fixture(autouse=True)
@@ -228,3 +228,122 @@ def test_pending_tenant_domain_answers_404(pending_tenant, monkeypatch):
     monkeypatch.setattr(Tenant, "create_schema", lambda self, *a, **kw: None)
     assert provision_pending_tenant(pending_tenant.pk) is True
     assert client.get("/api/loans/").status_code == 401
+
+
+# --- Fix round 19.1 ----------------------------------------------------------------------
+
+def test_migrate_schemas_skips_pending_tenants(pending_tenant):
+    # C1: con un pendiente (sin schema), migrate_schemas fallaba con
+    # "no schema has been selected to create in" y el backend no arrancaba.
+    call_command("migrate_schemas", interactive=False, verbosity=0)
+    assert not schema_exists(pending_tenant.schema_name)
+
+
+def test_executor_keeps_public_and_existing_schemas(pending_tenant):
+    from apps.tenants.migration_executors import _skip_missing
+
+    assert _skip_missing(["public", "test", pending_tenant.schema_name]) == ["public", "test"]
+
+
+def test_provisioned_excludes_public_and_pending(pending_tenant):
+    schemas = set(Tenant.objects.provisioned().values_list("schema_name", flat=True))
+    assert "test" in schemas
+    assert "public" not in schemas
+    assert pending_tenant.schema_name not in schemas
+
+
+def test_late_fee_task_skips_pending_tenants(pending_tenant, monkeypatch):
+    # I1: schema_context(<pendiente>) dejaba el search_path en el schema público.
+    from apps.loans import tasks
+
+    seen = []
+    monkeypatch.setattr(tasks, "call_command", lambda name, tenant: seen.append(tenant))
+    result = tasks.calculate_late_fees(force=True)
+    assert "test" in seen
+    assert pending_tenant.schema_name not in seen
+    assert pending_tenant.schema_name not in result["processed"] + result["failed"]
+
+
+def test_late_fee_command_refuses_a_pending_tenant(pending_tenant):
+    out = StringIO()
+    call_command("calculate_late_fees", tenant=pending_tenant.schema_name, stdout=out)
+    assert "not found" in out.getvalue()
+
+
+def test_admin_save_of_a_pending_tenant_does_not_create_its_schema(pending_tenant, public_schema):
+    # M2: TenantMixin.save crea el schema de un tenant existente sin schema.
+    from django.contrib import admin
+
+    model_admin = admin.site._registry[Tenant]
+    superuser = User.objects.create_user(
+        username="plataforma3", email="plataforma3@crediflux.test", password="x", is_superuser=True, is_staff=True,
+    )
+    tenant = Tenant.objects.get(pk=pending_tenant.pk)
+    tenant.business_name = "Otro nombre"
+    model_admin.save_model(_admin_request(superuser), tenant, form=None, change=True)
+    tenant.refresh_from_db()
+    assert tenant.business_name == "Otro nombre"
+    assert tenant.provisioning_pending is True
+    assert not schema_exists(tenant.schema_name)
+
+
+def test_provisioning_migrates_a_schema_that_already_exists(pending_tenant, public_schema, monkeypatch):
+    # M3: con el schema ya creado, save() no migra: el aprovisionamiento lo hace explícitamente.
+    from django.db import connection
+
+    from apps.tenants import provisioning
+
+    with connection.cursor() as cursor:
+        cursor.execute(f'CREATE SCHEMA "{pending_tenant.schema_name}"')
+    migrated = []
+    monkeypatch.setattr(provisioning, "call_command",
+                        lambda name, **kw: migrated.append((name, kw.get("schema_name"), kw.get("tenant"))))
+    assert provisioning.provision_pending_tenant(pending_tenant.pk) is True
+    assert migrated == [("migrate_schemas", pending_tenant.schema_name, True)]
+    _assert_provisioned(pending_tenant)
+
+
+def test_management_command_rejects_limit_below_one(pending_tenant):
+    from django.core.management.base import CommandError
+
+    with pytest.raises(CommandError):
+        call_command("provision_pending_tenants", "--limit", "0", stdout=StringIO())
+    pending_tenant.refresh_from_db()
+    assert pending_tenant.provisioning_pending is True
+
+
+def test_pending_domain_404_matches_an_unknown_host(pending_tenant):
+    # M5: el 404 de un pendiente no se distingue del de un host sin tenant.
+    from rest_framework.test import APIClient
+
+    pending = APIClient(HTTP_HOST="financiera-7").get("/api/loans/")
+    unknown = APIClient(HTTP_HOST="no-existe-este-host").get("/api/loans/")
+    assert pending.status_code == unknown.status_code == 404
+    assert pending.content == unknown.content
+    assert pending.get("Content-Type") == unknown.get("Content-Type")
+
+
+def test_expire_pending_registrations(public_client, no_schema, no_recent_tenants):
+    with override_settings(MAX_TENANTS_PER_DAY=0):
+        assert _register(public_client, 1, "198.51.100.1").status_code == 202
+        assert _register(public_client, 2, "198.51.100.2").status_code == 202
+    old = Tenant.objects.get(name="financiera-1")
+    Tenant.objects.filter(pk=old.pk).update(pending_since=timezone.now() - timedelta(days=8))
+    provisioned_count = Tenant.objects.filter(provisioning_pending=False).count()
+
+    out = StringIO()
+    call_command("expire_pending_registrations", "--days", "7", stdout=out)
+
+    assert not Tenant.objects.filter(pk=old.pk).exists()
+    assert not User.objects.filter(email="dueno1@nueva.test").exists()
+    assert not Domain.objects.filter(domain="financiera-1").exists()
+    assert Tenant.objects.filter(name="financiera-2", provisioning_pending=True).exists()
+    assert Tenant.objects.filter(provisioning_pending=False).count() == provisioned_count
+    assert "1" in out.getvalue()
+
+
+def test_expire_pending_registrations_rejects_days_below_one():
+    from django.core.management.base import CommandError
+
+    with pytest.raises(CommandError):
+        call_command("expire_pending_registrations", "--days", "0", stdout=StringIO())
