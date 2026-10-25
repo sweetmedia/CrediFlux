@@ -380,7 +380,10 @@ class LoanAdmin(ModelAdmin):
         o desembolsado entretanto por la API no se borre con su calendario.
         """
         with transaction.atomic(using=router.db_for_write(self.model)):
-            statuses = list(queryset.select_for_update().order_by().values_list('status', flat=True))
+            # of=('self',): una búsqueda del changelist une customers; sólo se bloquean los préstamos.
+            statuses = list(
+                queryset.select_for_update(of=('self',)).order_by().values_list('status', flat=True)
+            )
             if any(status not in ('pending', 'rejected') for status in statuses):
                 raise PermissionDenied('Solo se pueden eliminar préstamos pendientes o rechazados.')
             super().delete_queryset(request, queryset)

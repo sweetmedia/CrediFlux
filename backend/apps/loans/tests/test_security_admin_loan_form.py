@@ -724,6 +724,10 @@ def test_bulk_delete_locks_the_loans_before_deleting(admin_client, loan_factory)
     assert locks, "el borrado masivo no bloquea los préstamos"
     assert deletes
     assert locks[0] < deletes[0]
+    # El bloqueo va dentro de la transacción propia del admin (en pytest aparece como SAVEPOINT);
+    # sin ella, select_for_update fallaría en producción con TransactionManagementError.
+    savepoints = [i for i, sql in enumerate(sqls) if sql.startswith("SAVEPOINT")]
+    assert any(i < locks[0] for i in savepoints), "el bloqueo no va dentro de una transacción"
 
 
 def test_bulk_delete_of_mixed_statuses_deletes_nothing(admin_client, active_loan, loan_factory):
