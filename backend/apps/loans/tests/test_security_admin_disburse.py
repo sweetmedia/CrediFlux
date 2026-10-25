@@ -13,40 +13,10 @@ from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import RequestFactory
 from django.utils import timezone
-from moneyed import Money
 
 pytestmark = pytest.mark.django_db
 HOST = "tenant.test.localhost"
-
-PERMISSIVE_POLICY = {
-    "max_loan_amount": Money(Decimal("100000000.00"), "DOP"),
-    "max_interest_rate": Decimal("600.00"),
-    "max_loan_term_months": 600,
-    "require_guarantor": False,
-    "guarantor_required_above": None,
-    "require_collateral_default": False,
-    "require_id_document": False,
-    "require_credit_score": False,
-    "require_disbursement_approval": True,
-    "max_active_loans_per_customer": 99,
-}
-
-
-@pytest.fixture
-def policy(tenant_schema):
-    snapshot = {field: getattr(tenant_schema, field) for field in PERMISSIVE_POLICY}
-    for field, value in PERMISSIVE_POLICY.items():
-        setattr(tenant_schema, field, value)
-    tenant_schema.save()
-    yield tenant_schema
-    for field, value in snapshot.items():
-        setattr(tenant_schema, field, value)
-    tenant_schema.save()
-
-
-@pytest.fixture
-def superuser(user_factory):
-    return user_factory(role="admin", is_staff=True, is_superuser=True)
+# Los fixtures `policy` (política permisiva) y `superuser` están en tests/conftest.py.
 
 
 def _admin_request(user):

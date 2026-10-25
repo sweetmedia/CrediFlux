@@ -32,7 +32,10 @@ def calculate_payment_amount(loan):
 
 
 def check_disbursable(loan, user, request=None):
-    """Devuelve el contrato vigente si el préstamo se puede desembolsar; si no, ValidationError."""
+    """Devuelve el contrato vigente si el préstamo se puede desembolsar; si no, ValidationError.
+
+    Llamar dentro de una transacción, con el préstamo ya bloqueado: el contrato se bloquea aquí.
+    """
     if loan.status != 'approved':
         raise serializers.ValidationError({'error': 'Only approved loans can be disbursed'})
 
@@ -40,7 +43,12 @@ def check_disbursable(loan, user, request=None):
     validate_approval(loan, request)
     validate_disbursement(loan, user, request)
 
-    contract = loan.contracts.filter(is_archived=False).order_by('-generated_at').first()
+    # El contrato validado queda bloqueado hasta el fin de la transacción: una cancelación
+    # concurrente espera al desembolso en lugar de colarse entre la validación y el desembolso.
+    contract = (
+        loan.contracts.filter(is_archived=False).order_by('-generated_at')
+        .select_for_update(of=('self',)).first()
+    )
     if not contract:
         raise serializers.ValidationError(
             {'error': 'No se puede desembolsar este préstamo porque no tiene contrato generado.'}

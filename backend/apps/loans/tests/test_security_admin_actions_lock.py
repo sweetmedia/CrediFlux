@@ -12,9 +12,7 @@ from django.contrib import admin, messages
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
-from .test_security_admin_disburse import (  # noqa: F401 (policy y superuser son fixtures)
-    _admin_request, _approved_loan, _contract, policy, superuser,
-)
+from .test_security_admin_disburse import _admin_request, _approved_loan, _contract
 
 pytestmark = pytest.mark.django_db
 

@@ -75,3 +75,36 @@ def active_loan(loan_factory):
     LoanViewSet()._generate_payment_schedule(loan)
     loan.refresh_from_db()
     return loan
+
+
+# Política del tenant que no estorba: los tests que la usan prueban otra cosa (bloqueos,
+# precondiciones del contrato). Los módulos con su propia política definen su `policy`.
+PERMISSIVE_POLICY = {
+    "max_loan_amount": Money(Decimal("100000000.00"), "DOP"),
+    "max_interest_rate": Decimal("600.00"),
+    "max_loan_term_months": 600,
+    "require_guarantor": False,
+    "guarantor_required_above": None,
+    "require_collateral_default": False,
+    "require_id_document": False,
+    "require_credit_score": False,
+    "require_disbursement_approval": True,
+    "max_active_loans_per_customer": 99,
+}
+
+
+@pytest.fixture
+def policy(tenant_schema):
+    snapshot = {field: getattr(tenant_schema, field) for field in PERMISSIVE_POLICY}
+    for field, value in PERMISSIVE_POLICY.items():
+        setattr(tenant_schema, field, value)
+    tenant_schema.save()
+    yield tenant_schema
+    for field, value in snapshot.items():
+        setattr(tenant_schema, field, value)
+    tenant_schema.save()
+
+
+@pytest.fixture
+def superuser(user_factory):
+    return user_factory(role="admin", is_staff=True, is_superuser=True)

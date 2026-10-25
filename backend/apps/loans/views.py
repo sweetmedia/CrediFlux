@@ -368,28 +368,33 @@ class LoanViewSet(viewsets.ModelViewSet):
         Approve a loan.
         Only admin, manager, or loan_officer can approve loans.
         """
-        loan = self.get_object()
+        loan = self.get_object()  # 404/permisos
 
-        if loan.status != 'pending':
-            return Response(
-                {'error': 'Solo se pueden aprobar préstamos pendientes'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        with transaction.atomic():
+            # Se relee la fila bloqueada (SELECT ... FOR UPDATE) y se decide sobre ella: otra
+            # petición o el admin que la cambie entretanto espera o ya dejó su estado a la vista.
+            loan = Loan.objects.select_for_update(of=('self',)).get(pk=loan.pk)
 
-        try:
-            validate_approval(loan, request)
-        except ValidationError as exc:
-            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+            if loan.status != 'pending':
+                return Response(
+                    {'error': 'Solo se pueden aprobar préstamos pendientes'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # Get approval notes from request
-        approval_notes = request.data.get('notes', '')
+            try:
+                validate_approval(loan, request)
+            except ValidationError as exc:
+                return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
 
-        # Update loan
-        loan.status = 'approved'
-        loan.approval_date = timezone.localdate()
-        loan.approved_by = request.user
-        loan.approval_notes = approval_notes
-        loan.save()
+            # Get approval notes from request
+            approval_notes = request.data.get('notes', '')
+
+            # Update loan
+            loan.status = 'approved'
+            loan.approval_date = timezone.localdate()
+            loan.approved_by = request.user
+            loan.approval_notes = approval_notes
+            loan.save()
 
         serializer = self.get_serializer(loan)
         return Response({
@@ -417,13 +422,16 @@ class LoanViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        try:
-            # Mismas precondiciones que la acción del admin (apps.loans.disbursement).
-            contract = check_disbursable(loan, request.user, request)
-        except ValidationError as exc:
-            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
-
         with transaction.atomic():
+            # Préstamo bloqueado antes de validar; check_disbursable bloquea además el contrato
+            # que valida. Lo validado es lo que se desembolsa, sin cambios entretanto.
+            loan = Loan.objects.select_for_update(of=('self',)).get(pk=loan.pk)
+            try:
+                # Mismas precondiciones que la acción del admin (apps.loans.disbursement).
+                contract = check_disbursable(loan, request.user, request)
+            except ValidationError as exc:
+                return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+
             cash_session = None
             if disbursement_method == 'cash':
                 cash_session = find_open_session(request.user)
@@ -446,28 +454,32 @@ class LoanViewSet(viewsets.ModelViewSet):
         Reject a loan.
         Only admin, manager, or loan_officer can reject loans.
         """
-        loan = self.get_object()
+        loan = self.get_object()  # 404/permisos
 
-        if loan.status != 'pending':
-            return Response(
-                {'error': 'Solo se pueden rechazar préstamos pendientes'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        with transaction.atomic():
+            # Como en approve: se decide sobre la fila bloqueada, no sobre la lectura previa.
+            loan = Loan.objects.select_for_update(of=('self',)).get(pk=loan.pk)
 
-        # Get rejection notes from request (required)
-        rejection_notes = request.data.get('notes', '')
-        if not rejection_notes:
-            return Response(
-                {'error': 'Se requiere una nota explicando el motivo del rechazo'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if loan.status != 'pending':
+                return Response(
+                    {'error': 'Solo se pueden rechazar préstamos pendientes'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # Update loan
-        loan.status = 'rejected'
-        loan.rejection_date = timezone.localdate()
-        loan.rejected_by = request.user
-        loan.approval_notes = rejection_notes
-        loan.save()
+            # Get rejection notes from request (required)
+            rejection_notes = request.data.get('notes', '')
+            if not rejection_notes:
+                return Response(
+                    {'error': 'Se requiere una nota explicando el motivo del rechazo'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Update loan
+            loan.status = 'rejected'
+            loan.rejection_date = timezone.localdate()
+            loan.rejected_by = request.user
+            loan.approval_notes = rejection_notes
+            loan.save()
 
         serializer = self.get_serializer(loan)
         return Response({
