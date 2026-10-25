@@ -57,6 +57,8 @@ def _assert_locked_before_update(ctx, extra_locked_tables=()):
                        if f'FROM "{other}"' in sql and "FOR UPDATE" in sql]
         assert other_locks, f"no se bloquea {other}"
         assert other_locks[0] < updates[0]
+        # Orden préstamo → contrato en todos los caminos: es lo que evita interbloqueos.
+        assert locks[0] < other_locks[0], f"el préstamo debe bloquearse antes que {other}"
 
 
 # (a) orden del bloqueo
