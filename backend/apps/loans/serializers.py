@@ -4,6 +4,7 @@ Serializers for loan module
 import re
 
 from django.core.files.uploadedfile import UploadedFile
+from django.db.models.fields.files import FieldFile
 from rest_framework import serializers
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
@@ -639,7 +640,12 @@ class LoanSerializer(SignedFilesModelSerializer):
         # Un archivo subido siempre es un cambio (FieldFile compara sólo por nombre).
         if isinstance(value, UploadedFile):
             return True
-        return value != getattr(self.instance, field)
+        current = getattr(self.instance, field)
+        # null sobre un FileField vacío (se guarda como '') no es un cambio; null sobre un
+        # archivo existente sí lo es (borrarlo).
+        if value is None and isinstance(current, FieldFile):
+            return bool(current)
+        return value != current
 
     def validate(self, attrs):
         if self.instance is not None:

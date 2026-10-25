@@ -173,6 +173,30 @@ def test_contract_document_of_an_approved_loan_cannot_change(officer_client, app
     assert approved_loan.contract_document.name == original
 
 
+def test_null_contract_document_on_locked_loan_without_document_is_a_no_op(officer_client, approved_loan):
+    """Reenviar null cuando no hay documento no es un cambio: el PATCH no debe fallar por el bloqueo."""
+    assert not approved_loan.contract_document
+    response = officer_client.patch(
+        f"/api/loans/{approved_loan.pk}/", {"contract_document": None, "notes": "sin cambios"}, format="json"
+    )
+    assert response.status_code == 200, response.data
+    approved_loan.refresh_from_db()
+    assert not approved_loan.contract_document
+    assert approved_loan.notes == "sin cambios"
+
+
+def test_null_cannot_clear_contract_document_of_a_locked_loan(officer_client, approved_loan, media_root):
+    """Borrar el documento con null sí es un cambio y queda bloqueado tras aprobar."""
+    original = _with_document(approved_loan)
+    response = officer_client.patch(
+        f"/api/loans/{approved_loan.pk}/", {"contract_document": None}, format="json"
+    )
+    assert response.status_code == 400, response.data
+    assert "contract_document" in response.data
+    approved_loan.refresh_from_db()
+    assert approved_loan.contract_document.name == original
+
+
 def test_contract_document_of_a_pending_signed_loan_cannot_change(officer_client, loan_factory, media_root):
     loan = loan_factory(status="pending", disbursement_date=None)
     _contract(loan, signed=True)
