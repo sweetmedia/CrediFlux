@@ -927,3 +927,71 @@ def test_collateral_inline_refused_when_loan_approved_meanwhile(
     assert not Collateral.objects.filter(loan=loan).exists()
     contract.refresh_from_db()
     assert contract.content == "Garantías: Sin garantías"
+
+
+# --- Fix round 17.1: préstamo borrado entretanto → 404; update_fields con Money y FK ---------
+
+
+def _delete_meanwhile(loan):
+    from apps.loans.models import Loan
+
+    def change():
+        Loan.objects.filter(pk=loan.pk).delete()
+    return change
+
+
+def test_change_form_returns_404_when_loan_deleted_meanwhile(
+    admin_client, superuser, loan_factory, monkeypatch
+):
+    from apps.loans.models import Loan
+
+    loan = _pending(loan_factory, loan_officer=superuser, notes="antes")
+    page = admin_client.get(_change_url(loan))
+    body = _form_data(page)
+    body["notes"] = "nota nueva"
+
+    _change_before_lock(monkeypatch, _delete_meanwhile(loan))
+    response = admin_client.post(_change_url(loan), body)
+
+    assert response.status_code == 404
+    # El 404 deshace la transacción (y con ella el borrado simulado): nada se escribió.
+    assert Loan.objects.get(pk=loan.pk).notes == "antes"
+
+
+def test_single_delete_returns_404_when_loan_deleted_meanwhile(admin_client, loan_factory, monkeypatch):
+    from apps.loans.models import Loan
+
+    loan = _pending(loan_factory)
+    collateral = _collateral(loan)
+
+    _change_before_lock(monkeypatch, _delete_meanwhile(loan))
+    response = admin_client.post(reverse("admin:loans_loan_delete", args=[loan.pk]), {"post": "yes"})
+
+    assert response.status_code == 404
+    assert Loan.objects.filter(pk=loan.pk).exists()  # el 404 deshace también la simulación
+    assert loan.collaterals.filter(pk=collateral.pk).exists()
+
+
+def test_change_form_saves_money_and_fk_term_edits_on_a_pending_loan(
+    admin_client, superuser, loan_factory, customer_factory
+):
+    from moneyed import Money
+    from apps.loans.disbursement import calculate_payment_amount
+
+    loan = _pending(loan_factory, loan_officer=superuser)
+    new_customer = customer_factory()
+    page = admin_client.get(_change_url(loan))
+    body = _form_data(page)
+    body.update({
+        "principal_amount_0": "15000.00", "principal_amount_1": "USD",
+        "customer": str(new_customer.pk),
+    })
+
+    _post(admin_client, loan, body)
+
+    loan.refresh_from_db()
+    assert loan.principal_amount == Money(Decimal("15000.00"), "USD")
+    assert loan.customer_id == new_customer.pk
+    assert loan.payment_amount == calculate_payment_amount(loan)
+    assert loan.payment_amount.currency.code == "USD"
+    assert loan.status == "pending"

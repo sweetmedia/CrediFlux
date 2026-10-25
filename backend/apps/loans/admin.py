@@ -14,6 +14,7 @@ from .models_collections import CollectionReminder, CollectionContact
 from .models_contracts import ContractTemplate, Contract, ContractSignatureToken
 from rest_framework.exceptions import ValidationError
 from django.core.exceptions import PermissionDenied
+from django.http import Http404
 from .policy import (
     LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS, loan_terms_locked,
     validate_approval, validate_origination,
@@ -398,6 +399,8 @@ class LoanAdmin(ModelAdmin):
     LIFECYCLE_FIELDS = LOAN_LIFECYCLE_FIELDS + ('payment_amount',)
     # Deudor, términos y documento: los mismos que fija la API (loan_terms_locked).
     TERM_FIELDS = LOAN_LOCKED_FIELDS
+    # Saldos: sólo los mueven el desembolso y los pagos, nunca el formulario.
+    BALANCE_FIELDS = ('outstanding_balance', 'total_paid', 'total_interest_paid')
 
     def has_module_permission(self, request):
         """Only show in tenant schemas"""
@@ -437,6 +440,17 @@ class LoanAdmin(ModelAdmin):
             or getattr(user, 'role', None) in APPROVER_ROLES
         )
 
+    @staticmethod
+    def _lock_loan(pk):
+        """Bloquea el préstamo (SELECT ... FOR UPDATE, sólo su fila) dentro de la transacción de la vista.
+
+        Si otra petición lo borró entre get_object y el bloqueo, responde 404 en vez de un 500.
+        """
+        try:
+            return Loan.objects.select_for_update(of=('self',)).get(pk=pk)
+        except Loan.DoesNotExist:
+            raise Http404('El préstamo ya no existe; pudo haber sido eliminado por otra operación.')
+
     def delete_model(self, request, obj):
         """Borrado individual: la regla de has_delete_permission se decide sobre la fila bloqueada.
 
@@ -444,7 +458,7 @@ class LoanAdmin(ModelAdmin):
         o desembolsado entretanto por la API no debe borrarse con su calendario. delete_view ya
         abre la transacción.
         """
-        locked = Loan.objects.select_for_update(of=('self',)).get(pk=obj.pk)
+        locked = self._lock_loan(obj.pk)
         if locked.status not in ('pending', 'rejected'):
             raise PermissionDenied('Solo se pueden eliminar préstamos pendientes o rechazados.')
         super().delete_model(request, locked)
@@ -492,7 +506,7 @@ class LoanAdmin(ModelAdmin):
         changed = set(getattr(form, 'changed_data', ()))
         current = None
         if change:
-            current = Loan.objects.select_for_update(of=('self',)).get(pk=obj.pk)
+            current = self._lock_loan(obj.pk)
         if change and 'status' in changed:
             raise PermissionDenied(
                 'El estado del préstamo sólo cambia con las acciones aprobar, rechazar o desembolsar.'
@@ -523,7 +537,8 @@ class LoanAdmin(ModelAdmin):
         names = set(changed)
         if terms_changed:
             names.add('payment_amount')
-        forbidden = set(self.LIFECYCLE_FIELDS) - {'payment_amount'}
+        # Defensa en profundidad: no depende de readonly_fields.
+        forbidden = (set(self.LIFECYCLE_FIELDS) - {'payment_amount'}) | set(self.BALANCE_FIELDS)
         concrete = {f.name: f for f in Loan._meta.concrete_fields if not f.primary_key}
         fields = set()
         for name in names:
