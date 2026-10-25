@@ -33,21 +33,28 @@ _tenants_being_deleted = ContextVar('tenants_being_deleted', default=None)
 
 
 @contextmanager
-def tenant_deletion():
+def tenant_deletion(pks=()):
     """Ámbito de un borrado de tenants (`Tenant.delete()` y `Tenant.objects....delete()`).
 
-    El `pre_delete` de cada Tenant anota su pk; mientras dura el ámbito, la auditoría escribe
-    las filas de ese tenant (el propio Tenant y su cascada) como filas de plataforma
+    Los pks se anotan al abrir el ámbito, antes de que el Collector envíe los pre_delete de la
+    cascada (que van antes que el del propio Tenant). Mientras dura, la auditoría escribe las
+    filas de esos tenants (el propio Tenant y su cascada) como filas de plataforma
     (`tenant=None`): una fila nueva apuntando al tenant borrado rompería la FK diferida en el
-    COMMIT y desharía todo el borrado. Anidado, reutiliza el ámbito exterior.
+    COMMIT y desharía todo el borrado. Anidado, añade los pks al ámbito exterior.
     """
-    if _tenants_being_deleted.get() is not None:
+    current = _tenants_being_deleted.get()
+    if current is not None:
+        current.update(pks)
         yield
         return
-    token = _tenants_being_deleted.set(set())
+    marked = set(pks)
+    token = _tenants_being_deleted.set(marked)
     try:
         yield
     finally:
+        # Vaciar el conjunto: un contexto copiado dentro del ámbito (tarea asyncio,
+        # copy_context().run) comparte esta referencia y no debe seguir viendo los pks.
+        marked.clear()
         _tenants_being_deleted.reset(token)
 
 
@@ -60,7 +67,8 @@ def is_tenant_being_deleted(tenant_id):
 class TenantQuerySet(models.QuerySet):
     def delete(self):
         """Borrado masivo (admin, comandos) dentro del ámbito de borrado de tenants."""
-        with tenant_deletion():
+        # pks evaluados una vez, antes del Collector (que vuelve a leer la consulta)
+        with tenant_deletion(self.values_list('pk', flat=True)):
             return super().delete()
 
     # Como QuerySet.delete: no se copia al manager (`Tenant.objects.delete()` no existe)
@@ -798,15 +806,14 @@ class Tenant(TenantMixin):
         return self.name
 
     def delete(self, *args, **kwargs):
-        with tenant_deletion():
+        with tenant_deletion([self.pk]):
             return super().delete(*args, **kwargs)
 
 
 @receiver(pre_delete, sender=Tenant)
 def mark_tenant_deletion(sender, instance, **kwargs):
-    """Anota el tenant en el ámbito de borrado en curso (el Collector envía todos los
-    pre_delete antes de cualquier DELETE, así que la marca ya está cuando corren los
-    post_delete de la cascada)."""
+    """Respaldo: anota el tenant si el ámbito en curso no lo traía ya (los caminos normales
+    lo anotan al abrir el ámbito, antes de los pre_delete de la cascada)."""
     pks = _tenants_being_deleted.get()
     if pks is not None:
         pks.add(instance.pk)

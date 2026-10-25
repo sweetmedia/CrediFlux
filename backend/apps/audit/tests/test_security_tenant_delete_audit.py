@@ -6,18 +6,20 @@ COMMIT y deshacía todo el borrado. Ahora esas filas se escriben con `tenant=Non
 el borrado, la marca no sobrevive a un borrado fallido y las filas de plataforma no se ven
 desde la API de tenant ni desde el admin de un staff de tenant.
 """
+import contextvars
 import uuid
 from datetime import date
+from unittest import mock
 
 import pytest
 from django.contrib import admin
 from django.db import connection, transaction
-from django.db.models.signals import post_delete
+from django.db.models.signals import post_delete, pre_delete
 from django.test import RequestFactory
 from rest_framework.test import APIClient
 
 from apps.audit.models import AuditLog
-from apps.tenants.models import Domain, Tenant
+from apps.tenants.models import Domain, Tenant, is_tenant_being_deleted
 from apps.users.models import User
 
 pytestmark = pytest.mark.django_db
@@ -115,6 +117,70 @@ def test_failed_tenant_delete_does_not_leave_the_mark(public_schema):
         model_name="Tenant", object_id=str(tenant.pk), action="update",
     ).latest("timestamp")
     assert log.tenant_id == tenant.pk
+
+
+def test_context_copied_inside_the_scope_does_not_keep_the_mark(public_schema):
+    """Un contexto copiado durante el borrado (tarea asyncio, copy_context().run) no conserva el pk."""
+    tenant = _tenant_with_owner(6)
+    copied = []
+
+    def copy_and_fail(sender, instance, **kwargs):
+        copied.append(contextvars.copy_context())
+        raise RuntimeError("borrado interrumpido")
+
+    post_delete.connect(copy_and_fail, sender=User, dispatch_uid="test-copy-ctx-tenant-delete")
+    try:
+        with pytest.raises(RuntimeError):
+            with transaction.atomic():
+                tenant.delete()
+    finally:
+        post_delete.disconnect(sender=User, dispatch_uid="test-copy-ctx-tenant-delete")
+
+    assert copied
+    assert copied[0].run(is_tenant_being_deleted, tenant.pk) is False
+
+
+def test_dependent_pre_delete_audit_is_written_as_platform_row(public_schema):
+    """La marca existe antes de los pre_delete de la cascada (User va antes que Tenant)."""
+    tenant = _tenant_with_owner(7)
+    pk = tenant.pk
+
+    def touch_owner(sender, instance, **kwargs):
+        if instance.tenant_id == pk:
+            instance.first_name = "Tocado"
+            instance.save(update_fields=["first_name"])  # update auditado del usuario
+
+    pre_delete.connect(touch_owner, sender=User, dispatch_uid="test-touch-owner-pre-delete")
+    try:
+        with transaction.atomic():
+            tenant.delete()
+            connection.check_constraints()
+    finally:
+        pre_delete.disconnect(sender=User, dispatch_uid="test-touch-owner-pre-delete")
+
+    _assert_platform_trace(pk)
+    assert AuditLog.objects.filter(
+        tenant__isnull=True, action="update", model_name="User", changes__has_key="first_name",
+    ).exists()
+
+
+def test_request_user_of_the_deleted_tenant_is_not_linked(public_schema):
+    """Si quien borra es usuario del tenant, la fila conserva su correo pero no el enlace."""
+    tenant = _tenant_with_owner(8)
+    pk = tenant.pk
+    owner = User.objects.get(tenant=tenant, is_tenant_owner=True)
+    request = RequestFactory().delete("/")
+    request.user = owner
+
+    with mock.patch("apps.audit.signals.get_current_request", return_value=request):
+        with transaction.atomic():
+            tenant.delete()
+            connection.check_constraints()  # sin el arreglo: IntegrityError en user_id
+
+    _assert_platform_trace(pk)
+    log = AuditLog.objects.get(tenant__isnull=True, action="delete", model_name="Tenant", object_id=str(pk))
+    assert log.user_id is None
+    assert log.user_email == "dueno-borrable8@crediflux.test"
 
 
 def test_delete_inside_a_live_tenant_keeps_its_tenant(tenant_schema):
