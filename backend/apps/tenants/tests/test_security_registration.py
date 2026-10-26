@@ -160,10 +160,13 @@ def test_existence_of_email_name_or_subdomain_is_indistinguishable(public_client
     user_factory(email="ocupado@nueva.test")
     connection.set_schema_to_public()
     Tenant.objects.filter(pk=tenant.pk).update(name="ocupado")
+    # El subdominio se compara con el dominio exacto que crearía el registro (run-5): el del
+    # tenant de pruebas, `tenant.test.localhost`, ya no choca con `tenant` por contenerlo.
+    Domain.objects.create(domain="sub-ocupado", tenant=tenant, is_primary=False)
     before = counts()
     by_email = public_client.post(URL, payload(owner_email="ocupado@nueva.test"), format="json")
     by_name = public_client.post(URL, payload(tenant_name="ocupado"), format="json")
-    by_subdomain = public_client.post(URL, payload(subdomain="tenant"), format="json")
+    by_subdomain = public_client.post(URL, payload(subdomain="sub-ocupado"), format="json")
     for response in (by_email, by_name, by_subdomain):
         assert response.status_code == 400
     assert by_email.json() == by_name.json() == by_subdomain.json() == {"non_field_errors": [GENERIC]}
@@ -178,10 +181,11 @@ def test_format_errors_keep_their_specific_messages(public_client):
     assert GENERIC not in str(body)
 
 
-@override_settings(MAX_TENANTS_PER_DAY=0, MAX_PENDING_REGISTRATIONS_PER_DAY=0)
+@override_settings(MAX_TENANTS_PER_DAY=0, MAX_PENDING_REGISTRATIONS_HARD_CEILING=0)
 def test_daily_caps_reject_new_registrations(public_client):
-    # Por encima del tope global el registro queda pendiente (202); sólo con el tope de
-    # pendientes también agotado se rechaza (ver test_security_registration_pending).
+    # Por encima del tope global el registro queda pendiente (202); sólo con el techo de
+    # pendientes también agotado se rechaza (MAX_PENDING_REGISTRATIONS_PER_DAY ya sólo
+    # avisa; ver test_security_registration_network).
     before = counts()
     response = public_client.post(URL, payload(), format="json")
     assert response.status_code == 400

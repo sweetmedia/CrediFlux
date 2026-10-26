@@ -96,3 +96,31 @@ def test_client_network_key_groups_ipv6_by_56():
 
 def test_client_network_key_none_request():
     assert client_network_key(None) == ""
+
+
+# --- client_registration_key: presupuestos de registro (IPv6 por /48, run-5) -------------
+
+from apps.core.net import client_registration_key  # noqa: E402
+
+
+@pytest.mark.parametrize("remote, expected", [
+    ("198.51.100.7", "198.51.100.7"),
+    ("2001:db8:abcd:7::1", "2001:db8:abcd::/48"),
+    ("2001:db8:abcd:ff00::1", "2001:db8:abcd::/48"),  # otra /56 de la misma /48: mismo registrante
+    ("2001:db8:abce::1", "2001:db8:abce::/48"),  # otra /48: otro registrante
+    ("::ffff:198.51.100.7", "198.51.100.7"),
+    ("no-es-una-ip", "no-es-una-ip"),
+    ("", ""),
+])
+def test_client_registration_key(remote, expected):
+    with _proxies(0):
+        assert client_registration_key(_request(remote=remote)) == expected
+
+
+def test_client_registration_key_respects_num_proxies():
+    with _proxies(1):
+        assert client_registration_key(_request("2001:db8:1:2::99")) == "2001:db8:1::/48"
+
+
+def test_client_registration_key_none_request():
+    assert client_registration_key(None) == ""

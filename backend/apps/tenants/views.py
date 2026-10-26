@@ -33,7 +33,8 @@ class TenantRegistrationThrottle(SimpleRateThrottle):
     No hereda de AnonRateThrottle: ese no limita a usuarios autenticados, y la ruta
     también está montada en los hosts de tenant (un usuario con token agotaría el tope
     global MAX_TENANTS_PER_DAY). La identidad sale de `client_network_key` (respeta
-    NUM_PROXIES): la IPv4 o la red IPv6 /56, la misma que el presupuesto diario por cliente.
+    NUM_PROXIES): la IPv4 o la red IPv6 /56. Los presupuestos diarios del registro agrupan
+    más (IPv6 /48, `client_registration_key`); el throttle es sólo un límite de ritmo.
     """
 
     scope = 'tenant_registration'

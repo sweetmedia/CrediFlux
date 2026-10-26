@@ -11,11 +11,12 @@ from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
 from django.core.cache import cache
 from django.db import connection, transaction
+from django.db.models import Q
 from django.utils import timezone
 from django_tenants.utils import schema_exists
 from apps.core.admin_mixins import is_platform_admin
 from apps.core.media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, SignedImageField, signed_media_url
-from apps.core.net import client_network_key
+from apps.core.net import client_registration_key
 from apps.users import lockout
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
@@ -72,6 +73,23 @@ def _available_username(email):
             return candidate
         candidate = f'{base}-{secrets.token_hex(3)}'
     raise serializers.ValidationError(REGISTRATION_REJECTED)
+
+
+def _registration_domain(subdomain):
+    """Dominio que crea el registro: `<subdominio>.<TENANT_BASE_DOMAIN>`, o el subdominio solo en localhost."""
+    base_domain = getattr(settings, 'TENANT_BASE_DOMAIN', 'localhost')
+    return f"{subdomain}.{base_domain}" if base_domain != 'localhost' else subdomain
+
+
+def _domain_taken(subdomain):
+    """El dominio que crearía el registro (o el subdominio pelado) ya existe, comparado entero.
+
+    Antes era `domain__icontains`: cada dominio (también el de un pendiente) reservaba todos
+    los subdominios contenidos en él (`acme` chocaba con `acme-financiera`).
+    """
+    return Domain.objects.filter(
+        Q(domain__iexact=_registration_domain(subdomain)) | Q(domain__iexact=subdomain)
+    ).exists()
 
 
 def _spend_daily_budget(key, ttl=60 * 60 * 25):
@@ -227,11 +245,37 @@ class TenantRegistrationSerializer(serializers.Serializer):
             or subdomain in RESERVED_TENANT_NAMES
             or _schema_unavailable(schema_name_for(tenant_name))
             or Tenant.objects.filter(name=tenant_name).exists()
-            or Domain.objects.filter(domain__icontains=subdomain).exists()
+            or _domain_taken(subdomain)
             or User.objects.filter(email__iexact=attrs['owner_email']).exists()
         ):
             raise serializers.ValidationError(REGISTRATION_REJECTED)
         return attrs
+
+    @staticmethod
+    def _check_pending_limits(network, since):
+        """Límites de los registros pendientes (cada uno reserva nombre, subdominio y correo).
+
+        - Por red de registro: `MAX_PENDING_PER_NETWORK_PER_DAY`, contado en la base. Rechaza
+          sólo a esa red.
+        - Global: `MAX_PENDING_REGISTRATIONS_PER_DAY` es una alarma para el operador, no un
+          rechazo (un solicitante con ~110 identidades lo llenaba y dejaba fuera a todos).
+        - `MAX_PENDING_REGISTRATIONS_HARD_CEILING`: techo de cordura que protege la base.
+        """
+        if network and (
+            Tenant.objects.filter(registration_network=network, provisioning_pending=True,
+                                  pending_since__gte=since).count()
+            >= settings.MAX_PENDING_PER_NETWORK_PER_DAY
+        ):
+            raise serializers.ValidationError(REGISTRATION_REJECTED)
+        pending_today = Tenant.objects.filter(provisioning_pending=True, pending_since__gte=since).count()
+        if pending_today >= settings.MAX_PENDING_REGISTRATIONS_HARD_CEILING:
+            logger.error('Techo de registros pendientes alcanzado (MAX_PENDING_REGISTRATIONS_HARD_CEILING=%s): '
+                         'registro rechazado', settings.MAX_PENDING_REGISTRATIONS_HARD_CEILING)
+            raise serializers.ValidationError(REGISTRATION_REJECTED)
+        if pending_today >= settings.MAX_PENDING_REGISTRATIONS_PER_DAY:
+            logger.error('Registros pendientes en 24 h por encima de MAX_PENDING_REGISTRATIONS_PER_DAY=%s '
+                         '(%s): revisar y aprovisionar o expirar', settings.MAX_PENDING_REGISTRATIONS_PER_DAY,
+                         pending_today)
 
     @transaction.atomic
     def create(self, validated_data):
@@ -278,21 +322,29 @@ class TenantRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError(REGISTRATION_REJECTED)
         username = _available_username(owner_data['email'])
 
-        # Presupuesto por cliente antes del global: un solo cliente no agota el tope de
-        # todos, y quien ya gastó el suyo no sigue gastando el global. Aplica también a los
+        # Presupuesto por red de registro antes del global: un solo cliente no agota el tope
+        # de todos, y quien ya gastó el suyo no sigue gastando el global. Aplica también a los
         # registros que quedan pendientes.
         now = timezone.now()
         day = f'{now:%Y%m%d}'
-        # Por IPv4 o por red IPv6 /56: cada dirección de una misma red no es un cliente nuevo.
-        ip = client_network_key(self.context.get('request'))
-        if _spend_daily_budget(f'tenant_provisioning_ip:{ip}:{day}') > settings.MAX_TENANTS_PER_IP_PER_DAY:
+        since = now - timedelta(days=1)
+        # Por IPv4 o por red IPv6 /48: cada dirección (o /56) de una misma red no es un
+        # registrante nuevo. Se guarda en la fila para contar en la base.
+        network = client_registration_key(self.context.get('request'))
+        tenant_data['registration_network'] = network
+        # Dos cuentas: la caché cobra cada intento (también los que se revierten tras
+        # aprovisionar) y la base, las filas de esa red en 24 h, que un flush de Redis no borra.
+        if (
+            _spend_daily_budget(f'tenant_provisioning_ip:{network}:{day}') > settings.MAX_TENANTS_PER_IP_PER_DAY
+            or (network and Tenant.objects.filter(registration_network=network, created_on__gte=since).count()
+                >= settings.MAX_TENANTS_PER_IP_PER_DAY)
+        ):
             raise serializers.ValidationError(REGISTRATION_REJECTED)
 
         # Tope global de aprovisionamientos automáticos (tenants con schema en 24 h y
         # contador del día). Cada aprovisionamiento gasta el contador, también si luego se
         # revierte. Por encima no se rechaza: el registro queda pendiente, sin schema, hasta
         # que un superusuario lo aprovisione (un solo solicitante no deja fuera a los demás).
-        since = now - timedelta(days=1)
         pending = (
             Tenant.objects.filter(created_on__gte=since, provisioning_pending=False).count()
             >= settings.MAX_TENANTS_PER_DAY
@@ -301,16 +353,7 @@ class TenantRegistrationSerializer(serializers.Serializer):
         if pending:
             logger.warning('Tope diario de registros de tenants alcanzado (MAX_TENANTS_PER_DAY=%s): '
                            'registro pendiente de aprovisionamiento', settings.MAX_TENANTS_PER_DAY)
-            # Tope de cordura sobre las filas pendientes (cada una ocupa nombre, subdominio y correo).
-            if (
-                Tenant.objects.filter(provisioning_pending=True, pending_since__gte=since).count()
-                >= settings.MAX_PENDING_REGISTRATIONS_PER_DAY
-                or _spend_daily_budget(f'tenant_pending:{day}') > settings.MAX_PENDING_REGISTRATIONS_PER_DAY
-            ):
-                logger.warning('Tope diario de registros pendientes alcanzado '
-                               '(MAX_PENDING_REGISTRATIONS_PER_DAY=%s)',
-                               settings.MAX_PENDING_REGISTRATIONS_PER_DAY)
-                raise serializers.ValidationError(REGISTRATION_REJECTED)
+            self._check_pending_limits(network, since)
             tenant_data.update(is_active=False, provisioning_pending=True, pending_since=now)
 
         # 1. Create Tenant (pendiente: sin CREATE SCHEMA ni migraciones)
@@ -323,12 +366,8 @@ class TenantRegistrationSerializer(serializers.Serializer):
 
         # 2. Create Domain (también para un pendiente: reserva el subdominio; el middleware
         # no sirve peticiones en el dominio de un tenant sin aprovisionar)
-        # Use localhost for development, or configure based on environment
-        base_domain = getattr(settings, 'TENANT_BASE_DOMAIN', 'localhost')
-        domain_name = f"{subdomain}.{base_domain}" if base_domain != 'localhost' else subdomain
-
         domain = Domain.objects.create(
-            domain=domain_name,
+            domain=_registration_domain(subdomain),
             tenant=tenant,
             is_primary=True
         )

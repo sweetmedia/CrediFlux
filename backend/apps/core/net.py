@@ -10,8 +10,9 @@ variable de entorno `DRF_NUM_PROXIES`):
   derecha (la que escribió el proxy más externo de confianza); lo que el cliente
   haya puesto más a la izquierda se ignora. Sin cabecera, `REMOTE_ADDR`.
 
-Para presupuestos por cliente que no deben poder multiplicarse con direcciones baratas
-(registro de tenants), `client_network_key` agrupa IPv6 por su red /56.
+Para límites por cliente que no deben poder multiplicarse con direcciones baratas,
+`client_network_key` agrupa IPv6 por su red /56 (throttle del registro). Los presupuestos
+diarios del registro de tenants usan `client_registration_key`, que agrupa por /48.
 """
 import ipaddress
 
@@ -19,6 +20,8 @@ from rest_framework.settings import api_settings
 
 # Prefijo con el que se agrupa una IPv6 en una sola identidad de cliente.
 IPV6_CLIENT_PREFIX = 56
+# Y para los presupuestos de registro de tenants: una /48 es la delegación de un solo sitio.
+IPV6_REGISTRATION_PREFIX = 48
 
 
 def client_ip(request) -> str:
@@ -45,7 +48,20 @@ def client_network_key(request) -> str:
     (`::ffff:a.b.c.d`) cuenta como esa IPv4 (si no, todas compartirían una /56). Un valor
     que no es una IP se devuelve tal cual.
     """
-    ip = client_ip(request)
+    return _network_key(client_ip(request), IPV6_CLIENT_PREFIX)
+
+
+def client_registration_key(request) -> str:
+    """Red de registro: la IPv4 tal cual o su red IPv6 /48 (la de `Tenant.registration_network`).
+
+    Los presupuestos diarios del registro de tenants (altas y pendientes por red) no pueden
+    multiplicarse con las 256 redes /56 de una sola /48, la delegación típica de un sitio:
+    con /56 una /48 valía 256 registrantes y bastaba para llenar los topes globales.
+    """
+    return _network_key(client_ip(request), IPV6_REGISTRATION_PREFIX)
+
+
+def _network_key(ip, ipv6_prefix):
     try:
         addr = ipaddress.ip_address(ip)
     except ValueError:
@@ -54,5 +70,5 @@ def client_network_key(request) -> str:
         if addr.ipv4_mapped is not None:
             return str(addr.ipv4_mapped)
         # int() descarta un posible identificador de zona (`%eth0`).
-        return str(ipaddress.IPv6Network((int(addr), IPV6_CLIENT_PREFIX), strict=False))
+        return str(ipaddress.IPv6Network((int(addr), ipv6_prefix), strict=False))
     return str(addr)

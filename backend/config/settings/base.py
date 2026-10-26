@@ -286,11 +286,18 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
 # Tope global de tenants creados por autoservicio en las últimas 24 h
 # (cada alta crea un schema y corre todas las migraciones).
 MAX_TENANTS_PER_DAY = config('MAX_TENANTS_PER_DAY', default=20, cast=int)
-# Y por cliente (IP según NUM_PROXIES) y día: uno solo no puede agotar el tope de todos.
+# Y por red de registro (IPv4 o IPv6 /48, según NUM_PROXIES) y día, altas y pendientes
+# juntas, contado en la base: uno solo no puede agotar el tope de todos.
 MAX_TENANTS_PER_IP_PER_DAY = config('MAX_TENANTS_PER_IP_PER_DAY', default=2, cast=int)
 # Por encima de MAX_TENANTS_PER_DAY el registro no se rechaza: queda pendiente (sin schema)
-# hasta que un superusuario lo aprovisione. Éste es el tope de pendientes en 24 h.
+# hasta que un superusuario lo aprovisione. Pendientes por red de registro en 24 h:
+MAX_PENDING_PER_NETWORK_PER_DAY = config('MAX_PENDING_PER_NETWORK_PER_DAY', default=2, cast=int)
+# Pendientes en 24 h por encima de los cuales se avisa al operador (logger.error). No rechaza:
+# un rechazo global lo llenaba un solo solicitante con ~110 identidades y dejaba fuera a todos.
 MAX_PENDING_REGISTRATIONS_PER_DAY = config('MAX_PENDING_REGISTRATIONS_PER_DAY', default=200, cast=int)
+# Techo de cordura que protege la base (filas pendientes en 24 h); no es un cupo: con los
+# límites por red alcanzarlo exige ~1000 IPv4 o /48 distintas.
+MAX_PENDING_REGISTRATIONS_HARD_CEILING = config('MAX_PENDING_REGISTRATIONS_HARD_CEILING', default=2000, cast=int)
 
 # dj-rest-auth configuration (v6.0+)
 REST_AUTH = {

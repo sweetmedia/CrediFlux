@@ -97,19 +97,24 @@ def test_client_over_its_budget_does_not_spend_the_global_cap(public_client, no_
     assert _register(public_client, 9, "203.0.113.50").status_code == 201
 
 
-# --- Identidad del cliente: IPv4 exacta o red IPv6 /56 (run-3, /56 desde run-4) ----------
+# --- Identidad del cliente: IPv4 exacta o red IPv6 (run-3; /56 run-4; /48 run-5) ---------
 # Cada dirección de una misma red era un cliente nuevo: un solo host IPv6 agotaba el tope global.
-# Una /64 tampoco basta: un cliente con una /56 o /60 tiene 16-256 redes /64.
+# Una /64 tampoco basta: un cliente con una /56 o /60 tiene 16-256 redes /64. Y una /48 son
+# 256 redes /56: el presupuesto diario del registro agrupa por /48 (el throttle sigue por /56).
 
 @override_settings(MAX_TENANTS_PER_DAY=100, MAX_TENANTS_PER_IP_PER_DAY=2)
-def test_addresses_in_one_ipv6_56_share_one_budget(public_client, no_schema):
+def test_addresses_in_one_ipv6_48_share_one_budget(public_client, no_schema):
     assert _register(public_client, 1, "2001:db8:7:7::1").status_code == 201
     assert _register(public_client, 2, "2001:db8:7:8::2").status_code == 201  # otra /64, misma /56
     response = _register(public_client, 3, "2001:db8:7:ff:abcd::3")
     assert response.status_code == 400
     assert GENERIC in str(response.json())
-    # Otra /56 es otro cliente.
-    assert _register(public_client, 4, "2001:db8:7:100::1").status_code == 201
+    # Otra /56 de la misma /48 es el mismo registrante (antes de run-5 era otro cliente).
+    response = _register(public_client, 4, "2001:db8:7:100::1")
+    assert response.status_code == 400
+    assert GENERIC in str(response.json())
+    # Otra /48 es otro cliente.
+    assert _register(public_client, 5, "2001:db8:8::1").status_code == 201
 
 
 @override_settings(MAX_TENANTS_PER_DAY=100, MAX_TENANTS_PER_IP_PER_DAY=2)

@@ -80,7 +80,7 @@ class TenantAdmin(PlatformAdminOnlyMixin, ModelAdmin):
     search_fields = ['name', 'business_name', 'email', 'tax_id']
     # El estado pendiente sólo lo cambia el aprovisionamiento (crea el schema): marcarlo a mano
     # dejaría un tenant activo sin schema.
-    readonly_fields = ['created_on', 'updated_on', 'provisioning_pending', 'pending_since']
+    readonly_fields = ['created_on', 'updated_on', 'provisioning_pending', 'pending_since', 'registration_network']
     list_per_page = 25
     save_on_top = True
     actions = ['generate_demo_data_action', 'provision_pending_action']

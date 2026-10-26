@@ -119,6 +119,13 @@ class Tenant(TenantMixin):
         blank=True,
         help_text='Momento en que el registro quedó pendiente de aprovisionamiento',
     )
+    registration_network = models.CharField(
+        max_length=64,
+        blank=True,
+        default='',
+        help_text='Red del registro de autoservicio (IPv4 o IPv6 /48): presupuesto diario de '
+                  'altas y pendientes por red',
+    )
     max_users = models.IntegerField(default=10)
     subscription_plan = models.CharField(
         max_length=50,
@@ -801,6 +808,10 @@ class Tenant(TenantMixin):
     class Meta:
         db_table = 'tenants'
         ordering = ['-created_on']
+        indexes = [
+            # Cuenta por red en la ventana de 24 h del registro (altas y pendientes).
+            models.Index(fields=['registration_network', 'created_on'], name='tenants_regnet_created_idx'),
+        ]
 
     def __str__(self):
         return self.name

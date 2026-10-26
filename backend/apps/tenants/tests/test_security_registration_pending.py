@@ -101,9 +101,12 @@ def test_client_budget_still_applies_when_the_global_cap_is_reached(public_clien
 
 
 # --- (c) tope de registros pendientes -----------------------------------------------------
+# Desde run-5 MAX_PENDING_REGISTRATIONS_PER_DAY es una alarma, no un rechazo para todos (lo
+# llenaba un solo solicitante); rechaza el techo MAX_PENDING_REGISTRATIONS_HARD_CEILING
+# (ver test_security_registration_network).
 
-@override_settings(MAX_TENANTS_PER_DAY=0, MAX_PENDING_REGISTRATIONS_PER_DAY=1)
-def test_pending_cap_rejects_with_the_generic_message(public_client, no_schema, no_recent_tenants):
+@override_settings(MAX_TENANTS_PER_DAY=0, MAX_PENDING_REGISTRATIONS_HARD_CEILING=1)
+def test_pending_ceiling_rejects_with_the_generic_message(public_client, no_schema, no_recent_tenants):
     assert _register(public_client, 1, "198.51.100.1").status_code == 202
     before = (Tenant.objects.count(), User.objects.count(), Domain.objects.count())
     response = _register(public_client, 2, "198.51.100.2")
