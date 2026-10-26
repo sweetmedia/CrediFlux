@@ -1,8 +1,9 @@
-"""Bloqueos de préstamos compartidos por el admin y la API (garantías y garantes).
+"""Bloqueos de préstamos y contratos compartidos por el admin y la API.
 
 Orden de bloqueo del módulo: préstamo → fila de garantía/garante → contrato → token.
 lock_pending_loans/lock_row_loans toman los bloqueos de préstamos; lock_row bloquea después la fila
 de garantía/garante, y quien los llama escribe esa fila y, si corresponde, el contrato.
+lock_contract bloquea sólo el contrato (acciones y edición/borrado de contratos).
 """
 from .models import Loan
 
@@ -60,3 +61,15 @@ def lock_row(model, pk):
     confirmado entretanto. Lanza model.DoesNotExist si la fila ya no existe.
     """
     return model.objects.select_for_update(of=('self',)).get(pk=pk)
+
+
+def lock_contract(contract):
+    """Vuelve a leer el contrato con SELECT ... FOR UPDATE (sólo su fila, sin joins).
+
+    Llamar dentro de `transaction.atomic()`. Todas las comprobaciones y escrituras de la acción
+    se hacen sobre la instancia devuelta, nunca sobre la copia leída antes. El orden de bloqueo
+    del módulo es préstamo → contrato: después de esto no se bloquea el préstamo.
+    """
+    from .models_contracts import Contract
+
+    return Contract.objects.select_for_update(of=('self',)).get(pk=contract.pk)

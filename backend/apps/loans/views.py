@@ -30,8 +30,12 @@ from .serializers import (
     GuarantorSerializer, GuarantorListSerializer,
 )
 from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, CanRegisterPayments
-from .policy import validate_approval
+from .policy import (
+    LOAN_STATUSES_BEFORE_DISBURSEMENT, TERMINAL_CONTRACT_STATUSES, contract_deletable, validate_approval,
+)
 from .locks import LoanNotPending, lock_pending_loans, lock_row, lock_row_loans
+# Bloqueo del contrato compartido con el admin (orden préstamo → contrato).
+from .locks import lock_contract as _lock_contract
 from .disbursement import (
     apply_disbursement, calculate_payment_amount, check_disbursable, generate_payment_schedule,
 )
@@ -261,10 +265,6 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-# Estados finales: ninguna acción vuelve a reescribir el estado de un contrato así.
-TERMINAL_CONTRACT_STATUSES = ('cancelled', 'completed')
-
-
 def _terminal_contract_response(contract):
     """400 si el contrato está cancelado o completado; None si se puede seguir."""
     if contract.status in TERMINAL_CONTRACT_STATUSES:
@@ -274,23 +274,6 @@ def _terminal_contract_response(contract):
             status=status.HTTP_400_BAD_REQUEST
         )
     return None
-
-
-def _lock_contract(contract):
-    """Vuelve a leer el contrato con SELECT ... FOR UPDATE (sólo su fila, sin joins).
-
-    Llamar dentro de `transaction.atomic()`. Todas las comprobaciones y escrituras de la acción
-    se hacen sobre la instancia devuelta, nunca sobre la copia de `get_object()`. El orden de
-    bloqueo en el código es préstamo → contrato: después de esto no se bloquea el préstamo.
-    """
-    from .models_contracts import Contract
-
-    return Contract.objects.select_for_update(of=('self',)).get(pk=contract.pk)
-
-
-# Estados del préstamo anteriores al desembolso: sólo con éstos se puede cancelar su contrato.
-# (`disbursement_date` también marca el desembolso, pero el estado es la condición principal.)
-LOAN_STATUSES_BEFORE_DISBURSEMENT = ('pending', 'approved', 'rejected')
 
 
 class LoanViewSet(viewsets.ModelViewSet):
@@ -1568,13 +1551,8 @@ class ContractViewSet(viewsets.ModelViewSet):
         # se lee sin bloquearlo (orden préstamo → contrato), como en cancel.
         with transaction.atomic():
             contract = _lock_contract(instance)
-            deletable = (
-                not contract.customer_signed_at
-                and not contract.officer_signed_at
-                and contract.status in ('draft', 'pending_signature')
-                and contract.loan.status in LOAN_STATUSES_BEFORE_DISBURSEMENT
-            )
-            if not deletable:
+            # Mismo predicado que ContractAdmin (policy.contract_deletable).
+            if not contract_deletable(contract):
                 raise ValidationError({
                     'error': 'Solo se eliminan contratos sin firmas de préstamos no desembolsados; '
                              'use cancelar.'

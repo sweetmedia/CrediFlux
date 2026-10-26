@@ -3,6 +3,7 @@ Loan admin configuration with Unfold best practices
 """
 from django import forms
 from django.contrib import admin
+from django.contrib.admin.utils import flatten_fieldsets
 from django.utils.html import format_html
 from django.db import connection, router, transaction
 from unfold.admin import ModelAdmin, TabularInline
@@ -17,11 +18,13 @@ from rest_framework.exceptions import ValidationError
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from .policy import (
-    LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS, loan_terms_locked,
+    CONTRACT_EDITABLE_FIELDS, LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS,
+    TERMINAL_CONTRACT_STATUSES, contract_deletable, loan_terms_locked,
     validate_approval, validate_origination,
 )
+from .permissions import can_manage_loans
 from .disbursement import apply_disbursement, calculate_payment_amount, check_disbursable
-from .locks import LoanNotPending, lock_pending_loans, lock_row_loans
+from .locks import LoanNotPending, lock_contract, lock_pending_loans, lock_row_loans
 
 
 # Roles que pueden aprobar, rechazar y desembolsar: mismo criterio que CanApproveLoan en
@@ -1515,6 +1518,51 @@ class ContractAdmin(TenantUserFKMixin, ModelAdmin):
         }),
     )
 
+    # Mismas reglas que ContractViewSet: en el alta se eligen préstamo, plantilla y campos libres
+    # (el texto sale de la plantilla); estado, PDF y firmas sólo cambian por las acciones del
+    # contrato. En edición sólo quedan los campos libres (CONTRACT_EDITABLE_FIELDS).
+    ADD_LOCKED_FIELDS = (
+        'status', 'content', 'pdf_file', 'generated_by',
+        'customer_signed_at', 'customer_signature', 'officer_signed_at', 'officer_signature',
+        'witness_signed_at', 'witness_signature',
+    )
+    TERMINAL_MESSAGE = 'Este contrato está cancelado o completado; genere uno nuevo.'
+    DELETE_MESSAGE = 'Solo se eliminan contratos sin firmas de préstamos no desembolsados; use cancelar.'
+
+    def has_module_permission(self, request):
+        """Only show in tenant schemas"""
+        return is_tenant_schema()
+
+    def has_view_permission(self, request, obj=None):
+        """Only allow view in tenant schemas"""
+        return is_tenant_schema() and super().has_view_permission(request, obj)
+
+    # Escribir exige, además del permiso de modelo, el rol de CanManageLoans (superusuario, dueño
+    # del tenant o rol gestor): un viewer o cajero con permisos de contrato sólo puede mirar.
+    def has_add_permission(self, request):
+        return (
+            is_tenant_schema() and can_manage_loans(request.user)
+            and super().has_add_permission(request)
+        )
+
+    def has_change_permission(self, request, obj=None):
+        """Un contrato cancelado o completado no se edita; la decisión final, en save_model."""
+        if obj is not None and obj.status in TERMINAL_CONTRACT_STATUSES:
+            return False
+        return (
+            is_tenant_schema() and can_manage_loans(request.user)
+            and super().has_change_permission(request, obj)
+        )
+
+    def has_delete_permission(self, request, obj=None):
+        """Como ContractViewSet.perform_destroy (contract_deletable); se revalida bloqueando."""
+        if obj is not None and not contract_deletable(obj):
+            return False
+        return (
+            is_tenant_schema() and can_manage_loans(request.user)
+            and super().has_delete_permission(request, obj)
+        )
+
     @display(description='Loan Number', ordering='loan__loan_number')
     def get_loan_number(self, obj):
         """Display loan number"""
@@ -1526,39 +1574,88 @@ class ContractAdmin(TenantUserFKMixin, ModelAdmin):
         return obj.loan.customer.get_full_name() if obj.loan else '-'
 
     def get_readonly_fields(self, request, obj=None):
-        """Make generated_by readonly after creation"""
-        readonly = super().get_readonly_fields(request, obj)
-        if obj:
-            return readonly + ['generated_by']
-        return readonly
+        """Alta: todo menos préstamo, plantilla y campos libres. Edición: todo menos los campos libres."""
+        if obj is None:
+            return list(self.readonly_fields) + list(self.ADD_LOCKED_FIELDS)
+        return [
+            field for field in flatten_fieldsets(self.fieldsets)
+            if field not in CONTRACT_EDITABLE_FIELDS
+        ]
 
     def save_model(self, request, obj, form, change):
-        """Auto-assign generated_by and generate content on creation"""
-        if not change:
-            obj.generated_by = request.user
+        """Alta: generated_by y texto desde la plantilla. Edición: sólo campos libres, bloqueando."""
+        if change:
+            # Como ContractViewSet.perform_update: se decide y se escribe sobre la fila bloqueada
+            # (un cancel confirmado entretanto queda a la vista y no se pisa con la copia leída
+            # antes) y sólo se guardan los campos libres cambiados.
+            with transaction.atomic():
+                contract = lock_contract(obj)
+                if contract.status in TERMINAL_CONTRACT_STATUSES:
+                    raise PermissionDenied(self.TERMINAL_MESSAGE)
+                changed = [field for field in form.changed_data if field in CONTRACT_EDITABLE_FIELDS]
+                for field in changed:
+                    setattr(contract, field, getattr(obj, field))
+                contract.save(update_fields=changed + ['updated_at'])
+            return
 
-            # Generate content from template if template is set
-            if obj.template:
-                from .utils_contracts import replace_contract_variables
-                from apps.tenants.models import Tenant
+        obj.generated_by = request.user
 
-                # Try to get tenant from request
-                try:
-                    tenant_schema = connection.schema_name
-                    if tenant_schema and tenant_schema != 'public':
-                        tenant = Tenant.objects.get(schema_name=tenant_schema)
-                    else:
-                        tenant = None
-                except:
+        # Generate content from template if template is set
+        if obj.template:
+            from .utils_contracts import replace_contract_variables
+            from apps.tenants.models import Tenant
+
+            # Try to get tenant from request
+            try:
+                tenant_schema = connection.schema_name
+                if tenant_schema and tenant_schema != 'public':
+                    tenant = Tenant.objects.get(schema_name=tenant_schema)
+                else:
                     tenant = None
+            except:
+                tenant = None
 
-                obj.content = replace_contract_variables(
-                    obj.template.content,
-                    obj.loan,
-                    tenant
-                )
+            obj.content = replace_contract_variables(
+                obj.template.content,
+                obj.loan,
+                tenant
+            )
 
         super().save_model(request, obj, form, change)
+
+    def delete_model(self, request, obj):
+        """Como ContractViewSet.perform_destroy: se decide sobre el contrato bloqueado."""
+        with transaction.atomic():
+            contract = lock_contract(obj)
+            if not contract_deletable(contract):
+                raise PermissionDenied(self.DELETE_MESSAGE)
+            super().delete_model(request, contract)
+
+    def delete_queryset(self, request, queryset):
+        """Acción masiva «Eliminar»: todo o nada, con el mismo predicado que la API.
+
+        La acción no abre transacción, así que se abre aquí. Se bloquean los contratos en orden de
+        pk (orden determinista frente a otro borrado masivo) y se decide sobre las filas bloqueadas:
+        si alguno ya no se puede borrar (p. ej. se firmó entretanto), no se borra ninguno.
+        """
+        with transaction.atomic():
+            pks = list(queryset.order_by().values_list('pk', flat=True))
+            locked = list(
+                Contract.objects.select_for_update(of=('self',)).filter(pk__in=pks).order_by('pk')
+            )
+            if any(not contract_deletable(contract) for contract in locked):
+                raise PermissionDenied(self.DELETE_MESSAGE)
+            super().delete_queryset(request, Contract.objects.filter(pk__in=[c.pk for c in locked]))
+
+    def get_deleted_objects(self, objs, request):
+        """Los enlaces de firma caen con su contrato, como en la API.
+
+        ContractSignatureTokenAdmin no deja borrar enlaces sueltos (revocar es cancelar el contrato),
+        así que no se exige ese permiso para la cascada de un contrato que sí se puede borrar.
+        """
+        deleted, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
+        perms_needed.discard(ContractSignatureToken._meta.verbose_name)
+        return deleted, model_count, perms_needed, protected
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -1586,8 +1683,13 @@ class ContractSignatureTokenAdmin(ModelAdmin):
         'sent_at',
         'expires_at',
     ]
-    search_fields = ['email', 'contract__contract_number', 'token']
-    readonly_fields = ['id', 'token', 'sent_at', 'used_at', 'created_at']
+    # El token es una credencial al portador (firma por public_contract_sign): no se muestra ni
+    # se busca. Sólo se ve si el enlace sigue valiendo.
+    search_fields = ['email', 'contract__contract_number']
+    readonly_fields = [
+        'id', 'contract', 'email', 'can_sign_as_customer', 'can_sign_as_officer',
+        'expires_at', 'is_valid_status', 'sent_at', 'used_at', 'created_at',
+    ]
 
     fieldsets = [
         ('Contract Information', {
@@ -1597,21 +1699,41 @@ class ContractSignatureTokenAdmin(ModelAdmin):
             'fields': ['can_sign_as_customer', 'can_sign_as_officer']
         }),
         ('Token Details', {
-            'fields': ['token', 'expires_at']
+            'fields': ['expires_at', 'is_valid_status']
         }),
         ('Tracking', {
             'fields': ['sent_at', 'used_at', 'created_at']
         }),
     ]
 
+    # Sólo lectura para todos, superusuario incluido: los enlaces sólo nacen de
+    # ContractViewSet.send_for_signature (alcance y vencimiento los fija el servidor) y se revocan
+    # cancelando el contrato. Borrar uno suelto tampoco se permite; caen con su contrato
+    # (ContractAdmin.get_deleted_objects).
+    def has_module_permission(self, request):
+        return is_tenant_schema()
+
+    def has_view_permission(self, request, obj=None):
+        return is_tenant_schema() and super().has_view_permission(request, obj)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
     def is_valid_status(self, obj):
         """Display whether token is valid"""
         if obj.is_valid:
-            return format_html('<span style="color: green;">✓ Valid</span>')
+            color, label = 'green', '✓ Valid'
         elif obj.is_used:
-            return format_html('<span style="color: gray;">Used</span>')
+            color, label = 'gray', 'Used'
         else:
-            return format_html('<span style="color: red;">Expired</span>')
+            color, label = 'red', 'Expired'
+        return format_html('<span style="color: {};">{}</span>', color, label)
     is_valid_status.short_description = 'Status'
 
     def get_queryset(self, request):

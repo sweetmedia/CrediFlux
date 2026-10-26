@@ -53,6 +53,33 @@ def loan_terms_locked(loan):
     ).exists()
 
 
+# Estados finales del contrato: ninguna acción vuelve a reescribir su estado ni sus campos libres.
+TERMINAL_CONTRACT_STATUSES = ('cancelled', 'completed')
+
+# Estados del préstamo anteriores al desembolso: sólo con éstos se puede cancelar o borrar su
+# contrato. (`disbursement_date` también marca el desembolso, pero el estado es la condición principal.)
+LOAN_STATUSES_BEFORE_DISBURSEMENT = ('pending', 'approved', 'rejected')
+
+# Campos libres del contrato: lo único que se edita a mano (API: ContractSerializer; admin:
+# ContractAdmin). Préstamo, plantilla, texto, PDF, estado y firmas sólo cambian por las acciones.
+CONTRACT_EDITABLE_FIELDS = ('special_terms', 'notes', 'witness_name', 'witness_id')
+
+
+def contract_deletable(contract):
+    """¿Se puede borrar el contrato? Borrar no sustituye a cancelar.
+
+    Sólo un contrato sin firmas, en borrador o por firmar, de un préstamo no desembolsado.
+    Única regla para ContractViewSet.perform_destroy y ContractAdmin (delete_model y
+    delete_queryset); evaluarla sobre la fila bloqueada (locks.lock_contract).
+    """
+    return (
+        not contract.customer_signed_at
+        and not contract.officer_signed_at
+        and contract.status in ('draft', 'pending_signature')
+        and contract.loan.status in LOAN_STATUSES_BEFORE_DISBURSEMENT
+    )
+
+
 def _amount(value):
     """Money / Decimal / número / None → Decimal | None."""
     if value is None:
