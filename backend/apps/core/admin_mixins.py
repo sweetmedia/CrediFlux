@@ -7,6 +7,9 @@ para los módulos de estado global (tablas que sólo existen en el schema públi
 todos los tenants: Constance, Celery beat, tokens, emails de allauth, grupos, sites...): un
 superusuario atado a un tenant los tiene todos implícitos. Esos módulos son sólo del
 superusuario de plataforma (`is_superuser` y sin tenant).
+
+La tabla de usuarios también es compartida: los admins de modelos de tenant con FK a usuarios
+usan `TenantUserFKMixin` para no listar ni aceptar usuarios de otro tenant.
 """
 
 
@@ -45,6 +48,102 @@ class PlatformAdminOnlyMixin:
 
     def has_delete_permission(self, request, obj=None):
         return is_platform_admin(request.user) and super().has_delete_permission(request, obj)
+
+
+def _is_user_field(db_field):
+    from django.contrib.auth import get_user_model
+    return getattr(db_field, 'related_model', None) is get_user_model()
+
+
+def tenant_users(user):
+    """Usuarios activos del tenant de `user` (ninguno si no tiene tenant)."""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    tenant_id = getattr(user, 'tenant_id', None)
+    if not tenant_id:
+        return User.objects.none()
+    return User.objects.filter(tenant_id=tenant_id, is_active=True)
+
+
+class TenantUserFKMixin:
+    """FKs y M2M a usuarios acotados al tenant de quien pide en formularios y filtros de lista.
+
+    La tabla de usuarios es compartida (schema public): sin esto, los selects, los inlines y
+    los filtros de lista del admin de un modelo de tenant listan a los usuarios de todos los
+    tenants y de la plataforma, y el formulario acepta un usuario ajeno (igual que
+    `loans.fields.TenantUserField` en la API). Para quien no es superusuario de plataforma el
+    queryset del campo son los usuarios activos de su tenant, y como el formfield valida contra
+    él, un POST con otro usuario no pasa. El usuario ya asignado al objeto que se edita se
+    conserva aunque esté inactivo, para no vaciar el campo al guardar. Va antes de la clase
+    base del admin (o del inline) en la herencia; los métodos que esa base no tiene (p. ej.
+    `get_formset` en un ModelAdmin o `get_list_filter` en un inline) nunca se llaman.
+    """
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if _is_user_field(db_field) and not is_platform_admin(request.user):
+            kwargs['queryset'] = tenant_users(request.user)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if _is_user_field(db_field) and not is_platform_admin(request.user):
+            kwargs['queryset'] = tenant_users(request.user)
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+    def get_list_filter(self, request):
+        # Un FK a usuarios en `list_filter` usa el filtro acotado al tenant.
+        from django.contrib.admin.utils import get_fields_from_path
+
+        from apps.core.admin_filters import TenantUserListFilter
+
+        list_filter = []
+        for entry in super().get_list_filter(request):
+            if isinstance(entry, str) and _is_user_field(get_fields_from_path(self.model, entry)[-1]):
+                entry = (entry, TenantUserListFilter)
+            list_filter.append(entry)
+        return list_filter
+
+    def get_form(self, request, obj=None, **kwargs):
+        return _keep_assigned_users(super().get_form(request, obj, **kwargs), request)
+
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        # inlineformset_factory crea una clase nueva por llamada: el atributo no se comparte.
+        formset.form = _keep_assigned_users(formset.form, request)
+        return formset
+
+    def get_changelist_form(self, request, **kwargs):
+        return _keep_assigned_users(super().get_changelist_form(request, **kwargs), request)
+
+
+def _keep_assigned_users(form_class, request):
+    """Subclase de `form_class` que añade al select el usuario ya asignado al objeto.
+
+    Sólo si es del tenant de quien pide (p. ej. un empleado que se desactivó): un usuario de
+    otro tenant asignado por datos antiguos no entra en las opciones.
+    """
+    tenant_id = getattr(request.user, 'tenant_id', None)
+    if is_platform_admin(request.user) or not tenant_id:
+        return form_class
+    user_fks = {
+        f.name for f in form_class._meta.model._meta.concrete_fields
+        if f.many_to_one or f.one_to_one
+        if _is_user_field(f)
+    }
+    names = [name for name in form_class.base_fields if name in user_fks]
+    if not names:
+        return form_class
+
+    def __init__(self, *args, **kwargs):
+        form_class.__init__(self, *args, **kwargs)
+        for name in names:
+            current = getattr(self.instance, f'{name}_id', None) if self.instance.pk else None
+            if current:
+                field = self.fields[name]
+                field.queryset = field.queryset | field.queryset.model.objects.filter(
+                    pk=current, tenant_id=tenant_id,
+                )
+
+    return type(form_class.__name__, (form_class,), {'__init__': __init__, '__module__': form_class.__module__})
 
 
 def restrict_to_platform_admin(site, *models):

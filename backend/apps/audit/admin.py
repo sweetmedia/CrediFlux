@@ -1,11 +1,11 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
-from apps.core.admin_mixins import is_platform_admin
+from apps.core.admin_mixins import TenantUserFKMixin, is_platform_admin
 from .models import AuditLog
 
 
 @admin.register(AuditLog)
-class AuditLogAdmin(ModelAdmin):
+class AuditLogAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin for viewing audit logs."""
 
     list_display = [

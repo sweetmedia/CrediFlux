@@ -7,6 +7,7 @@ from django.utils.html import format_html
 from django.db import connection, router, transaction
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
+from apps.core.admin_mixins import TenantUserFKMixin
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_contacts import CustomerPhone, CustomerEmail
 from .models_guarantors import Guarantor
@@ -94,7 +95,7 @@ def _lock_related_loans(queryset, message):
     return list(locked)
 
 
-class _ReadOnlyLoanInline(TabularInline):
+class _ReadOnlyLoanInline(TenantUserFKMixin, TabularInline):
     """Filas que sólo cambian por sus flujos (desembolso, pagos, reversos), nunca por el formulario."""
     extra = 0
     can_delete = False
@@ -112,7 +113,7 @@ class _ReadOnlyLoanInline(TabularInline):
         return False
 
 
-class CustomerDocumentInline(TabularInline):
+class CustomerDocumentInline(TenantUserFKMixin, TabularInline):
     """Inline admin for customer documents"""
     model = CustomerDocument
     extra = 0
@@ -142,7 +143,7 @@ class CustomerEmailInline(TabularInline):
 
 
 @admin.register(Customer)
-class CustomerAdmin(ModelAdmin):
+class CustomerAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin interface for Customer model with Unfold best practices"""
 
     # Unfold specific settings
@@ -308,7 +309,7 @@ class LoanPaymentInline(_ReadOnlyLoanInline):
     ]
 
 
-class CollateralInline(TabularInline):
+class CollateralInline(TenantUserFKMixin, TabularInline):
     """Inline admin for collaterals (editables sólo mientras el préstamo está pendiente)"""
     model = Collateral
     extra = 0
@@ -364,7 +365,7 @@ class LoanAdminForm(forms.ModelForm):
 
 
 @admin.register(Loan)
-class LoanAdmin(ModelAdmin):
+class LoanAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin interface for Loan model with Unfold best practices"""
 
     # Unfold specific settings
@@ -924,7 +925,7 @@ class LoanScheduleAdmin(ModelAdmin):
 
 
 @admin.register(LoanPayment)
-class LoanPaymentAdmin(ModelAdmin):
+class LoanPaymentAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin interface for LoanPayment model with Unfold best practices"""
 
     # Unfold specific settings
@@ -1005,7 +1006,7 @@ class LoanPaymentAdmin(ModelAdmin):
 
 
 @admin.register(Collateral)
-class CollateralAdmin(ModelAdmin):
+class CollateralAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin interface for Collateral model with Unfold best practices"""
 
     # Unfold specific settings
@@ -1126,7 +1127,7 @@ class CollateralAdmin(ModelAdmin):
 
 
 @admin.register(CustomerDocument)
-class CustomerDocumentAdmin(ModelAdmin):
+class CustomerDocumentAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin interface for CustomerDocument model with Unfold best practices"""
 
     # Unfold specific settings
@@ -1237,7 +1238,7 @@ class CustomerDocumentAdmin(ModelAdmin):
 
 
 @admin.register(CollectionReminder)
-class CollectionReminderAdmin(ModelAdmin):
+class CollectionReminderAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin interface for CollectionReminder model"""
 
     # Unfold specific settings
@@ -1316,7 +1317,7 @@ class CollectionReminderAdmin(ModelAdmin):
 
 
 @admin.register(CollectionContact)
-class CollectionContactAdmin(ModelAdmin):
+class CollectionContactAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin interface for CollectionContact model"""
 
     # Unfold specific settings
@@ -1402,7 +1403,7 @@ class CollectionContactAdmin(ModelAdmin):
 # ============================================================================
 
 @admin.register(ContractTemplate)
-class ContractTemplateAdmin(ModelAdmin):
+class ContractTemplateAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin interface for ContractTemplate model"""
 
     list_fullwidth = True
@@ -1454,7 +1455,7 @@ class ContractTemplateAdmin(ModelAdmin):
 # ============================================================================
 
 @admin.register(Contract)
-class ContractAdmin(ModelAdmin):
+class ContractAdmin(TenantUserFKMixin, ModelAdmin):
     """Admin interface for Contract model"""
 
     list_fullwidth = True
@@ -1643,7 +1644,7 @@ class CustomerEmailAdmin(ModelAdmin):
 # ============================================================
 
 @admin.register(Guarantor)
-class GuarantorAdmin(ModelAdmin):
+class GuarantorAdmin(TenantUserFKMixin, ModelAdmin):
     list_display = ['get_full_name', 'id_number', 'loan', 'relationship', 'status', 'phone']
     list_filter = ['status', 'relationship', 'id_type']
     search_fields = ['first_name', 'last_name', 'id_number', 'phone', 'email']

@@ -1,10 +1,11 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
+from apps.core.admin_mixins import TenantUserFKMixin
 from .models import Email, WhatsAppMessage, Task
 
 
 @admin.register(Email)
-class EmailAdmin(ModelAdmin):
+class EmailAdmin(TenantUserFKMixin, ModelAdmin):
     list_display = ['subject', 'from_email', 'to_email', 'direction', 'status', 'created_at']
     list_filter = ['direction', 'status', 'created_at']
     search_fields = ['subject', 'from_email', 'to_email', 'body_text']
@@ -13,7 +14,7 @@ class EmailAdmin(ModelAdmin):
 
 
 @admin.register(WhatsAppMessage)
-class WhatsAppMessageAdmin(ModelAdmin):
+class WhatsAppMessageAdmin(TenantUserFKMixin, ModelAdmin):
     list_display = ['wa_message_id', 'from_phone', 'to_phone', 'direction', 'status', 'message_type', 'created_at']
     list_filter = ['direction', 'status', 'message_type', 'created_at']
     search_fields = ['wa_message_id', 'from_phone', 'to_phone', 'content']
@@ -22,7 +23,7 @@ class WhatsAppMessageAdmin(ModelAdmin):
 
 
 @admin.register(Task)
-class TaskAdmin(ModelAdmin):
+class TaskAdmin(TenantUserFKMixin, ModelAdmin):
     list_display = ['title', 'status', 'priority', 'assignee', 'due_date', 'created_at']
     list_filter = ['status', 'priority', 'assignee', 'created_at']
     search_fields = ['title', 'description']

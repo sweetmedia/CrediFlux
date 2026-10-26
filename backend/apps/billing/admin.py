@@ -4,6 +4,7 @@ Uses Django Unfold for a modern admin experience.
 """
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
+from apps.core.admin_mixins import TenantUserFKMixin
 from .models import (
     DigitalCertificate, FiscalSequence, Invoice, InvoiceItem, ECFSubmission,
     NexConnectWebhookEvent,
@@ -46,7 +47,7 @@ class FiscalSequenceAdmin(ModelAdmin):
 
 
 @admin.register(Invoice)
-class InvoiceAdmin(ModelAdmin):
+class InvoiceAdmin(TenantUserFKMixin, ModelAdmin):
     list_display = ['encf_number', 'ecf_type', 'comprador_razon_social', 'total', 'status', 'issue_date', 'dgii_status']
     list_filter = ['status', 'ecf_type', 'issue_date']
     search_fields = ['encf_number', 'comprador_razon_social', 'comprador_rnc', 'dgii_trackid']
