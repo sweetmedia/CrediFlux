@@ -15,9 +15,15 @@ from unfold.widgets import UnfoldAdminSelectWidget, UnfoldAdminTextInputWidget
 from unfold.decorators import action
 from constance import config as constance_config
 from constance.admin import ConstanceAdmin, Config
+from django.contrib.auth.models import Group
+from django.contrib.sites.models import Site
+from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
+from rest_framework.authtoken.models import TokenProxy
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 import logging
 import sys
 
+from .admin_mixins import PlatformAdminOnlyMixin, is_platform_admin, restrict_to_platform_admin
 from .models import PadronJCE
 
 logger = logging.getLogger(__name__)
@@ -42,6 +48,8 @@ from django_celery_beat.admin import (
     TaskSelectWidget,
 )
 
+# Celery beat es de la plataforma (schema público, lo ejecuta el beat de todos los tenants):
+# sus admins sólo los ve y edita el superusuario de plataforma.
 # Unregister default django-celery-beat admin classes
 admin.site.unregister(PeriodicTask)
 admin.site.unregister(IntervalSchedule)
@@ -66,7 +74,7 @@ class UnfoldPeriodicTaskForm(PeriodicTaskForm):
 
 # Register models with Unfold styling
 @admin.register(PeriodicTask)
-class PeriodicTaskAdmin(BasePeriodicTaskAdmin, ModelAdmin):
+class PeriodicTaskAdmin(PlatformAdminOnlyMixin, BasePeriodicTaskAdmin, ModelAdmin):
     """
     Periodic Task admin with Unfold styling
     Inherits from both django-celery-beat's admin and Unfold's ModelAdmin
@@ -75,25 +83,25 @@ class PeriodicTaskAdmin(BasePeriodicTaskAdmin, ModelAdmin):
 
 
 @admin.register(IntervalSchedule)
-class IntervalScheduleAdmin(ModelAdmin):
+class IntervalScheduleAdmin(PlatformAdminOnlyMixin, ModelAdmin):
     """Interval Schedule admin with Unfold styling"""
     pass
 
 
 @admin.register(CrontabSchedule)
-class CrontabScheduleAdmin(BaseCrontabScheduleAdmin, ModelAdmin):
+class CrontabScheduleAdmin(PlatformAdminOnlyMixin, BaseCrontabScheduleAdmin, ModelAdmin):
     """Crontab Schedule admin with Unfold styling"""
     pass
 
 
 @admin.register(SolarSchedule)
-class SolarScheduleAdmin(ModelAdmin):
+class SolarScheduleAdmin(PlatformAdminOnlyMixin, ModelAdmin):
     """Solar Schedule admin with Unfold styling"""
     pass
 
 
 @admin.register(ClockedSchedule)
-class ClockedScheduleAdmin(BaseClockedScheduleAdmin, ModelAdmin):
+class ClockedScheduleAdmin(PlatformAdminOnlyMixin, BaseClockedScheduleAdmin, ModelAdmin):
     """Clocked Schedule admin with Unfold styling"""
     pass
 
@@ -107,9 +115,11 @@ admin.site.unregister([Config])
 
 
 @admin.register(Config)
-class CustomConstanceAdmin(ConstanceAdmin):
+class CustomConstanceAdmin(PlatformAdminOnlyMixin, ConstanceAdmin):
     """
-    Custom Constance admin with RNC database update button
+    Custom Constance admin with RNC database update button.
+
+    Sólo del superusuario de plataforma: la configuración es una sola para todos los tenants.
     """
     change_list_template = 'admin/constance/change_list.html'
 
@@ -127,7 +137,7 @@ class CustomConstanceAdmin(ConstanceAdmin):
 
     def update_rnc_database_view(self, request):
         """Encola la actualización del RNC (sólo superusuarios de plataforma)."""
-        if not (request.user.is_superuser and request.user.tenant_id is None):
+        if not is_platform_admin(request.user):
             raise PermissionDenied
 
         if request.method == 'POST':
@@ -192,8 +202,8 @@ class CustomConstanceAdmin(ConstanceAdmin):
 # ============================================================================
 
 @admin.register(PadronJCE)
-class PadronJCEAdmin(ModelAdmin):
-    """Read-only admin for JCE Padrón (~7.9M citizens)"""
+class PadronJCEAdmin(PlatformAdminOnlyMixin, ModelAdmin):
+    """Read-only admin for JCE Padrón (~7.9M citizens). Sólo plataforma: es un dato nacional, no de un tenant."""
     list_display = ['cedula', 'nombres', 'apellido1', 'apellido2', 'fecha_nacimiento']
     search_fields = ['cedula', 'nombres', 'apellido1', 'apellido2']
     list_filter = ['fecha_nacimiento']
@@ -208,3 +218,24 @@ class PadronJCEAdmin(ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+# ============================================================================
+# ADMINS DE TERCEROS SOBRE ESTADO DE PLATAFORMA
+# ============================================================================
+# Grupos, sites, tokens (authtoken y la lista negra de simplejwt) y socialaccount viven sólo en el
+# schema público y valen para todos los tenants. Sus apps los registran con los permisos de modelo
+# de Django, que un superusuario atado a un tenant tiene implícitos: se vuelven a registrar con
+# PlatformAdminOnlyMixin delante. Este módulo carga después de esas apps (orden de INSTALLED_APPS).
+
+restrict_to_platform_admin(
+    admin.site,
+    Group,
+    Site,
+    TokenProxy,
+    OutstandingToken,
+    BlacklistedToken,
+    SocialApp,
+    SocialAccount,
+    SocialToken,
+)

@@ -19,11 +19,14 @@ def environment_callback(request):
 
 
 def is_platform_admin_request(request):
-    """Permiso de Unfold para los ítems de tenants y dominios: sólo el superusuario de
-    plataforma (`is_superuser` y sin tenant). Ocultarlos es cosmético; la garantía está en
-    `TenantAdmin`/`DomainAdmin`."""
-    user = getattr(request, 'user', None)
-    return bool(user is not None and user.is_authenticated and user.is_superuser and user.tenant_id is None)
+    """Permiso de Unfold para los ítems de estado de plataforma (tenants, dominios, grupos,
+    Celery beat, Constance...): sólo el superusuario de plataforma (`is_superuser` y sin
+    tenant). Ocultarlos es cosmético; la garantía está en `PlatformAdminOnlyMixin`.
+
+    Importa la regla de forma perezosa: este módulo lo referencian los settings."""
+    from apps.core.admin_mixins import is_platform_admin
+
+    return is_platform_admin(getattr(request, 'user', None))
 
 
 def get_navigation(request):
@@ -94,6 +97,7 @@ def get_navigation(request):
                         "title": "Groups",
                         "icon": "group_work",
                         "link": safe_reverse("admin:auth_group_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                 ],
             },
@@ -105,11 +109,13 @@ def get_navigation(request):
                         "title": "Sites",
                         "icon": "public",
                         "link": safe_reverse("admin:sites_site_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                     {
                         "title": "Auth Tokens",
                         "icon": "key",
                         "link": safe_reverse("admin:authtoken_tokenproxy_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                 ],
             },
@@ -161,6 +167,7 @@ def get_navigation(request):
                         "title": "Groups",
                         "icon": "group_work",
                         "link": safe_reverse("admin:auth_group_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                 ],
             },
@@ -172,11 +179,13 @@ def get_navigation(request):
                         "title": "Sites",
                         "icon": "public",
                         "link": safe_reverse("admin:sites_site_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                     {
                         "title": "Auth Tokens",
                         "icon": "key",
                         "link": safe_reverse("admin:authtoken_tokenproxy_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                 ],
             },
@@ -572,6 +581,7 @@ def get_sidebar_navigation_callback(request):
                         "title": _("Grupos"),
                         "icon": "group_work",
                         "link": safe_reverse("admin:auth_group_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                     {
                         "title": _("Auditoría"),
@@ -616,6 +626,7 @@ def get_sidebar_navigation_callback(request):
                         "title": _("Grupos"),
                         "icon": "group_work",
                         "link": safe_reverse("admin:auth_group_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                     {
                         "title": _("Auditoría"),
@@ -632,6 +643,7 @@ def get_sidebar_navigation_callback(request):
                         "title": _("Tareas programadas"),
                         "icon": "timer",
                         "link": safe_reverse("admin:django_celery_beat_periodictask_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                     {
                         "title": _("Certificados digitales"),
@@ -656,6 +668,7 @@ def get_sidebar_navigation_callback(request):
                 "title": _("Settings"),
                 "icon": "settings",
                 "link": safe_reverse("admin:constance_config_changelist"),
+                "permission": is_platform_admin_request,
             },
         ],
     })
@@ -711,6 +724,7 @@ def _build_full_navigation():
                     "title": _("Groups"),
                     "icon": "group_work",
                     "link": reverse_lazy("admin:auth_group_changelist"),
+                    "permission": is_platform_admin_request,
                 },
             ],
         },
@@ -753,6 +767,7 @@ def _build_full_navigation():
                     "title": _("Settings"),
                     "icon": "settings",
                     "link": reverse_lazy("admin:constance_config_changelist"),
+                    "permission": is_platform_admin_request,
                 },
             ],
         },

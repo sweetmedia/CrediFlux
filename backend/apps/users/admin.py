@@ -16,6 +16,7 @@ from unfold.decorators import display, action
 from allauth.account.models import EmailAddress
 from allauth.account.utils import send_email_confirmation
 from rest_framework import serializers
+from apps.core.admin_mixins import is_platform_admin as _is_platform_admin
 from .lockout import validate_strength
 from .models import User
 from .quota import SEAT_LIMIT_MESSAGE, seats_left
@@ -23,10 +24,6 @@ from .tokens import revoke_user_credentials
 
 # Campos que sólo el superusuario de plataforma (tenant=None) puede ver o editar.
 PRIVILEGE_FIELDS = ('is_superuser', 'is_staff', 'groups', 'user_permissions', 'tenant', 'is_tenant_owner')
-
-
-def _is_platform_admin(user):
-    return user.is_superuser and user.tenant_id is None
 
 
 def _can_assign_admin(user):

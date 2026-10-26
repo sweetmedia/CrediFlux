@@ -16,6 +16,9 @@ from django.db import connection, transaction
 from unfold.admin import ModelAdmin
 from unfold.decorators import display, action
 from apps.audit.models import AuditLog
+# Tenants y dominios son de todos los tenants (listarlos expone a los demás; editarlos permite
+# desactivarlos o quedarse con su hostname): sólo el superusuario de plataforma.
+from apps.core.admin_mixins import PlatformAdminOnlyMixin, is_platform_admin as _is_platform_admin
 from .models import Tenant, Domain
 
 logger = logging.getLogger(__name__)
@@ -25,34 +28,6 @@ PROVISIONED_DELETE_MESSAGE = (
     'referencias a usuarios de la plataforma que el borrado no alcanza: es una operación de '
     'plataforma aparte. Desde aquí sólo se borran registros pendientes.'
 )
-
-
-def _is_platform_admin(user):
-    return user.is_superuser and user.tenant_id is None
-
-
-class PlatformAdminOnlyMixin:
-    """Módulo, vista, alta, edición y borrado sólo para el superusuario de plataforma.
-
-    Ni los permisos de modelo `tenants.*` ni ser superusuario de un tenant bastan: el admin
-    también se sirve en hosts de tenant, y estos modelos son de todos los tenants (listarlos
-    expone a los demás; editarlos permite desactivarlos o quedarse con su hostname).
-    """
-
-    def has_module_permission(self, request):
-        return _is_platform_admin(request.user) and super().has_module_permission(request)
-
-    def has_view_permission(self, request, obj=None):
-        return _is_platform_admin(request.user) and super().has_view_permission(request, obj)
-
-    def has_change_permission(self, request, obj=None):
-        return _is_platform_admin(request.user) and super().has_change_permission(request, obj)
-
-    def has_add_permission(self, request):
-        return _is_platform_admin(request.user) and super().has_add_permission(request)
-
-    def has_delete_permission(self, request, obj=None):
-        return _is_platform_admin(request.user) and super().has_delete_permission(request, obj)
 
 
 def delete_selected_tenants(modeladmin, request, queryset):

@@ -8,10 +8,12 @@ incluido el público.
 """
 from rest_framework import permissions
 
+from apps.core.admin_mixins import is_platform_admin
+
 
 def user_matches_tenant(user, tenant) -> bool:
     """True si `user` puede operar en `tenant` (el tenant del host)."""
-    if user.is_superuser and user.tenant_id is None:
+    if is_platform_admin(user):
         return True
     if tenant is None or tenant.schema_name == 'public':
         return False

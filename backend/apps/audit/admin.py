@@ -1,5 +1,6 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
+from apps.core.admin_mixins import is_platform_admin
 from .models import AuditLog
 
 
@@ -42,7 +43,7 @@ class AuditLogAdmin(ModelAdmin):
         """
         qs = super().get_queryset(request)
         user = request.user
-        if user.is_superuser and user.tenant_id is None:
+        if is_platform_admin(user):
             return qs
         if user.tenant_id is not None:
             return qs.filter(tenant_id=user.tenant_id)

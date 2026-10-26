@@ -8,6 +8,8 @@ from unfold.decorators import display, action
 from allauth.account.models import EmailAddress, EmailConfirmation
 from allauth.account.utils import send_email_confirmation
 
+from .admin_mixins import PlatformAdminOnlyMixin
+
 # Unregister default allauth admin first
 try:
     admin.site.unregister(EmailAddress)
@@ -21,8 +23,11 @@ except admin.sites.NotRegistered:
 
 
 @admin.register(EmailAddress)
-class EmailAddressAdmin(ModelAdmin):
-    """Admin interface for EmailAddress model with Unfold"""
+class EmailAddressAdmin(PlatformAdminOnlyMixin, ModelAdmin):
+    """Admin interface for EmailAddress model with Unfold.
+
+    Sólo del superusuario de plataforma: la tabla es la de todos los usuarios de todos los tenants.
+    """
 
     # Unfold specific settings
     list_fullwidth = True
@@ -98,8 +103,8 @@ class EmailAddressAdmin(ModelAdmin):
 
 
 @admin.register(EmailConfirmation)
-class EmailConfirmationAdmin(ModelAdmin):
-    """Admin interface for EmailConfirmation model with Unfold"""
+class EmailConfirmationAdmin(PlatformAdminOnlyMixin, ModelAdmin):
+    """Admin interface for EmailConfirmation model with Unfold (sólo plataforma, como EmailAddress)"""
 
     # Unfold specific settings
     list_fullwidth = True
