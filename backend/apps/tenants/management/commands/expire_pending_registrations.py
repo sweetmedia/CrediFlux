@@ -30,9 +30,11 @@ class Command(BaseCommand):
         connection.set_schema_to_public()
         expired = 0
         with transaction.atomic():
+            # Orden de pk, el mismo que el borrado masivo del admin: sin él dos borrados que se
+            # solapan podrían bloquearse en orden inverso (deadlock).
             stale = Tenant.objects.select_for_update(of=('self',)).filter(
                 provisioning_pending=True, pending_since__lt=cutoff,
-            )
+            ).order_by('pk')
             for tenant in stale:
                 # auto_drop_schema=False y sin schema: delete() sólo borra la fila (y la cascada).
                 # La auditoría del borrado queda como fila de plataforma (tenant=None).
