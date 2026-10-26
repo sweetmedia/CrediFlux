@@ -13,6 +13,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 
+from apps.core.admin_mixins import is_platform_admin
 from apps.core.media import SignedFilesModelSerializer
 from apps.core.permissions import user_matches_tenant
 from . import lockout
@@ -55,7 +56,7 @@ class TenantAwareLoginSerializer(BaseLoginSerializer):
         current_tenant = getattr(request, 'tenant', None)
 
         # Superusers with no tenant can access any domain (system admins)
-        if user.is_superuser and user.tenant is None:
+        if is_platform_admin(user):
             return attrs
 
         # Validate user belongs to current tenant

@@ -417,7 +417,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         """
         qs = super().get_queryset(request)
 
-        if request.user.is_superuser and request.user.tenant is None:
+        if _is_platform_admin(request.user):
             return qs
 
         if request.user.tenant:
@@ -437,7 +437,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         Limit tenant selection based on user permissions.
         """
         if db_field.name == "tenant":
-            if request.user.is_superuser and request.user.tenant is None:
+            if _is_platform_admin(request.user):
                 pass
             elif request.user.tenant:
                 kwargs["queryset"] = request.user.tenant.__class__.objects.filter(pk=request.user.tenant.pk)

@@ -13,6 +13,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
+from apps.core.admin_mixins import is_platform_admin
 from apps.core.net import client_network_key
 from .serializers import (
     TenantRegistrationSerializer,
@@ -350,7 +351,7 @@ class TenantSettingsView(APIView):
         user = request.user
         if user.tenant_id is not None:
             return user.tenant
-        if user.is_superuser:
+        if is_platform_admin(user):
             return getattr(request, 'tenant', None)
         return None
 

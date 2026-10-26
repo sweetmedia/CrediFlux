@@ -13,6 +13,7 @@ from django.core.cache import cache
 from django.db import connection, transaction
 from django.utils import timezone
 from django_tenants.utils import schema_exists
+from apps.core.admin_mixins import is_platform_admin
 from apps.core.media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, SignedImageField, signed_media_url
 from apps.core.net import client_network_key
 from apps.users import lockout
@@ -771,7 +772,7 @@ class TenantLoginSerializer(serializers.Serializer):
         current_tenant = getattr(request, 'tenant', None)
 
         # Sin correo ni schema en WARNING: este es el camino de cada login (Global Constraint).
-        if user.is_superuser and user.tenant is None:
+        if is_platform_admin(user):
             pass  # Los admins de plataforma (sin tenant) pueden entrar por cualquier dominio.
         else:
             # Validate user belongs to current tenant

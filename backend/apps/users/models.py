@@ -157,8 +157,13 @@ class User(AbstractUser):
 
     @property
     def is_system_admin(self):
-        """Check if user is a system administrator (superuser with no tenant)"""
-        return self.is_superuser and self.tenant is None
+        """Check if user is a system administrator (superuser with no tenant).
+
+        Misma regla que `apps.core.admin_mixins.is_platform_admin` (import perezoso: ese módulo
+        no debe cargarse junto con los modelos)."""
+        from apps.core.admin_mixins import is_platform_admin
+
+        return is_platform_admin(self)
 
     @property
     def tenant_name(self):

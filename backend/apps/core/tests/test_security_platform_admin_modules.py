@@ -54,8 +54,9 @@ PLATFORM_MODELS = [
     PadronJCE,
 ]
 PLATFORM_APP_LABELS = {model._meta.app_label for model in PLATFORM_MODELS}
-# Sólo-SHARED pero ya acotados por su propia regla (rondas 19-22): no usan el mixin.
-SCOPED_EXCEPTIONS = {User, AuditLog, Tenant, Domain}
+# Sólo-SHARED pero acotados por su propia regla (rondas 20-22), no por el mixin. Tenant y
+# Domain sí usan el mixin: el barrido los comprueba.
+SCOPED_EXCEPTIONS = {User, AuditLog}
 BEAT_SCHEDULES = ["periodictask", "intervalschedule", "crontabschedule", "solarschedule", "clockedschedule"]
 
 
@@ -291,9 +292,11 @@ def test_is_platform_admin_rule(setup):
 # --- barrido: ningún admin global futuro queda abierto ----------------------------------------
 
 def test_every_shared_only_admin_denies_a_tenant_superuser(setup):
-    """Todo admin de una app sólo-SHARED (salvo los ya acotados por su regla) deniega a un
-    superusuario con tenant. Un admin global nuevo que no use el mixin rompe este test."""
-    shared_only = set(settings.SHARED_APPS) - set(settings.TENANT_APPS)
+    """Todo admin de una app instalada que no es de tenant (salvo los acotados por su regla)
+    deniega a un superusuario con tenant. Un admin global nuevo que no use el mixin rompe este
+    test, también si su app se añade a INSTALLED_APPS fuera de SHARED_APPS (development.py)."""
+    shared_only = set(settings.INSTALLED_APPS) - set(settings.TENANT_APPS)
+    assert set(settings.SHARED_APPS) - set(settings.TENANT_APPS) <= shared_only
     request = _request(_tenant_superuser(setup))
     platform_request = _request(_platform_superuser(setup), PUBLIC_HOST)
 
@@ -305,4 +308,37 @@ def test_every_shared_only_admin_denies_a_tenant_superuser(setup):
         _assert_no_permission(model_admin, request, model.__name__)
         assert model_admin.has_view_permission(platform_request) is True, model.__name__
 
-    assert set(PLATFORM_MODELS) <= checked, set(PLATFORM_MODELS) - checked
+    assert set(PLATFORM_MODELS) | {Tenant, Domain} <= checked, set(PLATFORM_MODELS) - checked
+
+
+# --- una sola definición de la regla de plataforma --------------------------------------------
+
+def test_user_is_system_admin_delegates_to_the_shared_rule(setup, monkeypatch):
+    """`User.is_system_admin` no lleva su propia copia: un cambio en `is_platform_admin` le llega."""
+    from apps.core import admin_mixins
+
+    user = _platform_superuser(setup)
+    assert user.is_system_admin is True
+    assert _tenant_superuser(setup).is_system_admin is False
+
+    monkeypatch.setattr(admin_mixins, "is_platform_admin", lambda u: False)
+    assert user.is_system_admin is False
+
+
+def test_no_inline_copies_of_the_platform_rule():
+    """Fuera de `admin_mixins` nadie reescribe `is_superuser and ... tenant is None`: todos
+    llaman a `is_platform_admin` (o a `User.is_system_admin`, que delega en él)."""
+    import re
+    from pathlib import Path
+
+    backend = Path(settings.BASE_DIR)
+    pattern = re.compile(r"is_superuser\s+and\s+[\w.]*tenant(_id)?\s+is\s+None")
+    copies = []
+    for folder in ("apps", "config"):
+        for path in (backend / folder).rglob("*.py"):
+            if "tests" in path.parts or path.name == "admin_mixins.py":
+                continue
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if pattern.search(line):
+                    copies.append(f"{path.relative_to(backend)}:{number}")
+    assert copies == []
