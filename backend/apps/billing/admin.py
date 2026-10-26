@@ -4,7 +4,7 @@ Uses Django Unfold for a modern admin experience.
 """
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
-from apps.core.admin_mixins import TenantUserFKMixin
+from apps.core.admin_mixins import TenantHistoryMixin, TenantUserFKMixin
 from .models import (
     DigitalCertificate, FiscalSequence, Invoice, InvoiceItem, ECFSubmission,
     NexConnectWebhookEvent,
@@ -27,7 +27,7 @@ class ECFSubmissionInline(TabularInline):
 
 
 @admin.register(DigitalCertificate)
-class DigitalCertificateAdmin(ModelAdmin):
+class DigitalCertificateAdmin(TenantHistoryMixin, ModelAdmin):
     list_display = ['name', 'issuer', 'valid_from', 'valid_until', 'is_active']
     list_filter = ['is_active']
     search_fields = ['name', 'issuer', 'serial_number']
@@ -35,7 +35,7 @@ class DigitalCertificateAdmin(ModelAdmin):
 
 
 @admin.register(FiscalSequence)
-class FiscalSequenceAdmin(ModelAdmin):
+class FiscalSequenceAdmin(TenantHistoryMixin, ModelAdmin):
     list_display = ['ecf_type', 'prefix', 'range_from', 'range_to', 'current_number', 'available_count', 'expiration_date', 'is_active']
     list_filter = ['ecf_type', 'is_active']
     search_fields = ['prefix', 'authorization_number']
@@ -47,7 +47,7 @@ class FiscalSequenceAdmin(ModelAdmin):
 
 
 @admin.register(Invoice)
-class InvoiceAdmin(TenantUserFKMixin, ModelAdmin):
+class InvoiceAdmin(TenantHistoryMixin, TenantUserFKMixin, ModelAdmin):
     list_display = ['encf_number', 'ecf_type', 'comprador_razon_social', 'total', 'status', 'issue_date', 'dgii_status']
     list_filter = ['status', 'ecf_type', 'issue_date']
     search_fields = ['encf_number', 'comprador_razon_social', 'comprador_rnc', 'dgii_trackid']
@@ -94,7 +94,7 @@ class InvoiceAdmin(TenantUserFKMixin, ModelAdmin):
 
 
 @admin.register(ECFSubmission)
-class ECFSubmissionAdmin(ModelAdmin):
+class ECFSubmissionAdmin(TenantHistoryMixin, ModelAdmin):
     list_display = ['invoice', 'action', 'environment', 'trackid', 'response_status', 'http_status_code', 'submitted_at']
     list_filter = ['action', 'environment', 'response_status']
     search_fields = ['trackid', 'invoice__encf_number']
@@ -102,7 +102,7 @@ class ECFSubmissionAdmin(ModelAdmin):
 
 
 @admin.register(NexConnectWebhookEvent)
-class NexConnectWebhookEventAdmin(ModelAdmin):
+class NexConnectWebhookEventAdmin(TenantHistoryMixin, ModelAdmin):
     list_display = ['event_type', 'event_id', 'invoice', 'outcome', 'event_created_at', 'created_at']
     list_filter = ['event_type', 'outcome']
     search_fields = ['event_id', 'nexconnect_invoice_id', 'invoice__encf_number']

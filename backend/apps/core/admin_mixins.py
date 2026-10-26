@@ -10,6 +10,10 @@ superusuario de plataforma (`is_superuser` y sin tenant).
 
 La tabla de usuarios también es compartida: los admins de modelos de tenant con FK a usuarios
 usan `TenantUserFKMixin` para no listar ni aceptar usuarios de otro tenant.
+
+El log del admin (`django_admin_log`) también es una sola tabla en public: los admins de modelos
+de tenant usan `TenantHistoryMixin` para que el historial de un objeto no muestre las entradas de
+la fila con el mismo pk de otro tenant.
 """
 
 
@@ -152,22 +156,83 @@ def _keep_assigned_users(form_class, request):
     return type(form_class.__name__, (form_class,), {'__init__': __init__, '__module__': form_class.__module__})
 
 
-def restrict_to_platform_admin(site, *models):
-    """Vuelve a registrar en `site` los admins (de terceros) de `models` con el mixin delante.
+def tenant_log_entries(entries):
+    """`entries` (LogEntry) acotadas al tenant del host: sólo las escritas por sus usuarios.
 
-    Conserva la clase registrada por la app (sus listas, acciones y reglas) y sólo antepone
-    `PlatformAdminOnlyMixin`. Un modelo que no esté registrado se ignora.
+    En el host público no se tocan. Las acciones del superusuario de plataforma sobre filas de
+    un tenant quedan fuera del historial en el host del tenant (siguen visibles en el público):
+    su usuario no tiene tenant y el log no guarda el schema de la fila.
+    """
+    from django.db import connection
+    from django_tenants.utils import get_public_schema_name
+
+    if connection.schema_name == get_public_schema_name():
+        return entries
+    tenant_id = getattr(connection.tenant, 'pk', None)
+    if tenant_id is None:
+        return entries.none()
+    return entries.filter(user__tenant_id=tenant_id)
+
+
+class TenantHistoryMixin:
+    """Historial de objetos del admin acotado al tenant del host.
+
+    `django_admin_log` es una sola tabla en public (`django.contrib.admin` sólo está en
+    SHARED_APPS) y `history_view` la filtra sólo por `content_type` y `object_id`, que se
+    repiten entre schemas: en el host del tenant A, `/admin/<app>/<modelo>/3/history/` mostraba
+    quién cambió la fila 3 del tenant B, cuándo y el mensaje de cambio. Se deja a Django la
+    búsqueda del objeto y los permisos, y se vuelve a paginar la lista con
+    `tenant_log_entries`. Va antes de la clase base del admin en la herencia.
+    """
+
+    def history_view(self, request, object_id, extra_context=None):
+        from django.contrib.admin.views.main import PAGE_VAR
+
+        response = super().history_view(request, object_id, extra_context)
+        context = getattr(response, 'context_data', None) or {}
+        page = context.get('action_list')
+        if page is None:  # redirección (objeto inexistente)
+            return response
+        paginator = self.get_paginator(
+            request, tenant_log_entries(page.paginator.object_list), page.paginator.per_page,
+        )
+        page = paginator.get_page(request.GET.get(PAGE_VAR, 1))
+        context.update(
+            action_list=page,
+            page_range=paginator.get_elided_page_range(page.number),
+            pagination_required=paginator.count > paginator.per_page,
+        )
+        return response
+
+
+def _prepend_mixin(site, mixin, models):
+    """Vuelve a registrar en `site` los admins de `models` con `mixin` delante.
+
+    Conserva la clase registrada por la app (sus listas, acciones y reglas) y sólo antepone el
+    mixin. Un modelo que no esté registrado, o cuyo admin ya lo lleve, se ignora.
     """
     for model in models:
         if model not in site._registry:
             continue
         base = type(site._registry[model])
-        if issubclass(base, PlatformAdminOnlyMixin):
+        if issubclass(base, mixin):
             continue
-        restricted = type(
+        wrapped = type(
             base.__name__,
-            (PlatformAdminOnlyMixin, base),
+            (mixin, base),
             {'__module__': __name__, '__doc__': base.__doc__},
         )
         site.unregister(model)
-        site.register(model, restricted)
+        site.register(model, wrapped)
+
+
+def restrict_to_platform_admin(site, *models):
+    """Vuelve a registrar en `site` los admins (de terceros) de `models` con
+    `PlatformAdminOnlyMixin` delante."""
+    _prepend_mixin(site, PlatformAdminOnlyMixin, models)
+
+
+def scope_history_to_tenant(site, *models):
+    """Vuelve a registrar en `site` los admins (de terceros) de modelos de tenant con
+    `TenantHistoryMixin` delante."""
+    _prepend_mixin(site, TenantHistoryMixin, models)
