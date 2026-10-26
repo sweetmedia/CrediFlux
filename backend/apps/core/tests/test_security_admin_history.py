@@ -185,7 +185,10 @@ def test_every_tenant_model_admin_scopes_history(tenant):
         if model._meta.app_config.name in tenant_apps
     }
 
-    missing = [type(a).__name__ for a in checked.values() if not isinstance(a, TenantHistoryMixin)]
+    # No basta con heredar el mixin: si va detrás de ModelAdmin en el MRO, o si el admin
+    # sobrescribe history_view, gana la vista de Django y el historial vuelve a mezclar tenants.
+    missing = [type(a).__name__ for a in checked.values()
+               if type(a).history_view is not TenantHistoryMixin.history_view]
     assert not missing, missing
     assert {m._meta.app_config.name for m in checked} >= {
         "apps.loans", "apps.communications", "apps.billing", "apps.cashbox", "djangosdk",
