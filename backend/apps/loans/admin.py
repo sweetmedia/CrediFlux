@@ -467,17 +467,23 @@ class LoanAdmin(AtomicDeleteSelectedMixin, TenantUserFKMixin, ModelAdmin):
             and super().has_delete_permission(request, obj)
         )
 
-    def get_deleted_objects(self, objs, request):
-        """Contratos y enlaces de firma caen con el préstamo, como en LoanViewSet.perform_destroy.
+    # Filas que caen con el préstamo, como en LoanViewSet.perform_destroy, aunque sus admins no
+    # dejen borrarlas sueltas o el usuario no tenga su permiso de modelo.
+    CASCADE_EXEMPT_MODELS = (Contract, ContractSignatureToken, Collateral, Guarantor)
 
-        Sus admins no dejan borrarlos sueltos (ContractAdmin aplica contract_deletable y
-        ContractSignatureTokenAdmin no borra nunca), pero eso no debe impedir la cascada de un
-        préstamo que sí se puede borrar: la única puerta es la regla del préstamo (pendiente o
-        rechazado), que delete_model/delete_queryset revalidan sobre la fila bloqueada.
+    def get_deleted_objects(self, objs, request):
+        """Contratos, enlaces de firma, garantías y garantes caen con el préstamo, como en la API.
+
+        Sus admins no dejan borrarlos sueltos (ContractAdmin aplica contract_deletable,
+        ContractSignatureTokenAdmin no borra nunca y garantías/garantes sólo con el préstamo
+        pendiente), pero eso no debe impedir la cascada de un préstamo que sí se puede borrar. La
+        exención sólo cubre la cascada de los préstamos seleccionados (objs), y el préstamo mismo
+        sigue en perms_needed si no es pendiente o rechazado; delete_model/delete_queryset
+        revalidan esa regla sobre la fila bloqueada.
         """
         deleted, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
-        perms_needed.discard(Contract._meta.verbose_name)
-        perms_needed.discard(ContractSignatureToken._meta.verbose_name)
+        for model in self.CASCADE_EXEMPT_MODELS:
+            perms_needed.discard(model._meta.verbose_name)
         return deleted, model_count, perms_needed, protected
 
     def has_approve_permission(self, request, obj=None):
@@ -1088,19 +1094,30 @@ class CollateralAdmin(AtomicDeleteSelectedMixin, TenantUserFKMixin, ModelAdmin):
 
     # Las garantías sólo se dan de alta, editan o borran mientras el préstamo está pendiente
     # (lo que el aprobador revisó); después cambian por sus flujos.
+    # Escribir exige, como CollateralViewSet (CanManageLoans), el rol gestor además del permiso
+    # de modelo: un cajero o viewer con permisos de garantías sólo consulta.
     def has_add_permission(self, request):
         """Only allow add in tenant schemas"""
-        return is_tenant_schema() and super().has_add_permission(request)
+        return (
+            is_tenant_schema() and can_manage_loans(request.user)
+            and super().has_add_permission(request)
+        )
 
     def has_change_permission(self, request, obj=None):
         if obj is not None and obj.loan.status != 'pending':
             return False
-        return is_tenant_schema() and super().has_change_permission(request, obj)
+        return (
+            is_tenant_schema() and can_manage_loans(request.user)
+            and super().has_change_permission(request, obj)
+        )
 
     def has_delete_permission(self, request, obj=None):
         if obj is not None and obj.loan.status != 'pending':
             return False
-        return is_tenant_schema() and super().has_delete_permission(request, obj)
+        return (
+            is_tenant_schema() and can_manage_loans(request.user)
+            and super().has_delete_permission(request, obj)
+        )
 
     def delete_queryset(self, request, queryset):
         """La acción masiva «Eliminar» aplica la misma regla que has_delete_permission.
@@ -1862,15 +1879,19 @@ class GuarantorAdmin(AtomicDeleteSelectedMixin, TenantUserFKMixin, ModelAdmin):
     # Igual que las garantías: los garantes sólo se agregan, editan, mueven o borran mientras el
     # préstamo está pendiente (lo que el aprobador revisó). has_*_permission es el filtro de la
     # interfaz; la decisión al escribir se toma sobre el préstamo bloqueado (_lock_pending_loans).
+    # Escribir exige además, como GuarantorViewSet (CanManageLoans), el rol gestor.
+    def has_add_permission(self, request):
+        return can_manage_loans(request.user) and super().has_add_permission(request)
+
     def has_change_permission(self, request, obj=None):
         if obj is not None and obj.loan.status != 'pending':
             return False
-        return super().has_change_permission(request, obj)
+        return can_manage_loans(request.user) and super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
         if obj is not None and obj.loan.status != 'pending':
             return False
-        return super().has_delete_permission(request, obj)
+        return can_manage_loans(request.user) and super().has_delete_permission(request, obj)
 
     # Igual que GuarantorSerializer: el contrato por firmar nombra al primer garante, así que se
     # rehace al agregar, editar, mover o borrar garantes (uno firmado no se reescribe).

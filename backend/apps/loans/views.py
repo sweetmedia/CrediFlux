@@ -2121,8 +2121,11 @@ def public_contract_sign(request, token):
             # Orden contrato → token, el mismo que `cancel` (bloquea el contrato y luego
             # actualiza sus tokens): al revés, una firma y una cancelación simultáneas se
             # interbloquearían. Con ambas filas bloqueadas, el mismo enlace no firma dos veces
-            # y una cancelación concurrente se ve antes de decidir.
-            contract = _lock_contract(signature_token.contract)
+            # y una cancelación concurrente se ve antes de decidir. Se usa locks.lock_contract y
+            # no el envoltorio _lock_contract: si el contrato desapareció, su DoesNotExist cae en
+            # el except de abajo con la respuesta uniforme de enlace inválido (no el NotFound
+            # detallado del API autenticado).
+            contract = lock_contract(signature_token.contract)
             signature_token = ContractSignatureToken.objects.select_for_update(
                 of=('self',)
             ).get(pk=signature_token.pk)
@@ -2204,7 +2207,8 @@ def public_contract_sign(request, token):
 
     except (ContractSignatureToken.DoesNotExist, Contract.DoesNotExist):
         # El contrato puede desaparecer entre la lectura del token y el bloqueo (el token cae en
-        # cascada): mismo 404 que un enlace inválido, no un 500.
+        # cascada; lock_contract lanza Contract.DoesNotExist): mismo 404 y mismo cuerpo que un
+        # enlace inválido, no un 500 ni un mensaje que delate que el enlace existía.
         return Response(
             {'error': 'Enlace de firma inválido'},
             status=status.HTTP_404_NOT_FOUND

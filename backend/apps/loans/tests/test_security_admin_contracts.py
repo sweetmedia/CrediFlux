@@ -556,3 +556,30 @@ def test_refused_bulk_delete_leaves_no_deletion_log_entry(manager_client, loan_f
     assert response.status_code == 403
     assert Contract.objects.filter(pk=contract.pk).exists()
     assert not LogEntry.objects.filter(action_flag=DELETION, object_id=str(contract.pk)).exists()
+
+
+# --- ronda 25.2 -------------------------------------------------------------------------------
+
+# El endpoint público de firma (anónimo) responde igual a un enlace inválido que a uno cuyo
+# contrato desapareció antes del bloqueo: mismo 404 y mismo cuerpo, sin el detalle del admin/API.
+def test_public_sign_answers_a_vanished_contract_like_an_invalid_link(loan_factory, template, monkeypatch):
+    import base64
+
+    from rest_framework.test import APIClient
+    from apps.loans.models_contracts import ContractSignatureToken
+
+    contract = _contract(_pending_loan(loan_factory), template)
+    ContractSignatureToken.objects.create(
+        contract=contract, token=TOKEN, email="cliente@financiera.test",
+        expires_at=timezone.now() + timedelta(days=3),
+    )
+    anon = APIClient(HTTP_HOST=HOST)
+    payload = {"signature_data": "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n").decode()}
+
+    invalid = anon.post(reverse("loans:public-contract-sign", args=["no-existe-r252"]), payload, format="json")
+    _delete_before_lock(monkeypatch, contract)
+    vanished = anon.post(reverse("loans:public-contract-sign", args=[TOKEN]), payload, format="json")
+
+    assert invalid.status_code == 404
+    assert vanished.status_code == invalid.status_code
+    assert vanished.json() == invalid.json() == {"error": "Enlace de firma inválido"}

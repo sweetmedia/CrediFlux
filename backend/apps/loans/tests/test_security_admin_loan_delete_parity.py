@@ -1,11 +1,13 @@
 """LoanAdmin sigue a LoanViewSet al escribir y al borrar (ronda 25.1).
 
-- Escribir préstamos en el admin exige, como la API (CanManageLoans), el rol gestor además del
-  permiso de modelo: un cajero con add/change/delete_loan recibe 403.
+- Escribir préstamos, garantías y garantes en el admin exige, como la API (CanManageLoans), el
+  rol gestor además del permiso de modelo: un cajero con esos permisos recibe 403 (ronda 25.2
+  para garantías y garantes).
 - Borrar un préstamo pendiente o rechazado arrastra sus contratos y enlaces de firma igual que
   LoanViewSet.perform_destroy. Desde la ronda 25 el admin de enlaces no deja borrar enlaces sueltos y
   el de contratos aplica su propio predicado; eso no debe impedir la cascada de un préstamo que sí se
-  puede borrar (la regla del préstamo, sobre la fila bloqueada, sigue siendo la única puerta).
+  puede borrar (la regla del préstamo, sobre la fila bloqueada, sigue siendo la única puerta). Lo
+  mismo con garantías y garantes de un préstamo rechazado o sin sus permisos de modelo (ronda 25.2).
 - Un borrado masivo rechazado por la relectura bloqueada no deja entradas de «eliminado» en el
   historial (préstamos, garantías y garantes): la acción corre dentro de una transacción.
 """
@@ -20,7 +22,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .test_security_admin_related_guards_lock import _approve_before_lock, _model, _post as _related_post, _row
-from .test_security_admin_related_regeneration import _pending
+from .test_security_admin_related_regeneration import _collateral, _guarantor, _pending
 
 pytestmark = pytest.mark.django_db
 HOST = "tenant.test.localhost"
@@ -164,3 +166,86 @@ def test_refused_bulk_related_delete_leaves_no_deletion_log_entry(user_factory, 
     assert _model(kind).objects.filter(pk=row.pk).exists()
     assert not LogEntry.objects.filter(action_flag=DELETION, object_id=str(row.pk)).exists()
 
+
+
+# --- ronda 25.2 -------------------------------------------------------------------------------
+
+# Garantías y garantes también caen con el préstamo, como en LoanViewSet.perform_destroy: sus
+# admins sólo los borran sueltos con el préstamo pendiente (y con permiso de modelo), pero eso no
+# debe impedir borrar un préstamo pendiente o rechazado.
+@OPS
+@pytest.mark.parametrize("status", ["pending", "rejected"])
+def test_deleting_a_loan_cascades_its_collateral_and_guarantors(loan_deleter, loan_factory, op, status):
+    from apps.loans.models import Collateral, Loan
+    from apps.loans.models_guarantors import Guarantor
+
+    loan = _pending(loan_factory)
+    collateral, guarantor = _collateral(loan), _guarantor(loan)
+    _contract_with_link(loan)
+    Loan.objects.filter(pk=loan.pk).update(status=status)
+
+    response = _delete_loan(loan_deleter, op, loan)
+
+    assert response.status_code == 302
+    assert not Loan.objects.filter(pk=loan.pk).exists()
+    assert not Collateral.objects.filter(pk=collateral.pk).exists()
+    assert not Guarantor.objects.filter(pk=guarantor.pk).exists()
+
+
+@OPS
+@pytest.mark.parametrize("status", ["approved", "active"])
+def test_a_non_pending_loan_with_collateral_is_still_refused(loan_deleter, loan_factory, op, status):
+    from apps.loans.models import Collateral, Loan
+    from apps.loans.models_guarantors import Guarantor
+
+    loan = _pending(loan_factory)
+    collateral, guarantor = _collateral(loan), _guarantor(loan)
+    Loan.objects.filter(pk=loan.pk).update(status=status)
+
+    response = _delete_loan(loan_deleter, op, loan)
+
+    assert response.status_code == 403
+    assert Loan.objects.filter(pk=loan.pk).exists()
+    assert Collateral.objects.filter(pk=collateral.pk).exists()
+    assert Guarantor.objects.filter(pk=guarantor.pk).exists()
+
+
+# Paridad de rol: CollateralViewSet y GuarantorViewSet exigen CanManageLoans.
+KINDS = pytest.mark.parametrize("kind", ["collateral", "guarantor"])
+
+
+def _related_perms(kind):
+    return [f"{action}_{kind}" for action in ("view", "add", "change", "delete")]
+
+
+@KINDS
+@pytest.mark.parametrize("role", ["cashier", "viewer"])
+def test_role_without_manage_loans_cannot_write_collateral_or_guarantors(user_factory, loan_factory, kind, role):
+    client = _client(_staff(user_factory, role, _related_perms(kind)))
+    loan = _pending(loan_factory)
+    row = _row(kind, loan)
+    before = _model(kind).objects.count()
+
+    assert client.get(reverse(f"admin:loans_{kind}_add")).status_code == 403
+    assert _related_post(client, kind, "add", loan).status_code == 403
+    assert _related_post(client, kind, "change", loan, row).status_code == 403
+    assert _related_post(client, kind, "delete", loan, row).status_code == 403
+    # Sin permiso de borrado no queda ninguna acción: Django ignora el POST y pinta la lista.
+    assert _related_post(client, kind, "bulk_delete", loan, row).status_code == 200
+    assert _model(kind).objects.count() == before
+    row.refresh_from_db()
+    assert row.loan_id == loan.pk
+    # Puede seguir consultando.
+    assert client.get(reverse(f"admin:loans_{kind}_change", args=[row.pk])).status_code == 200
+
+
+@KINDS
+@pytest.mark.parametrize("op", ["add", "change", "delete", "bulk_delete"])
+def test_loan_officer_still_writes_collateral_and_guarantors(user_factory, loan_factory, kind, op):
+    client = _client(_staff(user_factory, "loan_officer", _related_perms(kind)))
+    loan = _pending(loan_factory)
+    row = None if op == "add" else _row(kind, loan)
+
+    response = _related_post(client, kind, op, loan, row)
+
+    assert response.status_code == 302
