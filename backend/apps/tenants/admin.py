@@ -5,21 +5,48 @@ import logging
 
 from django.contrib import admin
 from django import forms
+from django.contrib.admin.actions import delete_selected
+from django.contrib.admin.utils import unquote
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from django.utils.html import format_html
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.db import connection
+from django.db import connection, transaction
 from unfold.admin import ModelAdmin
 from unfold.decorators import display, action
+from apps.audit.models import AuditLog
 from .models import Tenant, Domain
 
 logger = logging.getLogger(__name__)
 
+PROVISIONED_DELETE_MESSAGE = (
+    'Este tenant tiene schema aprovisionado; no se borra desde el admin. Sus filas guardan '
+    'referencias a usuarios de la plataforma que el borrado no alcanza: es una operación de '
+    'plataforma aparte. Desde aquí sólo se borran registros pendientes.'
+)
+
 
 def _is_platform_admin(user):
     return user.is_superuser and user.tenant_id is None
+
+
+def delete_selected_tenants(modeladmin, request, queryset):
+    """`delete_selected` de Django, salvo que la selección incluya un tenant aprovisionado:
+    entonces no borra ninguno (ni muestra la confirmación) y lo dice."""
+    provisioned = list(queryset.filter(provisioning_pending=False).values_list('name', flat=True))
+    if provisioned:
+        modeladmin.message_user(
+            request,
+            f'No se borró ningún tenant. {PROVISIONED_DELETE_MESSAGE} Aprovisionados: {", ".join(provisioned)}.',
+            level=messages.ERROR,
+        )
+        return None
+    return delete_selected(modeladmin, request, queryset)
+
+
+delete_selected_tenants.allowed_permissions = delete_selected.allowed_permissions
+delete_selected_tenants.short_description = delete_selected.short_description
 
 
 class TenantAdminForm(forms.ModelForm):
@@ -152,7 +179,66 @@ class TenantAdmin(ModelAdmin):
         actions = super().get_actions(request)
         if not _is_platform_admin(request.user):
             actions.pop('provision_pending_action', None)
+        if 'delete_selected' in actions:
+            _, name, description = actions['delete_selected']
+            actions['delete_selected'] = (delete_selected_tenants, name, description)
         return actions
+
+    # ------------------------------------------------------------------
+    # Borrado: sólo el superusuario de plataforma y sólo registros pendientes
+    # ------------------------------------------------------------------
+
+    def has_delete_permission(self, request, obj=None):
+        """Sólo el superusuario de plataforma (no basta el permiso de modelo `delete_tenant`).
+
+        Un tenant aprovisionado no se borra desde aquí: la cascada corre en public y no ve las
+        filas de su schema que referencian a sus usuarios (`created_by`...); el COMMIT fallaría.
+        """
+        if not _is_platform_admin(request.user):
+            return False
+        return obj is None or obj.provisioning_pending
+
+    def delete_view(self, request, object_id, extra_context=None):
+        # Rehusar con un mensaje antes de que has_delete_permission(obj) responda 403
+        if _is_platform_admin(request.user):
+            obj = self.get_object(request, unquote(object_id))
+            if obj is not None and not obj.provisioning_pending:
+                self.message_user(request, PROVISIONED_DELETE_MESSAGE, level=messages.ERROR)
+                return redirect(reverse('admin:tenants_tenant_change', args=[obj.pk]))
+        return super().delete_view(request, object_id, extra_context)
+
+    def get_deleted_objects(self, objs, request):
+        """La historia de auditoría del tenant se va con él (CASCADE) sin pedir permiso de
+        borrado en `AuditLogAdmin`, que no lo da a nadie: borrarla por la cascada del tenant no
+        es borrar filas de auditoría a mano, y el borrado deja su fila de plataforma. Sigue
+        listada en la confirmación. Cualquier otro modelo sin permiso sigue bloqueando."""
+        deleted, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
+        if _is_platform_admin(request.user):
+            perms_needed.discard(AuditLog._meta.verbose_name)
+        return deleted, model_count, perms_needed, protected
+
+    def _assert_still_pending(self, pks):
+        # Decide sobre las filas bloqueadas: el aprovisionamiento (que también bloquea) pudo
+        # adelantarse entre la confirmación y el borrado. 403, nunca un 500 en el COMMIT.
+        pks = set(pks)
+        locked = set(
+            Tenant.objects.select_for_update(of=('self',))
+            .filter(pk__in=pks, provisioning_pending=True)
+            .values_list('pk', flat=True)
+        )
+        if locked != pks:
+            raise PermissionDenied(PROVISIONED_DELETE_MESSAGE)
+
+    def delete_model(self, request, obj):
+        with transaction.atomic():
+            self._assert_still_pending([obj.pk])
+            super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        # queryset.delete() es TenantQuerySet.delete(): ámbito tenant_deletion de la auditoría
+        with transaction.atomic():
+            self._assert_still_pending(queryset.values_list('pk', flat=True))
+            super().delete_queryset(request, queryset)
 
     @action(description="Aprovisionar registros pendientes")
     def provision_pending_action(self, request, queryset):
