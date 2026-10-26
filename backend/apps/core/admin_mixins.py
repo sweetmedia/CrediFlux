@@ -121,6 +121,8 @@ def _keep_assigned_users(form_class, request):
     Sólo si es del tenant de quien pide (p. ej. un empleado que se desactivó): un usuario de
     otro tenant asignado por datos antiguos no entra en las opciones.
     """
+    from django import forms
+
     tenant_id = getattr(request.user, 'tenant_id', None)
     if is_platform_admin(request.user) or not tenant_id:
         return form_class
@@ -129,7 +131,11 @@ def _keep_assigned_users(form_class, request):
         if f.many_to_one or f.one_to_one
         if _is_user_field(f)
     }
-    names = [name for name in form_class.base_fields if name in user_fks]
+    # Un campo declarado con el nombre del FK pero de otro tipo (sin queryset) no se toca.
+    names = [
+        name for name, field in form_class.base_fields.items()
+        if name in user_fks and isinstance(field, forms.ModelChoiceField)
+    ]
     if not names:
         return form_class
 

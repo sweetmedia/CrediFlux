@@ -10,6 +10,7 @@ from django.http import FileResponse, HttpResponse
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
+from .admin_mixins import is_platform_admin
 from .media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, unsign_media
 
 DEFAULT_MAX_AGE = 3600
@@ -37,8 +38,8 @@ class SignedMediaView(APIView):
 
     La firma es la credencial: sin autenticación, sin permisos de DRF. Se acepta
     si el schema firmado es el del host, si es ``public`` y el archivo es un
-    activo público (desde cualquier host), o si quien pide es un superusuario con sesión en el host
-    público. 403 si la firma es inválida, caducó o no corresponde; 404 si el
+    activo público (desde cualquier host), o si quien pide es el superusuario de
+    plataforma con sesión en el host público. 403 si la firma es inválida, caducó o no corresponde; 404 si el
     archivo no existe.
     """
 
@@ -80,14 +81,9 @@ class SignedMediaView(APIView):
     def _allowed(request, schema, name):
         tenant = getattr(request, 'tenant', None)
         host_schema = getattr(tenant, 'schema_name', None)
-        # Superusuario de plataforma con sesión en el host público (admin).
-        user = getattr(request._request, 'user', None)
-        if (
-            host_schema == PUBLIC_SCHEMA
-            and user is not None
-            and user.is_authenticated
-            and user.is_superuser
-        ):
+        # Superusuario de plataforma con sesión en el host público (admin). Un superusuario con
+        # tenant no entra aquí aunque el middleware lo dejara pasar por el host público.
+        if host_schema == PUBLIC_SCHEMA and is_platform_admin(getattr(request._request, 'user', None)):
             return True
         if not _name_matches_schema(schema, name):
             return False

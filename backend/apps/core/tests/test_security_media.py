@@ -282,3 +282,37 @@ def test_certificate_upload_response_omits_certificate_file(auth_client):
     certificate = DigitalCertificate.objects.get(pk=response.json()["id"])
     assert certificate.certificate_file.name.startswith("test/billing/certificates/")
     certificate.certificate_file.delete(save=False)
+
+
+def _allowed_on_public_host(user, public_tenant, schema, name):
+    """`SignedMediaView._allowed` sin middleware: host público ya resuelto y `user` en la sesión."""
+    from django.test import RequestFactory
+    from rest_framework.request import Request
+
+    from apps.core.media_views import SignedMediaView
+
+    django_request = RequestFactory(HTTP_HOST=PUBLIC_HOST).get("/media/s/x/")
+    django_request.tenant = public_tenant
+    django_request.user = user
+    return SignedMediaView._allowed(Request(django_request), schema, name)
+
+
+def test_public_host_media_bypass_is_only_for_the_platform_superuser(tenant, public_schema):
+    """En el host público sólo el superusuario de plataforma lee archivos de cualquier schema.
+
+    Hoy el middleware ya echa del host público a quien tiene tenant; la vista no lo da por hecho.
+    """
+    from apps.users.models import User
+
+    tenant_superuser = User.objects.create_user(
+        username="super-tenant-media", email="super-tenant-media@crediflux.test", password="x",
+        tenant=tenant, is_superuser=True, is_staff=True, role="admin",
+    )
+    platform_superuser = User.objects.create_user(
+        username="plataforma-media", email="plataforma-media@crediflux.test", password="x",
+        is_superuser=True, is_staff=True,
+    )
+    name = "test/customer_documents/x/privado.pdf"
+
+    assert _allowed_on_public_host(tenant_superuser, public_schema, "test", name) is False
+    assert _allowed_on_public_host(platform_superuser, public_schema, "test", name) is True

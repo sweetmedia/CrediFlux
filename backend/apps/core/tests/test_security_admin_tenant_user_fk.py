@@ -13,6 +13,7 @@ usuarios del tenant; el superusuario de plataforma sigue viéndolos todos. Un te
 registro del admin para que un admin futuro con FK a usuarios no quede abierto.
 """
 import pytest
+from django import forms
 from django.contrib import admin
 from django.contrib.admin.utils import get_fields_from_path
 from django.contrib.auth.models import Permission
@@ -21,8 +22,9 @@ from django.test import Client, RequestFactory
 
 from apps.cashbox.models import CashRegister
 from apps.communications.models import Task
-from apps.core.admin_mixins import PlatformAdminOnlyMixin
-from apps.loans.models import Loan
+from apps.core.admin_mixins import PlatformAdminOnlyMixin, TenantUserFKMixin
+from apps.loans.admin import CustomerDocumentInline
+from apps.loans.models import Customer, Loan
 from apps.users.models import User
 
 pytestmark = pytest.mark.django_db
@@ -291,3 +293,146 @@ def test_every_admin_with_user_fk_scopes_choices_and_filters(tenant, users):
         "LoanPaymentAdmin.reversed_by", "CashSessionAdmin.cashier", "CashRegisterAdmin.default_cashier",
         "InvoiceAdmin.created_by", "CustomerAdmin.LoanInline.loan_officer",
     } <= checked
+
+
+def _user_formfields(form_class):
+    """Campos del formulario real (declarados o generados) cuyas opciones son usuarios."""
+    return {
+        name: field for name, field in form_class.base_fields.items()
+        if isinstance(field, forms.ModelChoiceField) and field.queryset.model is User
+    }
+
+
+@pytest.mark.filterwarnings("ignore::django.utils.deprecation.RemovedInDjango60Warning")  # URLField de los forms "__all__"
+def test_every_admin_real_forms_and_filters_hide_foreign_users(tenant, users):
+    """Mismo barrido sobre los formularios y filtros que construye el admin.
+
+    Atrapa lo que el callback no ve: un `ModelChoiceField(User.objects.all())` declarado en el
+    form del admin, un `SimpleListFilter` que lista usuarios o un formulario del changelist.
+    """
+    staff = _staff(tenant, "staff-forms-r24", [])
+    connection.set_tenant(tenant)
+    request = RequestFactory(HTTP_HOST=TENANT_HOST).get("/admin/")
+    request.user = staff
+    checked = set()
+
+    for label, model_admin in _scoped_admins():
+        if isinstance(model_admin, admin.ModelAdmin):
+            form_classes = {
+                "alta": model_admin.get_form(request),
+                "changelist": model_admin.get_changelist_form(request),
+            }
+            user_names = {f.name for f in _user_fields(model_admin.model)}
+            # Ningún admin edita hoy un usuario desde la lista; si alguno lo hace, el formulario
+            # del changelist (arriba) debe salir acotado.
+            assert not set(model_admin.list_editable) & user_names, label
+        else:
+            form_classes = {"inline": model_admin.get_formset(request).form}
+
+        for kind, form_class in form_classes.items():
+            for name, field in _user_formfields(form_class).items():
+                pks = set(field.queryset.values_list("pk", flat=True))
+                where = f"{label} {kind} {name}"
+                assert not pks & {users["foreign"].pk, users["platform"].pk, users["inactive"].pk}, where
+                assert users["own"].pk in pks, where
+                checked.add(where)
+
+        if isinstance(model_admin, admin.ModelAdmin):
+            changelist = model_admin.get_changelist_instance(request)
+            for spec in changelist.filter_specs:
+                labels = " ".join(str(choice["display"]) for choice in spec.choices(changelist))
+                where = f"{label} filtro {spec.title}"
+                assert FOREIGN_EMAIL not in labels, where
+                assert PLATFORM_EMAIL not in labels, where
+                if OWN_EMAIL in labels:
+                    checked.add(f"{label} filtro")
+
+    assert {
+        "TaskAdmin alta assignee", "TaskAdmin changelist assignee", "TaskAdmin filtro",
+        "LoanAdmin alta loan_officer", "ContractTemplateAdmin alta created_by",
+        "CashRegisterAdmin alta default_cashier", "CashSessionAdmin alta cashier",
+    } <= checked
+
+
+# --- caminos que no pasan por el alta: inline, datos antiguos, campos declarados -----------
+
+class _DocumentWithVerifierInline(CustomerDocumentInline):
+    """Inline de prueba: el de documentos del cliente con su FK a usuarios en el formulario."""
+    fields = ["document_type", "title", "verified_by"]
+
+
+def _document_formset_data(user, prefix):
+    return {
+        f"{prefix}-TOTAL_FORMS": "1", f"{prefix}-INITIAL_FORMS": "0",
+        f"{prefix}-MIN_NUM_FORMS": "0", f"{prefix}-MAX_NUM_FORMS": "1000",
+        f"{prefix}-0-document_type": "other", f"{prefix}-0-title": "Doc R24",
+        f"{prefix}-0-verified_by": str(user.pk),
+    }
+
+
+def test_inline_formset_rejects_user_of_another_tenant(tenant, users):
+    """Ningún inline registrado muestra hoy un FK a usuarios; el camino del formset sí se acota."""
+    staff = _staff(tenant, "staff-inline-r24", ["view_customerdocument", "add_customerdocument"])
+    connection.set_tenant(tenant)
+    customer = Customer()  # sin guardar: sólo se valida el formset, no se guarda nada
+    request = RequestFactory(HTTP_HOST=TENANT_HOST).post("/admin/")
+    request.user = staff
+    formset_class = _DocumentWithVerifierInline(Customer, admin.site).get_formset(request, customer)
+    prefix = formset_class.get_default_prefix()
+
+    foreign = formset_class(
+        data=_document_formset_data(users["foreign"], prefix), instance=customer, prefix=prefix, request=request,
+    )
+    assert not foreign.is_valid()
+    assert "verified_by" in foreign.forms[0].errors
+
+    own = formset_class(
+        data=_document_formset_data(users["own"], prefix), instance=customer, prefix=prefix, request=request,
+    )
+    own.is_valid()
+    assert "verified_by" not in own.forms[0].errors
+
+
+def test_foreign_user_assigned_by_legacy_data_is_not_kept_and_is_rejected(tenant, users):
+    connection.set_tenant(tenant)
+    task = Task.objects.create(title="tarea-r24", description="antigua", assignee=users["foreign"])
+    client = _client(_staff(tenant, "staff-legacy-r24", ["view_task", "change_task"]))
+    url = f"/admin/communications/task/{task.pk}/change/"
+
+    form = client.get(url).context["adminform"].form
+    assert users["foreign"].pk not in set(form.fields["assignee"].queryset.values_list("pk", flat=True))
+
+    data = _task_post(users["foreign"])
+    data["description"] = "editada"
+    response = client.post(url, data)
+
+    assert response.status_code == 200
+    assert "assignee" in _form_errors(response)
+    connection.set_tenant(tenant)
+    task.refresh_from_db()
+    assert task.description == "antigua"
+
+
+class _TaskTitleOnlyForm(forms.ModelForm):
+    # Un campo declarado que no es de modelo y se llama como el FK a usuarios.
+    assignee = forms.CharField(required=False)
+
+    class Meta:
+        model = Task
+        fields = ["title", "assignee"]
+
+
+class _TaskDeclaredFieldAdmin(TenantUserFKMixin, admin.ModelAdmin):
+    form = _TaskTitleOnlyForm
+    fields = ["title", "assignee"]
+
+
+def test_kept_user_only_touches_model_choice_fields(tenant, users):
+    connection.set_tenant(tenant)
+    task = Task.objects.create(title="tarea-r24", assignee=users["inactive"])
+    request = RequestFactory(HTTP_HOST=TENANT_HOST).get("/admin/")
+    request.user = _staff(tenant, "staff-declarado-r24", [])
+
+    form_class = _TaskDeclaredFieldAdmin(Task, admin.site).get_form(request, task)
+
+    assert isinstance(form_class(instance=task).fields["assignee"], forms.CharField)
