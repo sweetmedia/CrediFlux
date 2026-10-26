@@ -141,6 +141,9 @@ def test_non_platform_admin_cannot_edit_tenants(make_user, setup, monkeypatch):
     monkeypatch.setattr(Tenant, "auto_create_schema", False)
 
     for target in (tenant, other):
+        # El tenant de sesión es compartido: otro test pudo dejarle valores en memoria que el
+        # rollback ya deshizo en la base. La foto se toma de la base.
+        target.refresh_from_db()
         before = (target.is_active, target.max_users)
         # Formulario completo y válido (el que vería plataforma): sin la regla, la edición se
         # guardaría de verdad y la aserción de "sin cambios" significa algo.
