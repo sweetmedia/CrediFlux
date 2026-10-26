@@ -156,6 +156,30 @@ def test_client_budget_is_counted_in_the_database(public_client, no_schema, no_r
     assert GENERIC in str(response.json())
 
 
+# --- (5.1) una clave de cliente que no es IP cabe en la columna (ronda 26.1) --------------
+
+def test_non_ip_client_key_fits_the_registration_network_column(public_client, no_schema):
+    from rest_framework.settings import api_settings
+
+    junk = "x" * 100  # X-Forwarded-For mal formado tras el proxy de confianza
+    rf = {**api_settings.user_settings, "NUM_PROXIES": 1}
+    with override_settings(REST_FRAMEWORK=rf):
+        data = payload(tenant_name="rara", subdomain="rara", owner_email="rara@nueva.test")
+        response = public_client.post(URL, data, format="json", HTTP_X_FORWARDED_FOR=junk)
+        assert response.status_code == 201, response.content
+        network = Tenant.objects.get(name="rara").registration_network
+        assert network.startswith("raw:") and len(network) <= 64
+        # El mismo valor es la misma identidad: el presupuesto por cliente sigue contando.
+        assert _register(public_client, "rara-2", "127.0.0.1").status_code == 201  # otro cliente
+        data = payload(tenant_name="rara-3", subdomain="rara-3", owner_email="rara3@nueva.test")
+        assert public_client.post(URL, data, format="json", HTTP_X_FORWARDED_FOR=junk).status_code == 201
+        assert Tenant.objects.get(name="rara-3").registration_network == network
+        data = payload(tenant_name="rara-4", subdomain="rara-4", owner_email="rara4@nueva.test")
+        response = public_client.post(URL, data, format="json", HTTP_X_FORWARDED_FOR=junk)
+        assert response.status_code == 400
+        assert GENERIC in str(response.json())
+
+
 # --- (6) subdominio: comparación exacta ---------------------------------------------------
 
 def test_subdomain_is_compared_exactly(public_client, no_schema):

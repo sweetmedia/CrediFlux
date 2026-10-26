@@ -109,7 +109,6 @@ from apps.core.net import client_registration_key  # noqa: E402
     ("2001:db8:abcd:ff00::1", "2001:db8:abcd::/48"),  # otra /56 de la misma /48: mismo registrante
     ("2001:db8:abce::1", "2001:db8:abce::/48"),  # otra /48: otro registrante
     ("::ffff:198.51.100.7", "198.51.100.7"),
-    ("no-es-una-ip", "no-es-una-ip"),
     ("", ""),
 ])
 def test_client_registration_key(remote, expected):
@@ -120,6 +119,16 @@ def test_client_registration_key(remote, expected):
 def test_client_registration_key_respects_num_proxies():
     with _proxies(1):
         assert client_registration_key(_request("2001:db8:1:2::99")) == "2001:db8:1::/48"
+
+
+@pytest.mark.parametrize("raw", ["no-es-una-ip", "x" * 300, "1.2.3.4.5, basura"])
+def test_client_registration_key_hashes_non_ip_values(raw):
+    # Ronda 26.1: un valor que no es IP se guarda en Tenant.registration_network (64 caracteres).
+    with _proxies(0):
+        key = client_registration_key(_request(remote=raw))
+        assert key.startswith("raw:") and len(key) <= 64
+        assert key == client_registration_key(_request(remote=raw))  # misma identidad
+        assert key != client_registration_key(_request(remote=raw + "y"))
 
 
 def test_client_registration_key_none_request():

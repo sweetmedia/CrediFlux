@@ -290,7 +290,9 @@ MAX_TENANTS_PER_DAY = config('MAX_TENANTS_PER_DAY', default=20, cast=int)
 # juntas, contado en la base: uno solo no puede agotar el tope de todos.
 MAX_TENANTS_PER_IP_PER_DAY = config('MAX_TENANTS_PER_IP_PER_DAY', default=2, cast=int)
 # Por encima de MAX_TENANTS_PER_DAY el registro no se rechaza: queda pendiente (sin schema)
-# hasta que un superusuario lo aprovisione. Pendientes por red de registro en 24 h:
+# hasta que un superusuario lo aprovisione. Pendientes por red de registro en 24 h. Con los
+# defaults nunca salta: MAX_TENANTS_PER_IP_PER_DAY (2, misma red, altas y pendientes) rechaza
+# antes; sólo cuenta si el operador sube MAX_TENANTS_PER_IP_PER_DAY por encima de este valor.
 MAX_PENDING_PER_NETWORK_PER_DAY = config('MAX_PENDING_PER_NETWORK_PER_DAY', default=2, cast=int)
 # Pendientes en 24 h por encima de los cuales se avisa al operador (logger.error). No rechaza:
 # un rechazo global lo llenaba un solo solicitante con ~110 identidades y dejaba fuera a todos.

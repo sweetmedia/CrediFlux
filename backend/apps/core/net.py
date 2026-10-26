@@ -14,6 +14,7 @@ Para límites por cliente que no deben poder multiplicarse con direcciones barat
 `client_network_key` agrupa IPv6 por su red /56 (throttle del registro). Los presupuestos
 diarios del registro de tenants usan `client_registration_key`, que agrupa por /48.
 """
+import hashlib
 import ipaddress
 
 from rest_framework.settings import api_settings
@@ -57,8 +58,19 @@ def client_registration_key(request) -> str:
     Los presupuestos diarios del registro de tenants (altas y pendientes por red) no pueden
     multiplicarse con las 256 redes /56 de una sola /48, la delegación típica de un sitio:
     con /56 una /48 valía 256 registrantes y bastaba para llenar los topes globales.
+
+    Un valor que no es una IP (p. ej. un X-Forwarded-For mal formado tras el proxy) se reduce
+    a `raw:` + 32 hex de su SHA-256: cabe siempre en la columna (64) y el mismo valor sigue
+    siendo la misma identidad, así que el presupuesto por cliente sigue contando.
     """
-    return _network_key(client_ip(request), IPV6_REGISTRATION_PREFIX)
+    ip = client_ip(request)
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        if not ip:
+            return ''
+        return 'raw:' + hashlib.sha256(ip.encode('utf-8', 'surrogatepass')).hexdigest()[:32]
+    return _network_key(ip, IPV6_REGISTRATION_PREFIX)
 
 
 def _network_key(ip, ipv6_prefix):
