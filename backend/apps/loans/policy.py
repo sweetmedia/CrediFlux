@@ -65,6 +65,19 @@ LOAN_STATUSES_BEFORE_DISBURSEMENT = ('pending', 'approved', 'rejected')
 CONTRACT_EDITABLE_FIELDS = ('special_terms', 'notes', 'witness_name', 'witness_id')
 
 
+# Contratos vigentes o en curso de firma: mientras el préstamo tenga uno no se genera otro.
+OPEN_CONTRACT_STATUSES = ('active', 'signed', 'pending_signature')
+OPEN_CONTRACT_MESSAGE = 'Este préstamo ya tiene un contrato activo'
+
+
+def loan_has_open_contract(loan):
+    """¿Tiene el préstamo un contrato vigente o por firmar? Regla del alta de contratos.
+
+    Única regla para ContractCreateSerializer.validate_loan y el alta de ContractAdmin.
+    """
+    return loan.contracts.filter(status__in=OPEN_CONTRACT_STATUSES).exists()
+
+
 def contract_deletable(contract):
     """¿Se puede borrar el contrato? Borrar no sustituye a cancelar.
 

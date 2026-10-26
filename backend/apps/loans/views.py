@@ -33,9 +33,7 @@ from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, C
 from .policy import (
     LOAN_STATUSES_BEFORE_DISBURSEMENT, TERMINAL_CONTRACT_STATUSES, contract_deletable, validate_approval,
 )
-from .locks import LoanNotPending, lock_pending_loans, lock_row, lock_row_loans
-# Bloqueo del contrato compartido con el admin (orden préstamo → contrato).
-from .locks import lock_contract as _lock_contract
+from .locks import LoanNotPending, lock_contract, lock_pending_loans, lock_row, lock_row_loans
 from .disbursement import (
     apply_disbursement, calculate_payment_amount, check_disbursable, generate_payment_schedule,
 )
@@ -263,6 +261,19 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(pending_docs, many=True)
         return Response(serializer.data)
+
+
+def _lock_contract(contract):
+    """locks.lock_contract (compartido con el admin) con 404 si el contrato ya no existe.
+
+    Otra petición pudo borrarlo entre get_object() y el bloqueo: se responde 404, no 500.
+    """
+    from .models_contracts import Contract
+
+    try:
+        return lock_contract(contract)
+    except Contract.DoesNotExist:
+        raise NotFound('El contrato ya no existe; pudo haber sido eliminado por otra operación.')
 
 
 def _terminal_contract_response(contract):

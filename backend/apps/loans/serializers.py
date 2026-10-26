@@ -13,7 +13,8 @@ from .models_guarantors import Guarantor
 from apps.core.media import SignedFilesModelSerializer
 from .fields import TenantUserField
 from .policy import (
-    LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS, loan_terms_locked, validate_origination,
+    LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS, OPEN_CONTRACT_MESSAGE,
+    loan_has_open_contract, loan_terms_locked, validate_origination,
 )
 
 # `id_number` del cliente: sin caracteres que una hoja de cálculo interprete (=, +, @...).
@@ -1086,17 +1087,9 @@ class ContractCreateSerializer(SignedFilesModelSerializer):
         read_only_fields = ['id', 'contract_number', 'status', 'generated_at']
 
     def validate_loan(self, value):
-        """Validate that loan doesn't already have an active contract"""
-        existing = Contract.objects.filter(
-            loan=value,
-            status__in=['active', 'signed', 'pending_signature']
-        ).exists()
-
-        if existing:
-            raise serializers.ValidationError(
-                "Este préstamo ya tiene un contrato activo"
-            )
-
+        """Un préstamo con contrato vigente o por firmar no recibe otro (misma regla que el admin)."""
+        if loan_has_open_contract(value):
+            raise serializers.ValidationError(OPEN_CONTRACT_MESSAGE)
         return value
 
 

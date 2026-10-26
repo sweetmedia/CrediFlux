@@ -135,8 +135,8 @@ def test_role_without_manage_loans_cannot_bulk_delete(user_factory, loan_factory
 
     response = _post(client, "bulk_delete", contract)
 
-    # Sin permiso de borrado Django retira la acción: el POST no ejecuta nada.
-    assert response.status_code in (200, 302, 403)
+    # Sin permiso de borrado no queda ninguna acción: Django ignora el POST y pinta la lista.
+    assert response.status_code == 200
     _assert_intact(contract, status="draft")
 
 
@@ -415,5 +415,144 @@ def test_token_add_and_delete_are_refused(token_client, expired_token):
     response = token_client.post(reverse("admin:loans_contractsignaturetoken_changelist"), {
         "action": "delete_selected", "_selected_action": [str(expired_token.pk)], "post": "yes",
     })
-    assert response.status_code in (200, 302, 403)
+    assert response.status_code == 200  # sin acciones para nadie: se ignora y se pinta la lista
     assert ContractSignatureToken.objects.filter(pk=expired_token.pk).exists()
+
+
+# --- ronda 25.1 -------------------------------------------------------------------------------
+
+# El token tampoco se consulta por la URL de la lista: un filtro ?token__startswith= (o __gt,
+# __regex...) devolvía el número de filas y permitía reconstruirlo carácter a carácter.
+@pytest.mark.parametrize("lookup", [
+    "token", "token__exact", "token__startswith", "token__gt", "token__lt", "token__regex",
+    "token__iexact", "token__in",
+])
+def test_token_changelist_refuses_url_lookups_on_the_token(token_client, expired_token, lookup):
+    value = TOKEN if lookup in ("token", "token__exact", "token__iexact", "token__in") else TOKEN[:3]
+    url = reverse("admin:loans_contractsignaturetoken_changelist")
+
+    response = token_client.get(url, {lookup: value})
+
+    assert response.status_code == 400
+    assert TOKEN not in response.content.decode()
+
+
+@pytest.mark.parametrize("admin_name, lookup", [
+    ("contract", "signature_tokens__token__startswith"),
+    ("contractsignaturetoken", "contract__signature_tokens__token__startswith"),
+    ("loan", "contracts__signature_tokens__token__startswith"),
+])
+def test_token_is_not_reachable_through_related_lookups(user_factory, expired_token, admin_name, lookup):
+    client = _client(user_factory(role="admin", is_staff=True, is_superuser=True))
+
+    response = client.get(reverse(f"admin:loans_{admin_name}_changelist"), {lookup: TOKEN[:3]})
+
+    assert response.status_code == 400
+
+
+# Alta: misma regla que ContractCreateSerializer.validate_loan.
+@pytest.mark.parametrize("existing", ["active", "signed", "pending_signature"])
+def test_add_refuses_a_loan_that_already_has_an_open_contract(manager_client, loan_factory, template, existing):
+    from apps.loans.models_contracts import Contract
+
+    loan = _pending_loan(loan_factory)
+    _contract(loan, template, status=existing)
+
+    response = manager_client.post(reverse("admin:loans_contract_add"), {
+        "loan": str(loan.pk), "template": str(template.pk), "special_terms": "", "notes": "",
+        "witness_name": "", "witness_id": "", "_save": "Guardar",
+    })
+
+    assert response.status_code == 200
+    assert "loan" in response.context["adminform"].form.errors
+    assert Contract.objects.filter(loan=loan).count() == 1
+
+
+def test_add_accepts_a_loan_whose_only_contract_is_cancelled(manager_client, loan_factory, template):
+    from apps.loans.models_contracts import Contract
+
+    loan = _pending_loan(loan_factory)
+    _contract(loan, template, status="cancelled")
+
+    response = manager_client.post(reverse("admin:loans_contract_add"), {
+        "loan": str(loan.pk), "template": str(template.pk), "special_terms": "", "notes": "",
+        "witness_name": "", "witness_id": "", "_save": "Guardar",
+    })
+
+    assert response.status_code == 302
+    assert Contract.objects.filter(loan=loan).count() == 2
+
+
+def test_api_create_uses_the_same_open_contract_rule(user_factory, loan_factory, template):
+    from rest_framework.test import APIClient
+
+    loan = _pending_loan(loan_factory)
+    _contract(loan, template, status="signed")
+    api = APIClient(HTTP_HOST=HOST)
+    api.force_authenticate(user_factory(role="manager"))
+
+    response = api.post("/api/loans/contracts/", {"loan": str(loan.pk), "template": str(template.pk)}, format="json")
+
+    assert response.status_code == 400
+    assert "loan" in response.data
+
+
+# Contrato borrado entre la lectura y el bloqueo: 404, no 500 (admin y API).
+def _delete_before_lock(monkeypatch, contract):
+    from apps.loans.models_contracts import Contract
+
+    original = Contract.objects.select_for_update
+
+    def _select_for_update(*args, **kwargs):
+        Contract.objects.filter(pk=contract.pk).delete()
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(Contract.objects, "select_for_update", _select_for_update)
+
+
+@pytest.mark.parametrize("op", ["change", "delete"])
+def test_admin_returns_404_when_the_contract_vanishes_before_the_lock(
+    manager_client, loan_factory, template, monkeypatch, op
+):
+    contract = _contract(_pending_loan(loan_factory), template, status="draft")
+    _delete_before_lock(monkeypatch, contract)
+
+    assert _post(manager_client, op, contract).status_code == 404
+
+
+@pytest.mark.parametrize("method", ["patch", "delete"])
+def test_api_returns_404_when_the_contract_vanishes_before_the_lock(
+    user_factory, loan_factory, template, monkeypatch, method
+):
+    from rest_framework.test import APIClient
+
+    contract = _contract(_pending_loan(loan_factory), template, status="draft")
+    api = APIClient(HTTP_HOST=HOST)
+    api.force_authenticate(user_factory(role="manager"))
+    _delete_before_lock(monkeypatch, contract)
+
+    url = f"/api/loans/contracts/{contract.pk}/"
+    response = api.patch(url, {"notes": "x"}, format="json") if method == "patch" else api.delete(url)
+
+    assert response.status_code == 404
+
+
+# Un borrado masivo rechazado no deja en el historial entradas de «eliminado».
+def test_refused_bulk_delete_leaves_no_deletion_log_entry(manager_client, loan_factory, template, monkeypatch):
+    from django.contrib.admin.models import DELETION, LogEntry
+    from apps.loans.models_contracts import Contract
+
+    contract = _contract(_pending_loan(loan_factory), template, status="draft")
+    original = Contract.objects.select_for_update
+
+    def _select_for_update(*args, **kwargs):
+        Contract.objects.filter(pk=contract.pk).update(customer_signed_at=timezone.now())
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(Contract.objects, "select_for_update", _select_for_update)
+
+    response = _post(manager_client, "bulk_delete", contract)
+
+    assert response.status_code == 403
+    assert Contract.objects.filter(pk=contract.pk).exists()
+    assert not LogEntry.objects.filter(action_flag=DELETION, object_id=str(contract.pk)).exists()

@@ -156,7 +156,8 @@ def test_task_change_keeps_inactive_user_already_assigned(tenant, users):
 # --- préstamos (loans) -----------------------------------------------------------------------
 
 def test_loan_add_form_lists_only_own_tenant_officers(tenant, users):
-    staff = _staff(tenant, "cajero-r24", ["view_loan", "add_loan"], role="cashier")
+    # Rol gestor: desde la ronda 25.1 LoanAdmin exige el criterio de CanManageLoans para escribir.
+    staff = _staff(tenant, "oficial-r24", ["view_loan", "add_loan"], role="loan_officer")
 
     response = _client(staff).get("/admin/loans/loan/add/")
 
@@ -165,7 +166,7 @@ def test_loan_add_form_lists_only_own_tenant_officers(tenant, users):
 
 
 def test_loan_add_rejects_officer_of_another_tenant(tenant, users):
-    staff = _staff(tenant, "cajero-post-r24", ["view_loan", "add_loan"], role="cashier")
+    staff = _staff(tenant, "oficial-post-r24", ["view_loan", "add_loan"], role="loan_officer")
 
     response = _client(staff).post(
         "/admin/loans/loan/add/", {"loan_officer": str(users["foreign"].pk), "_save": "Guardar"}

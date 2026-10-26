@@ -3,9 +3,11 @@ Loan admin configuration with Unfold best practices
 """
 from django import forms
 from django.contrib import admin
+from django.contrib.admin.actions import delete_selected
 from django.contrib.admin.utils import flatten_fieldsets
 from django.utils.html import format_html
 from django.db import connection, router, transaction
+from django.db.models.constants import LOOKUP_SEP
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from apps.core.admin_mixins import TenantUserFKMixin
@@ -19,8 +21,8 @@ from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from .policy import (
     CONTRACT_EDITABLE_FIELDS, LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS,
-    TERMINAL_CONTRACT_STATUSES, contract_deletable, loan_terms_locked,
-    validate_approval, validate_origination,
+    OPEN_CONTRACT_MESSAGE, TERMINAL_CONTRACT_STATUSES, contract_deletable, loan_has_open_contract,
+    loan_terms_locked, validate_approval, validate_origination,
 )
 from .permissions import can_manage_loans
 from .disbursement import apply_disbursement, calculate_payment_amount, check_disbursable
@@ -96,6 +98,32 @@ def _lock_related_loans(queryset, message):
     if current - locked:
         raise PermissionDenied(message)
     return list(locked)
+
+
+def atomic_delete_selected(modeladmin, request, queryset):
+    """La acción «Eliminar» de Django dentro de una transacción.
+
+    delete_selected escribe los LogEntry de borrado antes de llamar a delete_queryset: si éste
+    rehúsa sobre las filas bloqueadas (PermissionDenied), el historial no debe decir que se borró.
+    Mismo patrón que delete_selected_tenants (apps/tenants/admin.py).
+    """
+    with transaction.atomic(using=router.db_for_write(modeladmin.model)):
+        return delete_selected(modeladmin, request, queryset)
+
+
+atomic_delete_selected.allowed_permissions = delete_selected.allowed_permissions
+atomic_delete_selected.short_description = delete_selected.short_description
+
+
+class AtomicDeleteSelectedMixin:
+    """Sustituye la acción «Eliminar» por atomic_delete_selected (mismo nombre y permisos)."""
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if 'delete_selected' in actions:
+            _, name, description = actions['delete_selected']
+            actions['delete_selected'] = (atomic_delete_selected, name, description)
+        return actions
 
 
 class _ReadOnlyLoanInline(TenantUserFKMixin, TabularInline):
@@ -368,7 +396,7 @@ class LoanAdminForm(forms.ModelForm):
 
 
 @admin.register(Loan)
-class LoanAdmin(TenantUserFKMixin, ModelAdmin):
+class LoanAdmin(AtomicDeleteSelectedMixin, TenantUserFKMixin, ModelAdmin):
     """Admin interface for Loan model with Unfold best practices"""
 
     # Unfold specific settings
@@ -414,19 +442,43 @@ class LoanAdmin(TenantUserFKMixin, ModelAdmin):
         """Only allow view in tenant schemas"""
         return is_tenant_schema() and super().has_view_permission(request, obj)
 
+    # Escribir exige, como LoanViewSet (CanManageLoans), el rol gestor además del permiso de
+    # modelo: un cajero o viewer con permisos de préstamo sólo consulta.
     def has_add_permission(self, request):
         """Only allow add in tenant schemas"""
-        return is_tenant_schema() and super().has_add_permission(request)
+        return (
+            is_tenant_schema() and can_manage_loans(request.user)
+            and super().has_add_permission(request)
+        )
 
     def has_change_permission(self, request, obj=None):
         """Only allow change in tenant schemas"""
-        return is_tenant_schema() and super().has_change_permission(request, obj)
+        return (
+            is_tenant_schema() and can_manage_loans(request.user)
+            and super().has_change_permission(request, obj)
+        )
 
     def has_delete_permission(self, request, obj=None):
         """Sólo en tenants y, como LoanViewSet.perform_destroy, sólo pendientes o rechazados."""
         if obj is not None and obj.status not in ('pending', 'rejected'):
             return False
-        return is_tenant_schema() and super().has_delete_permission(request, obj)
+        return (
+            is_tenant_schema() and can_manage_loans(request.user)
+            and super().has_delete_permission(request, obj)
+        )
+
+    def get_deleted_objects(self, objs, request):
+        """Contratos y enlaces de firma caen con el préstamo, como en LoanViewSet.perform_destroy.
+
+        Sus admins no dejan borrarlos sueltos (ContractAdmin aplica contract_deletable y
+        ContractSignatureTokenAdmin no borra nunca), pero eso no debe impedir la cascada de un
+        préstamo que sí se puede borrar: la única puerta es la regla del préstamo (pendiente o
+        rechazado), que delete_model/delete_queryset revalidan sobre la fila bloqueada.
+        """
+        deleted, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
+        perms_needed.discard(Contract._meta.verbose_name)
+        perms_needed.discard(ContractSignatureToken._meta.verbose_name)
+        return deleted, model_count, perms_needed, protected
 
     def has_approve_permission(self, request, obj=None):
         """Aprobar, rechazar y desembolsar: paridad con la API (CanApproveLoan).
@@ -1009,7 +1061,7 @@ class LoanPaymentAdmin(TenantUserFKMixin, ModelAdmin):
 
 
 @admin.register(Collateral)
-class CollateralAdmin(TenantUserFKMixin, ModelAdmin):
+class CollateralAdmin(AtomicDeleteSelectedMixin, TenantUserFKMixin, ModelAdmin):
     """Admin interface for Collateral model with Unfold best practices"""
 
     # Unfold specific settings
@@ -1457,12 +1509,34 @@ class ContractTemplateAdmin(TenantUserFKMixin, ModelAdmin):
 # CONTRACT ADMIN
 # ============================================================================
 
+def _lock_contract(obj):
+    """locks.lock_contract con 404 si otra petición borró el contrato antes del bloqueo."""
+    try:
+        return lock_contract(obj)
+    except Contract.DoesNotExist:
+        raise Http404('El contrato ya no existe; pudo haber sido eliminado por otra operación.')
+
+
+class ContractAdminForm(forms.ModelForm):
+    """Alta: misma regla que ContractCreateSerializer.validate_loan (loan_has_open_contract).
+
+    En edición el préstamo es de sólo lectura y no llega al formulario.
+    """
+
+    def clean_loan(self):
+        loan = self.cleaned_data.get('loan')
+        if loan is not None and self.instance._state.adding and loan_has_open_contract(loan):
+            raise forms.ValidationError(OPEN_CONTRACT_MESSAGE)
+        return loan
+
+
 @admin.register(Contract)
-class ContractAdmin(TenantUserFKMixin, ModelAdmin):
+class ContractAdmin(AtomicDeleteSelectedMixin, TenantUserFKMixin, ModelAdmin):
     """Admin interface for Contract model"""
 
     list_fullwidth = True
     warn_unsaved_form = True
+    form = ContractAdminForm
 
     list_display = [
         'contract_number', 'get_loan_number', 'get_customer_name',
@@ -1589,7 +1663,7 @@ class ContractAdmin(TenantUserFKMixin, ModelAdmin):
             # (un cancel confirmado entretanto queda a la vista y no se pisa con la copia leída
             # antes) y sólo se guardan los campos libres cambiados.
             with transaction.atomic():
-                contract = lock_contract(obj)
+                contract = _lock_contract(obj)
                 if contract.status in TERMINAL_CONTRACT_STATUSES:
                     raise PermissionDenied(self.TERMINAL_MESSAGE)
                 changed = [field for field in form.changed_data if field in CONTRACT_EDITABLE_FIELDS]
@@ -1626,7 +1700,7 @@ class ContractAdmin(TenantUserFKMixin, ModelAdmin):
     def delete_model(self, request, obj):
         """Como ContractViewSet.perform_destroy: se decide sobre el contrato bloqueado."""
         with transaction.atomic():
-            contract = lock_contract(obj)
+            contract = _lock_contract(obj)
             if not contract_deletable(contract):
                 raise PermissionDenied(self.DELETE_MESSAGE)
             super().delete_model(request, contract)
@@ -1725,6 +1799,18 @@ class ContractSignatureTokenAdmin(ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
+    def lookup_allowed(self, lookup, value, request=None):
+        """Ningún filtro de la URL sobre el token (?token__startswith=, __gt, __regex...).
+
+        Django permite siempre los lookups sobre campos propios; con el número de filas un staff
+        con sólo view reconstruiría el token carácter a carácter y firmaría por el enlace público.
+        Los caminos desde otros modelos (signature_tokens__token) ya los rechaza Django por no
+        estar en list_filter.
+        """
+        if lookup.split(LOOKUP_SEP, 1)[0] == 'token':
+            return False
+        return super().lookup_allowed(lookup, value, request)
+
     def is_valid_status(self, obj):
         """Display whether token is valid"""
         if obj.is_valid:
@@ -1766,7 +1852,7 @@ class CustomerEmailAdmin(ModelAdmin):
 # ============================================================
 
 @admin.register(Guarantor)
-class GuarantorAdmin(TenantUserFKMixin, ModelAdmin):
+class GuarantorAdmin(AtomicDeleteSelectedMixin, TenantUserFKMixin, ModelAdmin):
     list_display = ['get_full_name', 'id_number', 'loan', 'relationship', 'status', 'phone']
     list_filter = ['status', 'relationship', 'id_type']
     search_fields = ['first_name', 'last_name', 'id_number', 'phone', 'email']
