@@ -18,6 +18,14 @@ def environment_callback(request):
         return ['info', environment.title()]
 
 
+def is_platform_admin_request(request):
+    """Permiso de Unfold para los ítems de tenants y dominios: sólo el superusuario de
+    plataforma (`is_superuser` y sin tenant). Ocultarlos es cosmético; la garantía está en
+    `TenantAdmin`/`DomainAdmin`."""
+    user = getattr(request, 'user', None)
+    return bool(user is not None and user.is_authenticated and user.is_superuser and user.tenant_id is None)
+
+
 def get_navigation(request):
     """
     Generate sidebar navigation dynamically based on the current schema.
@@ -63,11 +71,13 @@ def get_navigation(request):
                         "title": "Tenants",
                         "icon": "business_center",
                         "link": safe_reverse("admin:tenants_tenant_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                     {
                         "title": "Domains",
                         "icon": "language",
                         "link": safe_reverse("admin:tenants_domain_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                 ],
             },
@@ -580,11 +590,13 @@ def get_sidebar_navigation_callback(request):
                         "title": _("Tenants"),
                         "icon": "business_center",
                         "link": safe_reverse("admin:tenants_tenant_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                     {
                         "title": _("Dominios"),
                         "icon": "language",
                         "link": safe_reverse("admin:tenants_domain_changelist"),
+                        "permission": is_platform_admin_request,
                     },
                 ],
             },
@@ -673,11 +685,13 @@ def _build_full_navigation():
                     "title": _("Tenants"),
                     "icon": "business_center",
                     "link": reverse_lazy("admin:tenants_tenant_changelist"),
+                    "permission": is_platform_admin_request,
                 },
                 {
                     "title": _("Domains"),
                     "icon": "language",
                     "link": reverse_lazy("admin:tenants_domain_changelist"),
+                    "permission": is_platform_admin_request,
                 },
             ],
         },
@@ -745,8 +759,8 @@ def _build_full_navigation():
 def get_tenant_dropdown(request):
     """
     Generate dropdown menu for tenant navigation.
-    Shows all active tenants ONLY to superusers and public schema staff.
-    Regular tenant users see no dropdown (they can only access their tenant).
+    Lista todos los tenants activos: sólo para el superusuario de plataforma. Nadie más lo ve
+    (ni un superusuario con tenant ni un staff con `tenants.view_tenant`): sólo opera en su tenant.
 
     Dynamically builds URLs based on the incoming request so it works in
     both local dev (*.localhost:8000) and production (*.crediflux.com.do).
@@ -756,8 +770,7 @@ def get_tenant_dropdown(request):
 
     dropdown = []
 
-    # Only show dropdown to authenticated users
-    if not request.user.is_authenticated:
+    if not is_platform_admin_request(request):
         return dropdown
 
     try:
@@ -765,14 +778,6 @@ def get_tenant_dropdown(request):
 
         # Get current schema
         current_schema = getattr(connection, 'schema_name', 'public')
-
-        # Check if user should see the dropdown
-        is_superuser = request.user.is_superuser
-        is_public_staff = request.user.has_perm('tenants.view_tenant')
-
-        # Regular tenant users should not see the dropdown
-        if not (is_superuser or is_public_staff):
-            return dropdown
 
         # Detect scheme + base domain from request
         host = request.get_host()          # e.g. "app.crediflux.com.do" or "demo.localhost:8000"

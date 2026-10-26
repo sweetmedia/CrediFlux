@@ -339,11 +339,10 @@ def test_other_staff_cannot_delete_tenants(make_user, tenant, public_schema):
     by_view, by_action = _bare_pending_tenant(1), _bare_pending_tenant(2)
     assert client.post(_delete_url(by_view.pk), {"post": "yes"}).status_code == 403
 
-    # La acción no está entre las suyas: Django responde "ninguna acción seleccionada" (302 a
-    # la lista), no 403. No borra nada.
+    # Desde la ronda 22 tampoco ve la lista (sólo plataforma): el POST de la acción es 403.
+    # No borra nada.
     forged = client.post(CHANGELIST, {"action": "delete_selected", "_selected_action": [by_action.pk], "post": "yes"})
-    assert forged.status_code == 302
-    assert forged["Location"] == CHANGELIST
+    assert forged.status_code == 403
     assert Tenant.objects.filter(pk__in=[pending.pk, by_view.pk, by_action.pk]).count() == 3
 
 

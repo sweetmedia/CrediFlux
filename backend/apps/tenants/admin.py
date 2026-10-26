@@ -31,6 +31,30 @@ def _is_platform_admin(user):
     return user.is_superuser and user.tenant_id is None
 
 
+class PlatformAdminOnlyMixin:
+    """Módulo, vista, alta, edición y borrado sólo para el superusuario de plataforma.
+
+    Ni los permisos de modelo `tenants.*` ni ser superusuario de un tenant bastan: el admin
+    también se sirve en hosts de tenant, y estos modelos son de todos los tenants (listarlos
+    expone a los demás; editarlos permite desactivarlos o quedarse con su hostname).
+    """
+
+    def has_module_permission(self, request):
+        return _is_platform_admin(request.user) and super().has_module_permission(request)
+
+    def has_view_permission(self, request, obj=None):
+        return _is_platform_admin(request.user) and super().has_view_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        return _is_platform_admin(request.user) and super().has_change_permission(request, obj)
+
+    def has_add_permission(self, request):
+        return _is_platform_admin(request.user) and super().has_add_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return _is_platform_admin(request.user) and super().has_delete_permission(request, obj)
+
+
 def delete_selected_tenants(modeladmin, request, queryset):
     """`delete_selected` de Django, salvo que la selección incluya un tenant aprovisionado:
     entonces no borra ninguno (ni muestra la confirmación) y lo dice."""
@@ -61,7 +85,7 @@ class TenantAdminForm(forms.ModelForm):
 
 
 @admin.register(Tenant)
-class TenantAdmin(ModelAdmin):
+class TenantAdmin(PlatformAdminOnlyMixin, ModelAdmin):
     """Admin interface for Tenant model with Unfold best practices"""
 
     # Use custom form
@@ -555,7 +579,7 @@ class TenantAdmin(ModelAdmin):
 
 
 @admin.register(Domain)
-class DomainAdmin(ModelAdmin):
+class DomainAdmin(PlatformAdminOnlyMixin, ModelAdmin):
     """Admin interface for Domain model with Unfold best practices"""
 
     # Unfold specific settings

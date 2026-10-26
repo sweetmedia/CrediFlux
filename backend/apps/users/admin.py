@@ -428,6 +428,13 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
 
         return qs.none()
 
+    def get_list_filter(self, request):
+        # El filtro por tenant lista los nombres de todos los tenants: sólo para plataforma.
+        list_filter = list(super().get_list_filter(request))
+        if not _is_platform_admin(request.user):
+            list_filter = [f for f in list_filter if f != 'tenant']
+        return list_filter
+
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """
         Limit tenant selection based on user permissions.
