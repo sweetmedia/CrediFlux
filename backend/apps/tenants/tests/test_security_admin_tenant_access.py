@@ -127,18 +127,32 @@ def test_non_platform_admin_gets_403_on_tenant_and_domain_pages(make_user, host,
 
 
 @pytest.mark.parametrize("make_user", NON_PLATFORM)
-def test_non_platform_admin_cannot_edit_another_tenant(make_user, setup):
+def test_non_platform_admin_cannot_edit_tenants(make_user, setup, monkeypatch):
+    """Ni el tenant ajeno ni el propio (su plan, `max_users` e `is_active` son de plataforma).
+
+    En BASE, el POST sobre el propio se guardaba; el del ajeno reventaba en `TenantMixin.save`
+    ("Can't update tenant outside it's own schema") en lugar de un 403."""
     tenant, other, _ = setup
     client = _client(make_user(tenant), TENANT_HOST)
-    before = (other.is_active, other.max_users)
+    platform_request = _request(_platform_superuser(tenant))
+    model_admin = admin.site._registry[Tenant]
+    # El tenant ajeno no tiene schema: si la edición pasara, TenantMixin.save lo crearía (y
+    # migraría) en medio del test. Lo que se prueba aquí es el permiso, no el schema.
+    monkeypatch.setattr(Tenant, "auto_create_schema", False)
 
-    response = client.post(f"{TENANTS}{other.pk}/change/", {
-        "name": other.name, "schema_name": other.schema_name, "business_name": other.business_name,
-        "email": other.email, "is_active": "", "max_users": 9999,
-    })
-    assert response.status_code == 403
-    other.refresh_from_db()
-    assert (other.is_active, other.max_users) == before
+    for target in (tenant, other):
+        before = (target.is_active, target.max_users)
+        # Formulario completo y válido (el que vería plataforma): sin la regla, la edición se
+        # guardaría de verdad y la aserción de "sin cambios" significa algo.
+        form_class = model_admin.get_form(platform_request, target)
+        data = _form_data(form_class(instance=target))
+        data.pop("is_active", None)  # desactivarlo
+        data["max_users"] = 9999
+
+        response = client.post(f"{TENANTS}{target.pk}/change/", data)
+        assert response.status_code == 403, target.schema_name
+        target.refresh_from_db()
+        assert (target.is_active, target.max_users) == before, target.schema_name
 
 
 @pytest.mark.parametrize("make_user", NON_PLATFORM)
@@ -257,3 +271,74 @@ def test_platform_superuser_sees_the_sidebar_items_dropdown_and_filter(setup):
 
     assert any(item["title"] == "Financiera de Prueba SRL" for item in get_tenant_dropdown(_request(user)))
     assert "tenant" in admin.site._registry[User].get_list_filter(request)
+
+
+# --- autocompletar del admin: tampoco lista tenants -------------------------------------------
+# `AutocompleteJsonView` no exige `autocomplete_fields`: cualquier staff podía pedir el
+# autocompletar de una FK a Tenant y recibía todos los tenants. Sólo exige
+# `has_view_permission` del admin destino (TenantAdmin).
+
+AUTOCOMPLETE_URLS = [
+    "/admin/autocomplete/?app_label=users&model_name=user&field_name=tenant",
+    "/admin/autocomplete/?app_label=audit&model_name=auditlog&field_name=tenant",
+    "/admin/autocomplete/?app_label=users&model_name=user&field_name=tenant&term=Otra",
+]
+
+
+@pytest.mark.parametrize("host", [TENANT_HOST, PUBLIC_HOST])
+@pytest.mark.parametrize("make_user", NON_PLATFORM)
+def test_non_platform_admin_cannot_autocomplete_tenants(make_user, host, setup):
+    tenant, other, _ = setup
+    client = _client(make_user(tenant), host)
+
+    for url in AUTOCOMPLETE_URLS:
+        response = client.get(url)
+        assert response.status_code == 403, url
+        body = response.content.decode()
+        assert other.name not in body and other.business_name not in body, url
+
+
+@pytest.mark.parametrize("host", [PUBLIC_HOST, TENANT_HOST])
+def test_platform_superuser_can_autocomplete_tenants(host, setup):
+    tenant, other, _ = setup
+    client = _client(_platform_superuser(tenant), host)
+
+    for url in AUTOCOMPLETE_URLS:
+        response = client.get(url)
+        assert response.status_code == 200, url
+        assert other.name in {row["text"] for row in response.json()["results"]}, url
+
+
+# --- dashboard: "Usuarios en sistema" es el conteo del tenant, no el de la plataforma ----------
+
+def _users_elsewhere(other):
+    """Usuarios fuera del tenant de pruebas: el conteo de plataforma no coincide con el suyo."""
+    User.objects.create_user(username="otro-r221", email="otro-r221@crediflux.test", password="x",
+                             tenant=other, role="admin")
+    User.objects.create_user(username="sin-tenant-r221", email="sin-tenant-r221@crediflux.test",
+                             password="x")
+
+
+@pytest.mark.parametrize("make_user", NON_PLATFORM)
+def test_tenant_dashboard_counts_only_its_own_users(make_user, setup):
+    tenant, other, _ = setup
+    user = make_user(tenant)
+    _users_elsewhere(other)
+    own = User.objects.filter(tenant=tenant).count()
+    assert own != User.objects.count()
+
+    response = _client(user, TENANT_HOST).get("/admin/")
+    assert response.status_code == 200
+    assert response.context["is_tenant"] is True
+    assert response.context["total_users"] == own
+
+
+def test_public_dashboard_keeps_the_platform_wide_user_count(setup):
+    tenant, other, _ = setup
+    user = _platform_superuser(tenant)
+    _users_elsewhere(other)
+
+    response = _client(user, PUBLIC_HOST).get("/admin/")
+    assert response.status_code == 200
+    assert response.context["is_tenant"] is False
+    assert response.context["total_users"] == User.objects.count()

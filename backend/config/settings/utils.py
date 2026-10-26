@@ -227,7 +227,10 @@ def dashboard_callback(request, context):
         'tenant_name': tenant_name,
         'tenant_logo': tenant_logo,
         'system_logo': system_logo,  # Add system logo to context
-        'total_users': User.objects.count(),
+        # Users es compartido (public): en un tenant, sólo los suyos; el total es de plataforma.
+        'total_users': (
+            User.objects.filter(tenant__schema_name=schema_name) if is_tenant else User.objects.all()
+        ).count(),
     })
 
     def money_amount(value):
