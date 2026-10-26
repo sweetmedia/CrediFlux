@@ -42,7 +42,10 @@ def delete_selected_tenants(modeladmin, request, queryset):
             level=messages.ERROR,
         )
         return None
-    return delete_selected(modeladmin, request, queryset)
+    # delete_selected escribe los LogEntry de borrado antes de delete_queryset: si éste rehúsa
+    # (re-lectura de un pendiente ya aprovisionado), el historial tampoco debe quedar.
+    with transaction.atomic():
+        return delete_selected(modeladmin, request, queryset)
 
 
 delete_selected_tenants.allowed_permissions = delete_selected.allowed_permissions
@@ -213,9 +216,19 @@ class TenantAdmin(ModelAdmin):
         es borrar filas de auditoría a mano, y el borrado deja su fila de plataforma. Sigue
         listada en la confirmación. Cualquier otro modelo sin permiso sigue bloqueando."""
         deleted, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
-        if _is_platform_admin(request.user):
+        if _is_platform_admin(request.user) and not self._audit_name_is_shared():
             perms_needed.discard(AuditLog._meta.verbose_name)
         return deleted, model_count, perms_needed, protected
+
+    def _audit_name_is_shared(self):
+        # perms_needed sólo trae verbose_name de modelos registrados en este admin: si otro
+        # comparte el de AuditLog, no se sabe de quién es el nombre y no se exime (falla cerrado).
+        name = AuditLog._meta.verbose_name
+        return any(
+            # getattr: algún registro (p. ej. el modelo falso de Constance) no trae verbose_name
+            model is not AuditLog and getattr(model._meta, 'verbose_name', None) == name
+            for model in self.admin_site._registry
+        )
 
     def _assert_still_pending(self, pks):
         # Decide sobre las filas bloqueadas: el aprovisionamiento (que también bloquea) pudo
@@ -224,6 +237,7 @@ class TenantAdmin(ModelAdmin):
         locked = set(
             Tenant.objects.select_for_update(of=('self',))
             .filter(pk__in=pks, provisioning_pending=True)
+            .order_by('pk')  # orden de bloqueo fijo: sin interbloqueos entre borrados masivos
             .values_list('pk', flat=True)
         )
         if locked != pks:

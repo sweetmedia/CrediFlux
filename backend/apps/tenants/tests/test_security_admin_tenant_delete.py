@@ -173,11 +173,16 @@ def test_investigation_provisioned_tenant_delete_fails_at_commit(tenant, public_
         )
 
     victim = Tenant.objects.get(pk=tenant.pk)  # instancia propia: delete() anula el pk
-    with pytest.raises(IntegrityError):
+    with pytest.raises(IntegrityError) as excinfo:
         with transaction.atomic():
             victim.delete()
             connection.check_constraints()
 
+    # La causa es la FK de created_by de las filas del schema del tenant, no otra restricción
+    message = str(excinfo.value)
+    assert 'table "customers"' in message  # Customer.Meta.db_table
+    assert "customers_created_by_id" in message
+    assert 'table "users"' in message
     assert Tenant.objects.filter(pk=tenant.pk).exists()
 
 
@@ -211,8 +216,13 @@ def test_bulk_delete_with_a_provisioned_tenant_deletes_none(platform_client, ten
     assert Tenant.objects.filter(pk__in=[pending.pk, tenant.pk]).count() == 2
 
 
-def test_delete_model_decides_on_the_locked_row(public_schema):
-    """Si el pendiente se aprovisiona entre la confirmación y el borrado: 403, no 500."""
+def test_delete_rechecks_a_stale_pending_row(public_schema):
+    """Si el pendiente se aprovisiona entre la confirmación y el borrado: 403, no 500.
+
+    Prueba la re-lectura de una fila desactualizada (la instancia aún dice pendiente). El
+    bloqueo `select_for_update` que serializa con el aprovisionamiento no se ejercita aquí:
+    haría falta una segunda conexión concurrente.
+    """
     from django.core.exceptions import PermissionDenied
 
     model_admin = admin.site._registry[Tenant]
@@ -226,6 +236,57 @@ def test_delete_model_decides_on_the_locked_row(public_schema):
     with pytest.raises(PermissionDenied):
         model_admin.delete_queryset(request, Tenant.objects.filter(pk=stale.pk))
     assert Tenant.objects.filter(pk=stale.pk).exists()
+
+
+def test_bulk_delete_failing_recheck_leaves_no_deletion_log(platform_client, monkeypatch):
+    """`delete_selected` escribe el LogEntry de borrado antes de `delete_queryset`: si la
+    re-lectura rehúsa, el historial no debe decir que el tenant (que sigue) se borró."""
+    from django.contrib.admin.models import DELETION, LogEntry
+
+    model_admin = admin.site._registry[Tenant]
+    pending = _pending_tenant(9)
+    original = model_admin.log_deletion
+
+    def log_then_provision(request, obj, obj_repr):
+        original(request, obj, obj_repr)
+        Tenant.objects.filter(pk=obj.pk).update(provisioning_pending=False)  # otro operador
+
+    monkeypatch.setattr(model_admin, "log_deletion", log_then_provision)
+    response = platform_client.post(
+        CHANGELIST, {"action": "delete_selected", "_selected_action": [pending.pk], "post": "yes"},
+    )
+
+    assert response.status_code == 403
+    assert Tenant.objects.filter(pk=pending.pk).exists()
+    assert not LogEntry.objects.filter(object_id=str(pending.pk), action_flag=DELETION).exists()
+
+
+def test_bulk_delete_locks_rows_in_pk_order(public_schema):
+    """Mismo orden de bloqueo que delete_model y el aprovisionamiento: sin interbloqueos entre
+    dos borrados masivos con selecciones solapadas."""
+    from django.test.utils import CaptureQueriesContext
+
+    model_admin = admin.site._registry[Tenant]
+    pks = [_pending_tenant(10).pk, _pending_tenant(11).pk]
+    request = RequestFactory().post(CHANGELIST)
+    request.user = _platform_superuser()
+
+    with CaptureQueriesContext(connection) as queries:
+        model_admin.delete_queryset(request, Tenant.objects.filter(pk__in=pks))
+
+    locks = [q["sql"] for q in queries.captured_queries if "FOR UPDATE" in q["sql"]]
+    assert locks and all('ORDER BY "tenants"."id" ASC' in sql for sql in locks)
+
+
+def test_audit_exemption_does_not_cover_a_homonymous_model(platform_client, monkeypatch):
+    """La excepción de AuditLog va por modelo: otro modelo registrado con el mismo
+    verbose_name y sin permiso de borrado sigue bloqueando."""
+    tenant = _pending_tenant(12)
+    monkeypatch.setattr(Domain._meta, "verbose_name", AuditLog._meta.verbose_name)
+    monkeypatch.setattr(admin.site._registry[Domain], "has_delete_permission", lambda request, obj=None: False)
+
+    assert platform_client.post(_delete_url(tenant.pk), {"post": "yes"}).status_code == 403
+    assert Tenant.objects.filter(pk=tenant.pk).exists()
 
 
 # --- nadie más borra tenants ---------------------------------------------------------------
@@ -248,6 +309,20 @@ def _tenant_staff_with_model_perm(tenant):
     return User.objects.get(pk=staff.pk)  # sin la caché de permisos
 
 
+def _bare_pending_tenant(n):
+    """Pendiente sin dominio, dueño ni historia de auditoría: nada en su cascada pide otro
+    permiso, así que sólo `TenantAdmin.has_delete_permission` decide (en BASE, el permiso de
+    modelo bastaba y el POST forjado lo borraba)."""
+    tenant = Tenant(
+        schema_name=f"pelado{n}", name=f"Pelado {n}", business_name=f"Pelado {n} SRL",
+        email=f"pelado{n}@crediflux.test", provisioning_pending=True, is_active=False,
+    )
+    tenant.auto_create_schema = False
+    tenant.save(verbosity=0)
+    AuditLog.objects.filter(tenant=tenant).delete()
+    return tenant
+
+
 @pytest.mark.parametrize("make_user", [_tenant_superuser, _tenant_staff_with_model_perm])
 def test_other_staff_cannot_delete_tenants(make_user, tenant, public_schema):
     user = make_user(tenant)
@@ -261,9 +336,15 @@ def test_other_staff_cannot_delete_tenants(make_user, tenant, public_schema):
     assert "delete_selected" not in model_admin.get_actions(request)
 
     client = _client(user, host=TENANT_HOST)
-    assert client.post(_delete_url(pending.pk), {"post": "yes"}).status_code == 403
-    client.post(CHANGELIST, {"action": "delete_selected", "_selected_action": [pending.pk], "post": "yes"})
-    assert Tenant.objects.filter(pk=pending.pk).exists()
+    by_view, by_action = _bare_pending_tenant(1), _bare_pending_tenant(2)
+    assert client.post(_delete_url(by_view.pk), {"post": "yes"}).status_code == 403
+
+    # La acción no está entre las suyas: Django responde "ninguna acción seleccionada" (302 a
+    # la lista), no 403. No borra nada.
+    forged = client.post(CHANGELIST, {"action": "delete_selected", "_selected_action": [by_action.pk], "post": "yes"})
+    assert forged.status_code == 302
+    assert forged["Location"] == CHANGELIST
+    assert Tenant.objects.filter(pk__in=[pending.pk, by_view.pk, by_action.pk]).count() == 3
 
 
 # --- AuditLogAdmin sigue sin borrar --------------------------------------------------------
@@ -286,5 +367,7 @@ def test_platform_superuser_cannot_delete_audit_rows(platform_client):
     forged = platform_client.post(
         "/admin/audit/auditlog/", {"action": "delete_selected", "_selected_action": [row.pk], "post": "yes"},
     )
-    assert forged.status_code in (200, 302)  # "ninguna acción seleccionada": la acción no existe
+    # AuditLogAdmin no tiene ninguna acción: Django ignora el POST de acción y pinta la lista
+    assert forged.status_code == 200
+    assert forged.context["cl"].model is AuditLog
     assert AuditLog.objects.filter(pk=row.pk).exists()
