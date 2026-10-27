@@ -108,11 +108,13 @@ def _frontend_url_for(user):
 def _user_on_request_host(user, request):
     """True si el usuario puede canjear un token en el host de `request`.
 
-    Misma regla que `user_matches_tenant`; un usuario sin tenant (que no sea admin de
-    plataforma) sólo en el host público.
+    Usuario de tenant: `user_matches_tenant` (activo, su tenant activo y es el del host).
+    Usuario sin tenant, también el superusuario de plataforma: sólo en el host público (sus
+    enlaces van a FRONTEND_URL). No se cambia `user_matches_tenant`, que da al admin de
+    plataforma acceso a cualquier host para el admin. Inactivo: nunca.
     """
     tenant = getattr(request, 'tenant', None)
-    if user.tenant_id is None and not is_platform_admin(user):
+    if user.tenant_id is None:
         return user.is_active and (tenant is None or tenant.schema_name == 'public')
     return user_matches_tenant(user, tenant)
 
@@ -338,11 +340,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
                 'token': 'Invalid or expired reset token.'
             })
 
-        # Check if user is active
-        if not user.is_active:
-            raise serializers.ValidationError({
-                'non_field_errors': 'This account has been deactivated.'
-            })
+        # Un usuario inactivo ya no llega aquí: _token_user lo rechaza con el error genérico.
 
         try:
             lockout.validate_strength(attrs['new_password'], user=user)

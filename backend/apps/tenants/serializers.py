@@ -263,6 +263,9 @@ class TenantRegistrationSerializer(serializers.Serializer):
             or _schema_unavailable(schema_name_for(tenant_name))
             or Tenant.objects.filter(name=tenant_name).exists()
             or _domain_taken(subdomain)
+            # Reserva cruzada: no es segura ante carreras (A name=x sub=y y B name=y sub=x a la
+            # vez pasan los dos; no hay fila que bloquear ni constraint). Aceptado: ningún enlace
+            # se construye ya con name/schema_name (apps.tenants.links), sólo con Domain.
             or _names_another_tenant(tenant_name, subdomain)
             or User.objects.filter(email__iexact=attrs['owner_email']).exists()
         ):
@@ -339,6 +342,7 @@ class TenantRegistrationSerializer(serializers.Serializer):
         if (
             _schema_unavailable(schema_name)
             or Tenant.objects.filter(name=tenant_name).exists()
+            # Misma reserva cruzada que en validate; tampoco aquí es segura ante carreras (ver allí).
             or _names_another_tenant(tenant_name, subdomain)
         ):
             raise serializers.ValidationError(REGISTRATION_REJECTED)

@@ -154,7 +154,8 @@ def test_d_victim_token_redeemed_on_the_attackers_host(public_client):
     )
 
     user.refresh_from_db()
-    assert response.status_code != 200, response.content
+    assert response.status_code == 400, response.content
+    assert response.json() == {"token": ["Invalid or expired reset token."]}
     assert not user.check_password(NEW_PASSWORD)
 
 
@@ -290,6 +291,55 @@ def test_tenant_name_equal_to_a_taken_subdomain_is_rejected(public_client):
     assert response.json() == {"non_field_errors": [GENERIC]}
 
 
+CROSS_CONFLICTS = [
+    pytest.param({"subdomain": "acme"}, id="subdominio=schema-de-otro"),
+    pytest.param({"tenant_name": "acmefin", "subdomain": "acmefin-nuevo"}, id="tenant_name=subdominio-tomado"),
+]
+
+
+def registration_serializer():
+    from rest_framework.test import APIRequestFactory
+
+    from apps.tenants.serializers import TenantRegistrationSerializer
+
+    def build(**overrides):
+        request = APIRequestFactory().post(REGISTER, REMOTE_ADDR="203.0.113.29")
+        return TenantRegistrationSerializer(data=registration(**overrides), context={"request": request})
+
+    return build
+
+
+@links
+@pytest.mark.parametrize("overrides", CROSS_CONFLICTS)
+def test_cross_reservation_is_enforced_by_validate(public_schema, overrides):
+    """Sólo `validate` (sin llegar a `create`): quitar el chequeo de validate lo hace fallar."""
+    make_tenant("acme", f"acmefin.{BASE}")
+
+    serializer = registration_serializer()(**overrides)
+
+    assert serializer.is_valid() is False
+    assert serializer.errors == {"non_field_errors": [GENERIC]}
+
+
+@links
+@override_settings(MAX_TENANTS_PER_DAY=0)  # si la re-comprobación faltara, quedaría pendiente (sin schema)
+@pytest.mark.parametrize("overrides", CROSS_CONFLICTS)
+def test_cross_reservation_is_rechecked_inside_create(public_schema, overrides):
+    """El conflicto aparece entre `validate` y `create`: sólo la re-comprobación de `create` lo para."""
+    from rest_framework import serializers as drf_serializers
+
+    serializer = registration_serializer()(**overrides)
+    assert serializer.is_valid(), serializer.errors
+    make_tenant("acme", f"acmefin.{BASE}")  # otra petición lo creó después de validate
+    before = (Tenant.objects.count(), Domain.objects.count())
+
+    with pytest.raises(drf_serializers.ValidationError) as exc:
+        serializer.save()
+
+    assert exc.value.detail == [GENERIC]
+    assert (Tenant.objects.count(), Domain.objects.count()) == before
+
+
 @links
 def test_normal_registration_is_still_accepted(public_client):
     make_tenant("acme", f"acmefin.{BASE}")
@@ -367,6 +417,41 @@ def test_user_without_tenant_redeems_only_on_the_public_host(public_client, tena
     # Verificación antes que reset: el token de Django cambia con la contraseña.
     assert public_client.post(VERIFY_CONFIRM, token_body(user), format="json").status_code == 200
     assert public_client.post(RESET_CONFIRM, token_body(user, **RESET_EXTRA), format="json").status_code == 200
+
+
+def test_platform_superuser_redeems_only_on_the_public_host(public_client, tenant):
+    from apps.users.models import User
+
+    admin = User.objects.create_user(
+        username="plataforma-r291", email="plataforma-r291@crediflux.test", password="x",
+        is_superuser=True, is_staff=True, email_verified=False,
+    )
+    on_tenant = client_on("tenant.test.localhost")
+    bad_token = on_tenant.post(RESET_CONFIRM, {**token_body(admin, **RESET_EXTRA), "token": "abc-123"}, format="json")
+
+    reset = on_tenant.post(RESET_CONFIRM, token_body(admin, **RESET_EXTRA), format="json")
+    verify = on_tenant.post(VERIFY_CONFIRM, token_body(admin), format="json")
+
+    admin.refresh_from_db()
+    assert reset.status_code == verify.status_code == 400
+    assert reset.content == bad_token.content and reset.json() == RESET_ERROR
+    assert verify.json() == VERIFY_ERROR
+    assert not admin.check_password(NEW_PASSWORD) and admin.email_verified is False
+
+    assert public_client.post(VERIFY_CONFIRM, token_body(admin), format="json").status_code == 200
+    assert public_client.post(RESET_CONFIRM, token_body(admin, **RESET_EXTRA), format="json").status_code == 200
+    admin.refresh_from_db()
+    assert admin.email_verified is True and admin.check_password(NEW_PASSWORD)
+
+
+def test_inactive_user_gets_the_generic_error_on_its_own_host(victim):
+    victim.is_active = False
+    victim.save(update_fields=["is_active"])
+
+    response = client_on(f"acmefin.{BASE}").post(RESET_CONFIRM, token_body(victim, **RESET_EXTRA), format="json")
+
+    assert response.status_code == 400
+    assert response.json() == RESET_ERROR
 
 
 @pytest.mark.parametrize("path, extra, error", [
