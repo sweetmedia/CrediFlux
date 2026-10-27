@@ -105,13 +105,16 @@ def _frontend_url_for(user):
     return getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
 
 
-def _user_on_request_host(user, request):
+def user_on_request_host(user, request):
     """True si el usuario puede canjear un token en el host de `request`.
 
     Usuario de tenant: `user_matches_tenant` (activo, su tenant activo y es el del host).
     Usuario sin tenant, también el superusuario de plataforma: sólo en el host público (sus
     enlaces van a FRONTEND_URL). No se cambia `user_matches_tenant`, que da al admin de
     plataforma acceso a cualquier host para el admin. Inactivo: nunca.
+
+    Es la única regla de host para canjear un enlace: la usan los confirm de reset y verificación
+    (`_token_user`) y la confirmación de correo de allauth (`CustomConfirmEmailView`).
     """
     tenant = getattr(request, 'tenant', None)
     if user.tenant_id is None:
@@ -129,7 +132,7 @@ def _token_user(uid, request):
         user = User.objects.select_related('tenant').get(pk=force_str(urlsafe_base64_decode(uid)))
     except (TypeError, ValueError, OverflowError, User.DoesNotExist):
         return None
-    return user if _user_on_request_host(user, request) else None
+    return user if user_on_request_host(user, request) else None
 
 
 # ============================================================================

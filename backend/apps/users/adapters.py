@@ -90,7 +90,20 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         return prefix + subject
 
     def get_email_confirmation_url(self, request, emailconfirmation):
+        """Enlace de confirmación en el host del tenant del USUARIO, no en el de quien lo envía.
+
+        `CustomConfirmEmailView` sólo confirma en el host del tenant del usuario (ronda 30), y el
+        admin que reenvía la verificación suele estar en el host público. La ruta
+        (`account-confirm-email/<key>/`) la sirve el backend: host = dominio del tenant
+        (`tenant_backend_url`), scheme y puerto de `BACKEND_URL`. Un usuario sin tenant sigue con el
+        host de la petición (el admin de plataforma, en el público).
+        """
         url = super().get_email_confirmation_url(request, emailconfirmation)
+        user = emailconfirmation.email_address.user
+        if user.tenant_id:
+            from apps.tenants.links import tenant_backend_url
+            base = urlparse(tenant_backend_url(user.tenant))
+            return urlunparse(urlparse(url)._replace(scheme=base.scheme, netloc=base.netloc))
         domain = self._get_tenant_domain(request)
         protocol = self._get_protocol(request, domain)
         parsed = urlparse(url)

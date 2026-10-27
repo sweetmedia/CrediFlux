@@ -35,6 +35,7 @@ from .serializers import (
     TwoFactorDisableSerializer,
     BackupCodesRegenerateSerializer,
     TenantAwareTokenRefreshSerializer,
+    user_on_request_host,
 )
 
 User = get_user_model()
@@ -919,7 +920,15 @@ class TwoFactorBackupCodesView(APIView):
 class CustomConfirmEmailView(ConfirmEmailView):
     """
     Custom email confirmation view that always redirects to frontend
-    instead of rendering a template
+    instead of rendering a template.
+
+    Sólo confirma en el host del tenant del usuario (la misma regla que los confirm de reset y
+    verificación, `user_on_request_host`): un usuario sin tenant, sólo en el host público y activo.
+    Host ajeno, usuario inactivo y clave inválida dan la misma redirección `verified=invalid`, que
+    se arma con la URL de settings y no revela a qué tenant pertenece la clave.
+
+    Sigue en GET como allauth (`ACCOUNT_CONFIRM_EMAIL_ON_GET`): el prefetch de un cliente de correo
+    podría confirmar, pero sólo marca el correo como verificado.
     """
 
     def get(self, request, *args, **kwargs):
@@ -928,12 +937,13 @@ class CustomConfirmEmailView(ConfirmEmailView):
         Resolve the confirmation key explicitly so invalid/used keys never fall
         through to Django's HTML 404 page.
         """
-        if request.user.is_authenticated:
-            success_url = settings.ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL
+        authenticated = request.user.is_authenticated
+        if authenticated:
+            settings_url = settings.ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL
         else:
-            success_url = settings.ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL
+            settings_url = settings.ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL
 
-        invalid_url = f"{success_url}{'&' if '?' in success_url else '?'}verified=invalid"
+        invalid_url = f"{settings_url}{'&' if '?' in settings_url else '?'}verified=invalid"
         key = kwargs.get('key')
         if not key:
             return redirect(invalid_url)
@@ -945,8 +955,21 @@ class CustomConfirmEmailView(ConfirmEmailView):
         if not confirmation:
             return redirect(invalid_url)
 
+        user = confirmation.email_address.user
+        if not user_on_request_host(user, request):
+            return redirect(invalid_url)
+
         try:
             confirmation.confirm(self.request)
-            return redirect(success_url)
         except Exception:
             return redirect(invalid_url)
+        return redirect(self._success_url(user, authenticated, settings_url))
+
+    @staticmethod
+    def _success_url(user, authenticated, settings_url):
+        """Frontend del tenant del usuario; para un usuario sin tenant, la URL de settings."""
+        if not user.tenant_id:
+            return settings_url
+        from apps.tenants.links import tenant_frontend_url
+        page = '/dashboard?verified=true' if authenticated else '/login?verified=true'
+        return tenant_frontend_url(user.tenant).rstrip('/') + page

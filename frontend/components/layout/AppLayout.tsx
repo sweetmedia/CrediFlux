@@ -6,13 +6,11 @@ import { Sidebar } from './Sidebar';
 import { Loader2, Menu, X } from 'lucide-react';
 import { SimplePageTransition } from '@/components/PageTransition';
 import { AIChatBubble } from '@/components/AIChatBubble';
+import { esPaginaPublica } from './public-pages';
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
-
-// Pages that should not show the sidebar (public pages)
-const PUBLIC_PAGES = ['/', '/login', '/register', '/forgot-password', '/select-tenant', '/reset-password', '/v2-probe'];
 
 export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
@@ -20,7 +18,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const isPublicPage = PUBLIC_PAGES.includes(pathname);
+  const isPublicPage = esPaginaPublica(pathname);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {

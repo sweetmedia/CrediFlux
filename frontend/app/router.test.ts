@@ -18,5 +18,6 @@ describe('rutaDesdeArchivo', () => {
     const rutas = archivos.map(rutaDesdeArchivo);
     expect(new Set(rutas).size).toBe(rutas.length);
     expect(rutas).toContain('/dashboard');
+    expect(rutas).toContain('/verify-email');
   });
 });

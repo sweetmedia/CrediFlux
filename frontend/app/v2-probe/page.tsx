@@ -1,7 +1,7 @@
 /**
  * V2 Token probe — visual smoke test for the design system foundation.
  *
- * Visit /v2-probe (no auth required, see AppLayout PUBLIC_PAGES).
+ * Visit /v2-probe (no auth required, see PUBLIC_PAGES in components/layout/public-pages.ts).
  * Every token in TOKENS.md should render correctly in both light and dark
  * mode. If anything looks wrong here, the bug is in tokens/themes/Tailwind,
  * not in any one component.
