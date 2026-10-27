@@ -287,6 +287,27 @@ def _terminal_contract_response(contract):
     return None
 
 
+SIGNATURE_LINK_MAX_DAYS = 30
+
+
+def _parse_days_valid(value):
+    """Vigencia del enlace de firma en días (1..30) o None si no es un entero válido.
+
+    Acepta enteros y cadenas de dígitos (formularios); rechaza booleanos, decimales y vacíos.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        days = value
+    elif isinstance(value, str) and value.strip().lstrip('-').isdigit():
+        days = int(value.strip())
+    else:
+        return None
+    if not 1 <= days <= SIGNATURE_LINK_MAX_DAYS:
+        return None
+    return days
+
+
 class LoanViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing loans
@@ -1856,7 +1877,12 @@ class ContractViewSet(viewsets.ModelViewSet):
         email = request.data.get('email')
         phone = request.data.get('phone')
         send_via = request.data.get('send_via', 'email')  # 'email', 'whatsapp', or 'both'
-        days_valid = request.data.get('days_valid', 7)  # Default 7 days
+        days_valid = _parse_days_valid(request.data.get('days_valid', 7))  # Default 7 days
+        if days_valid is None:
+            return Response(
+                {'error': 'days_valid debe ser un número entero de días entre 1 y 30.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Validation: at least one delivery method required
         if send_via == 'email' and not email:
@@ -1879,20 +1905,44 @@ class ContractViewSet(viewsets.ModelViewSet):
         token = secrets.token_urlsafe(32)
         expires_at = timezone.now() + timedelta(days=days_valid)
 
-        # Update contract status to pending_signature if it's draft
-        if contract.status == 'draft':
-            contract.status = 'pending_signature'
-            contract.save()
+        with transaction.atomic():
+            # Se decide y se escribe sobre la fila bloqueada: un cancel o una firma confirmados
+            # después de get_object() no se pisan con la copia vieja. Sólo se bloquea el contrato
+            # (orden préstamo → contrato → token).
+            contract = _lock_contract(contract)
 
-        # Create signature token
-        signature_token = ContractSignatureToken.objects.create(
-            contract=contract,
-            token=token,
-            email=email or '',
-            expires_at=expires_at,
-            can_sign_as_customer=True,
-            can_sign_as_officer=False,
-        )
+            terminal = _terminal_contract_response(contract)
+            if terminal is not None:
+                return terminal
+
+            if contract.is_archived:
+                return Response(
+                    {'error': 'Un contrato archivado no se puede enviar a firma.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # La firma pública sólo acepta contratos pendientes de firma: enviar uno firmado o
+            # activo daría un enlace que no sirve.
+            if contract.status not in ('draft', 'pending_signature'):
+                return Response(
+                    {'error': 'Solo se pueden enviar a firma contratos en borrador o pendientes de firma.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if contract.status == 'draft':
+                contract.status = 'pending_signature'
+                contract.save(update_fields=['status', 'updated_at'])
+
+            signature_token = ContractSignatureToken.objects.create(
+                contract=contract,
+                token=token,
+                email=email or '',
+                expires_at=expires_at,
+                can_sign_as_customer=True,
+                can_sign_as_officer=False,
+            )
+
+        # El envío (I/O externa) ocurre fuera de la transacción, sin mantener el bloqueo.
 
         # Get tenant for messaging
         tenant = getattr(request, 'tenant', None)
