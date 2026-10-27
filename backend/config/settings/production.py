@@ -8,6 +8,10 @@ from .base import *
 if not DATABASES['default'].get('PASSWORD'):
     raise ImproperlyConfigured('DB_PASSWORD or DATABASE_URL is required')
 
+# Sin clave propia, los secretos cifrados en BD dependen de SECRET_KEY: rotarla los perdería.
+if not FIELD_ENCRYPTION_KEY:
+    raise ImproperlyConfigured('FIELD_ENCRYPTION_KEY is required in production')
+
 DEBUG = False
 
 # Security Settings
@@ -59,11 +63,11 @@ if SENTRY_DSN:
             CeleryIntegration(),
         ],
         traces_sample_rate=0.1,
-        send_default_pii=True,
-        environment='production',
+        # Datos de prestatarios: sin cabeceras, cookies ni usuario en los eventos salvo que se pida.
+        send_default_pii=config('SENTRY_SEND_PII', default=False, cast=bool),
+        environment=config('SENTRY_ENVIRONMENT', default='production'),
     )
 
-# Logging to file
-LOGGING['handlers']['file']['filename'] = '/var/log/crediflux/production.log'
-
-SECURE_SSL_REDIRECT = True
+# En contenedores el log va a stdout (docker logs). El handler 'file' de base apunta a un
+# directorio que la imagen no tiene y haría fallar django.setup(); ningún logger lo usa.
+LOGGING['handlers'].pop('file', None)

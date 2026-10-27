@@ -259,7 +259,7 @@ class EmailVerificationSendSerializer(serializers.Serializer):
         return send_mail(
             subject,
             message,
-            settings.EMAIL_HOST_USER or 'noreply@crediflux.com',
+            settings.DEFAULT_FROM_EMAIL,
             [user.email],
             # Un fallo de SMTP no puede dar un 500 sólo cuando la cuenta existe.
             fail_silently=True,
@@ -359,7 +359,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         return send_mail(
             subject,
             message,
-            settings.EMAIL_HOST_USER or 'noreply@crediflux.com',
+            settings.DEFAULT_FROM_EMAIL,
             [user.email],
             # Un fallo de SMTP no puede dar un 500 sólo cuando la cuenta existe.
             fail_silently=True,

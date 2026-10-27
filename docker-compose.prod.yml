@@ -1,0 +1,115 @@
+# CrediFlux — producción en un solo host (VPS).
+#
+# Topología: Cloudflare (proxy, TLS) → nginx del host (cert de origen *.crediflux.com.do,
+# docs/deployment/nginx/crediflux-prod.conf) → estos contenedores, publicados sólo en 127.0.0.1.
+# Postgres y Redis no publican puertos. Variables en .env.production (plantilla:
+# .env.production.example). Runbook: docs/deployment/VPS.md.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Para Sevalla (más adelante): Postgres y Redis gestionados vía DATABASE_URL / REDIS_URL y se
+# despliegan sólo backend, celery, celery-beat y frontend con las mismas imágenes.
+
+name: crediflux-prod
+
+x-backend: &backend
+  image: crediflux-backend:prod
+  env_file:
+    - .env.production
+  environment:
+    DJANGO_ENVIRONMENT: production
+    DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/1
+    CELERY_RESULT_BACKEND: redis://redis:6379/1
+  volumes:
+    - ./data/media:/app/media
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "20m"
+      max-file: "5"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    <<: *backend
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    # collectstatic en cada arranque: nginx del host sirve ./data/static directamente.
+    # Las migraciones NO corren solas (migrate_schemas a mano, ver el runbook).
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000
+             --workers ${GUNICORN_WORKERS:-3} --timeout 60
+             --access-logfile - --error-logfile -"
+    volumes:
+      - ./data/media:/app/media
+      - ./data/static:/app/staticfiles
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8700}:8000"
+    healthcheck:
+      # Con el Host del tenant público y el proto que pone nginx (si no, SECURE_SSL_REDIRECT da 301).
+      test: ["CMD-SHELL", "curl -fsS -H \"Host: $${PUBLIC_HOST}\" -H 'X-Forwarded-Proto: https' http://localhost:8000/api/health/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  celery:
+    <<: *backend
+    command: celery -A config worker -l info --concurrency ${CELERY_CONCURRENCY:-2}
+
+  celery-beat:
+    <<: *backend
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # En producción el cliente usa el mismo origen (lib/api/client.ts con un host con
+        # dominio); VITE_APP_URL debe tener el host de FRONTEND_URL (ver docs/deployment).
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_APP_URL: ${VITE_APP_URL}
+    image: crediflux-frontend:prod
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3700}:3000"
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  redis_data:

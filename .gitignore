@@ -21,8 +21,14 @@ db.sqlite3-journal
 backend/staticfiles/
 *.pot
 
+# Datos de producción del host (media, estáticos): docker-compose.prod.yml
+/data/
+
 # Environment
 .env
+.env.*
+!.env.example
+!.env.*.example
 .venv
 venv/
 ENV/
