@@ -284,6 +284,10 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
     'verify_email_send': config('DRF_THROTTLE_VERIFY_EMAIL_SEND', default='5/hour'),
 }
 
+# Segundos entre dos correos de verificación al mismo usuario (enfriamiento silencioso:
+# la respuesta de verify-email/send no cambia).
+VERIFY_EMAIL_SEND_COOLDOWN = config('VERIFY_EMAIL_SEND_COOLDOWN', default=600, cast=int)
+
 # Tope global de tenants creados por autoservicio en las últimas 24 h
 # (cada alta crea un schema y corre todas las migraciones).
 MAX_TENANTS_PER_DAY = config('MAX_TENANTS_PER_DAY', default=20, cast=int)

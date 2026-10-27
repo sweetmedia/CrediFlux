@@ -31,7 +31,10 @@ CACHES = {
     }
 }
 
-# Sin throttling: los tests de API hacen ráfagas de requests.
+# Sin los throttles globales (anon/user): los tests de API hacen ráfagas de requests.
+# OJO: las vistas con `throttle_classes` propias (registro de tenants, RNC, cédula,
+# verify-email/send) siguen limitadas con las tasas de base.py; sus tests limpian el
+# cache por test y fijan la tasa con override_settings cuando prueban el 429.
 REST_FRAMEWORK = {
     **REST_FRAMEWORK,  # noqa: F405
     "DEFAULT_THROTTLE_CLASSES": [],

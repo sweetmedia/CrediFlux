@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.core.cache import cache
 from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -172,11 +173,19 @@ class EmailVerificationSendSerializer(serializers.Serializer):
     def save(self):
         """Envía el enlace si hay un destinatario válido; la respuesta es siempre la misma."""
         request = self.context.get('request')
+        # Sin request no hay host contra el que comprobar: no se envía nada (sin esta guarda,
+        # `user_on_request_host` dejaría pasar a todo usuario sin tenant).
+        if request is None:
+            return {'message': VERIFICATION_SEND_MESSAGE}
         user = next(
             (u for u in _verification_candidates(self.validated_data['email']) if user_on_request_host(u, request)),
             None,
         )
-        if user is not None:
+        # Enfriamiento silencioso por destinatario: un correo por usuario cada
+        # VERIFY_EMAIL_SEND_COOLDOWN segundos, aunque se roten IPs. `cache.add` es atómico.
+        if user is not None and cache.add(
+            f'verify_email_send_cooldown:{user.pk}', 1, settings.VERIFY_EMAIL_SEND_COOLDOWN
+        ):
             self._send(user)
         return {'message': VERIFICATION_SEND_MESSAGE}
 

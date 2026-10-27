@@ -345,10 +345,58 @@ def test_send_view_uses_its_own_scope():
 
 @links
 def test_send_is_throttled_per_client_ip(tenants):
+    # Usuarios reales sin verificar en su host: BASE también les responde 200, así que en BASE
+    # el test falla justo por la falta del 429.
+    acme, beta = tenants
+    uno = UserFactory(email="uno@acme.test", tenant=acme, email_verified=False)
+    dos = UserFactory(email="dos@beta.test", tenant=beta, email_verified=False)
+    tres = UserFactory(email="tres@acme.test", tenant=acme, email_verified=False)
+
     with throttled_settings():
         # Correos distintos: el throttle cuenta por IP, no por correo.
-        assert send(HOST_A, "uno@acme.test").status_code == 200
-        assert send(HOST_B, "dos@beta.test").status_code == 200
-        assert send(HOST_A, "tres@acme.test").status_code == 429
+        statuses = [send(HOST_A, uno.email).status_code, send(HOST_B, dos.email).status_code]
+        third = send(HOST_A, tres.email)
         # Otra IP conserva su cupo.
-        assert send(HOST_A, "tres@acme.test", REMOTE_ADDR="198.51.100.7").status_code == 200
+        other_ip = send(HOST_A, tres.email, REMOTE_ADDR="198.51.100.7")
+
+    assert third.status_code == 429
+    assert statuses == [200, 200]
+    assert other_ip.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Ronda 32.1 — sin request no se envía nada y enfriamiento por destinatario
+# ---------------------------------------------------------------------------
+
+
+def test_send_without_request_in_context_sends_nothing(public_schema):
+    from apps.users.serializers import EmailVerificationSendSerializer
+
+    # Usuario sin tenant: sin la guarda pasaría `user_on_request_host` con request None.
+    user = UserFactory(email="sin-tenant@crediflux.test", tenant=None, email_verified=False)
+    serializer = EmailVerificationSendSerializer(data={"email": user.email})
+    assert serializer.is_valid(), serializer.errors
+
+    assert serializer.save() == SEND_GENERIC
+    assert mail.outbox == []
+
+
+@links
+def test_second_send_within_the_cooldown_sends_nothing_and_answers_the_same(tenants):
+    acme, _ = tenants
+    user = UserFactory(email="cajero@acme.test", tenant=acme, email_verified=False)
+    other = UserFactory(email="otro@acme.test", tenant=acme, email_verified=False)
+
+    first = send(HOST_A, user.email)
+    second = send(HOST_A, user.email, REMOTE_ADDR="198.51.100.7")  # otra IP: el enfriamiento es por usuario
+    third = send(HOST_A, other.email)
+
+    assert first.status_code == second.status_code == third.status_code == 200
+    assert first.content == second.content == third.content
+    assert [message.to for message in mail.outbox] == [[user.email], [other.email]]
+
+    # Pasado el enfriamiento (aquí, borrando su clave) vuelve a enviarse.
+    cache.delete(f"verify_email_send_cooldown:{user.pk}")
+    assert send(HOST_A, user.email).content == first.content
+    assert [message.to for message in mail.outbox][-1] == [user.email]
+    assert len(mail.outbox) == 3

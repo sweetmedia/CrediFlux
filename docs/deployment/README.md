@@ -803,8 +803,8 @@ Varios controles de seguridad dependen de cómo está montada la red. El código
   (los proxies internos posteriores sí pueden usar `$proxy_add_x_forwarded_for`).
 - Si esto no se cumple, los throttles de DRF se agrupan por una IP que elige el atacante (puede evadir los límites o agotar los de otro), y la IP del audit log (`apps/audit/middleware.py`) queda falsificable.
 - El bloqueo de login por IP (`apps/users/lockout.py`, 20 fallos / 5 min), el rate limit por IP del login del admin, el throttle de registro de tenants (por IP también para usuarios autenticados) y la IP del audit log usan `apps/core/net.py:client_ip`, que respeta `DRF_NUM_PROXIES` igual que los throttles de DRF: con `N > 0` toma la N-ésima entrada de `X-Forwarded-For` desde la derecha; con `0`, `REMOTE_ADDR`. Por eso `DRF_NUM_PROXIES` debe igualar los proxies reales: con un valor menor, todos los clientes comparten la IP del proxy (20 fallos de cualquiera bloquean el login por IP a todos); con uno mayor, el cliente elige su IP. El límite por cuenta (5 fallos) no depende de la IP.
-- El throttle de registro de tenants (`DRF_THROTTLE_TENANT_REGISTRATION`) y `MAX_TENANTS_PER_IP_PER_DAY` identifican al cliente con `apps/core/net.py:client_network_key`: la dirección IPv4 tal cual o la red IPv6 **/64** completa (todas las direcciones de una /64 comparten un único presupuesto; una IPv4 mapeada `::ffff:a.b.c.d` cuenta como esa IPv4).
-  - Clientes IPv4 que llegan por NAT64 (`64:ff9b::/96`, o el prefijo NAT64 propio del operador) caen todos en una misma /64 y comparten un único presupuesto de registro. Falla del lado seguro (se rechaza antes, no se regala capacidad); si muchos prospectos legítimos llegan así, subir `MAX_TENANTS_PER_IP_PER_DAY`.
+- El throttle de registro de tenants (`DRF_THROTTLE_TENANT_REGISTRATION`) identifica al cliente con `apps/core/net.py:client_network_key`: la dirección IPv4 tal cual o la red IPv6 **/56** completa. `MAX_TENANTS_PER_IP_PER_DAY` (y el tope de pendientes por red) usa `client_registration_key`, que agrupa más: la IPv4 tal cual o la red IPv6 **/48** (todas las direcciones de esa red comparten un único presupuesto; en ambos casos una IPv4 mapeada `::ffff:a.b.c.d` cuenta como esa IPv4).
+  - Clientes IPv4 que llegan por NAT64 (`64:ff9b::/96`, o el prefijo NAT64 propio del operador) caen todos en una misma /56 (y /48) y comparten un único presupuesto de registro. Falla del lado seguro (se rechaza antes, no se regala capacidad); si muchos prospectos legítimos llegan así, subir `MAX_TENANTS_PER_IP_PER_DAY`.
 
 ### b) Puerto de Postgres
 
@@ -832,12 +832,13 @@ Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en e
 
   | Variable / setting | Default | Qué limita |
   |---|---|---|
-  | `DRF_THROTTLE_TENANT_REGISTRATION` | `3/hour` | registro de tenants por cliente (IPv4 o red IPv6 /64) |
+  | `DRF_THROTTLE_TENANT_REGISTRATION` | `3/hour` | registro de tenants por cliente (IPv4 o red IPv6 /56) |
   | `DRF_THROTTLE_VALIDATE_RNC` | `10/minute` | consultas a `validate-rnc` |
   | `DRF_THROTTLE_CEDULA_LOOKUP` | `30/minute` | consultas al Padrón JCE (`validate-cedula`) por usuario |
   | `DRF_THROTTLE_VERIFY_EMAIL_SEND` | `5/hour` | peticiones de enlace de verificación (`verify-email/send`) por cliente (IPv4 o red IPv6 /56) |
+  | `VERIFY_EMAIL_SEND_COOLDOWN` | `600` (s) | correos de verificación al mismo usuario (enfriamiento silencioso: la respuesta no cambia) |
   | `MAX_TENANTS_PER_DAY` | `20` | intentos de aprovisionamiento de tenants por día (global; cuentan también los que se revierten) |
-  | `MAX_TENANTS_PER_IP_PER_DAY` | `2` | intentos de aprovisionamiento por cliente (dirección IPv4 o red IPv6 /64) y día (se cobra antes que el global) |
+  | `MAX_TENANTS_PER_IP_PER_DAY` | `2` | intentos de aprovisionamiento por cliente (dirección IPv4 o red IPv6 /48) y día (se cobra antes que el global) |
   | `MEDIA_SIGNED_URL_MAX_AGE` | `3600` (s) | vida de las URLs firmadas de media |
 
   `MEDIA_SIGNED_URL_MAX_AGE` es un setting de Django (se lee con `getattr`), no una variable de entorno: para cambiarlo hay que añadirlo al settings.
