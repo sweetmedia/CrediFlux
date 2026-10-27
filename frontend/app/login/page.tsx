@@ -20,6 +20,7 @@ import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { TwoFactorVerify } from '@/components/auth';
 import { toast } from 'sonner';
 import { consumeSessionEndNotice } from '@/lib/api/session';
+import { esHostSinTenant } from '@/components/layout/TenantHostGuard';
 
 const loginSchema = z.object({
   email: z.string().email('Email invalido'),
@@ -198,6 +199,10 @@ export default function LoginPage() {
                   <AlertCircle className="h-4 w-4" aria-hidden="true" />
                   <AlertDescription className="text-xs">
                     No pudimos verificar tu correo con ese enlace: es inválido o ya venció.{' '}
+                    {/* Host sin tenant (adonde redirige allauth sin revelar el tenant): desde aquí
+                        la API no le envía nada a un usuario de empresa. Mismo texto para todos. */}
+                    {esHostSinTenant() &&
+                      'Si tu cuenta es de una empresa, pide un enlace nuevo desde la dirección de tu empresa en CrediFlux: desde aquí no te llegará. '}
                     <Link href="/verify-email/resend" className="font-medium underline">
                       Solicitar un enlace nuevo
                     </Link>

@@ -26,7 +26,7 @@ const forgotPasswordSchema = z.object({
 type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
 
 export default function ForgotPasswordPage() {
-  const { requestReset, isRequesting, requestError, requestSuccess } = usePasswordReset();
+  const { requestReset, isRequesting, requestSuccess } = usePasswordReset();
   const [localError, setLocalError] = useState<string>('');
 
   const {
@@ -41,23 +41,15 @@ export default function ForgotPasswordPage() {
     try {
       setLocalError('');
       await requestReset(data);
-    } catch (err: any) {
-      console.error('Password reset request error:', err);
-      if (err.response?.status === 429) {
-        // Throttle propio de password-reset/request: aviso genérico, sin el texto de la API.
-        setLocalError('Demasiados intentos. Prueba de nuevo más tarde.');
-      } else if (err.response?.data) {
-        const errorData = err.response.data;
-        if (errorData.detail) {
-          setLocalError(errorData.detail);
-        } else if (errorData.email) {
-          setLocalError(errorData.email[0]);
-        } else {
-          setLocalError('Error al solicitar recuperación de contraseña');
-        }
-      } else {
-        setLocalError('Error al conectar con el servidor');
-      }
+    } catch (err: unknown) {
+      // Nunca el texto de la API (como /verify-email/resend): un 429 da el aviso de límite y
+      // cualquier otro fallo, uno genérico. El formato del correo ya lo valida zod.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      setLocalError(
+        status === 429
+          ? 'Demasiados intentos. Prueba de nuevo más tarde.'
+          : 'No pudimos enviar la solicitud. Prueba de nuevo en unos minutos.'
+      );
     }
   };
 
@@ -111,11 +103,11 @@ export default function ForgotPasswordPage() {
             Ingresa tu email y te enviaremos instrucciones para restablecer tu contraseña
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
           <CardContent className="space-y-4">
-            {(localError || requestError) && (
+            {localError && (
               <Alert variant="destructive">
-                <AlertDescription>{localError || requestError?.message}</AlertDescription>
+                <AlertDescription>{localError}</AlertDescription>
               </Alert>
             )}
 
@@ -125,11 +117,15 @@ export default function ForgotPasswordPage() {
                 id="email"
                 type="email"
                 placeholder="tu@email.com"
+                aria-invalid={errors.email ? true : undefined}
+                aria-describedby={errors.email ? 'email-error' : undefined}
                 {...register('email')}
                 disabled={isRequesting}
               />
               {errors.email && (
-                <p className="text-sm text-red-500">{errors.email.message}</p>
+                <p id="email-error" className="text-sm text-red-500">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 

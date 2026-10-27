@@ -289,3 +289,45 @@ def test_cooldown_key_is_written_only_on_a_real_send(tenants):
     assert cache.get(f"password_reset_request_cooldown:{on_beta.pk}") is None
     ask(HOST_B, on_beta.email)
     assert len(mail.outbox) == 1
+
+
+# ---------------------------------------------------------------------------
+# Ronda 33.1 — un envío fallido libera el enfriamiento
+# ---------------------------------------------------------------------------
+
+SMTP_DOWN = override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend", EMAIL_HOST="127.0.0.1", EMAIL_PORT=1,
+    EMAIL_TIMEOUT=2,
+)
+
+
+@links
+def test_failed_send_releases_the_cooldown_and_answers_the_same(tenants):
+    acme, _ = tenants
+    user = UserFactory(email="cajero@acme.test", tenant=acme)
+    reference = ask(HOST_A, "nadie-nunca@acme.test")
+
+    with SMTP_DOWN:
+        failed = ask(HOST_A, user.email)
+
+    assert failed.status_code == 200
+    assert failed.content == reference.content
+    assert cache.get(f"password_reset_request_cooldown:{user.pk}") is None
+    # El siguiente intento, ya con SMTP, sí envía: el fallo no lo bloquea 10 minutos.
+    assert ask(HOST_A, user.email).content == reference.content
+    assert [message.to for message in mail.outbox] == [[user.email]]
+
+
+@links
+def test_send_mail_returning_zero_releases_the_cooldown(tenants):
+    from unittest import mock
+
+    acme, _ = tenants
+    user = UserFactory(email="cajero@acme.test", tenant=acme)
+
+    with mock.patch("apps.users.serializers.send_mail", return_value=0) as fake:
+        response = ask(HOST_A, user.email)
+
+    assert fake.call_count == 1
+    assert response.json() == RESET_GENERIC
+    assert cache.get(f"password_reset_request_cooldown:{user.pk}") is None

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const post = vi.fn();
 vi.mock('@/lib/api/client', () => ({ apiClient: { post: (...args: unknown[]) => post(...args) } }));
@@ -10,6 +10,12 @@ import ResendVerificationPage from '@/app/verify-email/resend/page';
 
 const SEND = '/api/users/auth/verify-email/send/';
 const CORREO = 'cajero@acme.test';
+const HOST_TENANT = 'acme.localhost:3100';
+const HOST_SIN_TENANT = 'localhost:3000';
+
+function enHost(host: string) {
+  vi.stubGlobal('location', { ...window.location, host });
+}
 
 function montar() {
   const router = createMemoryRouter(
@@ -36,9 +42,14 @@ function rechazo(status: number, data: unknown = {}) {
   });
 }
 
-describe('página /verify-email/resend', () => {
+describe('página /verify-email/resend (host del tenant)', () => {
   beforeEach(() => {
     post.mockReset();
+    enHost(HOST_TENANT);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('pide el enlace una sola vez por envío y muestra el mensaje genérico', async () => {
@@ -130,5 +141,100 @@ describe('página /verify-email/resend', () => {
 
     expect(container.innerHTML).not.toMatch(/text-(green|red|blue|gray)-\d|bg-gradient|#e8eddf/);
     expect(container.innerHTML).toContain('cf-surface-card');
+  });
+
+  it('en el host del tenant no muestra el aviso de la dirección de la empresa', () => {
+    montar();
+
+    expect(screen.queryByText(/desde aquí no te llegará/i)).not.toBeInTheDocument();
+  });
+});
+
+// Ronda 33.1 M1: la redirección de allauth deja al usuario en el host sin tenant, desde donde la API
+// no envía a un usuario de tenant. La página lo dice sin revelar si la cuenta existe.
+describe('página /verify-email/resend (host sin tenant)', () => {
+  beforeEach(() => {
+    post.mockReset();
+    enHost(HOST_SIN_TENANT);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('antes de enviar avisa que se pide desde la dirección de la empresa', () => {
+    montar();
+
+    expect(screen.getByText(/desde aquí no te llegará/i)).toBeInTheDocument();
+    expect(screen.getByText(/dirección de tu empresa/i)).toBeInTheDocument();
+  });
+
+  it('tras un 200 no dice que se envió un enlace, y el mensaje es el mismo para cualquier respuesta', async () => {
+    post.mockResolvedValueOnce({ message: 'uno' });
+    const primero = montar();
+    await enviar();
+    const estado = await screen.findByText(/solicitud recibida/i);
+    expect(estado).toBeInTheDocument();
+    expect(screen.queryByText(/si tu cuenta necesita verificación, te enviamos/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/dirección de tu empresa/i).length).toBeGreaterThan(0);
+    const htmlPrimero = primero.container.innerHTML;
+    primero.container.remove();
+
+    post.mockResolvedValueOnce({ message: 'otro', email: CORREO });
+    const segundo = montar();
+    await enviar();
+    await screen.findByText(/solicitud recibida/i);
+
+    expect(segundo.container.innerHTML).toBe(htmlPrimero);
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+});
+
+// Ronda 33.1 M3: un solo anuncio por cambio y el error del campo enlazado.
+describe('página /verify-email/resend (accesibilidad)', () => {
+  beforeEach(() => {
+    post.mockReset();
+    enHost(HOST_TENANT);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('la tarjeta no es una región aria-live; el error sale una vez, en su alerta', async () => {
+    post.mockRejectedValue(rechazo(429));
+    const { container } = montar();
+
+    await enviar();
+
+    const alerta = await screen.findByRole('alert');
+    expect(alerta).toHaveTextContent(/demasiados intentos/i);
+    expect(container.querySelector('.cf-surface-card')).not.toHaveAttribute('aria-live');
+    // Ningún contenedor del error es además una región viva.
+    expect(alerta.closest('[aria-live]')).toBeNull();
+    expect(screen.getAllByText(/demasiados intentos/i)).toHaveLength(1);
+  });
+
+  it('el éxito se anuncia en una región de estado pequeña', async () => {
+    post.mockResolvedValue({ message: 'ok' });
+    montar();
+
+    await enviar();
+
+    const estado = await screen.findByRole('status');
+    await waitFor(() => expect(estado).toHaveTextContent(/si tu cuenta necesita verificación/i));
+    expect(estado).not.toContainElement(screen.getByRole('link', { name: /iniciar sesi[oó]n/i }));
+  });
+
+  it('el error del campo queda enlazado con aria-describedby', async () => {
+    montar();
+
+    await enviar('no-es-un-correo');
+
+    const error = await screen.findByText(/correo inválido/i);
+    const campo = screen.getByLabelText(/correo/i);
+    expect(error.id).not.toBe('');
+    expect(campo).toHaveAttribute('aria-invalid', 'true');
+    expect(campo.getAttribute('aria-describedby')?.split(' ')).toContain(error.id);
   });
 });

@@ -60,4 +60,33 @@ describe('página /forgot-password', () => {
 
     expect(await screen.findByText(/email enviado/i)).toBeInTheDocument();
   });
+
+  // Ronda 33.1 M4: nunca el texto de la API (detail / email[0]), como en /verify-email/resend.
+  it.each([
+    ['un 400 con email[0]', { response: { status: 400, data: { email: ['Enter a valid email address.'] } } }],
+    ['un 500 con detail', { response: { status: 500, data: { detail: 'Internal server error' } } }],
+    ['un fallo de red', {}],
+  ])('%s muestra un error genérico en español', async (_caso, extra) => {
+    post.mockRejectedValue(Object.assign(new Error('Request failed'), extra));
+    montar();
+
+    await enviar();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no pudimos enviar la solicitud/i);
+    expect(screen.queryByText(/Enter a valid|Internal server|Request failed/)).not.toBeInTheDocument();
+  });
+
+  it('la validación del campo sigue siendo de zod y queda enlazada con aria-describedby', async () => {
+    montar();
+    const usuario = userEvent.setup();
+    await usuario.type(screen.getByLabelText(/email/i), 'no-es-un-correo');
+    await usuario.click(screen.getByRole('button', { name: /enviar instrucciones/i }));
+
+    const error = await screen.findByText(/email inválido/i);
+    const campo = screen.getByLabelText(/email/i);
+    expect(post).not.toHaveBeenCalled();
+    expect(error.id).not.toBe('');
+    expect(campo).toHaveAttribute('aria-invalid', 'true');
+    expect(campo.getAttribute('aria-describedby')?.split(' ')).toContain(error.id);
+  });
 });

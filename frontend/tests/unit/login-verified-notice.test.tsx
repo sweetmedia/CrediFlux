@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/contexts/AuthContext', () => ({
   useAuth: () => ({ login: vi.fn(), complete2FALogin: vi.fn() }),
@@ -18,7 +18,14 @@ function montar(ruta: string) {
 }
 
 describe('/login con ?verified= (redirección de la confirmación de correo)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function enHost(host: string) {
+    vi.stubGlobal('location', { ...window.location, host });
+  }
+
   it('?verified=invalid muestra un aviso de error genérico con enlace a pedir uno nuevo', async () => {
+    enHost('acme.localhost:3100');
     montar('/login?verified=invalid');
 
     const aviso = await screen.findByText(/no pudimos verificar tu correo/i);
@@ -28,6 +35,18 @@ describe('/login con ?verified= (redirección de la confirmación de correo)', (
       '/verify-email/resend'
     );
     expect(screen.queryByText(/verificado exitosamente/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/desde aquí no te llegará/i)).not.toBeInTheDocument();
+  });
+
+  it('?verified=invalid en el host sin tenant pide ir a la dirección de la empresa (33.1 M1)', async () => {
+    enHost('localhost:3000');
+    montar('/login?verified=invalid');
+
+    const aviso = await screen.findByText(/no pudimos verificar tu correo/i);
+    expect(aviso).toHaveTextContent(/dirección de tu empresa/i);
+    expect(aviso).toHaveTextContent(/desde aquí no te llegará/i);
+    // Sigue siendo genérico: no dice si la cuenta existe ni a qué empresa pertenece.
+    expect(aviso).not.toHaveTextContent(/no existe|tu empresa es|acme/i);
   });
 
   it('?verified=true sigue mostrando el aviso de éxito', async () => {

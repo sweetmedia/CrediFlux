@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { authAPI } from '@/lib/api/auth';
+import { esHostSinTenant } from '@/components/layout/TenantHostGuard';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -34,8 +35,13 @@ const ERROR_GENERICO = 'No pudimos enviar la solicitud. Prueba de nuevo en unos 
  * del usuario, así que aquí tampoco se distingue nada: cualquier 200 da el mismo mensaje, sin
  * decir si la cuenta existe o ya está verificada. Un 429 da un aviso genérico de límite y
  * cualquier otro fallo, uno genérico; nunca se muestra el texto de la API.
+ *
+ * En el host sin tenant (adonde redirige la confirmación de allauth, que no revela el tenant)
+ * la API no le envía nada a un usuario de empresa: la página lo dice antes y después de enviar,
+ * con el mismo texto para cualquier cuenta.
  */
 export default function ReenviarVerificacionPage() {
+  const [sinTenant] = useState(() => esHostSinTenant());
   const [enviado, setEnviado] = useState(false);
   const [error, setError] = useState('');
 
@@ -60,27 +66,45 @@ export default function ReenviarVerificacionPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="cf-surface-card w-full max-w-md" aria-live="polite">
-        {enviado ? (
-          <>
+      <Card className="cf-surface-card w-full max-w-md">
+        {/* Única región viva: anuncia el resultado del envío. Los errores van en su `Alert`
+            (role="alert"), fuera de ella, para que no se anuncien dos veces. */}
+        <div role="status">
+          {enviado && (
             <CardHeader className="space-y-1">
               <div className="flex justify-center mb-4">
                 <span className="flex h-16 w-16 items-center justify-center rounded-full border border-success-border bg-success-bg text-success-fg">
                   <MailCheck className="h-9 w-9" aria-hidden="true" />
                 </span>
               </div>
-              <CardTitle className="text-2xl font-bold text-center">Revisa tu correo</CardTitle>
-              <CardDescription className="text-center">
-                Si tu cuenta necesita verificación, te enviamos un enlace nuevo. Revisa tu bandeja de
-                entrada y la carpeta de spam.
-              </CardDescription>
+              {sinTenant ? (
+                <>
+                  <CardTitle className="text-2xl font-bold text-center">Solicitud recibida</CardTitle>
+                  <CardDescription className="text-center">
+                    Si tu cuenta no es de ninguna empresa y necesita verificación, te enviamos un
+                    enlace nuevo. Si es de una empresa, pídelo desde la dirección de tu empresa en
+                    CrediFlux: desde aquí no te llegará.
+                  </CardDescription>
+                </>
+              ) : (
+                <>
+                  <CardTitle className="text-2xl font-bold text-center">Revisa tu correo</CardTitle>
+                  <CardDescription className="text-center">
+                    Si tu cuenta necesita verificación, te enviamos un enlace nuevo. Revisa tu
+                    bandeja de entrada y la carpeta de spam.
+                  </CardDescription>
+                </>
+              )}
             </CardHeader>
-            <CardFooter>
-              <Button asChild variant="outline" className="w-full">
-                <Link href="/login">Iniciar sesión</Link>
-              </Button>
-            </CardFooter>
-          </>
+          )}
+        </div>
+
+        {enviado ? (
+          <CardFooter>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/login">Iniciar sesión</Link>
+            </Button>
+          </CardFooter>
         ) : (
           <>
             <CardHeader className="space-y-1">
@@ -107,17 +131,21 @@ export default function ReenviarVerificacionPage() {
                     autoComplete="email"
                     placeholder="tu@email.com"
                     aria-invalid={errors.email ? true : undefined}
+                    aria-describedby={errors.email ? 'email-error' : undefined}
                     {...register('email')}
                     disabled={isSubmitting}
                   />
                   {errors.email && (
-                    <p className="text-sm text-danger-fg">{errors.email.message}</p>
+                    <p id="email-error" className="text-sm text-danger-fg">
+                      {errors.email.message}
+                    </p>
                   )}
                 </div>
 
                 <p className="cf-muted-panel p-3 text-sm text-muted-foreground">
-                  Pídelo desde la dirección de tu empresa en CrediFlux. Si no te llega en unos
-                  minutos, revisa la carpeta de spam antes de pedir otro.
+                  {sinTenant
+                    ? 'Estás en la dirección general de CrediFlux. Si tu cuenta es de una empresa, pide el enlace desde la dirección de tu empresa: desde aquí no te llegará.'
+                    : 'Pídelo desde la dirección de tu empresa en CrediFlux. Si no te llega en unos minutos, revisa la carpeta de spam antes de pedir otro.'}
                 </p>
               </CardContent>
 

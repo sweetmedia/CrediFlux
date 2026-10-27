@@ -162,13 +162,24 @@ def _recipient_on_host(candidates, request):
     return next((u for u in candidates if user_on_request_host(u, request)), None)
 
 
-def _claim_send(prefix, user, seconds):
-    """Enfriamiento silencioso por destinatario: True si puede enviarse ahora (y lo apunta).
+def _send_with_cooldown(prefix, user, seconds, send):
+    """Enfriamiento silencioso por destinatario: llama a `send(user)` si no se le envió nada en
+    los últimos `seconds` segundos, aunque se roten IPs.
 
-    Un correo por usuario cada `seconds` segundos, aunque se roten IPs. `cache.add` es atómico y
-    sólo se llama con un destinatario real, así que la clave sólo existe tras un envío.
+    La clave se toma antes de enviar (`cache.add` es atómico: dos peticiones a la vez no envían
+    dos correos) y sólo con un destinatario real. Si el envío falla (`send_mail` con
+    `fail_silently=True` devuelve 0, o hay excepción) se libera, para que un fallo de SMTP no
+    bloquee el siguiente intento; la respuesta no cambia.
     """
-    return cache.add(f'{prefix}:{user.pk}', 1, seconds)
+    key = f'{prefix}:{user.pk}'
+    if not cache.add(key, 1, seconds):
+        return
+    sent = 0
+    try:
+        sent = send(user)
+    finally:
+        if not sent:
+            cache.delete(key)
 
 
 # ============================================================================
@@ -201,14 +212,14 @@ class EmailVerificationSendSerializer(serializers.Serializer):
         user = _recipient_on_host(
             _verification_candidates(self.validated_data['email']), self.context.get('request'),
         )
-        if user is not None and _claim_send(
-            'verify_email_send_cooldown', user, settings.VERIFY_EMAIL_SEND_COOLDOWN,
-        ):
-            self._send(user)
+        if user is not None:
+            _send_with_cooldown(
+                'verify_email_send_cooldown', user, settings.VERIFY_EMAIL_SEND_COOLDOWN, self._send,
+            )
         return {'message': VERIFICATION_SEND_MESSAGE}
 
     def _send(self, user):
-        """Genera el token de verificación y envía el correo."""
+        """Genera el token de verificación y envía el correo; devuelve `send_mail` (0 si falló)."""
         token = email_verification_token.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
 
@@ -232,7 +243,7 @@ class EmailVerificationSendSerializer(serializers.Serializer):
         The CrediFlux Team
         """
 
-        send_mail(
+        return send_mail(
             subject,
             message,
             settings.EMAIL_HOST_USER or 'noreply@crediflux.com',
@@ -298,14 +309,15 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         user = _recipient_on_host(
             _active_users_with_email(self.validated_data['email']), self.context.get('request'),
         )
-        if user is not None and _claim_send(
-            'password_reset_request_cooldown', user, settings.PASSWORD_RESET_REQUEST_COOLDOWN,
-        ):
-            self._send(user)
+        if user is not None:
+            _send_with_cooldown(
+                'password_reset_request_cooldown', user, settings.PASSWORD_RESET_REQUEST_COOLDOWN,
+                self._send,
+            )
         return {'message': PASSWORD_RESET_REQUEST_MESSAGE}
 
     def _send(self, user):
-        """Genera el token de reset y envía el correo."""
+        """Genera el token de reset y envía el correo; devuelve `send_mail` (0 si falló)."""
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
 
@@ -331,7 +343,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         The CrediFlux Team
         """
 
-        send_mail(
+        return send_mail(
             subject,
             message,
             settings.EMAIL_HOST_USER or 'noreply@crediflux.com',
