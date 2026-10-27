@@ -87,9 +87,11 @@ def _assert_contract_locked_before_update(ctx, extra_locked_tables=()):
                        if f'FROM "{other}"' in sql and "FOR UPDATE" in sql]
         assert other_locks, f"no se bloquea {other}"
         assert other_locks[0] < updates[0]
-    # Orden préstamo → contrato: estas acciones nunca bloquean el préstamo tras el contrato.
+    # Orden préstamo → contrato: estas acciones nunca bloquean el préstamo tras el contrato. Las
+    # que pueden abrir un contrato (sign_*, ronda 31) lo bloquean antes.
     loan_table = Loan._meta.db_table
-    assert not [sql for sql in sqls if f'FROM "{loan_table}"' in sql and "FOR UPDATE" in sql]
+    loan_locks = [i for i, sql in enumerate(sqls) if f'FROM "{loan_table}"' in sql and "FOR UPDATE" in sql]
+    assert all(i < locks[0] for i in loan_locks)
 
 
 def _change_before_lock(monkeypatch, manager, change):

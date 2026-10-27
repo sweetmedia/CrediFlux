@@ -221,9 +221,10 @@ def test_draft_is_sent_and_becomes_pending_signature(officer_client, draft, mail
     assert locks and updates and locks[0] < updates[0]
     # Sólo se escribe el estado: el resto de columnas no se reescribe con la copia leída.
     assert all('"notes"' not in sqls[i] and '"officer_signed_at"' not in sqls[i] for i in updates)
-    # El préstamo no se bloquea (orden préstamo → contrato).
+    # El préstamo se bloquea antes que el contrato (orden préstamo → contrato, ronda 31).
     loan_table = Loan._meta.db_table
-    assert not [sql for sql in sqls if f'FROM "{loan_table}"' in sql and "FOR UPDATE" in sql]
+    loan_locks = [i for i, sql in enumerate(sqls) if f'FROM "{loan_table}"' in sql and "FOR UPDATE" in sql]
+    assert loan_locks and loan_locks[0] < locks[0]
 
 
 def test_pending_signature_can_be_resent(officer_client, pending, mailoutbox):

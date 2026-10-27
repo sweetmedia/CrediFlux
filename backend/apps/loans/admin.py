@@ -26,7 +26,9 @@ from .policy import (
 )
 from .permissions import can_manage_loans
 from .disbursement import apply_disbursement, calculate_payment_amount, check_disbursable
-from .locks import LoanNotPending, lock_contract, lock_pending_loans, lock_row_loans
+from .locks import (
+    LoanNotPending, lock_contract, lock_loan, lock_loan_contracts, lock_pending_loans, lock_row_loans,
+)
 
 
 # Roles que pueden aprobar, rechazar y desembolsar: mismo criterio que CanApproveLoan en
@@ -518,11 +520,13 @@ class LoanAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKMixin
 
         has_delete_permission se evaluó sobre la instancia leída sin bloqueo; un préstamo aprobado
         o desembolsado entretanto por la API no debe borrarse con su calendario. delete_view ya
-        abre la transacción.
+        abre la transacción. Como LoanViewSet.perform_destroy, sus contratos se bloquean (por pk)
+        antes del borrado en cascada: orden préstamo → contrato → token, sin cruzarse con una firma.
         """
         locked = self._lock_loan(obj.pk)
         if locked.status not in ('pending', 'rejected'):
             raise PermissionDenied('Solo se pueden eliminar préstamos pendientes o rechazados.')
+        lock_loan_contracts([locked.pk])
         super().delete_model(request, locked)
 
     def delete_queryset(self, request, queryset):
@@ -530,16 +534,21 @@ class LoanAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKMixin
 
         delete_selected no abre transacción: se abre aquí y se bloquean los préstamos antes de
         evaluar la regla, para que guarda y borrado sean una sola unidad y un préstamo aprobado
-        o desembolsado entretanto por la API no se borre con su calendario.
+        o desembolsado entretanto por la API no se borre con su calendario. Después se bloquean sus
+        contratos (por pk) antes del borrado en cascada, como en delete_model.
         """
         with transaction.atomic(using=router.db_for_write(self.model)):
             # of=('self',): una búsqueda del changelist une customers; sólo se bloquean los préstamos.
-            statuses = list(
-                queryset.select_for_update(of=('self',)).order_by().values_list('status', flat=True)
+            locked = list(
+                queryset.select_for_update(of=('self',)).order_by().values_list('pk', 'status')
             )
-            if any(status not in ('pending', 'rejected') for status in statuses):
+            if any(status not in ('pending', 'rejected') for _, status in locked):
                 raise PermissionDenied('Solo se pueden eliminar préstamos pendientes o rechazados.')
-            super().delete_queryset(request, queryset)
+            pks = [pk for pk, _ in locked]
+            lock_loan_contracts(pks)
+            # Se borran exactamente los préstamos bloqueados y revisados (como ContractAdmin), no
+            # una nueva evaluación del queryset que podría traer filas sin bloqueo.
+            super().delete_queryset(request, self.model.objects.filter(pk__in=pks))
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
@@ -1688,6 +1697,16 @@ class ContractAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKM
                     setattr(contract, field, getattr(obj, field))
                 contract.save(update_fields=changed + ['updated_at'])
             return
+
+        # Alta: clean_loan dio el error del formulario sin bloqueo; la decisión vale sobre el
+        # préstamo bloqueado (changeform_view ya abre la transacción), como ContractViewSet.perform_create.
+        try:
+            loan = lock_loan(obj.loan_id)
+        except Loan.DoesNotExist:
+            raise Http404('El préstamo ya no existe; pudo haber sido eliminado por otra operación.')
+        if loan_has_open_contract(loan):
+            raise PermissionDenied(OPEN_CONTRACT_MESSAGE)
+        obj.loan = loan
 
         obj.generated_by = request.user
 

@@ -4,6 +4,11 @@ Orden de bloqueo del módulo: préstamo → fila de garantía/garante → contra
 lock_pending_loans/lock_row_loans toman los bloqueos de préstamos; lock_row bloquea después la fila
 de garantía/garante, y quien los llama escribe esa fila y, si corresponde, el contrato.
 lock_contract bloquea sólo el contrato (acciones y edición/borrado de contratos).
+lock_loan bloquea un préstamo antes que su contrato: alta de contratos y acciones que pueden pasar
+un contrato a un estado abierto (policy.loan_has_open_contract se decide sobre el préstamo bloqueado).
+lock_loan_contracts bloquea los contratos de préstamos ya bloqueados, en orden de pk, antes de
+borrarlos: el colector de Django borra token → contrato → préstamo, y sin este paso un borrado
+(préstamo → token) y una firma pública (contrato → token) se interbloquearían.
 """
 from .models import Loan
 
@@ -61,6 +66,33 @@ def lock_row(model, pk):
     confirmado entretanto. Lanza model.DoesNotExist si la fila ya no existe.
     """
     return model.objects.select_for_update(of=('self',)).get(pk=pk)
+
+
+def lock_loan(pk):
+    """Bloquea y devuelve el préstamo (SELECT ... FOR UPDATE, sólo su fila).
+
+    Llamar dentro de una transacción y antes de bloquear cualquier contrato del préstamo (orden
+    préstamo → contrato). Lanza Loan.DoesNotExist si ya no existe; quien llama lo traduce a 404.
+    """
+    return Loan.objects.select_for_update(of=('self',)).get(pk=pk)
+
+
+def lock_loan_contracts(loan_ids):
+    """Bloquea los contratos de los préstamos indicados, en una consulta ordenada por pk.
+
+    Llamar dentro de una transacción, después de bloquear esos préstamos y antes de borrarlos. El
+    colector borra los enlaces de firma y luego los contratos; con los contratos ya bloqueados el
+    borrado sigue el orden préstamo → contrato → token del módulo, y una firma concurrente (que
+    bloquea contrato → token) espera al contrato en vez de cruzarse. Los enlaces no hace falta
+    bloquearlos: todo camino que los bloquea o escribe tiene antes el contrato. Devuelve los pks.
+    """
+    from .models_contracts import Contract
+
+    return list(
+        Contract.objects.select_for_update(of=('self',))
+        .filter(loan_id__in=[pk for pk in loan_ids if pk is not None])
+        .order_by('pk').values_list('pk', flat=True)
+    )
 
 
 def lock_contract(contract):

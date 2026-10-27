@@ -33,9 +33,12 @@ from .serializers import (
 )
 from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, CanRegisterPayments
 from .policy import (
-    LOAN_STATUSES_BEFORE_DISBURSEMENT, TERMINAL_CONTRACT_STATUSES, contract_deletable, validate_approval,
+    LOAN_STATUSES_BEFORE_DISBURSEMENT, OPEN_CONTRACT_MESSAGE, OPEN_CONTRACT_STATUSES, TERMINAL_CONTRACT_STATUSES,
+    contract_deletable, loan_has_open_contract, validate_approval,
 )
-from .locks import LoanNotPending, lock_contract, lock_pending_loans, lock_row, lock_row_loans
+from .locks import (
+    LoanNotPending, lock_contract, lock_loan, lock_loan_contracts, lock_pending_loans, lock_row, lock_row_loans,
+)
 from .disbursement import (
     apply_disbursement, calculate_payment_amount, check_disbursable, generate_payment_schedule,
 )
@@ -278,6 +281,32 @@ def _lock_contract(contract):
         raise NotFound('El contrato ya no existe; pudo haber sido eliminado por otra operación.')
 
 
+def _lock_loan_then_contract(contract):
+    """Bloquea el préstamo del contrato y después el contrato (orden préstamo → contrato).
+
+    Para las acciones que pueden pasar el contrato a un estado abierto: la regla de un solo
+    contrato abierto (policy.loan_has_open_contract) se decide sobre el préstamo bloqueado. El
+    préstamo de un contrato no cambia nunca. Si otra petición borró el préstamo (y con él el
+    contrato) antes del bloqueo, 404 como _lock_contract. Devuelve (préstamo, contrato) bloqueados.
+    """
+    try:
+        loan = lock_loan(contract.loan_id)
+    except Loan.DoesNotExist:
+        raise NotFound('El contrato ya no existe; pudo haber sido eliminado por otra operación.')
+    return loan, _lock_contract(contract)
+
+
+def _open_contract_conflict(loan, contract):
+    """400 si el contrato pasaría a abierto mientras otro contrato del préstamo lo está; si no, None.
+
+    Sólo cuenta el paso de no abierto a abierto (un contrato abierto que sigue abierto no cambia la
+    cuenta) y nunca el propio contrato. `loan` debe estar bloqueado.
+    """
+    if contract.status not in OPEN_CONTRACT_STATUSES and loan_has_open_contract(loan, exclude=contract):
+        return Response({'error': OPEN_CONTRACT_MESSAGE}, status=status.HTTP_400_BAD_REQUEST)
+    return None
+
+
 def _terminal_contract_response(contract):
     """400 si el contrato está cancelado o completado; None si se puede seguir."""
     if contract.status in TERMINAL_CONTRACT_STATUSES:
@@ -330,8 +359,9 @@ class LoanViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         # Un préstamo aprobado o desembolsado no desaparece de los libros con su calendario.
         # Se decide y se borra la fila bloqueada, no la lectura de get_object(): un approve o
-        # desembolso confirmado entretanto queda a la vista. El borrado en cascada de los
-        # contratos ocurre después del bloqueo del préstamo (orden préstamo → contrato).
+        # desembolso confirmado entretanto queda a la vista. Antes del borrado en cascada se
+        # bloquean sus contratos (por pk): el colector borra token → contrato, y así el borrado
+        # sigue el orden préstamo → contrato → token y no se cruza con una firma concurrente.
         with transaction.atomic():
             try:
                 loan = Loan.objects.select_for_update(of=('self',)).get(pk=instance.pk)
@@ -339,6 +369,7 @@ class LoanViewSet(viewsets.ModelViewSet):
                 raise NotFound()
             if loan.status not in ('pending', 'rejected'):
                 raise ValidationError({'status': 'Solo se pueden eliminar préstamos pendientes o rechazados.'})
+            lock_loan_contracts([loan.pk])
             loan.delete()
 
     def get_queryset(self):
@@ -1549,19 +1580,30 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Generate contract from template"""
         from .utils_contracts import replace_contract_variables
 
-        contract = serializer.save(generated_by=self.request.user)
+        with transaction.atomic():
+            # validate_loan comprobó la regla sin bloqueo (para el 400 del formulario); la decisión
+            # vale sobre el préstamo bloqueado: dos altas simultáneas, o un contrato pasado a
+            # abierto entretanto, no dejan dos contratos abiertos (orden préstamo → contrato).
+            try:
+                loan = lock_loan(serializer.validated_data['loan'].pk)
+            except Loan.DoesNotExist:
+                raise NotFound('El préstamo ya no existe; pudo haber sido eliminado por otra operación.')
+            if loan_has_open_contract(loan):
+                raise ValidationError({'loan': [OPEN_CONTRACT_MESSAGE]})
 
-        template = contract.template
-        tenant = getattr(self.request, 'tenant', None)
+            contract = serializer.save(loan=loan, generated_by=self.request.user)
 
-        if template:
-            rendered_content = replace_contract_variables(
-                template.content,
-                contract.loan,
-                tenant
-            )
-            contract.content = rendered_content
-            contract.save()
+            template = contract.template
+            tenant = getattr(self.request, 'tenant', None)
+
+            if template:
+                rendered_content = replace_contract_variables(
+                    template.content,
+                    contract.loan,
+                    tenant
+                )
+                contract.content = rendered_content
+                contract.save()
 
         return contract
 
@@ -1643,13 +1685,18 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             # Se decide sobre la fila bloqueada: dos firmas simultáneas no pasan ambas la
-            # comprobación, y una cancelación concurrente no se revive.
-            contract = _lock_contract(contract)
+            # comprobación, y una cancelación concurrente no se revive. Antes se bloquea el
+            # préstamo: firmar un borrador lo pasa a pending_signature (un solo contrato abierto).
+            loan, contract = _lock_loan_then_contract(contract)
 
             # Cancelado o completado es definitivo: firmar o activar lo reviviría.
             terminal = _terminal_contract_response(contract)
             if terminal is not None:
                 return terminal
+
+            conflict = _open_contract_conflict(loan, contract)
+            if conflict is not None:
+                return conflict
 
             if contract.customer_signed_at:
                 return Response(
@@ -1700,13 +1747,18 @@ class ContractViewSet(viewsets.ModelViewSet):
         contract = self.get_object()
 
         with transaction.atomic():
-            # Se decide sobre la fila bloqueada: una cancelación concurrente no se revive.
-            contract = _lock_contract(contract)
+            # Se decide sobre la fila bloqueada: una cancelación concurrente no se revive. Antes
+            # se bloquea el préstamo: firmar un borrador lo pasa a pending_signature.
+            loan, contract = _lock_loan_then_contract(contract)
 
             # Cancelado o completado es definitivo: firmar o activar lo reviviría.
             terminal = _terminal_contract_response(contract)
             if terminal is not None:
                 return terminal
+
+            conflict = _open_contract_conflict(loan, contract)
+            if conflict is not None:
+                return conflict
 
             if contract.officer_signed_at:
                 return Response(
@@ -1911,9 +1963,11 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             # Se decide y se escribe sobre la fila bloqueada: un cancel o una firma confirmados
-            # después de get_object() no se pisan con la copia vieja. Sólo se bloquea el contrato
-            # (orden préstamo → contrato → token).
-            contract = _lock_contract(contract)
+            # después de get_object() no se pisan con la copia vieja. Se bloquea el préstamo y
+            # luego el contrato (orden préstamo → contrato → token): enviar un borrador lo pasa a
+            # pending_signature y la regla de un solo contrato abierto se decide con el préstamo
+            # bloqueado.
+            loan, contract = _lock_loan_then_contract(contract)
 
             terminal = _terminal_contract_response(contract)
             if terminal is not None:
@@ -1932,6 +1986,10 @@ class ContractViewSet(viewsets.ModelViewSet):
                     {'error': 'Solo se pueden enviar a firma contratos en borrador o pendientes de firma.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+            conflict = _open_contract_conflict(loan, contract)
+            if conflict is not None:
+                return conflict
 
             if contract.status == 'draft':
                 contract.status = 'pending_signature'
