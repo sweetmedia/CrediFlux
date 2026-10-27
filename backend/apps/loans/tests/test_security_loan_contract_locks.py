@@ -392,7 +392,12 @@ def test_opening_actions_lock_the_loan_before_the_contract(officer_client, loan,
     assert f'FOR UPDATE OF "{loan_table}"' in sqls[loan_locks[0]]
 
 
-def test_resending_a_pending_contract_does_not_count_itself(officer_client, loan, mailoutbox):
+def test_resending_a_pending_contract_still_works(officer_client, loan, mailoutbox):
+    """Reenviar uno ya abierto (pending → pending) no pasa por la regla: no cambia la cuenta.
+
+    La regla sólo se consulta en el paso de no abierto a abierto, así que el propio contrato nunca
+    se cuenta (por eso loan_has_open_contract no tiene parámetro `exclude`, ronda 31.1).
+    """
     from apps.loans.models_contracts import ContractSignatureToken
 
     pending = _contract(loan, status="pending_signature")
@@ -433,3 +438,76 @@ def test_normal_flow_create_sign_activate_still_works(officer_client, loan, temp
     )
     assert again.status_code == 400
     assert again.json() == {"loan": [OPEN_MSG]}
+
+
+# ---------------------------------------------------------------------------------------------
+# Ronda 31.1
+# ---------------------------------------------------------------------------------------------
+
+def test_admin_bulk_delete_locks_the_loans_in_pk_order(admin_client, loan_factory, policy):
+    from apps.loans.models import Loan
+
+    loans = [loan_factory(status="pending", disbursement_date=None) for _ in range(2)]
+
+    with CaptureQueriesContext(connection) as ctx:
+        response = admin_client.post(reverse("admin:loans_loan_changelist"), {
+            "action": "delete_selected", "_selected_action": [str(x.pk) for x in loans], "post": "yes",
+        })
+
+    assert response.status_code == 302
+    assert not Loan.objects.filter(pk__in=[x.pk for x in loans]).exists()
+    loan_table, _ = _tables()
+    sqls = [q["sql"] for q in ctx.captured_queries]
+    loan_locks = _locks(sqls, loan_table)
+    assert loan_locks, _statements(sqls)
+    assert f'ORDER BY "{loan_table}"."id" ASC' in sqls[loan_locks[0]]
+
+
+ACTIVATE_STATUS_MSG = "Solo se activan contratos pendientes de firma o firmados."
+
+
+@pytest.mark.parametrize("current", ["draft", "active"])
+def test_activate_only_moves_pending_or_signed_contracts(officer_client, loan, current):
+    # Estado forzado en la BD: hoy ninguna vía deja un borrador con ambas firmas.
+    now = timezone.now()
+    contract = _contract(loan, status=current, customer_signed_at=now, officer_signed_at=now)
+
+    response = _act(officer_client, contract, "activate")
+
+    assert response.status_code == 400, response.content
+    assert response.json() == {"error": ACTIVATE_STATUS_MSG}
+    contract.refresh_from_db()
+    assert contract.status == current
+
+
+@pytest.mark.parametrize("module", ["views", "admin"])
+def test_create_for_a_loan_deleted_before_the_lock_is_a_clean_404(
+    officer_client, admin_client, loan, template, monkeypatch, module
+):
+    import importlib
+
+    from apps.loans import locks
+    from apps.loans.models_contracts import Contract
+
+    target = importlib.import_module(f"apps.loans.{module}")
+    fired = []
+
+    def _lock_loan(pk):
+        # Otra petición borra el préstamo entre la validación y el bloqueo.
+        if not fired:
+            fired.append(True)
+            _delete_loan_now(loan)
+        return locks.lock_loan(pk)
+
+    monkeypatch.setattr(target, "lock_loan", _lock_loan)
+
+    if module == "views":
+        response = officer_client.post(
+            "/api/loans/contracts/", {"loan": str(loan.pk), "template": str(template.pk)}, format="json"
+        )
+    else:
+        response = _admin_add(admin_client, loan, template)
+
+    assert fired
+    assert response.status_code == 404
+    assert not Contract.objects.filter(loan_id=loan.pk).exists()

@@ -300,9 +300,10 @@ def _open_contract_conflict(loan, contract):
     """400 si el contrato pasaría a abierto mientras otro contrato del préstamo lo está; si no, None.
 
     Sólo cuenta el paso de no abierto a abierto (un contrato abierto que sigue abierto no cambia la
-    cuenta) y nunca el propio contrato. `loan` debe estar bloqueado.
+    cuenta); como el contrato aún no está abierto, la regla nunca lo cuenta a él. `loan` debe
+    estar bloqueado.
     """
-    if contract.status not in OPEN_CONTRACT_STATUSES and loan_has_open_contract(loan, exclude=contract):
+    if contract.status not in OPEN_CONTRACT_STATUSES and loan_has_open_contract(loan):
         return Response({'error': OPEN_CONTRACT_MESSAGE}, status=status.HTTP_400_BAD_REQUEST)
     return None
 
@@ -1816,6 +1817,15 @@ class ContractViewSet(viewsets.ModelViewSet):
             terminal = _terminal_contract_response(contract)
             if terminal is not None:
                 return terminal
+
+            # Defensa en profundidad: activar sólo pasa de abierto a abierto (pending_signature o
+            # signed → active), así que no necesita el bloqueo del préstamo ni la regla de un solo
+            # contrato abierto. Un borrador nunca se activa, aunque traiga ambas firmas.
+            if contract.status not in ('pending_signature', 'signed'):
+                return Response(
+                    {'error': 'Solo se activan contratos pendientes de firma o firmados.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             if not contract.is_fully_signed:
                 return Response(

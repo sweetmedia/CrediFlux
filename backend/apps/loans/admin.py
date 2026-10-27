@@ -539,8 +539,10 @@ class LoanAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKMixin
         """
         with transaction.atomic(using=router.db_for_write(self.model)):
             # of=('self',): una búsqueda del changelist une customers; sólo se bloquean los préstamos.
+            # Orden por pk, como lock_pending_loans: dos borrados masivos solapados, o uno y un
+            # movimiento de garantía/garante entre préstamos, bloquean en el mismo orden.
             locked = list(
-                queryset.select_for_update(of=('self',)).order_by().values_list('pk', 'status')
+                queryset.select_for_update(of=('self',)).order_by('pk').values_list('pk', 'status')
             )
             if any(status not in ('pending', 'rejected') for _, status in locked):
                 raise PermissionDenied('Solo se pueden eliminar préstamos pendientes o rechazados.')

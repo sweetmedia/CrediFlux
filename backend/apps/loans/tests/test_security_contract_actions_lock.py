@@ -62,7 +62,7 @@ def _post(client, contract, action):
     return client.post(_contract_url(contract, action), {}, format="json")
 
 
-def _assert_contract_locked_before_update(ctx, extra_locked_tables=()):
+def _assert_contract_locked_before_update(ctx, extra_locked_tables=(), expect_loan_lock=False):
     from apps.loans.models import Loan
     from apps.loans.models_contracts import Contract
 
@@ -87,11 +87,14 @@ def _assert_contract_locked_before_update(ctx, extra_locked_tables=()):
                        if f'FROM "{other}"' in sql and "FOR UPDATE" in sql]
         assert other_locks, f"no se bloquea {other}"
         assert other_locks[0] < updates[0]
-    # Orden préstamo → contrato: estas acciones nunca bloquean el préstamo tras el contrato. Las
-    # que pueden abrir un contrato (sign_*, ronda 31) lo bloquean antes.
+    # Orden préstamo → contrato. Las acciones que pueden abrir un contrato (sign_*, ronda 31)
+    # bloquean el préstamo antes que el contrato; las demás bloquean sólo el contrato.
     loan_table = Loan._meta.db_table
     loan_locks = [i for i, sql in enumerate(sqls) if f'FROM "{loan_table}"' in sql and "FOR UPDATE" in sql]
-    assert all(i < locks[0] for i in loan_locks)
+    if expect_loan_lock:
+        assert loan_locks and loan_locks[0] < locks[0]
+    else:
+        assert loan_locks == [], "esta acción sólo debe bloquear el contrato"
 
 
 def _change_before_lock(monkeypatch, manager, change):
@@ -150,7 +153,7 @@ def test_contract_actions_lock_the_contract_before_updating(
         response = _post(officer_client, contract, action)
 
     assert response.status_code == 200, response.content
-    _assert_contract_locked_before_update(ctx)
+    _assert_contract_locked_before_update(ctx, expect_loan_lock=action.startswith("sign_"))
     contract.refresh_from_db()
     assert contract.status == expected_status
 

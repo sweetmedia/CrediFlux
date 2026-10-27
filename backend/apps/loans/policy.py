@@ -70,19 +70,18 @@ OPEN_CONTRACT_STATUSES = ('active', 'signed', 'pending_signature')
 OPEN_CONTRACT_MESSAGE = 'Este préstamo ya tiene un contrato activo'
 
 
-def loan_has_open_contract(loan, exclude=None):
-    """¿Tiene el préstamo un contrato vigente o por firmar, sin contar `exclude`?
+def loan_has_open_contract(loan):
+    """¿Tiene el préstamo un contrato vigente o por firmar?
 
     Invariante: como mucho un contrato abierto por préstamo. Única regla para el alta (API y admin)
     y para las acciones que pasan un contrato de no abierto a abierto (send_for_signature,
-    sign_customer, sign_officer de un borrador), que excluyen el propio contrato. La decisión vale
-    sólo sobre el préstamo bloqueado (locks.lock_loan); ContractCreateSerializer.validate_loan y
-    ContractAdminForm.clean_loan la usan sin bloqueo sólo para dar el error en el formulario.
+    sign_customer, sign_officer de un borrador). Esas acciones sólo la consultan mientras el
+    contrato aún no está abierto, así que el propio contrato nunca se cuenta y no hace falta
+    excluirlo. La decisión vale sólo sobre el préstamo bloqueado (locks.lock_loan);
+    ContractCreateSerializer.validate_loan y ContractAdminForm.clean_loan la usan sin bloqueo sólo
+    para dar el error en el formulario.
     """
-    contracts = loan.contracts.filter(status__in=OPEN_CONTRACT_STATUSES)
-    if exclude is not None:
-        contracts = contracts.exclude(pk=exclude.pk)
-    return contracts.exists()
+    return loan.contracts.filter(status__in=OPEN_CONTRACT_STATUSES).exists()
 
 
 def contract_deletable(contract):
