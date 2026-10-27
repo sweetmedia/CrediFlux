@@ -4,6 +4,9 @@
    are only valid before all other rules.
    ============================================================ */
 @import '../lib/design-system/themes/theme-default.css';
+/* DS de F3: tokens claro/oscuro (oscuro sólo bajo .dark .cf-root) y clases cf-*. */
+@import '../lib/design-system/cf/tokens.css';
+@import '../lib/design-system/cf/bundle.css';
 
 @tailwind base;
 @tailwind components;

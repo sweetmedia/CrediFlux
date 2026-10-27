@@ -19,6 +19,32 @@ import animate from "tailwindcss-animate"
 /** Helper: turn an HSL triplet token into an hsl() w/ optional alpha */
 const hsl = (token: string) => `hsl(var(${token}) / <alpha-value>)`
 
+/**
+ * Paleta del DS (lib/design-system/cf/tokens.css). Cada color sale de la
+ * variable de su papel: fondo (--bg-*), texto (--fg-*) o borde (--bd-*), porque
+ * en oscuro el mismo forest-900 es distinto como fondo que como texto.
+ */
+const SCALE = {
+  forest: [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950],
+  sage: [50, 100, 200, 300, 400, 500, 600, 700],
+  sun: [100, 200, 300, 400, 500],
+  flame: [100, 200, 300, 400, 500, 600, 700],
+} as const
+const brand = (role: 'bg' | 'fg' | 'bd') => {
+  const v = (name: string) => `rgb(var(--${role}-${name}) / <alpha-value>)`
+  const out: Record<string, string | Record<string, string>> = {
+    cream: v('cream'),
+    'warm-white': v('warm-white'),
+    white: v('white'),
+  }
+  for (const [name, steps] of Object.entries(SCALE)) {
+    out[name] = Object.fromEntries(steps.map((s) => [s, v(`${name}-${s}`)]))
+  }
+  // flame-50 no está en la escala del DS; no cambia en oscuro.
+  ;(out.flame as Record<string, string>)[50] = '#fff4eb'
+  return out
+}
+
 const config = {
   darkMode: ["class"],
   content: [
@@ -37,6 +63,16 @@ const config = {
       },
     },
     extend: {
+      backgroundColor: brand('bg'),
+      textColor: brand('fg'),
+      placeholderColor: brand('fg'),
+      fill: brand('fg'),
+      stroke: brand('fg'),
+      borderColor: brand('bd'),
+      divideColor: brand('bd'),
+      outlineColor: brand('bd'),
+      ringColor: brand('bd'),
+      ringOffsetColor: brand('bd'),
       // ----------------------------------------------------------
       // Fonts
       // ----------------------------------------------------------
@@ -131,13 +167,9 @@ const config = {
           solid:          hsl('--color-info-solid'),
         },
 
-        // Brand palette (same values as branding/tokens.css and the F3 prototypes).
-        // sun is never text or a hover fill — focus/active marks only.
-        forest: { 50: '#f0f7eb', 100: '#dcecd0', 500: '#4d8630', 700: '#2d5a10', 900: '#163300', 950: '#0a1a00' },
-        sage: { 50: '#f3f6f1', 100: '#e4ebe0', 200: '#c8d4be', 300: '#a8b89c', 400: '#8a9d7a', 500: '#738566', 600: '#5c6d4d', 700: '#4a5a3d' },
-        sun: { 500: '#ffe026' },
-        flame: { 50: '#fff4eb', 500: '#ff7503', 600: '#cc5e02' },
-        cream: '#faf8f2',
+        // Paleta del DS: ver `brand()`. Fuera de backgroundColor/textColor/borderColor
+        // (degradados, placeholder...) se usa el valor de fondo.
+        ...brand('bg'),
         tenant: 'var(--color-tenant-primary, #163300)',
 
         focus:            hsl('--color-focus-ring'),

@@ -18,7 +18,7 @@ HEADER = '/* Generado por design-prototypes/_tools/export_tokens.py — no edita
 def base_tokens():
     """El :root de ds/tokens.css tal cual (espacios, radios, sombras, hairlines...)."""
     css = (DS / 'tokens.css').read_text()
-    return css[css.index(':root'):].strip() + '\n'
+    return ':root,.cf-root' + css[css.index(':root') + 5:].strip() + '\n'
 
 
 def print_reset():

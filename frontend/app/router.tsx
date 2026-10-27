@@ -40,7 +40,14 @@ const rutas: RouteObject[] = Object.entries(pages).map(([file, load]) => ({
   lazy: async () => ({ Component: (await load()).default }),
 }));
 
+// Vitrina del DS sólo en desarrollo (las pruebas e2e del tema la usan); fuera
+// del layout para no pasar por la sesión. En build la rama se elimina.
+const rutasDev: RouteObject[] = import.meta.env.DEV
+  ? [{ path: '/__ds', lazy: async () => ({ Component: (await import('./__dev/ds')).default }) }]
+  : [];
+
 export const router = createBrowserRouter([
+  ...rutasDev,
   {
     element: <RootLayout />,
     // Primera carga mientras llega el chunk de la página.
