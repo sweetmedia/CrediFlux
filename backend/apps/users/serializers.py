@@ -18,7 +18,13 @@ from apps.core.media import SignedFilesModelSerializer
 from apps.core.permissions import user_matches_tenant
 from . import lockout
 from .authentication import token_revoked
-from .tokens import PWD_TS_CLAIM, issue_tokens, password_timestamp, revoke_user_credentials
+from .tokens import (
+    PWD_TS_CLAIM,
+    email_verification_token,
+    issue_tokens,
+    password_timestamp,
+    revoke_user_credentials,
+)
 from dj_rest_auth.serializers import LoginSerializer as BaseLoginSerializer
 
 User = get_user_model()
@@ -139,29 +145,44 @@ def _token_user(uid, request):
 # EMAIL VERIFICATION
 # ============================================================================
 
+VERIFICATION_SEND_MESSAGE = (
+    'If an account with this email needs verification, a verification link has been sent.'
+)
+
+
+def _verification_candidates(email):
+    """Usuarios activos y sin verificar con ese correo (búsqueda exacta, como la del reset).
+
+    `email` es único en la tabla, así que hay como mucho uno; se itera igual (nunca `get()`)
+    para que una tabla con duplicados no dé `MultipleObjectsReturned` ni elija a ciegas.
+    """
+    return User.objects.select_related('tenant').filter(email=email, is_active=True, email_verified=False)
+
+
 class EmailVerificationSendSerializer(serializers.Serializer):
-    """Serializer to request email verification"""
+    """Pide el enlace de verificación sin oráculo de cuentas.
+
+    Cualquier correo con formato válido recibe la misma respuesta. Sólo se envía el enlace a un
+    usuario activo, sin verificar y que pasa `user_on_request_host` en el host de la petición
+    (la misma regla que el canje): un usuario de tenant lo pide desde el host de su tenant y uno
+    sin tenant, desde el público. Necesita `request` en el contexto.
+    """
     email = serializers.EmailField(required=True)
 
-    def validate_email(self, value):
-        """Validate that user exists"""
-        try:
-            user = User.objects.get(email=value)
-        except User.DoesNotExist:
-            raise serializers.ValidationError("User with this email does not exist.")
-
-        if user.email_verified:
-            raise serializers.ValidationError("Email is already verified.")
-
-        return value
-
     def save(self):
-        """Generate verification token and send email"""
-        email = self.validated_data['email']
-        user = User.objects.get(email=email)
+        """Envía el enlace si hay un destinatario válido; la respuesta es siempre la misma."""
+        request = self.context.get('request')
+        user = next(
+            (u for u in _verification_candidates(self.validated_data['email']) if user_on_request_host(u, request)),
+            None,
+        )
+        if user is not None:
+            self._send(user)
+        return {'message': VERIFICATION_SEND_MESSAGE}
 
-        # Generate token
-        token = default_token_generator.make_token(user)
+    def _send(self, user):
+        """Genera el token de verificación y envía el correo."""
+        token = email_verification_token.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
 
         # Host del dominio del tenant (nunca su schema_name); sin tenant, FRONTEND_URL.
@@ -189,15 +210,9 @@ class EmailVerificationSendSerializer(serializers.Serializer):
             message,
             settings.EMAIL_HOST_USER or 'noreply@crediflux.com',
             [user.email],
-            fail_silently=False,
+            # Un fallo de SMTP no puede dar un 500 sólo cuando la cuenta existe.
+            fail_silently=True,
         )
-
-        response = {
-            'email': user.email,
-            'message': 'Verification email sent successfully.',
-        }
-
-        return response
 
 
 class EmailVerificationConfirmSerializer(serializers.Serializer):
@@ -208,16 +223,12 @@ class EmailVerificationConfirmSerializer(serializers.Serializer):
     def validate(self, attrs):
         """Validate token and uid"""
         # uid inválido, usuario de otro tenant y token inválido: el mismo error.
+        # `email_verified` está en el hash del token: uno ya usado (correo verificado) también
+        # da este error, así que no hay rama aparte de "ya verificado".
         user = _token_user(attrs['uid'], self.context.get('request'))
-        if user is None or not default_token_generator.check_token(user, attrs['token']):
+        if user is None or not email_verification_token.check_token(user, attrs['token']):
             raise serializers.ValidationError({
                 'token': 'Invalid or expired verification token.'
-            })
-
-        # Check if already verified
-        if user.email_verified:
-            raise serializers.ValidationError({
-                'email': 'Email is already verified.'
             })
 
         attrs['user'] = user

@@ -5,11 +5,32 @@ Cada refresh lleva el claim `pwd_ts` (segundos de `user.password_changed_at`);
 el access derivado lo hereda. Mover `password_changed_at` invalida todos los
 tokens emitidos antes (lo comprueban `CrediFluxJWTAuthentication` y la vista de
 refresh), y además se ponen en lista negra los refresh pendientes.
+
+También vive aquí el generador de los enlaces de verificación de correo
+(`email_verification_token`), separado del de reset de contraseña.
 """
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
 PWD_TS_CLAIM = 'pwd_ts'
+
+
+class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
+    """Token de `/verify-email`: sólo verifica el correo y sólo una vez.
+
+    `key_salt` propio: un token de verificación no vale como token de reset
+    (`default_token_generator`) ni al revés. `email_verified` entra en el hash: al
+    verificar, el token deja de valer. Vence con `PASSWORD_RESET_TIMEOUT`, como el de reset.
+    """
+
+    key_salt = 'apps.users.tokens.EmailVerificationTokenGenerator'
+
+    def _make_hash_value(self, user, timestamp):
+        return f'{super()._make_hash_value(user, timestamp)}{user.email_verified}'
+
+
+email_verification_token = EmailVerificationTokenGenerator()
 
 
 def password_timestamp(user) -> int:

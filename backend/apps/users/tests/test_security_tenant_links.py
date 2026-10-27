@@ -18,6 +18,7 @@ from tests.factories import UserFactory
 pytestmark = pytest.mark.django_db
 
 BASE = "crediflux.test"
+PUBLIC_HOST = "localhost"  # dominio del tenant público en conftest
 RESET_REQUEST = "/api/users/auth/password-reset/request/"
 RESET_CONFIRM = "/api/users/auth/password-reset/confirm/"
 VERIFY_SEND = "/api/users/auth/verify-email/send/"
@@ -63,8 +64,10 @@ def request_reset(client, email):
     return sent_link("/reset-password")
 
 
-def request_verification(client, email):
-    response = client.post(VERIFY_SEND, {"email": email}, format="json")
+def request_verification(host, email):
+    """Desde la ronda 32 el enlace sólo se envía si se pide desde el host del tenant del usuario
+    (sin tenant, desde el público)."""
+    response = client_on(host).post(VERIFY_SEND, {"email": email}, format="json")
     assert response.status_code == 200, response.content
     return sent_link("/verify-email")
 
@@ -97,7 +100,7 @@ def test_a_reset_and_verify_links_use_the_tenant_domain_not_its_schema(public_cl
     user = UserFactory(email="cajero@sol.test", tenant=tenant, email_verified=False)
 
     reset = request_reset(public_client, user.email)
-    verify = request_verification(public_client, user.email)
+    verify = request_verification(f"solfin.{BASE}", user.email)
 
     assert reset.netloc == f"solfin.{BASE}"
     assert verify.netloc == f"solfin.{BASE}"
@@ -126,7 +129,7 @@ def test_c_victim_link_does_not_point_to_the_attackers_domain(public_client):
     user = UserFactory(email="duena@acme.test", tenant=victim, email_verified=False)
 
     reset = request_reset(public_client, user.email)
-    verify = request_verification(public_client, user.email)
+    verify = request_verification(f"acmefin.{BASE}", user.email)
 
     attacker_domain = Domain.objects.get(tenant__name="evil").domain
     assert reset.netloc != attacker_domain
@@ -169,7 +172,7 @@ def test_links_of_user_without_tenant_keep_frontend_url(public_client):
     user = UserFactory(email="sin-tenant@crediflux.test", tenant=None, email_verified=False)
 
     assert request_reset(public_client, user.email).netloc == BASE
-    assert request_verification(public_client, user.email).netloc == BASE
+    assert request_verification(PUBLIC_HOST, user.email).netloc == BASE
 
 
 @links
@@ -177,9 +180,21 @@ def test_tenant_without_domain_falls_back_to_frontend_url_with_warning(public_cl
     tenant = make_tenant("sin-dominio")
     user = UserFactory(email="cajero@sin-dominio.test", tenant=tenant, email_verified=False)
 
+    # Sin Domain ningún host resuelve a este tenant, así que el envío por API no le llega
+    # (ronda 32): el enlace de verificación se construye con el serializer y un request del tenant.
+    from django.test import RequestFactory
+
+    from apps.users.serializers import EmailVerificationSendSerializer
+
+    request = RequestFactory().post(VERIFY_SEND)
+    request.tenant = tenant
+    serializer = EmailVerificationSendSerializer(data={"email": user.email}, context={"request": request})
+    assert serializer.is_valid(), serializer.errors
+
     with caplog.at_level("WARNING", logger="apps.tenants.links"):
         reset = request_reset(public_client, user.email)
-        verify = request_verification(public_client, user.email)
+        serializer.save()
+        verify = sent_link("/verify-email")
 
     assert reset.netloc == verify.netloc == BASE
     assert "sin_dominio" not in reset.geturl() and "sin-dominio" not in reset.geturl()
@@ -192,7 +207,7 @@ def test_primary_domain_keeps_scheme_and_port_of_frontend_url(public_client):
     user = UserFactory(email="cajero@puerto.test", tenant=tenant, email_verified=False)
 
     reset = request_reset(public_client, user.email)
-    verify = request_verification(public_client, user.email)
+    verify = request_verification("puerto.localhost", user.email)
 
     assert reset.scheme == verify.scheme == "http"
     assert reset.netloc == verify.netloc == "puerto.localhost:3100"
@@ -205,7 +220,7 @@ def test_primary_domain_wins_over_other_domains(public_client):
     user = UserFactory(email="cajero@varios.test", tenant=tenant, email_verified=False)
 
     assert request_reset(public_client, user.email).netloc == f"nuevo.{BASE}"
-    assert request_verification(public_client, user.email).netloc == f"nuevo.{BASE}"
+    assert request_verification(f"nuevo.{BASE}", user.email).netloc == f"nuevo.{BASE}"
 
 
 @links
@@ -355,14 +370,23 @@ def test_normal_registration_is_still_accepted(public_client):
 # ---------------------------------------------------------------------------
 
 
-def token_body(user, **extra):
+def token_body(user, generator=None, **extra):
+    """uid y token de reset (o del `generator` dado) para `user`."""
     from django.contrib.auth.tokens import default_token_generator
     from django.utils.encoding import force_bytes
     from django.utils.http import urlsafe_base64_encode
 
-    body = {"uid": urlsafe_base64_encode(force_bytes(user.pk)), "token": default_token_generator.make_token(user)}
+    generator = generator or default_token_generator
+    body = {"uid": urlsafe_base64_encode(force_bytes(user.pk)), "token": generator.make_token(user)}
     body.update(extra)
     return body
+
+
+def verify_body(user, **extra):
+    """uid y token de verificación: desde la ronda 32 sale de su propio generador."""
+    from apps.users.tokens import email_verification_token
+
+    return token_body(user, generator=email_verification_token, **extra)
 
 
 RESET_EXTRA = {"new_password": NEW_PASSWORD, "confirm_password": NEW_PASSWORD}
@@ -384,7 +408,7 @@ def victim(public_schema):
 
 
 def test_verify_confirm_on_the_wrong_host_gives_the_generic_error(victim):
-    response = client_on(f"acme.{BASE}").post(VERIFY_CONFIRM, token_body(victim), format="json")
+    response = client_on(f"acme.{BASE}").post(VERIFY_CONFIRM, verify_body(victim), format="json")
 
     victim.refresh_from_db()
     assert response.status_code == 400
@@ -395,7 +419,7 @@ def test_verify_confirm_on_the_wrong_host_gives_the_generic_error(victim):
 def test_both_confirms_work_on_the_users_tenant_host(victim):
     on_acme = client_on(f"acmefin.{BASE}")
 
-    verify = on_acme.post(VERIFY_CONFIRM, token_body(victim), format="json")
+    verify = on_acme.post(VERIFY_CONFIRM, verify_body(victim), format="json")
     reset = on_acme.post(RESET_CONFIRM, token_body(victim, **RESET_EXTRA), format="json")
 
     victim.refresh_from_db()
@@ -410,12 +434,12 @@ def test_user_without_tenant_redeems_only_on_the_public_host(public_client, tena
 
     on_tenant = client_on("tenant.test.localhost")
     assert on_tenant.post(RESET_CONFIRM, token_body(user, **RESET_EXTRA), format="json").json() == RESET_ERROR
-    assert on_tenant.post(VERIFY_CONFIRM, token_body(user), format="json").json() == VERIFY_ERROR
+    assert on_tenant.post(VERIFY_CONFIRM, verify_body(user), format="json").json() == VERIFY_ERROR
     user.refresh_from_db()
     assert not user.check_password(NEW_PASSWORD) and user.email_verified is False
 
     # Verificación antes que reset: el token de Django cambia con la contraseña.
-    assert public_client.post(VERIFY_CONFIRM, token_body(user), format="json").status_code == 200
+    assert public_client.post(VERIFY_CONFIRM, verify_body(user), format="json").status_code == 200
     assert public_client.post(RESET_CONFIRM, token_body(user, **RESET_EXTRA), format="json").status_code == 200
 
 
@@ -430,7 +454,7 @@ def test_platform_superuser_redeems_only_on_the_public_host(public_client, tenan
     bad_token = on_tenant.post(RESET_CONFIRM, {**token_body(admin, **RESET_EXTRA), "token": "abc-123"}, format="json")
 
     reset = on_tenant.post(RESET_CONFIRM, token_body(admin, **RESET_EXTRA), format="json")
-    verify = on_tenant.post(VERIFY_CONFIRM, token_body(admin), format="json")
+    verify = on_tenant.post(VERIFY_CONFIRM, verify_body(admin), format="json")
 
     admin.refresh_from_db()
     assert reset.status_code == verify.status_code == 400
@@ -438,7 +462,7 @@ def test_platform_superuser_redeems_only_on_the_public_host(public_client, tenan
     assert verify.json() == VERIFY_ERROR
     assert not admin.check_password(NEW_PASSWORD) and admin.email_verified is False
 
-    assert public_client.post(VERIFY_CONFIRM, token_body(admin), format="json").status_code == 200
+    assert public_client.post(VERIFY_CONFIRM, verify_body(admin), format="json").status_code == 200
     assert public_client.post(RESET_CONFIRM, token_body(admin, **RESET_EXTRA), format="json").status_code == 200
     admin.refresh_from_db()
     assert admin.email_verified is True and admin.check_password(NEW_PASSWORD)
@@ -454,12 +478,12 @@ def test_inactive_user_gets_the_generic_error_on_its_own_host(victim):
     assert response.json() == RESET_ERROR
 
 
-@pytest.mark.parametrize("path, extra, error", [
-    (RESET_CONFIRM, RESET_EXTRA, RESET_ERROR),
-    (VERIFY_CONFIRM, {}, VERIFY_ERROR),
+@pytest.mark.parametrize("path, body, extra, error", [
+    (RESET_CONFIRM, token_body, RESET_EXTRA, RESET_ERROR),
+    (VERIFY_CONFIRM, verify_body, {}, VERIFY_ERROR),
 ])
-def test_wrong_host_bad_token_and_bad_uid_are_indistinguishable(victim, path, extra, error):
-    good = token_body(victim, **extra)
+def test_wrong_host_bad_token_and_bad_uid_are_indistinguishable(victim, path, body, extra, error):
+    good = body(victim, **extra)
     wrong_host = client_on(f"acme.{BASE}").post(path, good, format="json")
     on_acme = client_on(f"acmefin.{BASE}")
     bad_token = on_acme.post(path, {**good, "token": "abc-123"}, format="json")

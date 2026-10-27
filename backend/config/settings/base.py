@@ -281,6 +281,7 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
     'tenant_registration': config('DRF_THROTTLE_TENANT_REGISTRATION', default='3/hour'),
     'validate_rnc': config('DRF_THROTTLE_VALIDATE_RNC', default='10/minute'),
     'cedula_lookup': config('DRF_THROTTLE_CEDULA_LOOKUP', default='30/minute'),
+    'verify_email_send': config('DRF_THROTTLE_VERIFY_EMAIL_SEND', default='5/hour'),
 }
 
 # Tope global de tenants creados por autoservicio en las últimas 24 h

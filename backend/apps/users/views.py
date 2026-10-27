@@ -6,12 +6,15 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.settings import api_settings
+from rest_framework.throttling import SimpleRateThrottle
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from django.conf import settings
 from django.db import transaction
+from apps.core.net import client_network_key
 from apps.tenants.models import Tenant
 from allauth.account.views import ConfirmEmailView
 from allauth.account.models import EmailConfirmation, EmailConfirmationHMAC
@@ -35,6 +38,7 @@ from .serializers import (
     TwoFactorDisableSerializer,
     BackupCodesRegenerateSerializer,
     TenantAwareTokenRefreshSerializer,
+    VERIFICATION_SEND_MESSAGE,
     user_on_request_host,
 )
 
@@ -45,35 +49,59 @@ User = get_user_model()
 # EMAIL VERIFICATION
 # ============================================================================
 
+class VerifyEmailSendThrottle(SimpleRateThrottle):
+    """Límite propio por IP del cliente para pedir enlaces de verificación, autenticado o no.
+
+    La identidad sale de `client_network_key` (respeta NUM_PROXIES): la IPv4 o la red IPv6 /56,
+    como el throttle del registro de tenants.
+    """
+
+    scope = 'verify_email_send'
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {'scope': self.scope, 'ident': client_network_key(request)}
+
+    def get_rate(self):
+        # Se lee en cada petición (no al importar) para respetar override_settings.
+        return api_settings.DEFAULT_THROTTLE_RATES.get(self.scope, '5/hour')
+
+
 class EmailVerificationSendView(APIView):
     """
     Send email verification link to user.
 
+    Always answers the same generic 200 for a well-formed email; the link is only sent to an
+    active, unverified user requested from their tenant's host (public host without tenant).
+
     **Authentication:** Not required (public endpoint)
     """
     permission_classes = [AllowAny]
+    throttle_classes = [VerifyEmailSendThrottle]
 
     @swagger_auto_schema(
         operation_id='send_email_verification',
-        operation_description='Send email verification link',
+        operation_description=(
+            'Request an email verification link. The response is the same whether or not the '
+            'email belongs to an account that needs verification on this host.'
+        ),
         request_body=EmailVerificationSendSerializer,
         responses={
             200: openapi.Response(
-                description='Verification email sent',
+                description='Generic response (does not reveal whether the account exists)',
                 examples={
                     'application/json': {
-                        'email': 'user@example.com',
-                        'message': 'Verification email sent successfully.',
+                        'message': VERIFICATION_SEND_MESSAGE,
                     }
                 }
             ),
-            400: 'Bad request - validation errors'
+            400: 'Bad request - invalid email format',
+            429: 'Too many requests',
         },
         tags=['Authentication - Email Verification']
     )
     def post(self, request):
         """Send verification email"""
-        serializer = EmailVerificationSendSerializer(data=request.data)
+        serializer = EmailVerificationSendSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
             result = serializer.save()
