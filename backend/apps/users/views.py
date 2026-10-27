@@ -110,7 +110,7 @@ class EmailVerificationConfirmView(APIView):
     )
     def post(self, request):
         """Verify email with token"""
-        serializer = EmailVerificationConfirmSerializer(data=request.data)
+        serializer = EmailVerificationConfirmSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
             result = serializer.save()
@@ -187,7 +187,7 @@ class PasswordResetConfirmView(APIView):
     )
     def post(self, request):
         """Reset password with token"""
-        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer = PasswordResetConfirmSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
             result = serializer.save()

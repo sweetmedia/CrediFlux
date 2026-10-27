@@ -92,6 +92,23 @@ def _domain_taken(subdomain):
     ).exists()
 
 
+def _names_another_tenant(tenant_name, subdomain):
+    """Reserva cruzada: ningún identificador de un tenant nombra a otro (pendientes incluidos).
+
+    - el subdominio no puede ser el `name` ni el `schema_name` de otro tenant;
+    - el `tenant_name` no puede ser un subdominio ya tomado.
+
+    Si no, los enlaces construidos con el nombre o el schema de uno caerían en el dominio del otro.
+    """
+    return (
+        Tenant.objects.filter(
+            Q(name__iexact=subdomain) | Q(schema_name__iexact=subdomain)
+            | Q(schema_name__iexact=schema_name_for(subdomain))
+        ).exists()
+        or _domain_taken(tenant_name)
+    )
+
+
 def _spend_daily_budget(key, ttl=60 * 60 * 25):
     """Suma un intento al contador del día en la caché y devuelve el total.
 
@@ -246,6 +263,7 @@ class TenantRegistrationSerializer(serializers.Serializer):
             or _schema_unavailable(schema_name_for(tenant_name))
             or Tenant.objects.filter(name=tenant_name).exists()
             or _domain_taken(subdomain)
+            or _names_another_tenant(tenant_name, subdomain)
             or User.objects.filter(email__iexact=attrs['owner_email']).exists()
         ):
             raise serializers.ValidationError(REGISTRATION_REJECTED)
@@ -318,7 +336,11 @@ class TenantRegistrationSerializer(serializers.Serializer):
 
         # Re-comprobación dentro de la transacción (otra petición pudo crear el mismo schema
         # tras `validate`).
-        if _schema_unavailable(schema_name) or Tenant.objects.filter(name=tenant_name).exists():
+        if (
+            _schema_unavailable(schema_name)
+            or Tenant.objects.filter(name=tenant_name).exists()
+            or _names_another_tenant(tenant_name, subdomain)
+        ):
             raise serializers.ValidationError(REGISTRATION_REJECTED)
         username = _available_username(owner_data['email'])
 

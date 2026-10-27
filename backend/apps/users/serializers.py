@@ -97,6 +97,39 @@ class UserSerializer(SignedFilesModelSerializer):
         ]
 
 
+def _frontend_url_for(user):
+    """URL del frontend para los enlaces del usuario: la de su tenant (por su Domain) o FRONTEND_URL."""
+    if user.tenant_id:
+        from apps.tenants.links import tenant_frontend_url
+        return tenant_frontend_url(user.tenant)
+    return getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+
+
+def _user_on_request_host(user, request):
+    """True si el usuario puede canjear un token en el host de `request`.
+
+    Misma regla que `user_matches_tenant`; un usuario sin tenant (que no sea admin de
+    plataforma) sólo en el host público.
+    """
+    tenant = getattr(request, 'tenant', None)
+    if user.tenant_id is None and not is_platform_admin(user):
+        return user.is_active and (tenant is None or tenant.schema_name == 'public')
+    return user_matches_tenant(user, tenant)
+
+
+def _token_user(uid, request):
+    """Usuario del `uid` si existe y pertenece al tenant del host; None en cualquier otro caso.
+
+    Se decide antes de mirar el token: uid inválido, usuario inexistente y host ajeno dan el
+    mismo error que un token inválido (sin oráculo de existencia ni de tenant).
+    """
+    try:
+        user = User.objects.select_related('tenant').get(pk=force_str(urlsafe_base64_decode(uid)))
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        return None
+    return user if _user_on_request_host(user, request) else None
+
+
 # ============================================================================
 # EMAIL VERIFICATION
 # ============================================================================
@@ -119,8 +152,6 @@ class EmailVerificationSendSerializer(serializers.Serializer):
 
     def save(self):
         """Generate verification token and send email"""
-        from urllib.parse import urlparse, urlunparse
-
         email = self.validated_data['email']
         user = User.objects.get(email=email)
 
@@ -128,21 +159,8 @@ class EmailVerificationSendSerializer(serializers.Serializer):
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
 
-        # Create verification URL with tenant subdomain
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-
-        # If user belongs to a tenant, add subdomain to URL
-        if user.tenant:
-            parsed = urlparse(frontend_url)
-            tenant_host = f"{user.tenant.schema_name}.{parsed.netloc}"
-            frontend_url = urlunparse((
-                parsed.scheme,
-                tenant_host,
-                parsed.path,
-                parsed.params,
-                parsed.query,
-                parsed.fragment
-            ))
+        # Host del dominio del tenant (nunca su schema_name); sin tenant, FRONTEND_URL.
+        frontend_url = _frontend_url_for(user)
 
         verification_url = f"{frontend_url}/verify-email?uid={uid}&token={token}"
 
@@ -184,30 +202,21 @@ class EmailVerificationConfirmSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Validate token and uid"""
-        try:
-            # Decode uid
-            uid = force_str(urlsafe_base64_decode(attrs['uid']))
-            user = User.objects.get(pk=uid)
-
-            # Validate token
-            if not default_token_generator.check_token(user, attrs['token']):
-                raise serializers.ValidationError({
-                    'token': 'Invalid or expired verification token.'
-                })
-
-            # Check if already verified
-            if user.email_verified:
-                raise serializers.ValidationError({
-                    'email': 'Email is already verified.'
-                })
-
-            attrs['user'] = user
-            return attrs
-
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        # uid inválido, usuario de otro tenant y token inválido: el mismo error.
+        user = _token_user(attrs['uid'], self.context.get('request'))
+        if user is None or not default_token_generator.check_token(user, attrs['token']):
             raise serializers.ValidationError({
-                'uid': 'Invalid user ID.'
+                'token': 'Invalid or expired verification token.'
             })
+
+        # Check if already verified
+        if user.email_verified:
+            raise serializers.ValidationError({
+                'email': 'Email is already verified.'
+            })
+
+        attrs['user'] = user
+        return attrs
 
     def save(self):
         """Mark email as verified"""
@@ -242,8 +251,6 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
     def save(self):
         """Generate reset token and send email"""
-        from urllib.parse import urlparse, urlunparse
-
         email = self.validated_data['email']
 
         try:
@@ -253,22 +260,8 @@ class PasswordResetRequestSerializer(serializers.Serializer):
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
 
-            # Create reset URL with tenant subdomain
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-
-            # If user belongs to a tenant, add subdomain to URL
-            if user.tenant:
-                parsed = urlparse(frontend_url)
-                # Add tenant subdomain to the host
-                tenant_host = f"{user.tenant.schema_name}.{parsed.netloc}"
-                frontend_url = urlunparse((
-                    parsed.scheme,
-                    tenant_host,
-                    parsed.path,
-                    parsed.params,
-                    parsed.query,
-                    parsed.fragment
-                ))
+            # Host del dominio del tenant (nunca su schema_name); sin tenant, FRONTEND_URL.
+            frontend_url = _frontend_url_for(user)
 
             reset_url = f"{frontend_url}/reset-password?uid={uid}&token={token}"
 
@@ -338,26 +331,17 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
                 'confirm_password': 'Passwords do not match.'
             })
 
-        try:
-            # Decode uid
-            uid = force_str(urlsafe_base64_decode(attrs['uid']))
-            user = User.objects.get(pk=uid)
-
-            # Validate token
-            if not default_token_generator.check_token(user, attrs['token']):
-                raise serializers.ValidationError({
-                    'token': 'Invalid or expired reset token.'
-                })
-
-            # Check if user is active
-            if not user.is_active:
-                raise serializers.ValidationError({
-                    'non_field_errors': 'This account has been deactivated.'
-                })
-
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        # uid inválido, usuario de otro tenant y token inválido: el mismo error.
+        user = _token_user(attrs['uid'], self.context.get('request'))
+        if user is None or not default_token_generator.check_token(user, attrs['token']):
             raise serializers.ValidationError({
-                'uid': 'Invalid user ID.'
+                'token': 'Invalid or expired reset token.'
+            })
+
+        # Check if user is active
+        if not user.is_active:
+            raise serializers.ValidationError({
+                'non_field_errors': 'This account has been deactivated.'
             })
 
         try:

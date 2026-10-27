@@ -792,6 +792,7 @@ def get_tenant_dropdown(request):
         return dropdown
 
     try:
+        from apps.tenants.links import tenant_domain
         from apps.tenants.models import Tenant, Domain
 
         # Get current schema
@@ -836,17 +837,11 @@ def get_tenant_dropdown(request):
         tenants = Tenant.objects.filter(is_active=True).exclude(schema_name='public').order_by('name')
 
         for tenant in tenants:
-            # Prefer the tenant's primary domain if it exists
-            primary_domain = Domain.objects.filter(tenant=tenant, is_primary=True).first()
-            if primary_domain:
-                tenant_host = primary_domain.domain
-            else:
-                # Fallback: build subdomain URL
-                if 'localhost' in host:
-                    port = ':' + host.split(':')[1] if ':' in host else ''
-                    tenant_host = f"{tenant.schema_name}.localhost{port}"
-                else:
-                    tenant_host = f"{tenant.schema_name}.{base_domain}"
+            # Dominio primario o, si no hay, el primero por pk. Nunca `schema_name`: el
+            # registro no obliga a que coincida con el subdominio (otro tenant puede tenerlo).
+            tenant_host = tenant_domain(tenant)
+            if not tenant_host:
+                continue  # sin dominio el tenant no tiene host al que enlazar
 
             dropdown.append({
                 "icon": "business",
