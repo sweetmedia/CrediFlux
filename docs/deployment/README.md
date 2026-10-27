@@ -858,6 +858,7 @@ Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en e
 ### Después de desplegar
 
 - **Sesiones**: los JWT quedan ligados a `password_changed_at` (claim `pwd_ts`). Los tokens emitidos antes no lo llevan, así que **todos los usuarios tendrán que volver a iniciar sesión una vez**. Avisar.
+- **Enlaces de verificación de correo**: desde la ronda 32 la verificación usa su propio generador de tokens. Los enlaces de verificación enviados antes del despliegue dejan de verificar, pero siguen sirviendo como token de reseteo de contraseña hasta `PASSWORD_RESET_TIMEOUT` (3 días por defecto). El hallazgo queda cerrado del todo pasado ese plazo; para cerrarlo antes, bajar `PASSWORD_RESET_TIMEOUT` temporalmente (también acorta los enlaces de reseteo legítimos).
 - **Caché de RNC**: cambió el formato de la caché (una clave por RNC). Hasta recargarla, `validate-rnc` responde `503`. Recargar ya:
 
   ```bash
