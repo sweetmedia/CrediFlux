@@ -91,6 +91,11 @@ describe('AppLayout en móvil', () => {
     expect(barraInferior()).not.toBeInTheDocument();
   });
 
+  it('marca el layout para subir el asistente por encima de la barra inferior', () => {
+    montar('/dashboard');
+    expect(document.querySelector('[data-bottom-nav]')).toBeInTheDocument();
+  });
+
   it('Más abre el menú completo', () => {
     montar('/dashboard');
     fireEvent.click(within(barraInferior()!).getByRole('link', { name: 'Más' }));
@@ -103,6 +108,7 @@ describe('AppLayout en escritorio', () => {
     montar('/customers');
     expect(within(screen.getByRole('banner')).getByRole('radiogroup', { name: 'Tema' })).toBeInTheDocument();
     expect(barraInferior()).not.toBeInTheDocument();
+    expect(document.querySelector('[data-bottom-nav]')).not.toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Navegación principal' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Clientes' })).toHaveAttribute('aria-current', 'page');
   });

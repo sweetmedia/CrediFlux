@@ -77,6 +77,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     return (
       <div
         className="min-h-[100dvh] bg-background"
+        data-bottom-nav={conBarraInferior || undefined}
         onFocus={(e) => esCampoDeTexto(e.target) && setEscribiendo(true)}
         onBlur={(e) => esCampoDeTexto(e.target) && setEscribiendo(false)}
       >

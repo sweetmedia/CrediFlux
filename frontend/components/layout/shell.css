@@ -74,3 +74,6 @@ button.nav-group-header:hover { color: rgba(255, 255, 255, 0.6); }
 }
 /* Contenido por encima de la barra inferior. */
 .m-content { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+/* El asistente flota por encima de la barra inferior, no sobre "Más". */
+[data-bottom-nav] .cf-ai-bubble { bottom: calc(88px + env(safe-area-inset-bottom)); }
+[data-bottom-nav] .cf-ai-panel { bottom: calc(152px + env(safe-area-inset-bottom)); }
