@@ -1,5 +1,19 @@
 import { apiClient } from './client';
 
+// Vigencia del enlace de firma: el backend acepta un entero entre 1 y 30 días (400 si no).
+export const SIGNATURE_LINK_MIN_DAYS = 1;
+export const SIGNATURE_LINK_MAX_DAYS = 30;
+export const SIGNATURE_LINK_DEFAULT_DAYS = 7;
+
+export function isValidSignatureDays(days: number): boolean {
+  return Number.isInteger(days) && days >= SIGNATURE_LINK_MIN_DAYS && days <= SIGNATURE_LINK_MAX_DAYS;
+}
+
+// El backend sólo envía a firma contratos en borrador o pendientes de firma y no archivados.
+export function canSendForSignature(contract: Pick<Contract, 'status' | 'is_archived'>): boolean {
+  return (contract.status === 'draft' || contract.status === 'pending_signature') && !contract.is_archived;
+}
+
 export interface ContractTemplate {
   id: string;
   name: string;
@@ -247,9 +261,15 @@ export const contractsAPI = {
     token_id: string;
     expires_at: string;
   }> {
+    const days = days_valid ?? SIGNATURE_LINK_DEFAULT_DAYS;
+    if (!isValidSignatureDays(days)) {
+      throw new Error(
+        `Los días de validez deben ser un número entero entre ${SIGNATURE_LINK_MIN_DAYS} y ${SIGNATURE_LINK_MAX_DAYS}`
+      );
+    }
     return apiClient.post(`/api/loans/contracts/${id}/send_for_signature/`, {
       email,
-      days_valid: days_valid || 7,
+      days_valid: days,
     });
   },
 

@@ -1,6 +1,8 @@
 """
 Views and viewsets for loan module
 """
+import re
+
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -293,13 +295,15 @@ SIGNATURE_LINK_MAX_DAYS = 30
 def _parse_days_valid(value):
     """Vigencia del enlace de firma en días (1..30) o None si no es un entero válido.
 
-    Acepta enteros y cadenas de dígitos (formularios); rechaza booleanos, decimales y vacíos.
+    Acepta enteros y cadenas de dígitos ASCII con espacios alrededor (formularios); rechaza
+    booleanos, decimales, signos, vacíos y dígitos no ASCII ("²", "٣"). Nunca lanza: todo lo que
+    no sea un entero válido devuelve None (400), no un 500.
     """
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
         days = value
-    elif isinstance(value, str) and value.strip().lstrip('-').isdigit():
+    elif isinstance(value, str) and re.fullmatch(r'[0-9]{1,3}', value.strip(), flags=re.ASCII):
         days = int(value.strip())
     else:
         return None

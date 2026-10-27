@@ -2,7 +2,14 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from '@/lib/navigation';
 import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { contractsAPI, Contract } from '@/lib/api/contracts';
+import {
+  contractsAPI,
+  Contract,
+  canSendForSignature,
+  isValidSignatureDays,
+  SIGNATURE_LINK_MAX_DAYS,
+  SIGNATURE_LINK_MIN_DAYS,
+} from '@/lib/api/contracts';
 import { getApiUrl } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import {
@@ -179,6 +186,12 @@ export default function ViewContractPage() {
       setSendError('Por favor ingrese un email válido');
       return;
     }
+    if (!isValidSignatureDays(sendDaysValid)) {
+      setSendError(
+        `Los días de validez deben ser un número entero entre ${SIGNATURE_LINK_MIN_DAYS} y ${SIGNATURE_LINK_MAX_DAYS}`
+      );
+      return;
+    }
 
     try {
       setIsActionLoading(true);
@@ -300,15 +313,18 @@ export default function ViewContractPage() {
                 contract.status === 'pending_signature' ||
                 contract.status === 'signed') && (
                 <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSendDialogOpen(true)}
-                    className="border-purple-200 text-purple-600 hover:bg-purple-50"
-                  >
-                    <Mail className="h-4 w-4 mr-1" />
-                    Enviar para Firma
-                  </Button>
+                  {/* El backend sólo envía a firma contratos en borrador o pendientes y no archivados. */}
+                  {canSendForSignature(contract) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSendDialogOpen(true)}
+                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                    >
+                      <Mail className="h-4 w-4 mr-1" />
+                      Enviar para Firma
+                    </Button>
+                  )}
                   <Link href={`/contracts/${contract.id}/sign`}>
                     <Button
                       variant="outline"
@@ -892,10 +908,11 @@ export default function ViewContractPage() {
                   <input
                     id="days"
                     type="number"
-                    min="1"
-                    max="30"
+                    min={SIGNATURE_LINK_MIN_DAYS}
+                    max={SIGNATURE_LINK_MAX_DAYS}
+                    step="1"
                     value={sendDaysValid}
-                    onChange={(e) => setSendDaysValid(parseInt(e.target.value) || 7)}
+                    onChange={(e) => setSendDaysValid(parseInt(e.target.value, 10) || 7)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     disabled={isActionLoading}
                   />

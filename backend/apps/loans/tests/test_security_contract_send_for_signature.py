@@ -180,6 +180,7 @@ def test_contract_deleted_meanwhile_is_404(officer_client, draft, monkeypatch, m
     ({"status": "cancelled"}, TERMINAL_MSG),
     ({"status": "completed"}, TERMINAL_MSG),
     ({"status": "pending_signature", "is_archived": True}, ARCHIVED_MSG),
+    ({"status": "draft", "is_archived": True}, ARCHIVED_MSG),
     ({"status": "signed"}, NOT_SENDABLE_MSG),
     ({"status": "active"}, NOT_SENDABLE_MSG),
 ])
@@ -240,7 +241,10 @@ def test_pending_signature_can_be_resent(officer_client, pending, mailoutbox):
 
 # (c) days_valid
 
-@pytest.mark.parametrize("days_valid", ["abc", 0, -1, 31, "", None, 7.5, True])
+# Sólo dígitos ASCII: "²" y "٣" (dígito arábigo-índico) son 400, igual que "--5"; nunca 500.
+@pytest.mark.parametrize("days_valid", [
+    "abc", 0, -1, 31, "", None, 7.5, True, "--5", "²", "٣", "-1", "7.5", "+7",
+])
 def test_invalid_days_valid_is_400(officer_client, draft, days_valid, mailoutbox):
     response = _send(officer_client, draft, days_valid=days_valid)
 
@@ -252,7 +256,10 @@ def test_invalid_days_valid_is_400(officer_client, draft, days_valid, mailoutbox
     assert mailoutbox == []
 
 
-@pytest.mark.parametrize("days_valid,expected_days", [(30, 30), ("30", 30), (1, 1), ("absent", 7)])
+# Los espacios alrededor de una cadena de dígitos (formularios) se ignoran: " 7 " vale 7.
+@pytest.mark.parametrize("days_valid,expected_days", [
+    (30, 30), ("30", 30), (1, 1), ("absent", 7), (" 7 ", 7),
+])
 def test_valid_days_valid_sets_the_expiration(officer_client, draft, days_valid, expected_days):
     before = timezone.now()
     if days_valid == "absent":
