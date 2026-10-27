@@ -43,7 +43,10 @@ export default function ForgotPasswordPage() {
       await requestReset(data);
     } catch (err: any) {
       console.error('Password reset request error:', err);
-      if (err.response?.data) {
+      if (err.response?.status === 429) {
+        // Throttle propio de password-reset/request: aviso genérico, sin el texto de la API.
+        setLocalError('Demasiados intentos. Prueba de nuevo más tarde.');
+      } else if (err.response?.data) {
         const errorData = err.response.data;
         if (errorData.detail) {
           setLocalError(errorData.detail);

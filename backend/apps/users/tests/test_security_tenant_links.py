@@ -58,8 +58,10 @@ def sent_link(path):
     return urlparse(match.group(1))
 
 
-def request_reset(client, email):
-    response = client.post(RESET_REQUEST, {"email": email}, format="json")
+def request_reset(host, email):
+    """Desde la ronda 33 el enlace de reset, como el de verificación, sólo se envía si se pide
+    desde el host del tenant del usuario (sin tenant, desde el público)."""
+    response = client_on(host).post(RESET_REQUEST, {"email": email}, format="json")
     assert response.status_code == 200, response.content
     return sent_link("/reset-password")
 
@@ -99,7 +101,7 @@ def test_a_reset_and_verify_links_use_the_tenant_domain_not_its_schema(public_cl
     tenant = make_tenant("financiera-sol", f"solfin.{BASE}")
     user = UserFactory(email="cajero@sol.test", tenant=tenant, email_verified=False)
 
-    reset = request_reset(public_client, user.email)
+    reset = request_reset(f"solfin.{BASE}", user.email)
     verify = request_verification(f"solfin.{BASE}", user.email)
 
     assert reset.netloc == f"solfin.{BASE}"
@@ -128,7 +130,7 @@ def test_c_victim_link_does_not_point_to_the_attackers_domain(public_client):
     make_tenant("evil", f"acme.{BASE}")  # lo que (b) deja registrar en BASE
     user = UserFactory(email="duena@acme.test", tenant=victim, email_verified=False)
 
-    reset = request_reset(public_client, user.email)
+    reset = request_reset(f"acmefin.{BASE}", user.email)
     verify = request_verification(f"acmefin.{BASE}", user.email)
 
     attacker_domain = Domain.objects.get(tenant__name="evil").domain
@@ -146,7 +148,7 @@ def test_d_victim_token_redeemed_on_the_attackers_host(public_client):
     make_tenant("evil", f"acme.{BASE}")
     user = UserFactory(email="duena@acme.test", tenant=victim)
 
-    link = request_reset(public_client, user.email)
+    link = request_reset(f"acmefin.{BASE}", user.email)
     query = parse_qs(link.query)
     on_evil = APIClient(HTTP_HOST=f"acme.{BASE}")
     response = on_evil.post(
@@ -171,7 +173,7 @@ def test_d_victim_token_redeemed_on_the_attackers_host(public_client):
 def test_links_of_user_without_tenant_keep_frontend_url(public_client):
     user = UserFactory(email="sin-tenant@crediflux.test", tenant=None, email_verified=False)
 
-    assert request_reset(public_client, user.email).netloc == BASE
+    assert request_reset(PUBLIC_HOST, user.email).netloc == BASE
     assert request_verification(PUBLIC_HOST, user.email).netloc == BASE
 
 
@@ -181,19 +183,25 @@ def test_tenant_without_domain_falls_back_to_frontend_url_with_warning(public_cl
     user = UserFactory(email="cajero@sin-dominio.test", tenant=tenant, email_verified=False)
 
     # Sin Domain ningún host resuelve a este tenant, así que el envío por API no le llega
-    # (ronda 32): el enlace de verificación se construye con el serializer y un request del tenant.
+    # (rondas 32 y 33): los dos enlaces se construyen con su serializer y un request del tenant.
     from django.test import RequestFactory
 
-    from apps.users.serializers import EmailVerificationSendSerializer
+    from apps.users.serializers import EmailVerificationSendSerializer, PasswordResetRequestSerializer
 
-    request = RequestFactory().post(VERIFY_SEND)
-    request.tenant = tenant
-    serializer = EmailVerificationSendSerializer(data={"email": user.email}, context={"request": request})
-    assert serializer.is_valid(), serializer.errors
+    def serializer_on_tenant(serializer_class, path):
+        request = RequestFactory().post(path)
+        request.tenant = tenant
+        serializer = serializer_class(data={"email": user.email}, context={"request": request})
+        assert serializer.is_valid(), serializer.errors
+        return serializer
+
+    reset_serializer = serializer_on_tenant(PasswordResetRequestSerializer, RESET_REQUEST)
+    verify_serializer = serializer_on_tenant(EmailVerificationSendSerializer, VERIFY_SEND)
 
     with caplog.at_level("WARNING", logger="apps.tenants.links"):
-        reset = request_reset(public_client, user.email)
-        serializer.save()
+        reset_serializer.save()
+        reset = sent_link("/reset-password")
+        verify_serializer.save()
         verify = sent_link("/verify-email")
 
     assert reset.netloc == verify.netloc == BASE
@@ -206,7 +214,7 @@ def test_primary_domain_keeps_scheme_and_port_of_frontend_url(public_client):
     tenant = make_tenant("puerto-sa", "puerto.localhost")
     user = UserFactory(email="cajero@puerto.test", tenant=tenant, email_verified=False)
 
-    reset = request_reset(public_client, user.email)
+    reset = request_reset("puerto.localhost", user.email)
     verify = request_verification("puerto.localhost", user.email)
 
     assert reset.scheme == verify.scheme == "http"
@@ -219,7 +227,7 @@ def test_primary_domain_wins_over_other_domains(public_client):
     tenant = make_tenant("varios", f"viejo.{BASE}", f"nuevo.{BASE}", f"alias.{BASE}", primary=1)
     user = UserFactory(email="cajero@varios.test", tenant=tenant, email_verified=False)
 
-    assert request_reset(public_client, user.email).netloc == f"nuevo.{BASE}"
+    assert request_reset(f"nuevo.{BASE}", user.email).netloc == f"nuevo.{BASE}"
     assert request_verification(f"nuevo.{BASE}", user.email).netloc == f"nuevo.{BASE}"
 
 

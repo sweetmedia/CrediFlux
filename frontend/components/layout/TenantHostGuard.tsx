@@ -6,7 +6,7 @@ import { Navigate, useLocation } from 'react-router';
  *
  * Multi-tenant por subdominio: en el host sin subdominio (`localhost:3000` o
  * `localhost`) sólo se permite el selector de tenant, las páginas públicas de
- * firma y `/verify-email`; todo lo demás va a `/select-tenant`. Los subdominios
+ * firma y `/verify-email` (y `/verify-email/resend`); todo lo demás va a `/select-tenant`. Los subdominios
  * (`democompany.localhost`, `caproinsa.localhost`…) pasan siempre.
  *
  * Ahora corre en el navegador: es una redirección de UX, no una barrera de
@@ -20,8 +20,10 @@ export function rutaPermitidaSinTenant(pathname: string): boolean {
     pathname === '/api' ||
     pathname.startsWith('/static') ||
     pathname.startsWith('/sign/') ||
-    // Enlace de verificación de un usuario sin tenant: va a FRONTEND_URL (host público).
-    pathname === '/verify-email'
+    // Enlace de verificación de un usuario sin tenant: va a FRONTEND_URL (host público), y
+    // desde ahí pide uno nuevo (la API sólo se lo envía desde ese host).
+    pathname === '/verify-email' ||
+    pathname === '/verify-email/resend'
   );
 }
 

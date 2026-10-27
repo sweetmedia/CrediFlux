@@ -142,6 +142,35 @@ def _token_user(uid, request):
     return user if user_on_request_host(user, request) else None
 
 
+def _active_users_with_email(email):
+    """Usuarios activos con ese correo (búsqueda exacta), para los envíos de enlaces.
+
+    `email` es único en la tabla, así que hay como mucho uno; quien lo usa itera (nunca `get()`)
+    para que una tabla con duplicados no dé `MultipleObjectsReturned` ni elija a ciegas.
+    """
+    return User.objects.select_related('tenant').filter(email=email, is_active=True)
+
+
+def _recipient_on_host(candidates, request):
+    """Primer candidato que pasa `user_on_request_host` en el host de `request`; None si ninguno.
+
+    Sin request no hay host contra el que comprobar: no hay destinatario (sin esta guarda,
+    `user_on_request_host` dejaría pasar a todo usuario sin tenant).
+    """
+    if request is None:
+        return None
+    return next((u for u in candidates if user_on_request_host(u, request)), None)
+
+
+def _claim_send(prefix, user, seconds):
+    """Enfriamiento silencioso por destinatario: True si puede enviarse ahora (y lo apunta).
+
+    Un correo por usuario cada `seconds` segundos, aunque se roten IPs. `cache.add` es atómico y
+    sólo se llama con un destinatario real, así que la clave sólo existe tras un envío.
+    """
+    return cache.add(f'{prefix}:{user.pk}', 1, seconds)
+
+
 # ============================================================================
 # EMAIL VERIFICATION
 # ============================================================================
@@ -152,12 +181,8 @@ VERIFICATION_SEND_MESSAGE = (
 
 
 def _verification_candidates(email):
-    """Usuarios activos y sin verificar con ese correo (búsqueda exacta, como la del reset).
-
-    `email` es único en la tabla, así que hay como mucho uno; se itera igual (nunca `get()`)
-    para que una tabla con duplicados no dé `MultipleObjectsReturned` ni elija a ciegas.
-    """
-    return User.objects.select_related('tenant').filter(email=email, is_active=True, email_verified=False)
+    """Usuarios activos y sin verificar con ese correo (búsqueda exacta, como la del reset)."""
+    return _active_users_with_email(email).filter(email_verified=False)
 
 
 class EmailVerificationSendSerializer(serializers.Serializer):
@@ -172,19 +197,12 @@ class EmailVerificationSendSerializer(serializers.Serializer):
 
     def save(self):
         """Envía el enlace si hay un destinatario válido; la respuesta es siempre la misma."""
-        request = self.context.get('request')
-        # Sin request no hay host contra el que comprobar: no se envía nada (sin esta guarda,
-        # `user_on_request_host` dejaría pasar a todo usuario sin tenant).
-        if request is None:
-            return {'message': VERIFICATION_SEND_MESSAGE}
-        user = next(
-            (u for u in _verification_candidates(self.validated_data['email']) if user_on_request_host(u, request)),
-            None,
+        # Sin request no hay destinatario (ver `_recipient_on_host`): no se envía nada.
+        user = _recipient_on_host(
+            _verification_candidates(self.validated_data['email']), self.context.get('request'),
         )
-        # Enfriamiento silencioso por destinatario: un correo por usuario cada
-        # VERIFY_EMAIL_SEND_COOLDOWN segundos, aunque se roten IPs. `cache.add` es atómico.
-        if user is not None and cache.add(
-            f'verify_email_send_cooldown:{user.pk}', 1, settings.VERIFY_EMAIL_SEND_COOLDOWN
+        if user is not None and _claim_send(
+            'verify_email_send_cooldown', user, settings.VERIFY_EMAIL_SEND_COOLDOWN,
         ):
             self._send(user)
         return {'message': VERIFICATION_SEND_MESSAGE}
@@ -260,72 +278,67 @@ class EmailVerificationConfirmSerializer(serializers.Serializer):
 # PASSWORD RESET
 # ============================================================================
 
+PASSWORD_RESET_REQUEST_MESSAGE = (
+    'If an account exists with this email, a password reset link has been sent.'
+)
+
+
 class PasswordResetRequestSerializer(serializers.Serializer):
-    """Serializer to request password reset"""
+    """Pide el enlace de reset sin oráculo de cuentas (como `EmailVerificationSendSerializer`).
+
+    Cualquier correo con formato válido recibe la misma respuesta. Sólo se envía el enlace a un
+    usuario activo que pasa `user_on_request_host` en el host de la petición (la misma regla que
+    el canje): un usuario de tenant lo pide desde el host de su tenant y uno sin tenant, desde el
+    público. Necesita `request` en el contexto; sin él no se envía nada.
+    """
     email = serializers.EmailField(required=True)
 
-    def validate_email(self, value):
-        """Validate that user exists"""
-        try:
-            user = User.objects.get(email=value, is_active=True)
-        except User.DoesNotExist:
-            # Don't reveal that user doesn't exist for security
-            pass
-
-        return value
-
     def save(self):
-        """Generate reset token and send email"""
-        email = self.validated_data['email']
+        """Envía el enlace si hay un destinatario válido; la respuesta es siempre la misma."""
+        user = _recipient_on_host(
+            _active_users_with_email(self.validated_data['email']), self.context.get('request'),
+        )
+        if user is not None and _claim_send(
+            'password_reset_request_cooldown', user, settings.PASSWORD_RESET_REQUEST_COOLDOWN,
+        ):
+            self._send(user)
+        return {'message': PASSWORD_RESET_REQUEST_MESSAGE}
 
-        try:
-            user = User.objects.get(email=email, is_active=True)
+    def _send(self, user):
+        """Genera el token de reset y envía el correo."""
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
 
-            # Generate token
-            token = default_token_generator.make_token(user)
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
+        # Host del dominio del tenant (nunca su schema_name); sin tenant, FRONTEND_URL.
+        frontend_url = _frontend_url_for(user)
 
-            # Host del dominio del tenant (nunca su schema_name); sin tenant, FRONTEND_URL.
-            frontend_url = _frontend_url_for(user)
+        reset_url = f"{frontend_url}/reset-password?uid={uid}&token={token}"
 
-            reset_url = f"{frontend_url}/reset-password?uid={uid}&token={token}"
+        # Send email
+        subject = 'Reset your password - CrediFlux'
+        message = f"""
+        Hello {user.get_full_name()},
 
-            # Send email
-            subject = 'Reset your password - CrediFlux'
-            message = f"""
-            Hello {user.get_full_name()},
+        You requested to reset your password. Click the link below to create a new password:
 
-            You requested to reset your password. Click the link below to create a new password:
+        {reset_url}
 
-            {reset_url}
+        If you did not request a password reset, please ignore this email.
 
-            If you did not request a password reset, please ignore this email.
+        This link will expire in 24 hours.
 
-            This link will expire in 24 hours.
+        Best regards,
+        The CrediFlux Team
+        """
 
-            Best regards,
-            The CrediFlux Team
-            """
-
-            send_mail(
-                subject,
-                message,
-                settings.EMAIL_HOST_USER or 'noreply@crediflux.com',
-                [user.email],
-                fail_silently=False,
-            )
-
-            response = {
-                'message': 'If an account exists with this email, a password reset link has been sent.',
-            }
-
-            return response
-
-        except User.DoesNotExist:
-            # Return same message for security (don't reveal user doesn't exist)
-            return {
-                'message': 'If an account exists with this email, a password reset link has been sent.',
-            }
+        send_mail(
+            subject,
+            message,
+            settings.EMAIL_HOST_USER or 'noreply@crediflux.com',
+            [user.email],
+            # Un fallo de SMTP no puede dar un 500 sólo cuando la cuenta existe.
+            fail_silently=True,
+        )
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):

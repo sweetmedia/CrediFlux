@@ -15,7 +15,7 @@ import re
 import time
 from datetime import timedelta
 from unittest import mock
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from allauth.account.models import EmailAddress, EmailConfirmation, EmailConfirmationHMAC
@@ -37,7 +37,8 @@ CONFIRM = "/api/auth/registration/account-confirm-email/{key}/"
 
 ANON_URL = f"https://{BASE}/login?verified=true"
 AUTH_URL = f"https://{BASE}/dashboard?verified=true"
-INVALID_URL = f"{ANON_URL}&verified=invalid"
+# Una sola `verified`: la query de la URL de settings sin su `verified=true` (ronda 33).
+INVALID_URL = f"https://{BASE}/login?verified=invalid"
 
 urls = override_settings(
     FRONTEND_URL=f"https://{BASE}",
@@ -373,3 +374,96 @@ def test_exception_inside_confirm_gives_the_invalid_redirect(tenants, kind):
     assert response.status_code == 302
     assert response["Location"] == INVALID_URL
     assert not verified(address)
+
+
+# ---------------------------------------------------------------------------
+# Ronda 33 — un único `verified` en la redirección
+# ---------------------------------------------------------------------------
+
+
+def verified_values(location):
+    return parse_qs(urlparse(location).query, keep_blank_values=True).get("verified")
+
+
+def failure_locations(acme, kind, client_for=client_on):
+    """`Location` de cada causa de fallo: host ajeno, clave inválida, inactivo, usada y sin efecto."""
+    address = email_address(UserFactory(email="cajero@acme.test", tenant=acme))
+    inactive = email_address(UserFactory(email="baja@acme.test", tenant=acme, is_active=False))
+    used = make_key(email_address(UserFactory(email="usada@acme.test", tenant=acme)), kind)
+    assert client_for(HOST_A).get(CONFIRM.format(key=used))["Location"] == f"https://{HOST_A}/login?verified=true"
+
+    responses = [
+        client_for(HOST_B).get(CONFIRM.format(key=make_key(address, kind))),
+        client_for(HOST_A).get(CONFIRM.format(key="no-existe-esta-clave")),
+        client_for(HOST_A).get(CONFIRM.format(key=make_key(inactive, kind))),
+        client_for(HOST_A).get(CONFIRM.format(key=used)),
+    ]
+    model = EmailConfirmationHMAC if kind == "hmac" else EmailConfirmation
+    with mock.patch.object(model, "confirm", return_value=None):
+        responses.append(client_for(HOST_A).get(CONFIRM.format(key=make_key(address, kind))))
+    assert {r.status_code for r in responses} == {302}
+    return [r["Location"] for r in responses]
+
+
+@urls
+@KINDS
+def test_every_failure_redirects_with_a_single_verified_invalid(tenants, kind):
+    acme, _ = tenants
+
+    locations = failure_locations(acme, kind)
+
+    assert set(locations) == {INVALID_URL}
+    for location in locations:
+        assert verified_values(location) == ["invalid"]
+
+
+@override_settings(
+    FRONTEND_URL=f"https://{BASE}",
+    TENANT_BASE_DOMAIN=BASE,
+    ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL=f"https://{BASE}/login?next=%2Fpagos&verified=true&verified=1",
+    ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL=f"https://{BASE}/dashboard?tab=perfil&verified=true",
+)
+def test_invalid_redirect_drops_any_verified_of_the_settings_url_and_keeps_the_rest(tenants):
+    acme, _ = tenants
+    address = email_address(UserFactory(email="cajero@acme.test", tenant=acme))
+    user = address.user
+
+    anonymous = confirm(HOST_B, make_key(address, "hmac"))["Location"]
+    # Con sesión en su propio host y una clave inválida: la URL autenticada de settings.
+    logged_in = client_on(HOST_A)
+    logged_in.force_login(user)
+    authenticated = logged_in.get(CONFIRM.format(key="no-existe-esta-clave"))["Location"]
+
+    parsed = urlparse(anonymous)
+    assert (parsed.scheme, parsed.netloc, parsed.path) == ("https", BASE, "/login")
+    assert parse_qs(parsed.query) == {"next": ["/pagos"], "verified": ["invalid"]}
+    parsed = urlparse(authenticated)
+    assert parsed.path == "/dashboard"
+    assert parse_qs(parsed.query) == {"tab": ["perfil"], "verified": ["invalid"]}
+
+
+@urls
+@KINDS
+def test_success_redirect_has_a_single_verified_true(tenants, kind):
+    acme, _ = tenants
+    tenant_address = email_address(UserFactory(email="cajero@acme.test", tenant=acme))
+    public_address = email_address(UserFactory(email="sin-tenant@crediflux.test", tenant=None))
+
+    on_tenant = confirm(HOST_A, make_key(tenant_address, kind))["Location"]
+    on_public = confirm(PUBLIC_HOST, make_key(public_address, kind))["Location"]
+
+    assert verified_values(on_tenant) == ["true"]
+    assert verified_values(on_public) == ["true"]
+
+
+@override_settings(
+    FRONTEND_URL=f"https://{BASE}",
+    ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL=f"https://{BASE}/login?verified=true&verified=1&next=%2Fx",
+)
+def test_success_redirect_of_user_without_tenant_never_repeats_verified(tenants):
+    address = email_address(UserFactory(email="sin-tenant@crediflux.test", tenant=None))
+
+    location = confirm(PUBLIC_HOST, make_key(address, "hmac"))["Location"]
+
+    assert parse_qs(urlparse(location).query) == {"next": ["/x"], "verified": ["true"]}
+    assert verified(address)

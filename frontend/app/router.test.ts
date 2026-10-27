@@ -19,5 +19,6 @@ describe('rutaDesdeArchivo', () => {
     expect(new Set(rutas).size).toBe(rutas.length);
     expect(rutas).toContain('/dashboard');
     expect(rutas).toContain('/verify-email');
+    expect(rutas).toContain('/verify-email/resend');
   });
 });

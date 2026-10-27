@@ -837,6 +837,8 @@ Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en e
   | `DRF_THROTTLE_CEDULA_LOOKUP` | `30/minute` | consultas al Padrón JCE (`validate-cedula`) por usuario |
   | `DRF_THROTTLE_VERIFY_EMAIL_SEND` | `5/hour` | peticiones de enlace de verificación (`verify-email/send`) por cliente (IPv4 o red IPv6 /56) |
   | `VERIFY_EMAIL_SEND_COOLDOWN` | `600` (s) | correos de verificación al mismo usuario (enfriamiento silencioso: la respuesta no cambia) |
+  | `DRF_THROTTLE_PASSWORD_RESET_REQUEST` | `5/hour` | peticiones de enlace de reset de contraseña (`password-reset/request`) por cliente (IPv4 o red IPv6 /56) |
+  | `PASSWORD_RESET_REQUEST_COOLDOWN` | `600` (s) | correos de reset de contraseña al mismo usuario (enfriamiento silencioso: la respuesta no cambia) |
   | `MAX_TENANTS_PER_DAY` | `20` | intentos de aprovisionamiento de tenants por día (global; cuentan también los que se revierten) |
   | `MAX_TENANTS_PER_IP_PER_DAY` | `2` | intentos de aprovisionamiento por cliente (dirección IPv4 o red IPv6 /48) y día (se cobra antes que el global) |
   | `MEDIA_SIGNED_URL_MAX_AGE` | `3600` (s) | vida de las URLs firmadas de media |
@@ -859,6 +861,7 @@ Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en e
 
 - **Sesiones**: los JWT quedan ligados a `password_changed_at` (claim `pwd_ts`). Los tokens emitidos antes no lo llevan, así que **todos los usuarios tendrán que volver a iniciar sesión una vez**. Avisar.
 - **Enlaces de verificación de correo**: desde la ronda 32 la verificación usa su propio generador de tokens. Los enlaces de verificación enviados antes del despliegue dejan de verificar, pero siguen sirviendo como token de reseteo de contraseña hasta `PASSWORD_RESET_TIMEOUT` (3 días por defecto). El hallazgo queda cerrado del todo pasado ese plazo; para cerrarlo antes, bajar `PASSWORD_RESET_TIMEOUT` temporalmente (también acorta los enlaces de reseteo legítimos).
+- **Enlaces de reseteo de contraseña**: desde la ronda 33, `password-reset/request` sólo envía el enlace si se pide desde el host del tenant del usuario (un usuario sin tenant, desde el host público), igual que `verify-email/send`. Pedirlo desde otro host responde lo mismo pero no envía nada. La pantalla `/forgot-password` del frontend ya corre en el host del tenant.
 - **Caché de RNC**: cambió el formato de la caché (una clave por RNC). Hasta recargarla, `validate-rnc` responde `503`. Recargar ya:
 
   ```bash

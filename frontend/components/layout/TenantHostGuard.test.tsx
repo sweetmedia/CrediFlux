@@ -24,7 +24,7 @@ function montar(ruta: string) {
 describe('TenantHostGuard', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it.each(['/select-tenant', '/sign/abc123', '/api', '/verify-email'])('deja pasar %s sin tenant', (ruta) => {
+  it.each(['/select-tenant', '/sign/abc123', '/api', '/verify-email', '/verify-email/resend'])('deja pasar %s sin tenant', (ruta) => {
     expect(rutaPermitidaSinTenant(ruta)).toBe(true);
   });
 
@@ -45,6 +45,15 @@ describe('TenantHostGuard', () => {
     montar('/verify-email?uid=MQ&token=abc');
     expect(screen.getByText('contenido')).toBeInTheDocument();
   });
+
+  it.each(['caproinsa.localhost:3100', 'localhost:3000'])(
+    'en %s muestra /verify-email/resend (la API sólo envía desde el host del usuario)',
+    (host) => {
+      vi.stubGlobal('location', { ...window.location, host });
+      montar('/verify-email/resend');
+      expect(screen.getByText('contenido')).toBeInTheDocument();
+    }
+  );
 
   it('en un subdominio de tenant muestra la página', () => {
     vi.stubGlobal('location', { ...window.location, host: 'caproinsa.localhost:3100' });

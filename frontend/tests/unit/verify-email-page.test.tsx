@@ -41,6 +41,13 @@ function enlaceLogin() {
   return enlace;
 }
 
+function enlaceNuevo() {
+  // Ronda 33: el estado inválido lleva a la pantalla que pide un enlace nuevo.
+  const enlace = screen.getByRole('link', { name: /solicitar un enlace nuevo/i });
+  expect(enlace).toHaveAttribute('href', '/verify-email/resend');
+  return enlace;
+}
+
 describe('página /verify-email', () => {
   const consola: ReturnType<typeof vi.spyOn>[] = [];
 
@@ -93,6 +100,7 @@ describe('página /verify-email', () => {
     expect(screen.queryByText(/Invalid or expired/)).not.toBeInTheDocument();
     expect(post).toHaveBeenCalledTimes(1);
     enlaceLogin();
+    enlaceNuevo();
   });
 
   it('un fallo de red también se muestra como enlace inválido', async () => {
@@ -100,6 +108,7 @@ describe('página /verify-email', () => {
     montar(`/verify-email?uid=${UID}&token=${TOKEN}`);
 
     expect(await screen.findByText(/enlace inválido o vencido/i)).toBeInTheDocument();
+    enlaceNuevo();
   });
 
   it.each([
@@ -112,6 +121,7 @@ describe('página /verify-email', () => {
     expect(await screen.findByText(/enlace inválido o vencido/i)).toBeInTheDocument();
     expect(post).not.toHaveBeenCalled();
     enlaceLogin();
+    enlaceNuevo();
     expect(router.state.location.search).toBe('');
   });
 

@@ -1,6 +1,8 @@
 """
 API views for user authentication and management
 """
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from rest_framework import status, generics, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -39,6 +41,7 @@ from .serializers import (
     BackupCodesRegenerateSerializer,
     TenantAwareTokenRefreshSerializer,
     VERIFICATION_SEND_MESSAGE,
+    PASSWORD_RESET_REQUEST_MESSAGE,
     user_on_request_host,
 )
 
@@ -49,21 +52,33 @@ User = get_user_model()
 # EMAIL VERIFICATION
 # ============================================================================
 
-class VerifyEmailSendThrottle(SimpleRateThrottle):
-    """Límite propio por IP del cliente para pedir enlaces de verificación, autenticado o no.
+class ClientNetworkThrottle(SimpleRateThrottle):
+    """Límite por red del cliente para los envíos de enlaces por correo, autenticado o no.
 
     La identidad sale de `client_network_key` (respeta NUM_PROXIES): la IPv4 o la red IPv6 /56,
-    como el throttle del registro de tenants.
+    como el throttle del registro de tenants. Cada subclase fija su `scope`.
     """
 
-    scope = 'verify_email_send'
+    default_rate = '5/hour'
 
     def get_cache_key(self, request, view):
         return self.cache_format % {'scope': self.scope, 'ident': client_network_key(request)}
 
     def get_rate(self):
         # Se lee en cada petición (no al importar) para respetar override_settings.
-        return api_settings.DEFAULT_THROTTLE_RATES.get(self.scope, '5/hour')
+        return api_settings.DEFAULT_THROTTLE_RATES.get(self.scope, self.default_rate)
+
+
+class VerifyEmailSendThrottle(ClientNetworkThrottle):
+    """Límite propio para pedir enlaces de verificación."""
+
+    scope = 'verify_email_send'
+
+
+class PasswordResetRequestThrottle(ClientNetworkThrottle):
+    """Límite propio para pedir enlaces de reset de contraseña."""
+
+    scope = 'password_reset_request'
 
 
 class EmailVerificationSendView(APIView):
@@ -156,30 +171,38 @@ class PasswordResetRequestView(APIView):
     """
     Request password reset link.
 
+    Always answers the same generic 200 for a well-formed email; the link is only sent to an
+    active user requested from their tenant's host (public host without tenant).
+
     **Authentication:** Not required (public endpoint)
     """
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRequestThrottle]
 
     @swagger_auto_schema(
         operation_id='request_password_reset',
-        operation_description='Request password reset link via email',
+        operation_description=(
+            'Request a password reset link via email. The response is the same whether or not the '
+            'email belongs to an active account on this host.'
+        ),
         request_body=PasswordResetRequestSerializer,
         responses={
             200: openapi.Response(
-                description='Reset email sent (if account exists)',
+                description='Generic response (does not reveal whether the account exists)',
                 examples={
                     'application/json': {
-                        'message': 'If an account exists with this email, a password reset link has been sent.',
+                        'message': PASSWORD_RESET_REQUEST_MESSAGE,
                     }
                 }
             ),
-            400: 'Bad request'
+            400: 'Bad request - invalid email format',
+            429: 'Too many requests',
         },
         tags=['Authentication - Password Reset']
     )
     def post(self, request):
         """Request password reset"""
-        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer = PasswordResetRequestSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
             result = serializer.save()
@@ -972,7 +995,7 @@ class CustomConfirmEmailView(ConfirmEmailView):
         else:
             settings_url = settings.ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL
 
-        invalid_url = f"{settings_url}{'&' if '?' in settings_url else '?'}verified=invalid"
+        invalid_url = _with_verified(settings_url, 'invalid')
         key = kwargs.get('key')
         if not key:
             return redirect(invalid_url)
@@ -998,9 +1021,22 @@ class CustomConfirmEmailView(ConfirmEmailView):
 
     @staticmethod
     def _success_url(user, authenticated, settings_url):
-        """Frontend del tenant del usuario; para un usuario sin tenant, la URL de settings."""
+        """Frontend del tenant del usuario; para un usuario sin tenant, la URL de settings.
+
+        En los dos casos con un único `verified=true`.
+        """
         if not user.tenant_id:
-            return settings_url
+            return _with_verified(settings_url, 'true')
         from apps.tenants.links import tenant_frontend_url
-        page = '/dashboard?verified=true' if authenticated else '/login?verified=true'
-        return tenant_frontend_url(user.tenant).rstrip('/') + page
+        page = '/dashboard' if authenticated else '/login'
+        return _with_verified(tenant_frontend_url(user.tenant).rstrip('/') + page, 'true')
+
+
+def _with_verified(url, value):
+    """`url` con un único `verified=<value>`: quita cualquier `verified` de su query y conserva el
+    resto de parámetros (las URL de settings ya traen `verified=true`; el frontend lee el primero).
+    """
+    parts = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != 'verified']
+    query.append(('verified', value))
+    return urlunsplit(parts._replace(query=urlencode(query)))

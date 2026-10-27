@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CheckCircle2 } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { TwoFactorVerify } from '@/components/auth';
 import { toast } from 'sonner';
 import { consumeSessionEndNotice } from '@/lib/api/session';
@@ -35,14 +35,19 @@ export default function LoginPage() {
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [showVerified, setShowVerified] = useState(false);
+  const [showVerifyInvalid, setShowVerifyInvalid] = useState(false);
   const [requires2FA, setRequires2FA] = useState(false);
   const [tempToken, setTempToken] = useState<string>('');
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
   const [is2FALoading, setIs2FALoading] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get('verified') === 'true') {
+    // Redirección de la confirmación de correo de allauth (un solo `verified`).
+    const verified = searchParams.get('verified');
+    if (verified === 'true') {
       setShowVerified(true);
+    } else if (verified === 'invalid') {
+      setShowVerifyInvalid(true);
     }
   }, [searchParams]);
 
@@ -184,6 +189,18 @@ export default function LoginPage() {
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-xs">
                     Tu correo electronico ha sido verificado exitosamente. Ya puedes iniciar sesion.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {showVerifyInvalid && (
+                <Alert className="border-danger-border bg-danger-bg text-danger-fg">
+                  <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                  <AlertDescription className="text-xs">
+                    No pudimos verificar tu correo con ese enlace: es inválido o ya venció.{' '}
+                    <Link href="/verify-email/resend" className="font-medium underline">
+                      Solicitar un enlace nuevo
+                    </Link>
                   </AlertDescription>
                 </Alert>
               )}

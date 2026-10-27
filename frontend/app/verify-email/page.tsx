@@ -104,11 +104,14 @@ export default function VerifyEmailPage() {
               </div>
               <CardTitle className="text-2xl font-bold text-center">Enlace inválido o vencido</CardTitle>
               <CardDescription className="text-center">
-                No pudimos verificar tu correo con este enlace. Inicia sesión y solicita un nuevo
-                enlace de verificación.
+                No pudimos verificar tu correo con este enlace. Solicita un enlace nuevo de
+                verificación.
               </CardDescription>
             </CardHeader>
-            <CardFooter>
+            <CardFooter className="flex flex-col gap-3">
+              <Button asChild className="w-full">
+                <Link href="/verify-email/resend">Solicitar un enlace nuevo</Link>
+              </Button>
               <Button asChild variant="outline" className="w-full">
                 <Link href="/login">Iniciar sesión</Link>
               </Button>

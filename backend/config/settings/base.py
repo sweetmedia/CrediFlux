@@ -282,11 +282,14 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
     'validate_rnc': config('DRF_THROTTLE_VALIDATE_RNC', default='10/minute'),
     'cedula_lookup': config('DRF_THROTTLE_CEDULA_LOOKUP', default='30/minute'),
     'verify_email_send': config('DRF_THROTTLE_VERIFY_EMAIL_SEND', default='5/hour'),
+    'password_reset_request': config('DRF_THROTTLE_PASSWORD_RESET_REQUEST', default='5/hour'),
 }
 
 # Segundos entre dos correos de verificación al mismo usuario (enfriamiento silencioso:
 # la respuesta de verify-email/send no cambia).
 VERIFY_EMAIL_SEND_COOLDOWN = config('VERIFY_EMAIL_SEND_COOLDOWN', default=600, cast=int)
+# Lo mismo para los correos de reset de contraseña (password-reset/request).
+PASSWORD_RESET_REQUEST_COOLDOWN = config('PASSWORD_RESET_REQUEST_COOLDOWN', default=600, cast=int)
 
 # Tope global de tenants creados por autoservicio en las últimas 24 h
 # (cada alta crea un schema y corre todas las migraciones).
