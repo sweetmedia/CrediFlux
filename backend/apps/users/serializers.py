@@ -1,6 +1,8 @@
 """
 Serializers for user authentication and management
 """
+import logging
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
@@ -29,6 +31,7 @@ from .tokens import (
 from dj_rest_auth.serializers import LoginSerializer as BaseLoginSerializer
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -169,17 +172,23 @@ def _send_with_cooldown(prefix, user, seconds, send):
     La clave se toma antes de enviar (`cache.add` es atómico: dos peticiones a la vez no envían
     dos correos) y sólo con un destinatario real. Si el envío falla (`send_mail` con
     `fail_silently=True` devuelve 0, o hay excepción) se libera, para que un fallo de SMTP no
-    bloquee el siguiente intento; la respuesta no cambia.
+    bloquee el siguiente intento. Sólo un 0 explícito cuenta como fallo: un backend que devuelve
+    `None` conserva el enfriamiento.
+
+    Cualquier excepción del envío (un backend de terceros, un error al armar el mensaje) se
+    registra y no sale de aquí: si llegara a la vista daría un 500 sólo cuando la cuenta existe
+    en este host. La respuesta no cambia.
     """
     key = f'{prefix}:{user.pk}'
     if not cache.add(key, 1, seconds):
         return
-    sent = 0
     try:
         sent = send(user)
-    finally:
-        if not sent:
-            cache.delete(key)
+    except Exception:
+        logger.exception('Fallo al enviar el correo (%s) al usuario %s', prefix, user.pk)
+        sent = 0
+    if sent == 0:
+        cache.delete(key)
 
 
 # ============================================================================

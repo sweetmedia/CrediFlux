@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { authAPI } from '@/lib/api/auth';
-import { esHostSinTenant } from '@/components/layout/TenantHostGuard';
+import { esHostGeneral } from '@/lib/hosts';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -36,12 +36,12 @@ const ERROR_GENERICO = 'No pudimos enviar la solicitud. Prueba de nuevo en unos 
  * decir si la cuenta existe o ya está verificada. Un 429 da un aviso genérico de límite y
  * cualquier otro fallo, uno genérico; nunca se muestra el texto de la API.
  *
- * En el host sin tenant (adonde redirige la confirmación de allauth, que no revela el tenant)
- * la API no le envía nada a un usuario de empresa: la página lo dice antes y después de enviar,
- * con el mismo texto para cualquier cuenta.
+ * En el host general (`esHostGeneral`: el de dev o el de `VITE_APP_URL`, adonde redirige la
+ * confirmación de allauth, que no revela el tenant) la API no le envía nada a un usuario de
+ * empresa: la página lo dice antes y después de enviar, con el mismo texto para cualquier cuenta.
  */
 export default function ReenviarVerificacionPage() {
-  const [sinTenant] = useState(() => esHostSinTenant());
+  const [hostGeneral] = useState(() => esHostGeneral());
   const [enviado, setEnviado] = useState(false);
   const [error, setError] = useState('');
 
@@ -77,7 +77,7 @@ export default function ReenviarVerificacionPage() {
                   <MailCheck className="h-9 w-9" aria-hidden="true" />
                 </span>
               </div>
-              {sinTenant ? (
+              {hostGeneral ? (
                 <>
                   <CardTitle className="text-2xl font-bold text-center">Solicitud recibida</CardTitle>
                   <CardDescription className="text-center">
@@ -143,7 +143,7 @@ export default function ReenviarVerificacionPage() {
                 </div>
 
                 <p className="cf-muted-panel p-3 text-sm text-muted-foreground">
-                  {sinTenant
+                  {hostGeneral
                     ? 'Estás en la dirección general de CrediFlux. Si tu cuenta es de una empresa, pide el enlace desde la dirección de tu empresa: desde aquí no te llegará.'
                     : 'Pídelo desde la dirección de tu empresa en CrediFlux. Si no te llega en unos minutos, revisa la carpeta de spam antes de pedir otro.'}
                 </p>

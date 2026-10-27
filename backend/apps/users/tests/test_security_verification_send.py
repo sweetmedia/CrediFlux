@@ -438,3 +438,37 @@ def test_send_mail_returning_zero_releases_the_cooldown(tenants):
     assert fake.call_count == 1
     assert response.json() == SEND_GENERIC
     assert cache.get(f"verify_email_send_cooldown:{user.pk}") is None
+
+
+# ---------------------------------------------------------------------------
+# Ronda 33.2 — una excepción al enviar no da 500 y `None` no libera el enfriamiento
+# ---------------------------------------------------------------------------
+
+
+@links
+def test_exception_while_sending_gives_the_same_response_and_releases_the_cooldown(tenants, caplog):
+    acme, _ = tenants
+    user = UserFactory(email="cajero@acme.test", tenant=acme, email_verified=False)
+    reference = send(HOST_A, "nadie-nunca@acme.test")
+
+    with mock.patch("apps.users.serializers.send_mail", side_effect=RuntimeError("backend roto")):
+        with caplog.at_level("ERROR", logger="apps.users.serializers"):
+            response = send(HOST_A, user.email)
+
+    assert response.status_code == reference.status_code == 200
+    assert response.content == reference.content
+    assert cache.get(f"verify_email_send_cooldown:{user.pk}") is None
+    assert [r for r in caplog.records if r.name == "apps.users.serializers" and r.exc_info]
+
+
+@links
+def test_backend_returning_none_keeps_the_cooldown(tenants):
+    acme, _ = tenants
+    user = UserFactory(email="cajero@acme.test", tenant=acme, email_verified=False)
+
+    with mock.patch("apps.users.serializers.send_mail", return_value=None) as fake:
+        send(HOST_A, user.email)
+        send(HOST_A, user.email)
+
+    assert fake.call_count == 1
+    assert cache.get(f"verify_email_send_cooldown:{user.pk}") == 1

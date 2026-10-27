@@ -60,4 +60,15 @@ describe('TenantHostGuard', () => {
     montar('/dashboard');
     expect(screen.getByText('contenido')).toBeInTheDocument();
   });
+
+  it('el host de VITE_APP_URL no cambia la decisión del guard (sólo afecta textos, 33.2 R1)', () => {
+    vi.stubEnv('VITE_APP_URL', 'https://app.crediflux.com.do');
+    vi.stubGlobal('location', { ...window.location, host: 'app.crediflux.com.do' });
+    try {
+      montar('/dashboard');
+      expect(screen.getByText('contenido')).toBeInTheDocument();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

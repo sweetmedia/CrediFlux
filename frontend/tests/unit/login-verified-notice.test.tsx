@@ -49,6 +49,32 @@ describe('/login con ?verified= (redirección de la confirmación de correo)', (
     expect(aviso).not.toHaveTextContent(/no existe|tu empresa es|acme/i);
   });
 
+  it('?verified=invalid en el host de VITE_APP_URL (producción) también lo dice (33.2 R1)', async () => {
+    vi.stubEnv('VITE_APP_URL', 'https://app.crediflux.com.do');
+    enHost('app.crediflux.com.do');
+    try {
+      montar('/login?verified=invalid');
+
+      const aviso = await screen.findByText(/no pudimos verificar tu correo/i);
+      expect(aviso).toHaveTextContent(/desde aquí no te llegará/i);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('?verified=invalid en un subdominio de tenant de producción no lo dice', async () => {
+    vi.stubEnv('VITE_APP_URL', 'https://app.crediflux.com.do');
+    enHost('acme.crediflux.com.do');
+    try {
+      montar('/login?verified=invalid');
+
+      const aviso = await screen.findByText(/no pudimos verificar tu correo/i);
+      expect(aviso).not.toHaveTextContent(/desde aquí no te llegará/i);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('?verified=true sigue mostrando el aviso de éxito', async () => {
     montar('/login?verified=true');
 

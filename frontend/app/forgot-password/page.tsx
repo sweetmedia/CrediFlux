@@ -123,7 +123,7 @@ export default function ForgotPasswordPage() {
                 disabled={isRequesting}
               />
               {errors.email && (
-                <p id="email-error" className="text-sm text-red-500">
+                <p id="email-error" className="text-sm text-danger-fg">
                   {errors.email.message}
                 </p>
               )}

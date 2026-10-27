@@ -188,6 +188,24 @@ describe('página /verify-email/resend (host sin tenant)', () => {
     expect(segundo.container.innerHTML).toBe(htmlPrimero);
     expect(post).toHaveBeenCalledTimes(2);
   });
+
+  it('en el host de VITE_APP_URL (producción) usa el mismo texto (33.2 R1)', async () => {
+    vi.unstubAllGlobals();
+    vi.stubEnv('VITE_APP_URL', 'https://app.crediflux.com.do');
+    enHost('app.crediflux.com.do');
+    post.mockResolvedValue({ message: 'ok' });
+    try {
+      montar();
+      expect(screen.getByText(/desde aquí no te llegará/i)).toBeInTheDocument();
+
+      await enviar();
+
+      expect(await screen.findByText(/solicitud recibida/i)).toBeInTheDocument();
+      expect(screen.queryByText(/si tu cuenta necesita verificación, te enviamos/i)).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 // Ronda 33.1 M3: un solo anuncio por cambio y el error del campo enlazado.
