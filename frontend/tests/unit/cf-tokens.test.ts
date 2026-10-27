@@ -57,8 +57,13 @@ describe('tokens del DS', () => {
     expect(contrast(dark[fg], dark[bg])).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('el papel vuelve a la paleta clara dentro del oscuro', () => {
-    expect(tokens).toMatch(/\.dark \.cf-root :is\(\.tpl-paper,\.cf-paper,\.cf-doc\)\{color-scheme:light;/);
+  it('el papel vuelve a la paleta clara dentro del oscuro, también si es el propio cf-root', () => {
+    const regla = tokens.match(/\.dark \.cf-root :is\(\.tpl-paper,\.cf-paper,\.cf-doc\),\.dark \.cf-root:is\(\.tpl-paper,\.cf-paper,\.cf-doc\)\{color-scheme:light;([^}]*)\}/);
+    expect(regla, 'regla del papel').not.toBeNull();
+    // Hairlines y colores de estado también en claro, no sólo la escala.
+    expect(regla![1]).toContain('--hairline:#16330014');
+    expect(regla![1]).toContain('--danger:#c0392b');
+    expect(regla![1]).toContain('--surface-done:#f7f9f5');
   });
 
   it('el bundle no deja colores de la escala fijos', () => {

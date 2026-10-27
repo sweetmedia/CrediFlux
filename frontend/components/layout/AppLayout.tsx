@@ -12,8 +12,8 @@ import { AIChatBubble } from '@/components/AIChatBubble';
 import { esPaginaPublica } from './public-pages';
 import './shell.css';
 
-// Flujos con su propia barra de acción fija abajo: sin barra inferior (D8).
-const SIN_BARRA_INFERIOR = ['/payments/new', '/loans/new'];
+// Páginas con su propia barra fija abajo: sin barra inferior (D8).
+const SIN_BARRA_INFERIOR = ['/payments/new', '/loans/new', '/collector'];
 
 function esCampoDeTexto(el: EventTarget | null) {
   return el instanceof HTMLElement && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea, select, [contenteditable=true]');
@@ -34,9 +34,11 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const isPublicPage = esPaginaPublica(pathname);
 
-  // Close sidebar on route change (mobile)
+  // Close sidebar on route change (mobile). Al enviar un formulario el campo
+  // puede desmontarse sin blur (iOS): la barra inferior vuelve con la página nueva.
   useEffect(() => {
     setSidebarOpen(false);
+    setEscribiendo(false);
   }, [pathname]);
 
   // Redirect to login if not authenticated and trying to access protected page

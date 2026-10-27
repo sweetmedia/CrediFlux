@@ -4,6 +4,13 @@ import djmoney.models.fields
 from django.db import migrations
 
 
+def promesas_usd_a_dop(apps, schema_editor):
+    """Las promesas guardadas con el default viejo (USD) siempre fueron pesos.
+    migrate_schemas corre esto en cada esquema de tenant."""
+    CollectionContact = apps.get_model("loans", "CollectionContact")
+    CollectionContact.objects.filter(promise_amount_currency="USD").update(promise_amount_currency="DOP")
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -33,4 +40,5 @@ class Migration(migrations.Migration):
                 null=True,
             ),
         ),
+        migrations.RunPython(promesas_usd_a_dop, migrations.RunPython.noop),
     ]

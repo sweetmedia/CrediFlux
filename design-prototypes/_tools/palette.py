@@ -134,10 +134,19 @@ def theme_vars(root=':root,.cf-root', dark='.cf-root[data-theme=dark]'):
         + dark + ' :is(.sidebar,.masthead,[class*="bg-forest-9"],[class*="bg-forest-8"],.cf-sidebar)'
         '{--bg-white:255 255 255;--bd-white:255 255 255}\n'
         # El papel de un documento (vista previa de contrato, recibo) sigue claro en oscuro.
-        + dark + ' :is(.tpl-paper,.cf-paper,.cf-doc){color-scheme:light;' + ';'.join(light) + '}\n'
+        + dark + ' :is(.tpl-paper,.cf-paper,.cf-doc),' + dark + ':is(.tpl-paper,.cf-paper,.cf-doc){color-scheme:light;'
+        + ';'.join(light) + ';' + SEMANTIC_LIGHT + '}\n'
         # Sobre amarillo el texto sigue oscuro también en oscuro.
         + dark + ' :is(.bg-sun-400,.bg-sun-500,.cf-btn--sun,.m-btn--sun,.m-nav__cta,[style*="--bg-sun-400))"],[style*="--bg-sun-500))"]){' + keep_ink + '}\n'
     )
+
+# Los mismos semánticos en claro, para el papel dentro del oscuro.
+SEMANTIC_LIGHT = ';'.join([
+    '--hairline:#16330014', '--hairline-strong:#1633001f', '--hairline-input:#16330026', '--hairline-control:#16330033',
+    '--tint-hover:#1633000a', '--tint-active:#1633000f', '--surface-done:#f7f9f5',
+    '--success:#2d6a2e', '--danger:#c0392b', '--info:#2980b9',
+    '--color-success:#2d6a2e', '--color-danger:#c0392b', '--color-info:#2980b9',
+])
 
 SEMANTIC_DARK = ';'.join([
     '--hairline:#e8efe114', '--hairline-strong:#e8efe11f', '--hairline-input:#e8efe126', '--hairline-control:#e8efe133',

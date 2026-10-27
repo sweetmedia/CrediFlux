@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppearanceProvider } from '@/lib/design-system/AppearanceProvider';
@@ -50,6 +50,7 @@ function montar(ruta: string) {
     { initialEntries: [ruta] },
   );
   render(<RouterProvider router={router} />);
+  return router;
 }
 
 const barraInferior = () => screen.queryByRole('navigation', { name: 'Navegación inferior' });
@@ -86,7 +87,15 @@ describe('AppLayout en móvil', () => {
     expect(barraInferior()).toBeInTheDocument();
   });
 
-  it.each(['/payments/new', '/loans/new'])('%s no lleva barra inferior (tiene su barra de acción)', (ruta) => {
+  it('vuelve la barra inferior al cambiar de página aunque el campo no haya perdido el foco', async () => {
+    const router = montar('/customers/new');
+    fireEvent.focusIn(screen.getByRole('textbox', { name: 'Monto' }));
+    expect(barraInferior()).not.toBeInTheDocument();
+    await act(() => router.navigate('/customers'));
+    expect(barraInferior()).toBeInTheDocument();
+  });
+
+  it.each(['/payments/new', '/loans/new', '/collector'])('%s no lleva barra inferior (tiene su propia barra abajo)', (ruta) => {
     montar(ruta);
     expect(barraInferior()).not.toBeInTheDocument();
   });
