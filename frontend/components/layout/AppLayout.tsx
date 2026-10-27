@@ -3,10 +3,21 @@ import { useRouter, usePathname } from '@/lib/navigation';
 import Image from '@/components/ui/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
-import { Loader2, Menu, X } from 'lucide-react';
+import { Header } from './Header';
+import { MobileNav, MobileTopBar } from './MobileNav';
+import { useIsMobile } from './useIsMobile';
+import { Loader2 } from 'lucide-react';
 import { SimplePageTransition } from '@/components/PageTransition';
 import { AIChatBubble } from '@/components/AIChatBubble';
 import { esPaginaPublica } from './public-pages';
+import './shell.css';
+
+// Flujos con su propia barra de acción fija abajo: sin barra inferior (D8).
+const SIN_BARRA_INFERIOR = ['/payments/new', '/loans/new'];
+
+function esCampoDeTexto(el: EventTarget | null) {
+  return el instanceof HTMLElement && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea, select, [contenteditable=true]');
+}
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -17,6 +28,9 @@ export function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
+  // Con el teclado abierto la barra inferior taparía el botón del formulario.
+  const [escribiendo, setEscribiendo] = useState(false);
 
   const isPublicPage = esPaginaPublica(pathname);
 
@@ -58,51 +72,33 @@ export function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
-  // If authenticated, show sidebar with content
   if (isAuthenticated) {
+    const conBarraInferior = isMobile && !escribiendo && !SIN_BARRA_INFERIOR.includes(pathname);
     return (
-      <div className="min-h-[100dvh] bg-background">
-        {/* Mobile hamburger header */}
-        <div className="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 border-b bg-tenant">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label={sidebarOpen ? 'Cerrar menú' : 'Abrir menú'}
-            aria-expanded={sidebarOpen}
-            aria-controls="app-sidebar"
-            className="p-1.5 rounded-md text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-          <Image
-            src="/logo.svg"
-            alt="CrediFlux"
-            width={100}
-            height={24}
-            className="h-5 w-auto brightness-0 invert"
-            priority
+      <div
+        className="min-h-[100dvh] bg-background"
+        onFocus={(e) => esCampoDeTexto(e.target) && setEscribiendo(true)}
+        onBlur={(e) => esCampoDeTexto(e.target) && setEscribiendo(false)}
+      >
+        {isMobile && (
+          <div
+            aria-hidden="true"
+            className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-slow ease-out ${
+              sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+            onClick={() => setSidebarOpen(false)}
           />
+        )}
+
+        <Sidebar drawer={isMobile} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+        <div className={isMobile ? (conBarraInferior ? 'm-content' : undefined) : 'ml-[240px]'}>
+          {isMobile ? <MobileTopBar onMenu={() => setSidebarOpen(true)} /> : <Header />}
+          <SimplePageTransition>{children}</SimplePageTransition>
         </div>
 
-        {/* Backdrop overlay (mobile) */}
-        <div
-          aria-hidden="true"
-          className={`lg:hidden fixed inset-0 z-40 bg-black/40 transition-opacity duration-slow ease-out ${
-            sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-          onClick={() => setSidebarOpen(false)}
-        />
+        {conBarraInferior && <MobileNav onMore={() => setSidebarOpen(true)} />}
 
-        {/* Sidebar */}
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-        {/* Content area */}
-        <div className="lg:ml-[240px] pt-14 lg:pt-0">
-          <SimplePageTransition>
-            {children}
-          </SimplePageTransition>
-        </div>
-
-        {/* AI Chat Bubble */}
         <AIChatBubble />
       </div>
     );

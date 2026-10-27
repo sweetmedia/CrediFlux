@@ -1,130 +1,59 @@
 import { useState } from 'react';
+import { Bell, Building, ChevronDown, Search } from 'lucide-react';
 import Link from '@/lib/navigation/link';
-import { useRouter, usePathname } from '@/lib/navigation';
-import Image from '@/components/ui/image';
+import { usePathname } from '@/lib/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { getApiUrl } from '@/lib/api/client';
-import { Button } from '@/components/ui/button';
-import {
-  LogOut,
-  User,
-} from 'lucide-react';
+import { GlobalSearch } from '@/components/search';
+import { ThemeSwitch } from '@/lib/design-system/ThemeSwitch';
+import { sectionFor } from './nav';
+import { UserMenu } from './UserMenu';
 
+/** Barra superior de escritorio (ShellV1): migas, empresa, búsqueda, tema (D3) y usuario. */
 export function Header() {
-  const router = useRouter();
   const pathname = usePathname();
-  const { user, tenant, logout } = useAuth();
-  // URL firmada del logo que falló al cargar (p. ej. expirada): se usa el logo por defecto.
-  const [failedLogo, setFailedLogo] = useState<string | null>(null);
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      router.push('/login');
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
-  };
-
-  const isActivePath = (path: string) => {
-    return pathname === path || pathname.startsWith(path + '/');
-  };
-
-  const navLinkClass = (path: string) => {
-    return isActivePath(path)
-      ? "text-sm font-medium text-gray-900 pb-6"
-      : "text-sm text-gray-500 hover:text-gray-900 transition-colors pb-6";
-  };
+  const { tenant } = useAuth();
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { group, item } = sectionFor(pathname);
 
   return (
-    <header className="bg-white border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-between h-20">
-          {/* Logo & Tenant */}
-          <div className="flex items-center gap-8">
-            {tenant?.logo && failedLogo !== tenant.logo ? (
-              <img
-                src={
-                  tenant.logo.startsWith('http')
-                    ? tenant.logo
-                    : `${getApiUrl()}${tenant.logo}`
-                }
-                alt={tenant.business_name}
-                className="h-8 w-auto object-contain"
-                onError={() => setFailedLogo(tenant.logo ?? null)}
-              />
-            ) : (
-              <Image
-                src="/logo.svg"
-                alt="CrediFlux"
-                width={120}
-                height={30}
-                className="h-8 w-auto"
-                priority
-              />
-            )}
-            {tenant && (
-              <div className="border-l border-gray-200 pl-8">
-                <h1 className="text-sm font-medium text-gray-900">
-                  {tenant.business_name}
-                </h1>
-              </div>
-            )}
-          </div>
-
-          {/* Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
-            <Link href="/dashboard" className={navLinkClass('/dashboard')}>
-              Dashboard
-            </Link>
-            <Link href="/loans" className={navLinkClass('/loans')}>
-              Préstamos
-            </Link>
-            <Link href="/customers" className={navLinkClass('/customers')}>
-              Clientes
-            </Link>
-            <Link href="/collections" className={navLinkClass('/collections')}>
-              Cobranza
-            </Link>
-            <Link href="/payments" className={navLinkClass('/payments')}>
-              Pagos
-            </Link>
-            {(user?.is_tenant_owner || user?.role === 'admin') && (
-              <Link href="/users" className={navLinkClass('/users')}>
-                Equipo
-              </Link>
-            )}
-            {(user?.is_tenant_owner || user?.role === 'admin') && (
-              <Link href="/settings" className={navLinkClass('/settings')}>
-                Configuración
-              </Link>
-            )}
-          </nav>
-
-          {/* User & Logout */}
-          <div className="flex items-center gap-6">
-            <div className="hidden md:flex items-center gap-3 text-right">
-              <div className="h-8 w-8 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-medium">
-                {user?.first_name?.charAt(0)}{user?.last_name?.charAt(0)}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">
-                  {user?.full_name}
-                </p>
-                <p className="text-xs text-gray-500 capitalize">
-                  {user?.role.replace('_', ' ')}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
+    <header className="cf-root sticky top-0 z-30 border-b border-forest-900/10 bg-cream/85 backdrop-blur">
+      <div className="flex h-14 items-center gap-3 pl-8 pr-6">
+        <nav aria-label="Migas" className="flex min-w-0 flex-1 items-center gap-2 text-[12px] text-sage-500">
+          <Link href="/dashboard" className="transition-colors hover:text-forest-900">
+            Inicio
+          </Link>
+          {group && (
+            <>
+              <span className="text-[9px] leading-none text-sun-500" aria-hidden="true">●</span>
+              <span>{group}</span>
+            </>
+          )}
+          {item && item !== group && (
+            <>
+              <span aria-hidden="true">/</span>
+              <span className="truncate text-forest-900">{item}</span>
+            </>
+          )}
+        </nav>
+        <div className="flex items-center gap-1">
+          {tenant && (
+            <span className="util-btn gap-1.5 px-2.5 text-[12px]">
+              <Building className="h-[13px] w-[13px]" aria-hidden="true" />
+              <span className="font-mono text-[10px] uppercase tracking-widest">{tenant.name}</span>
+              <ChevronDown className="h-2.5 w-2.5" aria-hidden="true" />
+            </span>
+          )}
+          <button type="button" className="util-btn util-btn--icon" aria-label="Búsqueda global" onClick={() => setIsSearchOpen(true)}>
+            <Search className="h-[15px] w-[15px]" aria-hidden="true" />
+          </button>
+          <Link href="/collections/reminders" className="util-btn util-btn--icon" aria-label="Recordatorios">
+            <Bell className="h-[15px] w-[15px]" aria-hidden="true" />
+          </Link>
+          <ThemeSwitch className="mx-1.5" />
+          <UserMenu />
         </div>
       </div>
+      <GlobalSearch isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </header>
   );
 }
