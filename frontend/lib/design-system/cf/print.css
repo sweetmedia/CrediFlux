@@ -1,0 +1,95 @@
+/* Generado por design-prototypes/_tools/export_tokens.py — no editar a mano. */
+/* CrediFlux — documentos impresos (recibos, contratos, estados de cuenta, actos).
+   En pantalla: hojas apiladas sobre un fondo neutro. Al imprimir: solo las hojas.
+   La serif (EB Garamond) se usa únicamente en texto legal, como pide ContractPreview. */
+:root{--paper:#ffffff;--ink:#163300;--ink-2:#4a5a3d;--ink-3:#5c6d4d;--rule:#16330026;--rule-2:#16330012}
+html,body{margin: 0}
+body.print-desk{background: #e9e6dc;font-family: var(--font-body);color: var(--ink);-webkit-font-smoothing: antialiased}
+.desk{padding: 32px 24px 64px}
+.desk__bar{max-width: 8.5in;margin: 0 auto 20px;display: flex;justify-content: space-between;align-items: flex-end;gap: 16px}
+.desk__title{font-family: var(--font-display);font-size: 22px;font-weight: 700}
+.desk__meta{font-family: var(--font-mono);font-size: 10px;letter-spacing: .14em;text-transform: uppercase;color: var(--ink-3)}
+.desk__row{display: flex;flex-wrap: wrap;gap: 28px;justify-content: center;align-items: flex-start}
+.desk__cap{font-family: var(--font-mono);font-size: 10px;letter-spacing: .14em;text-transform: uppercase;color: var(--ink-3);margin: 10px 0 0;text-align: center}
+
+/* Page sizes */
+.page{position: relative;background: var(--paper);box-shadow: 0 1px 2px rgb(var(--bd-forest-900) / 0.078),0 12px 32px -12px rgb(var(--bd-forest-900) / 0.200);box-sizing: border-box;margin: 0 auto 24px;color: var(--ink)}
+.page--letter{width: 8.5in;min-height: 11in;padding: .6in .7in .8in}
+.page--half{width: 5.5in;min-height: 8.5in;padding: .4in .45in .55in}
+.page--thermal{width: 80mm;padding: 6mm 5mm 8mm;font-size: 11px}
+
+/* Membrete */
+.lh{display: flex;justify-content: space-between;align-items: flex-start;gap: 20px;padding-bottom: 14px;border-bottom: 2px solid var(--ink)}
+.lh__brand{display: flex;gap: 12px;align-items: center}
+.lh__logo{width: 44px;height: 44px;border-radius: 6px;background: var(--tenant-primary,rgb(var(--bg-forest-900)));color: rgb(var(--fg-white));display: grid;place-content: center;font-family: var(--font-display);font-weight: 900;font-size: 15px;letter-spacing: -.02em;flex-shrink: 0}
+.lh__name{font-family: var(--font-display);font-size: 14px;font-weight: 700;line-height: 1.2}
+.lh__sub{font-size: 9.5px;color: var(--ink-3);line-height: 1.45;margin-top: 2px}
+.lh__doc{text-align: right}
+.lh__type{font-family: var(--font-display);font-size: 18px;font-weight: 900;letter-spacing: -.01em;text-transform: uppercase}
+.lh__num{font-family: var(--font-mono);font-size: 11px;margin-top: 2px}
+.lh__date{font-size: 10px;color: var(--ink-3);margin-top: 2px}
+
+/* Blocks */
+.eb{font-family: var(--font-mono);font-size: 8.5px;font-weight: 500;letter-spacing: .16em;text-transform: uppercase;color: var(--ink-3)}
+.blk{margin-top: 18px}
+.kv{display: grid;grid-template-columns: auto 1fr;gap: 4px 16px;font-size: 11px;margin: 8px 0 0}
+.kv dt{color: var(--ink-3)}.kv dd{margin: 0}
+.grid2{display: grid;grid-template-columns: 1fr 1fr;gap: 24px}
+.grid3{display: grid;grid-template-columns: repeat(3,1fr);gap: 16px}
+.mono{font-family: var(--font-mono);font-variant-numeric: tabular-nums}
+.amt{font-family: var(--font-mono);font-variant-numeric: tabular-nums;font-weight: 500}
+.big{font-family: var(--font-mono);font-size: 26px;font-weight: 500;letter-spacing: -.02em}
+.box{border: 1px solid var(--rule);border-radius: 4px;padding: 10px 12px}
+.box--ink{border: 1.5px solid var(--ink)}
+.note{font-size: 9px;color: var(--ink-3);line-height: 1.45}
+
+/* Tables */
+.pt{width: 100%;border-collapse: collapse;font-size: 10px;margin-top: 8px}
+.pt th{font-family: var(--font-display);font-size: 8px;font-weight: 700;letter-spacing: .14em;text-transform: uppercase;color: var(--ink-3);text-align: left;padding: 6px 6px;border-bottom: 1.5px solid var(--ink)}
+.pt td{padding: 5px 6px;border-bottom: 1px solid var(--rule-2);vertical-align: top}
+.pt .r{text-align: right}
+.pt tfoot td{border-top: 1.5px solid var(--ink);border-bottom: 0;font-weight: 600;padding-top: 7px}
+.pt tr.muted td{color: var(--ink-3)}
+.pt tr.paid td:last-child{color: rgb(var(--fg-forest-700))}
+
+/* Legal text */
+.legal{font-family: 'EB Garamond',Georgia,serif;font-size: 12.5px;line-height: 1.55;color: rgb(var(--fg-ink-deep));text-align: justify;hyphens: auto}
+.legal p{margin: 0 0 9px}
+.legal h2{font-family: var(--font-display);font-size: 10px;font-weight: 700;letter-spacing: .14em;text-transform: uppercase;color: var(--ink);margin: 16px 0 6px;text-align: left}
+.legal .cl{display: grid;grid-template-columns: 28px 1fr;margin-bottom: 8px}
+.legal .cl > b{font-family: var(--font-mono);font-size: 10px;font-weight: 500;color: rgb(var(--fg-forest-600));padding-top: 2px}
+.legal em{font-style: italic;color: rgb(var(--fg-forest-700))}
+.legal .blank{display: inline-block;min-width: 160px;border-bottom: 1px solid rgb(var(--bd-ink-deep))}
+.doc-title{font-family: var(--font-display);font-size: 17px;font-weight: 700;letter-spacing: .06em;text-transform: uppercase;text-align: center;margin: 22px 0 4px}
+.doc-sub{font-family: var(--font-mono);font-size: 9.5px;text-align: center;color: var(--ink-3)}
+
+/* Signatures */
+.sigs{display: grid;gap: 28px;margin-top: 34px}
+.sigs--2{grid-template-columns: 1fr 1fr}.sigs--3{grid-template-columns: repeat(3,1fr)}
+.sig{text-align: center}
+.sig__drawn{font-family: 'Dancing Script',cursive;font-size: 22px;color: rgb(var(--fg-ink-deep));height: 30px;line-height: 30px}
+.sig__line{border-top: 1px solid var(--ink);padding-top: 5px;font-size: 9.5px;font-weight: 500}
+.sig__role{font-family: var(--font-mono);font-size: 8px;letter-spacing: .12em;text-transform: uppercase;color: var(--ink-3);margin-top: 2px}
+.fingerprint{width: 58px;height: 70px;border: 1px dashed var(--rule);border-radius: 4px;margin: 0 auto 6px;display: grid;place-content: center;font-family: var(--font-mono);font-size: 7px;color: var(--ink-3);text-align: center}
+
+/* Footer */
+.pf{position: absolute;left: .7in;right: .7in;bottom: .35in;display: flex;justify-content: space-between;align-items: flex-end;gap: 16px;font-family: var(--font-mono);font-size: 7.5px;letter-spacing: .06em;color: var(--ink-3);border-top: 1px solid var(--rule-2);padding-top: 6px}
+.page--half .pf{left: .45in;right: .45in;bottom: .22in}
+.qr{width: 46px;height: 46px;flex-shrink: 0;background: conic-gradient(from 90deg at 3px 3px,rgb(var(--bg-forest-900)) 90deg,transparent 0) 0 0/9px 9px,
+  linear-gradient(rgb(var(--bg-white)),rgb(var(--bg-white)));outline: 1px solid var(--rule);image-rendering: pixelated}
+.stamp{position: absolute;right: .7in;top: 2.1in;transform: rotate(-8deg);border: 2px solid rgb(var(--bd-forest-700));color: rgb(var(--fg-forest-700));border-radius: 6px;padding: 4px 10px;font-family: var(--font-display);font-weight: 900;font-size: 16px;letter-spacing: .08em;opacity: .8}
+.copy-tag{font-family: var(--font-mono);font-size: 8px;letter-spacing: .16em;text-transform: uppercase;border: 1px solid var(--ink);padding: 2px 6px;display: inline-block}
+
+/* Thermal */
+.th-c{text-align: center}
+.th-rule{border-top: 1px dashed rgb(var(--bd-forest-900));margin: 6px 0}
+.th-row{display: flex;justify-content: space-between;gap: 8px;font-family: var(--font-mono);font-size: 10.5px;line-height: 1.5}
+.th-big{font-family: var(--font-mono);font-size: 20px;font-weight: 600;text-align: center;margin: 4px 0}
+
+@page{size: letter;margin: 0}
+@media print{
+  body.print-desk{background: rgb(var(--bg-white))}
+  .desk{padding: 0}.desk__bar,.desk__cap{display: none}
+  .desk__row{display: block}
+  .page{box-shadow: none;margin: 0;page-break-after: always}
+}
