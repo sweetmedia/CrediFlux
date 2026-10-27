@@ -20,11 +20,19 @@ function montar(ruta: string) {
     ],
     { initialEntries: [ruta] }
   );
-  render(
+  const { container } = render(
     <StrictMode>
       <RouterProvider router={router} />
     </StrictMode>
   );
+  return { router, container };
+}
+
+function sinParametrosEnLaUrl(router: ReturnType<typeof createMemoryRouter>) {
+  // 30.1 M4: uid y token salen de la barra de direcciones y del historial (replace, no push).
+  expect(router.state.location.pathname).toBe('/verify-email');
+  expect(router.state.location.search).toBe('');
+  expect(router.state.historyAction).toBe('REPLACE');
 }
 
 function enlaceLogin() {
@@ -56,20 +64,23 @@ describe('página /verify-email', () => {
 
   it('con uid y token confirma una sola vez (StrictMode) y muestra el éxito', async () => {
     post.mockResolvedValue({ message: 'ok' });
-    montar(`/verify-email?uid=${UID}&token=${TOKEN}`);
+    const { router } = montar(`/verify-email?uid=${UID}&token=${TOKEN}`);
 
     expect(await screen.findByText(/correo verificado/i)).toBeInTheDocument();
     expect(post).toHaveBeenCalledTimes(1);
     expect(post).toHaveBeenCalledWith(CONFIRM, { uid: UID, token: TOKEN });
     enlaceLogin();
+    sinParametrosEnLaUrl(router);
   });
 
   it('muestra "confirmando" mientras espera la respuesta', async () => {
     post.mockReturnValue(new Promise(() => {}));
-    montar(`/verify-email?uid=${UID}&token=${TOKEN}`);
+    const { router } = montar(`/verify-email?uid=${UID}&token=${TOKEN}`);
 
     expect(await screen.findByText(/verificando tu correo/i)).toBeInTheDocument();
     expect(post).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledWith(CONFIRM, { uid: UID, token: TOKEN });
+    sinParametrosEnLaUrl(router);
   });
 
   it('si la API rechaza el enlace muestra el mensaje genérico de enlace inválido', async () => {
@@ -96,10 +107,24 @@ describe('página /verify-email', () => {
     ['sin uid', `/verify-email?token=${TOKEN}`],
     ['sin parámetros', '/verify-email'],
   ])('%s muestra el estado inválido sin llamar a la API', async (_caso, ruta) => {
-    montar(ruta);
+    const { router } = montar(ruta);
 
     expect(await screen.findByText(/enlace inválido o vencido/i)).toBeInTheDocument();
     expect(post).not.toHaveBeenCalled();
     enlaceLogin();
+    expect(router.state.location.search).toBe('');
+  });
+
+  it.each([
+    ['verificado', () => post.mockResolvedValue({ message: 'ok' }), /correo verificado/i],
+    ['inválido', () => post.mockRejectedValue(new Error('x')), /enlace inválido o vencido/i],
+  ])('estado %s usa tokens del DS, sin colores crudos ni degradado fijo', async (_caso, preparar, texto) => {
+    preparar();
+    const { container } = montar(`/verify-email?uid=${UID}&token=${TOKEN}`);
+
+    expect(await screen.findByText(texto)).toBeInTheDocument();
+    const html = container.innerHTML;
+    expect(html).not.toMatch(/text-(green|red)-\d|bg-gradient|#e8eddf/);
+    expect(html).toContain('cf-surface-card');
   });
 });

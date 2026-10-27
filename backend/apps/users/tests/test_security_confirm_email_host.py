@@ -12,6 +12,9 @@ La redirección de éxito va al frontend del tenant del usuario, y el enlace del
 construye con el dominio del tenant del usuario, no con el host del admin que lo envía.
 """
 import re
+import time
+from datetime import timedelta
+from unittest import mock
 from urllib.parse import urlparse
 
 import pytest
@@ -275,12 +278,98 @@ def test_link_keeps_scheme_and_port_of_backend_url(public_schema):
     assert link.netloc == "puerto.localhost:8100"
 
 
-@urls
-def test_link_of_user_without_tenant_keeps_the_request_host(tenants):
-    """Sin tenant, el enlace sigue en el host de la petición (el público, desde el admin de plataforma)."""
+@override_settings(BACKEND_URL="http://localhost:8100", FRONTEND_URL="http://localhost:3100")
+@KINDS
+def test_link_of_user_without_tenant_uses_backend_url_even_from_a_tenant_host(tenants, kind):
+    """30.1 M2: el admin de plataforma reenvía desde el host de un tenant; el enlace va al host público."""
     address = email_address(UserFactory(email="sin-tenant@crediflux.test", tenant=None))
-    request = RequestFactory(HTTP_HOST=PUBLIC_HOST).get("/admin/")
+    request = RequestFactory(HTTP_HOST=HOST_A).get("/admin/")
+    confirmation = EmailConfirmationHMAC(address) if kind == "hmac" else EmailConfirmation.create(address)
 
-    EmailConfirmationHMAC(address).send(request)
+    confirmation.send(request)
 
-    assert sent_confirm_link().netloc == PUBLIC_HOST
+    link = sent_confirm_link()
+    assert (link.scheme, link.netloc) == ("http", "localhost:8100")
+    assert link.path == CONFIRM.format(key=confirmation.key)
+
+    # Y confirma en ese host (el público).
+    response = client_on(link.netloc).get(link.path)
+    assert response["Location"].endswith("/login?verified=true")
+    assert "verified=invalid" not in response["Location"]
+    assert verified(address)
+
+
+# ---------------------------------------------------------------------------
+# 30.1 — claves vencidas o usadas, confirm() sin efecto o con excepción
+# ---------------------------------------------------------------------------
+
+
+def expired_key(address, kind):
+    expire_days = 3  # ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS por defecto
+    past = time.time() - (expire_days + 1) * 86400
+    if kind == "hmac":
+        with mock.patch("django.core.signing.time.time", return_value=past):
+            return EmailConfirmationHMAC(address).key
+    confirmation = EmailConfirmation.create(address)
+    confirmation.sent = timezone.now() - timedelta(days=expire_days + 1)
+    confirmation.save(update_fields=["sent"])
+    return confirmation.key
+
+
+@urls
+@KINDS
+def test_expired_key_gives_the_invalid_redirect(tenants, kind):
+    acme, _ = tenants
+    address = email_address(UserFactory(email="cajero@acme.test", tenant=acme))
+
+    response = confirm(HOST_A, expired_key(address, kind))
+
+    assert response["Location"] == INVALID_URL
+    assert not verified(address)
+
+
+@urls
+@KINDS
+def test_already_used_key_gives_the_invalid_redirect(tenants, kind):
+    acme, _ = tenants
+    address = email_address(UserFactory(email="cajero@acme.test", tenant=acme))
+    key = make_key(address, kind)
+    assert confirm(HOST_A, key)["Location"] == f"https://{HOST_A}/login?verified=true"
+
+    again = confirm(HOST_A, key)
+
+    assert again["Location"] == INVALID_URL
+
+
+@urls
+@KINDS
+def test_confirm_without_effect_gives_the_invalid_redirect(tenants, kind):
+    """`confirm()` devuelve None (p. ej. otra cuenta ya verificó ese correo): no es un éxito."""
+    acme, _ = tenants
+    address = email_address(UserFactory(email="cajero@acme.test", tenant=acme))
+    key = make_key(address, kind)
+    model = EmailConfirmationHMAC if kind == "hmac" else EmailConfirmation
+
+    with mock.patch.object(model, "confirm", return_value=None):
+        response = confirm(HOST_A, key)
+
+    assert response["Location"] == INVALID_URL
+    assert not verified(address)
+
+
+@urls
+@KINDS
+def test_exception_inside_confirm_gives_the_invalid_redirect(tenants, kind):
+    """30.1 M5."""
+    acme, _ = tenants
+    address = email_address(UserFactory(email="cajero@acme.test", tenant=acme))
+    key = make_key(address, kind)
+
+    with mock.patch(
+        "allauth.account.adapter.DefaultAccountAdapter.confirm_email", side_effect=RuntimeError("boom"),
+    ):
+        response = confirm(HOST_A, key)
+
+    assert response.status_code == 302
+    assert response["Location"] == INVALID_URL
+    assert not verified(address)

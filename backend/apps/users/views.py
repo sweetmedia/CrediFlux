@@ -924,7 +924,8 @@ class CustomConfirmEmailView(ConfirmEmailView):
 
     Sólo confirma en el host del tenant del usuario (la misma regla que los confirm de reset y
     verificación, `user_on_request_host`): un usuario sin tenant, sólo en el host público y activo.
-    Host ajeno, usuario inactivo y clave inválida dan la misma redirección `verified=invalid`, que
+    Host ajeno, usuario inactivo, clave inválida, vencida o ya usada, y un `confirm()` sin efecto o
+    con excepción dan la misma redirección `verified=invalid`, que
     se arma con la URL de settings y no revela a qué tenant pertenece la clave.
 
     Sigue en GET como allauth (`ACCOUNT_CONFIRM_EMAIL_ON_GET`): el prefetch de un cliente de correo
@@ -948,10 +949,9 @@ class CustomConfirmEmailView(ConfirmEmailView):
         if not key:
             return redirect(invalid_url)
 
-        confirmation = EmailConfirmationHMAC.from_key(key)
-        if not confirmation:
-            confirmation = EmailConfirmation.objects.filter(key=key.lower()).first()
-
+        # `from_key` de allauth en los dos casos: sólo claves vigentes de correos sin verificar
+        # (una clave de BD vencida o ya usada no se encuentra).
+        confirmation = EmailConfirmationHMAC.from_key(key) or EmailConfirmation.from_key(key)
         if not confirmation:
             return redirect(invalid_url)
 
@@ -960,8 +960,11 @@ class CustomConfirmEmailView(ConfirmEmailView):
             return redirect(invalid_url)
 
         try:
-            confirmation.confirm(self.request)
+            # None: vencida, ya verificada u otra cuenta ya verificó ese correo; no es un éxito.
+            confirmed = confirmation.confirm(self.request)
         except Exception:
+            return redirect(invalid_url)
+        if not confirmed:
             return redirect(invalid_url)
         return redirect(self._success_url(user, authenticated, settings_url))
 

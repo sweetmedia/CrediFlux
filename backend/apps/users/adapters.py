@@ -20,9 +20,6 @@ class CustomAccountAdapter(DefaultAccountAdapter):
     def _get_request(self, request=None):
         return request or getattr(allauth_context, 'request', None)
 
-    def _is_local_host(self, host):
-        return not host or 'localhost' in host or host.startswith('127.0.0.1')
-
     def _get_tenant_domain(self, request=None):
         """Priority: request host > tenant primary domain > Site domain > fallback."""
         request = self._get_request(request)
@@ -62,19 +59,6 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         except Exception:
             return 'CrediFlux'
 
-    def _get_protocol(self, request=None, domain=None):
-        request = self._get_request(request)
-        if request:
-            try:
-                if request.is_secure():
-                    return 'https'
-            except Exception:
-                pass
-        domain = domain or self._get_tenant_domain(request)
-        if self._is_local_host(domain):
-            return 'http'
-        return 'https'
-
     def _get_current_site(self, request=None):
         domain = self._get_tenant_domain(request)
         return TenantSite(domain=domain, name=self._get_tenant_name())
@@ -95,19 +79,19 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         `CustomConfirmEmailView` sólo confirma en el host del tenant del usuario (ronda 30), y el
         admin que reenvía la verificación suele estar en el host público. La ruta
         (`account-confirm-email/<key>/`) la sirve el backend: host = dominio del tenant
-        (`tenant_backend_url`), scheme y puerto de `BACKEND_URL`. Un usuario sin tenant sigue con el
-        host de la petición (el admin de plataforma, en el público).
+        (`tenant_backend_url`), scheme y puerto de `BACKEND_URL`. Un usuario sin tenant (también el de
+        plataforma) sólo confirma en el host público: su enlace usa `BACKEND_URL` tal cual, venga de
+        donde venga la petición.
         """
         url = super().get_email_confirmation_url(request, emailconfirmation)
         user = emailconfirmation.email_address.user
         if user.tenant_id:
             from apps.tenants.links import tenant_backend_url
-            base = urlparse(tenant_backend_url(user.tenant))
-            return urlunparse(urlparse(url)._replace(scheme=base.scheme, netloc=base.netloc))
-        domain = self._get_tenant_domain(request)
-        protocol = self._get_protocol(request, domain)
-        parsed = urlparse(url)
-        return urlunparse(parsed._replace(scheme=protocol, netloc=domain))
+            base_url = tenant_backend_url(user.tenant)
+        else:
+            base_url = getattr(settings, 'BACKEND_URL', 'http://localhost:8000')
+        base = urlparse(base_url)
+        return urlunparse(urlparse(url)._replace(scheme=base.scheme, netloc=base.netloc))
 
     def send_mail(self, template_prefix, email, context, **kwargs):
         context = dict(context)
