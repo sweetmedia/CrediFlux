@@ -544,7 +544,7 @@ export default function EditCustomerPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="monthly_income">Ingreso Mensual (USD)</Label>
+                    <Label htmlFor="monthly_income">Ingreso mensual (RD$)</Label>
                     <Input
                       id="monthly_income"
                       type="number"

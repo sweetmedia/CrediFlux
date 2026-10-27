@@ -185,7 +185,7 @@ export default function LoanSettingsPage() {
         require_credit_score: data.require_credit_score || false,
         minimum_credit_score: data.minimum_credit_score || 300,
         credit_score_for_auto_approval: data.credit_score_for_auto_approval || 700,
-        default_currency: data.default_currency || 'USD',
+        default_currency: data.default_currency || 'DOP',
         allow_multiple_currencies: data.allow_multiple_currencies || false,
         enable_cash_payments: data.enable_cash_payments !== false,
         enable_check_payments: data.enable_check_payments !== false,

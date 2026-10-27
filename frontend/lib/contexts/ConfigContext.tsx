@@ -13,9 +13,9 @@ interface ConfigContextType {
   isLoading: boolean;
 }
 
-const defaultConfig: TenantConfig = {
-  currency: 'USD',
-  currency_symbol: '$',
+export const defaultConfig: TenantConfig = {
+  currency: 'DOP',
+  currency_symbol: 'RD$',
   decimal_places: 2,
   company_name: 'CrediFlux',
 };

@@ -453,7 +453,7 @@ class LoanPaymentCreateSerializer(SignedFilesModelSerializer):
         schedule = validated_data.get('schedule')
 
         # Get currency from the amount
-        currency = amount.currency if hasattr(amount, 'currency') else 'USD'
+        currency = amount.currency if hasattr(amount, 'currency') else 'DOP'
 
         # Remove any manually provided values
         validated_data.pop('principal_paid', None)

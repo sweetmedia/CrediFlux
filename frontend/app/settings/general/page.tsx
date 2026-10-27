@@ -216,8 +216,8 @@ export default function TenantSettingsPage() {
       setValue('country', data.country || '');
       setValue('postal_code', data.postal_code || '');
       setValue('primary_color', data.primary_color || '#6366f1');
-      setValue('default_currency', (data.default_currency as 'USD' | 'DOP' | 'EUR' | 'GBP' | undefined) || 'USD');
-      setValue('currency_symbol', data.currency_symbol || '$');
+      setValue('default_currency', (data.default_currency as 'USD' | 'DOP' | 'EUR' | 'GBP' | undefined) || 'DOP');
+      setValue('currency_symbol', data.currency_symbol || 'RD$');
       setValue('timezone', data.timezone || DEFAULT_TIMEZONE);
       setValue('enable_whatsapp_reminders', data.enable_whatsapp_reminders || false);
       setValue('whatsapp_phone_id', data.whatsapp_phone_id || '');

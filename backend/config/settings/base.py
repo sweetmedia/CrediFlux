@@ -751,8 +751,9 @@ UNFOLD = {
 }
 
 # Money/Currency settings
-CURRENCIES = ('USD', 'EUR', 'DOP')
-DEFAULT_CURRENCY = config('DEFAULT_CURRENCY', default='USD')
+# RD$ salvo que la financiera elija otra moneda.
+CURRENCIES = ('DOP', 'USD', 'EUR')
+DEFAULT_CURRENCY = config('DEFAULT_CURRENCY', default='DOP')
 
 # Frontend URL (for email verification and password reset links)
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')

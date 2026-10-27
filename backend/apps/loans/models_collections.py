@@ -148,7 +148,7 @@ class CollectionContact(UUIDModel, TimeStampedModel):
     promise_amount = MoneyField(
         max_digits=12,
         decimal_places=2,
-        default_currency='USD',
+        default_currency='DOP',
         null=True,
         blank=True
     )

@@ -314,8 +314,8 @@ def get_tenant_config(request):
 
     Response:
     {
-        "currency": "USD",
-        "currency_symbol": "$",
+        "currency": "DOP",
+        "currency_symbol": "RD$",
         "decimal_places": 2,
         "company_name": "Caproinsa SRL"
     }
@@ -327,8 +327,8 @@ def get_tenant_config(request):
     if not tenant:
         return Response(
             {
-                'currency': 'USD',
-                'currency_symbol': '$',
+                'currency': 'DOP',
+                'currency_symbol': 'RD$',
                 'decimal_places': 2,
                 'company_name': 'CrediFlux',
             },
