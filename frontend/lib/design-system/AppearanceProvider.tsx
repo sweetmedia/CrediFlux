@@ -76,17 +76,12 @@ export function AppearanceProvider({
 }: {
   children: React.ReactNode;
 }) {
-  // Read once on mount. We don't read during SSR — the inline script in
-  // <head> sets the class for the first paint, then we hydrate to match.
-  const [mode, setModeState] = useState<AppearanceMode>('system');
+  // SPA sin SSR: se lee en el primer render para pintar igual que el script
+  // de index.html. Si arrancara en 'light', el primer efecto quitaría la clase
+  // dark y la pantalla destellaría en claro.
+  const [mode, setModeState] = useState<AppearanceMode>(readStoredMode);
   const [systemPref, setSystemPref] =
-    useState<ResolvedAppearance>('light');
-
-  // Initial sync
-  useEffect(() => {
-    setModeState(readStoredMode());
-    setSystemPref(getSystemPreference());
-  }, []);
+    useState<ResolvedAppearance>(getSystemPreference);
 
   // Watch system preference when relevant
   useEffect(() => {
