@@ -178,14 +178,18 @@ def _send_with_cooldown(prefix, user, seconds, send):
     Cualquier excepción del envío (un backend de terceros, un error al armar el mensaje) se
     registra y no sale de aquí: si llegara a la vista daría un 500 sólo cuando la cuenta existe
     en este host. La respuesta no cambia.
+
+    Se registra sólo el tipo de la excepción, sin traceback ni su texto: los frames de `send`
+    guardan el enlace con el token vivo, y un traceback con variables locales (Sentry) lo
+    publicaría.
     """
     key = f'{prefix}:{user.pk}'
     if not cache.add(key, 1, seconds):
         return
     try:
         sent = send(user)
-    except Exception:
-        logger.exception('Fallo al enviar el correo (%s) al usuario %s', prefix, user.pk)
+    except Exception as exc:
+        logger.error('Fallo al enviar el correo (%s) al usuario %s: %s', prefix, user.pk, type(exc).__name__)
         sent = 0
     if sent == 0:
         cache.delete(key)

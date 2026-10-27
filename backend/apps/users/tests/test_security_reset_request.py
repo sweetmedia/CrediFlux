@@ -353,7 +353,11 @@ def test_exception_while_sending_gives_the_same_response_and_releases_the_cooldo
     assert response.status_code == reference.status_code == 200
     assert response.content == reference.content
     assert cache.get(f"password_reset_request_cooldown:{user.pk}") is None
-    assert [r for r in caplog.records if r.name == "apps.users.serializers" and r.exc_info]
+    # Se registra el tipo, sin traceback ni texto de la excepción (el frame guarda el token).
+    records = [r for r in caplog.records if r.name == "apps.users.serializers"]
+    assert records and all(r.exc_info is None for r in records)
+    assert any("RuntimeError" in r.getMessage() for r in records)
+    assert not any("backend roto" in r.getMessage() for r in records)
 
 
 @links
