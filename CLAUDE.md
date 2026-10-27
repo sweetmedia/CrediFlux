@@ -64,7 +64,7 @@ docker compose exec backend pytest --cov
 
 # Backend fuera de Docker: cd backend && uv run pytest
 
-# Frontend (Node 20, ver frontend/.nvmrc)
+# Frontend (Node 24.22.1, ver frontend/.nvmrc; Node 20 no tiene parche para CVE-2026-111497)
 cd frontend && npm test            # vitest + jsdom
 cd frontend && npm run test:e2e    # Playwright contra localhost:3100
 # con sesión (barre todas las rutas autenticadas):

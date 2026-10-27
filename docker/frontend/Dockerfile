@@ -1,5 +1,5 @@
 # Frontend de CrediFlux en desarrollo (Vite dev server).
-FROM node:20-alpine
+FROM node:24.22.1-alpine
 
 WORKDIR /app
 
