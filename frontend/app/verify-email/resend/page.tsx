@@ -5,18 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { authAPI } from '@/lib/api/auth';
 import { esHostGeneral } from '@/lib/hosts';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AuthShell } from '@/components/auth/AuthShell';
 import { ArrowLeft, Loader2, MailCheck } from 'lucide-react';
 
 const reenvioSchema = z.object({
@@ -65,107 +54,102 @@ export default function ReenviarVerificacionPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="cf-surface-card w-full max-w-md">
-        {/* Única región viva: anuncia el resultado del envío. Los errores van en su `Alert`
+    <AuthShell>
+      <div className="cf-surface-card cf-auth-panel">
+        {/* Única región viva: anuncia el resultado del envío. Los errores van en su alerta
             (role="alert"), fuera de ella, para que no se anuncien dos veces. */}
         <div role="status">
           {enviado && (
-            <CardHeader className="space-y-1">
-              <div className="flex justify-center mb-4">
-                <span className="flex h-16 w-16 items-center justify-center rounded-full border border-success-border bg-success-bg text-success-fg">
-                  <MailCheck className="h-9 w-9" aria-hidden="true" />
-                </span>
-              </div>
+            <>
+              <MailCheck className="mb-6 h-8 w-8 text-forest-500" aria-hidden="true" />
+              <div className="mb-4 font-mono text-[10px] uppercase tracking-widest text-forest-700">Enlace pedido</div>
               {hostGeneral ? (
                 <>
-                  <CardTitle className="text-2xl font-bold text-center">Solicitud recibida</CardTitle>
-                  <CardDescription className="text-center">
+                  <h1 className="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">Solicitud recibida</h1>
+                  <p className="mt-3 text-[14px] leading-relaxed text-sage-600">
                     Si tu cuenta no es de ninguna empresa y necesita verificación, te enviamos un
                     enlace nuevo. Si es de una empresa, pídelo desde la dirección de tu empresa en
                     CrediFlux: desde aquí no te llegará.
-                  </CardDescription>
+                  </p>
                 </>
               ) : (
                 <>
-                  <CardTitle className="text-2xl font-bold text-center">Revisa tu correo</CardTitle>
-                  <CardDescription className="text-center">
+                  <h1 className="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">Revisa tu correo</h1>
+                  <p className="mt-3 text-[14px] leading-relaxed text-sage-600">
                     Si tu cuenta necesita verificación, te enviamos un enlace nuevo. Revisa tu
                     bandeja de entrada y la carpeta de spam.
-                  </CardDescription>
+                  </p>
                 </>
               )}
-            </CardHeader>
+            </>
           )}
         </div>
 
         {enviado ? (
-          <CardFooter>
-            <Button asChild variant="outline" className="w-full">
-              <Link href="/login">Iniciar sesión</Link>
-            </Button>
-          </CardFooter>
+          <Link href="/login" className="cf-btn cf-btn--secondary mt-8 h-11 w-full">
+            Iniciar sesión
+          </Link>
         ) : (
           <>
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-2xl font-bold text-center">
-                Solicitar enlace de verificación
-              </CardTitle>
-              <CardDescription className="text-center">
-                Escribe el correo de tu cuenta y te enviaremos un enlace nuevo para verificarlo.
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={handleSubmit(onSubmit)} noValidate>
-              <CardContent className="space-y-4">
-                {error && (
-                  <Alert className="border-danger-border bg-danger-bg text-danger-fg">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+            <Link href="/login" className="mb-6 inline-flex items-center gap-1.5 text-[13px] text-sage-600 hover:text-forest-900">
+              <ArrowLeft className="h-3 w-3" aria-hidden="true" />
+              Iniciar sesión
+            </Link>
+            <div className="mb-4 font-mono text-[10px] uppercase tracking-widest text-sage-600">Verificación</div>
+            <h1 className="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">
+              Solicitar enlace de verificación
+            </h1>
+            <p className="mt-3 text-[14px] leading-relaxed text-sage-600">
+              Escribe el correo de tu cuenta y te enviaremos un enlace nuevo para verificarlo.
+            </p>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Correo electrónico</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="tu@email.com"
-                    aria-invalid={errors.email ? true : undefined}
-                    aria-describedby={errors.email ? 'email-error' : undefined}
-                    {...register('email')}
-                    disabled={isSubmitting}
-                  />
-                  {errors.email && (
-                    <p id="email-error" className="text-sm text-danger-fg">
-                      {errors.email.message}
-                    </p>
-                  )}
+            {hostGeneral && (
+              <p role="note" className="mt-6 rounded border border-sun-500/40 bg-sun-100 p-3 text-[13px] text-forest-900">
+                Estás en la dirección general de CrediFlux. Si tu cuenta es de una empresa, pide el enlace desde la dirección de tu empresa: desde aquí no te llegará.
+              </p>
+            )}
+
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-8 space-y-7">
+              {error && (
+                <div role="alert" className="flex gap-2.5 rounded border border-flame-500/30 bg-flame-100 p-3 text-[13px] text-forest-900">
+                  {error}
                 </div>
+              )}
 
-                <p className="cf-muted-panel p-3 text-sm text-muted-foreground">
-                  {hostGeneral
-                    ? 'Estás en la dirección general de CrediFlux. Si tu cuenta es de una empresa, pide el enlace desde la dirección de tu empresa: desde aquí no te llegará.'
-                    : 'Pídelo desde la dirección de tu empresa en CrediFlux. Si no te llega en unos minutos, revisa la carpeta de spam antes de pedir otro.'}
-                </p>
-              </CardContent>
+              <div className="cf-field">
+                <label className="cf-label" htmlFor="email">Correo electrónico</label>
+                <input
+                  id="email"
+                  type="email"
+                  className="cf-input"
+                  autoComplete="email"
+                  placeholder="ej: maria@financiera.com.do"
+                  aria-invalid={errors.email ? true : undefined}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
+                  {...register('email')}
+                  disabled={isSubmitting}
+                />
+                {errors.email && (
+                  <p id="email-error" className="mt-1.5 text-[12px] text-flame-700">
+                    {errors.email.message}
+                  </p>
+                )}
+              </div>
 
-              <CardFooter className="flex flex-col space-y-4">
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-                  Enviar enlace
-                </Button>
-
-                <Button asChild variant="outline" className="w-full">
-                  <Link href="/login">
-                    <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Iniciar sesión
-                  </Link>
-                </Button>
-              </CardFooter>
+              <button type="submit" className="cf-btn cf-btn--primary h-11 w-full" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                Enviar enlace
+              </button>
             </form>
+
+            {!hostGeneral && (
+              <p className="mt-8 border-t border-forest-900/10 pt-6 text-[12px] leading-relaxed text-sage-600">
+                Pídelo desde la dirección de tu empresa en CrediFlux. Si no te llega en unos minutos, revisa la carpeta de spam antes de pedir otro.
+              </p>
+            )}
           </>
         )}
-      </Card>
-    </div>
+      </div>
+    </AuthShell>
   );
 }

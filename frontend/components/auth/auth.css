@@ -6,3 +6,5 @@
   background-image: radial-gradient(circle at 1px 1px, rgb(var(--fg-forest-900) / 0.035) 1px, transparent 0);
   background-size: 28px 28px;
 }
+/* `cf-surface-card` es la clase V1 de tarjeta (globals.css); dentro del marco de acceso no pinta caja. */
+.cf-auth-panel.cf-surface-card { border: 0; border-radius: 0; background: transparent; }
