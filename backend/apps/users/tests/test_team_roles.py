@@ -437,3 +437,30 @@ def test_admin_django_respeta_la_dominancia(user_factory, tenant_schema):
     debil = U.objects.get(pk=debil.pk)
     assert otro_admin.is_active and otro_admin.check_password(clave)
     assert not debil.is_active and not debil.check_password(clave)
+
+
+def test_admin_django_reactivar_respeta_la_dominancia(user_factory, tenant_schema):
+    from django.contrib.messages import get_messages
+    from django.test import Client
+    from django.urls import reverse
+
+    _rol(tenant_schema, 'super-gerente', {'billing.config'})
+    gestor = _gestor(tenant_schema, user_factory, dar=['team.edit'])
+    gestor.is_staff = True
+    gestor.save()
+    admin_inactivo = user_factory(role='admin', is_active=False)
+    fuerte_inactivo = user_factory(role='super-gerente', is_active=False)
+    debil_inactivo = user_factory(role='viewer', is_active=False)
+    client = Client(HTTP_HOST='tenant.test.localhost')
+    client.force_login(gestor)
+
+    r = client.post(reverse('admin:users_user_changelist'), {
+        'action': 'activate_users',
+        '_selected_action': [admin_inactivo.pk, fuerte_inactivo.pk, debil_inactivo.pk],
+    }, follow=True)
+    for u in (admin_inactivo, fuerte_inactivo, debil_inactivo):
+        u.refresh_from_db()
+    assert not admin_inactivo.is_active
+    assert not fuerte_inactivo.is_active
+    assert debil_inactivo.is_active
+    assert any('2 usuario(s) omitido(s)' in str(m) for m in get_messages(r.wsgi_request))

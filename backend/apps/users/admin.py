@@ -344,8 +344,15 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     @action(description="✅ Activar usuarios seleccionados", permissions=['change'])
     def activate_users(self, request, queryset):
         """Activate selected users"""
+        skipped = 0
         with transaction.atomic():
             pending = queryset.filter(is_active=False)
+            if not _is_platform_admin(request.user):
+                # Sólo a quien uno puede gestionar (D6): reactivar devuelve el acceso con la
+                # misma clave, así que no se reactiva a quien tiene más permisos que uno.
+                allowed = [u.pk for u in pending if puede_gestionar(request.user, u) is None]
+                skipped = pending.count() - len(allowed)
+                pending = pending.filter(pk__in=allowed)
             # El changelist del admin de tenant sólo muestra su tenant: el cupo es el suyo.
             if not _is_platform_admin(request.user):
                 left = seats_left(request.user.tenant_id)
@@ -359,11 +366,17 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 f'✅ {count} usuario(s) activado(s) exitosamente.',
                 level=messages.SUCCESS
             )
-        else:
+        elif not skipped:
             self.message_user(
                 request,
                 'Todos los usuarios seleccionados ya están activos.',
                 level=messages.INFO
+            )
+        if skipped:
+            self.message_user(
+                request,
+                f'⚠️ {skipped} usuario(s) omitido(s) (el dueño, un administrador o quien tiene más permisos que tú).',
+                level=messages.WARNING
             )
 
     @action(description="🚫 Desactivar usuarios seleccionados", permissions=['change'])
