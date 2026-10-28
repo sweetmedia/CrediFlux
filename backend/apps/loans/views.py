@@ -22,6 +22,7 @@ from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment,
 from .models_collections import CollectionReminder, CollectionContact
 from .models_guarantors import Guarantor
 from .services.guarantors import guarantor_of
+from apps.users.authz import has_perm
 from .utils_ids import normalize_id_number
 from .serializers import (
     CustomerSerializer, CustomerListSerializer,
@@ -115,13 +116,18 @@ class CustomerViewSet(viewsets.ModelViewSet):
         digits = normalize_id_number(id_number)
         if not digits:
             raise ValidationError({'id_number': 'Indica la cédula a consultar.'})
+        # Si la misma cédula está en dos fichas (otro formato), manda la más antigua.
         customer = Customer.objects.annotate(
             _digits=Replace(Replace('id_number', Value('-'), Value('')), Value(' '), Value(''))
-        ).filter(_digits=digits).first()
+        ).filter(_digits=digits).order_by('created_at', 'pk').first()
         return Response({
             'is_customer': customer is not None,
             'customer_id': str(customer.id) if customer else None,
-            'guarantor_of': guarantor_of(id_number, exclude_customer_id=customer.id if customer else None),
+            'guarantor_of': guarantor_of(
+                id_number,
+                exclude_customer_id=customer.id if customer else None,
+                con_prestamo=has_perm(request.user, 'loans.view'),
+            ),
         })
 
     @action(detail=True, methods=['get'])

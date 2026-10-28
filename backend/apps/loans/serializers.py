@@ -14,6 +14,7 @@ from apps.core.media import SignedFilesModelSerializer
 from .fields import TenantUserField
 from .utils_ids import normalize_id_number  # noqa: F401  (reexportada)
 from .services.guarantors import guarantor_of
+from apps.users.authz import has_perm
 from .policy import (
     LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS, OPEN_CONTRACT_MESSAGE,
     loan_has_open_contract, loan_terms_locked, validate_origination,
@@ -138,7 +139,10 @@ class CustomerSerializer(SignedFilesModelSerializer):
         read_only_fields = ['id', 'customer_id', 'created_at', 'updated_at']
 
     def get_guarantor_of(self, obj):
-        return guarantor_of(obj.id_number, exclude_customer_id=obj.id)
+        # Número y estado del préstamo garantizado sólo con loans.view (sin request, no).
+        request = self.context.get('request')
+        con_prestamo = bool(request and has_perm(request.user, 'loans.view'))
+        return guarantor_of(obj.id_number, exclude_customer_id=obj.id, con_prestamo=con_prestamo)
 
     def get_total_loans(self, obj):
         return obj.loans.count()
