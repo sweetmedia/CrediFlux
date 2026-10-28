@@ -1,109 +1,87 @@
-import { Building2, ChevronRight } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Image from '@/components/ui/image';
+import { useState } from 'react';
+import { ArrowRight, Building2 } from 'lucide-react';
+import { AuthShell } from '@/components/auth/AuthShell';
+import { recentTenants } from '@/lib/recent-tenants';
+import { esSubdominioValido, tenantUrl } from '@/lib/tenant-url';
 
+/**
+ * Host general: se escribe la dirección de la financiera (sin lista, por
+ * privacidad) y se va a su login. Recuerda las usadas en este equipo.
+ */
 export default function SelectTenantPage() {
-  const tenants = [
-    {
-      name: 'Demo Company',
-      subdomain: 'democompany',
-      description: 'Cuenta de demostración',
-      url: 'http://democompany.localhost:3000',
-    },
-    {
-      name: 'Caproinsa SRL',
-      subdomain: 'caproinsa',
-      description: 'Desarrollo y pruebas',
-      url: 'http://caproinsa.localhost:3000',
-    },
-    {
-      name: 'AMS Fin',
-      subdomain: 'amsfin',
-      description: 'Cliente de prueba',
-      url: 'http://amsfin.localhost:3000',
-    },
-  ];
+  const [sub, setSub] = useState('');
+  const [error, setError] = useState('');
+  const [recientes] = useState(recentTenants.read);
+  const sufijo = import.meta.env.VITE_TENANT_BASE_DOMAIN || window.location.host;
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const s = sub.trim().toLowerCase();
+    if (!esSubdominioValido(s)) {
+      setError('Escribe sólo la primera parte de la dirección: sólo letras, números y guiones.');
+      return;
+    }
+    recentTenants.add(s);
+    window.location.assign(tenantUrl(s));
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f0f3ec] via-white to-[#f0f3ec] flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center mb-6">
-            <Image
-              src="/logo.svg"
-              alt="CrediFlux"
-              width={200}
-              height={50}
-              className="h-12 w-auto"
-              priority
+    <AuthShell
+      eyebrow="Acceso"
+      title="¿A qué financiera entras?"
+      description="Cada financiera tiene su propia dirección. Escríbela y te llevamos a su pantalla de acceso."
+    >
+      <form onSubmit={onSubmit} noValidate className="space-y-7">
+        <div className="cf-field">
+          <label className="cf-label" htmlFor="tenant">Dirección de tu financiera</label>
+          <div className="flex items-center gap-2">
+            <input
+              id="tenant"
+              className="cf-input cf-input--mono flex-1"
+              placeholder="mi-financiera"
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={sub}
+              onChange={(e) => {
+                setSub(e.target.value);
+                setError('');
+              }}
+              aria-invalid={!!error}
+              aria-describedby={error ? 'tenant-error' : undefined}
             />
+            <span className="font-mono text-[12px] text-sage-500">.{sufijo}</span>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            CrediFlux SaaS Platform
-          </h1>
-          <p className="text-lg text-gray-600">
-            Selecciona tu organización para continuar
-          </p>
+          {error && <p id="tenant-error" className="mt-1.5 text-[12px] text-flame-700">{error}</p>}
         </div>
+        <button type="submit" className="cf-btn cf-btn--primary h-11 w-full">
+          Continuar
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </form>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tenants.map((tenant) => (
-            <a
-              key={tenant.subdomain}
-              href={tenant.url}
-              className="block transition-all hover:scale-105"
-            >
-              <Card className="h-full cursor-pointer hover:shadow-lg border-2 hover:border-[#738566]">
-                <CardHeader>
-                  <div className="flex items-center justify-between mb-2">
-                    <Building2 className="h-8 w-8 text-[#163300]" />
-                    <ChevronRight className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <CardTitle className="text-xl">{tenant.name}</CardTitle>
-                  <CardDescription>{tenant.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-gray-500 font-mono bg-gray-50 rounded px-3 py-2">
-                    {tenant.subdomain}.localhost:3000
-                  </div>
-                </CardContent>
-              </Card>
-            </a>
-          ))}
-        </div>
+      {recientes.length > 0 && (
+        <section className="mt-10" aria-labelledby="recientes">
+          <h2 id="recientes" className="mb-3 font-mono text-[10px] uppercase tracking-widest text-sage-600">
+            Usadas en este equipo
+          </h2>
+          <ul className="border-t border-forest-900/10">
+            {recientes.map((r) => (
+              <li key={r}>
+                <a href={tenantUrl(r)} className="flex items-center gap-3 border-b border-forest-900/10 py-3 text-[14px] text-forest-900 hover:bg-forest-900/[0.03]">
+                  <Building2 className="h-4 w-4 text-sage-500" aria-hidden="true" />
+                  <span className="font-mono text-[13px]">{r}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-        <div className="mt-12 text-center">
-          <Card className="bg-yellow-50 border-yellow-200">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center justify-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Administración del Sistema
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600 mb-4">
-                Para acceso administrativo del sistema SaaS (superusers y staff):
-              </p>
-              <a
-                href="http://localhost:8000/admin/"
-                className="inline-flex items-center justify-center px-6 py-3 bg-[#163300] text-white rounded-lg hover:bg-[#0f2400] transition-colors font-medium"
-              >
-                Ir al Admin del Sistema
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </a>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="mt-8 text-center text-sm text-gray-500">
-          <p>
-            ¿No encuentras tu organización?{' '}
-            <a href="mailto:support@crediflux.com" className="text-[#163300] hover:underline">
-              Contacta soporte
-            </a>
-          </p>
-        </div>
-      </div>
-    </div>
+      <p className="mt-8 border-t border-forest-900/10 pt-6 text-[12px] leading-relaxed text-sage-600">
+        ¿No sabes la dirección? Te la da el administrador de tu financiera. No mostramos la lista de financieras por
+        privacidad.
+      </p>
+    </AuthShell>
   );
 }

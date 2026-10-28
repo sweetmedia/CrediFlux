@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   /** URL pública del frontend (og:image en index.html). */
   readonly VITE_APP_URL?: string;
+  /** Dominio de los subdominios de las financieras en producción (crediflux.com.do). */
+  readonly VITE_TENANT_BASE_DOMAIN?: string;
 }
 
 interface ImportMeta {

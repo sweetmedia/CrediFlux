@@ -12,8 +12,10 @@ COPY . .
 # Variables de build: Vite las incrusta en el bundle (import.meta.env).
 ARG VITE_API_URL=http://10.0.0.93:8600
 ARG VITE_APP_URL=http://10.0.0.93:3600
+ARG VITE_TENANT_BASE_DOMAIN=
 ENV VITE_API_URL=$VITE_API_URL \
-    VITE_APP_URL=$VITE_APP_URL
+    VITE_APP_URL=$VITE_APP_URL \
+    VITE_TENANT_BASE_DOMAIN=$VITE_TENANT_BASE_DOMAIN
 
 RUN npm run build
 
