@@ -547,6 +547,20 @@ class TenantSerializer(serializers.ModelSerializer):
         return bool(obj.imap_password)
 
 
+class TenantBrandingSerializer(serializers.ModelSerializer):
+    """Identidad y marca de la financiera: lo que el shell de la app muestra a cualquier miembro
+    (nombre, logo, color, moneda, zona horaria, plan). Sin settings.view no se ve nada más (L4)."""
+    logo = SignedImageField(read_only=True, schema=PUBLIC_SCHEMA)
+
+    class Meta:
+        model = Tenant
+        fields = [
+            'id', 'name', 'business_name', 'logo', 'primary_color',
+            'default_currency', 'currency_symbol', 'timezone', 'is_active', 'subscription_plan',
+        ]
+        read_only_fields = fields
+
+
 class TenantUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating tenant settings"""
     logo = SignedImageField(required=False, allow_null=True, schema=PUBLIC_SCHEMA)

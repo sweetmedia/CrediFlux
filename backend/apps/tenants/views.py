@@ -15,9 +15,10 @@ from drf_yasg import openapi
 
 from apps.core.admin_mixins import is_platform_admin
 from apps.core.net import client_network_key
-from apps.users.authz import ViewPermissionRequired
+from apps.users.authz import ViewPermissionRequired, has_perm
 from .serializers import (
     TenantRegistrationSerializer,
+    TenantBrandingSerializer,
     TenantSerializer,
     TenantLoginSerializer,
     TenantUpdateSerializer,
@@ -346,7 +347,8 @@ class TenantSettingsView(APIView):
     """
 
     permission_classes = [IsAuthenticated, ViewPermissionRequired]
-    # GET abierto a todo miembro: el shell lo lee para la identidad de la financiera (R13).
+    # GET abierto a todo miembro: el shell lo lee para la identidad de la financiera (R13). Sin
+    # settings.view sólo recibe la identidad y la marca (TenantBrandingSerializer, run-8 L4).
     permission_codes = {'GET': None, 'PUT': 'settings.edit', 'PATCH': 'settings.edit'}
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
@@ -394,7 +396,10 @@ class TenantSettingsView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = TenantSerializer(tenant)
+        if has_perm(user, 'settings.view'):
+            serializer = TenantSerializer(tenant)
+        else:
+            serializer = TenantBrandingSerializer(tenant)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @swagger_auto_schema(
