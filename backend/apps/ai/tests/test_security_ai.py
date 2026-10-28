@@ -153,7 +153,7 @@ def test_viewer_cannot_put_ai_config(user_factory, tenant_schema):
     response = client.put(CONFIG_URL, {"api_key": "robada", "provider": "openai"}, format="json")
 
     assert response.status_code == 403
-    assert response.data == {"error": "Solo administradores pueden cambiar la configuración AI."}
+    assert response.data["required_permission"] == "settings.edit"
     tenant = Tenant.objects.get(pk=tenant_schema.pk)
     assert tenant.ai_api_key != "robada"
     assert tenant.ai_provider != "openai"

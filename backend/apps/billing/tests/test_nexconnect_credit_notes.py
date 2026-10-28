@@ -15,6 +15,7 @@ from django.test import SimpleTestCase
 from djmoney.money import Money
 from rest_framework.test import APIRequestFactory, force_authenticate
 
+from apps.users.permissions_catalog import DEFAULT_ROLE_PERMISSIONS
 from apps.billing import views as billing_views
 from apps.billing.models import ECFSubmission, Invoice, InvoiceItem
 from apps.billing.services.ecf_provider import ECFProviderError
@@ -326,7 +327,8 @@ class CancelEndpointTests(SimpleTestCase):
     def call(self, data):
         request = APIRequestFactory().post('/api/billing/ecf-provider/cancel/', data, format='json')
         user = SimpleNamespace(is_authenticated=True, is_active=True, is_superuser=False,
-                               is_tenant_owner=False, role='accountant')
+                               is_tenant_owner=False, role='accountant',
+                               _cf_perms=frozenset(DEFAULT_ROLE_PERMISSIONS['accountant']))
         force_authenticate(request, user=user)
         view = billing_views.ECFProviderViewSet.as_view({'post': 'cancel_invoice'}, throttle_classes=[])
         return view(request)

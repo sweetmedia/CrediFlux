@@ -1,46 +1,13 @@
 """
-Permisos de facturación electrónica (e-CF).
+Permisos de facturación electrónica (e-CF) sobre el catálogo (D6).
+
+Cada viewset declara su mapa `permission_codes` (acción → código `billing.*`) y lo exige con
+`CanManageBilling`. La clase conserva su nombre histórico para los imports pero ya no mira el
+rol: dueño y superusuario tienen todos los códigos; el resto, los de su Role. Lo que el mapa
+no nombra se niega («Acción no configurada.») y el 403 por permiso lleva `required_permission`.
 """
-from rest_framework import permissions
-from rest_framework.exceptions import PermissionDenied
+from apps.users.authz import ViewPermissionRequired
 
 
-class CanManageBilling(permissions.BasePermission):
-    """
-    Gestionar facturación fiscal: certificados, secuencias e-NCF, facturas y
-    proveedor e-CF. Solo administradores y contadores (dueño y superusuario
-    siempre pasan).
-
-    La lectura (GET/HEAD/OPTIONS) queda abierta a cualquier usuario autenticado,
-    salvo las acciones que hablan con la DGII o el proveedor e-CF, que exigen el
-    rol aunque sean GET.
-    """
-
-    allowed_roles = ('admin', 'accountant')
-    dgii_actions = (
-        'generate_ecf', 'sign_ecf', 'submit_to_dgii', 'check_dgii_status',
-        'submit_invoice', 'query_invoice',
-    )
-
-    def has_permission(self, request, view):
-        user = request.user
-        if not user or not user.is_authenticated:
-            return False
-
-        if (request.method in permissions.SAFE_METHODS
-                and getattr(view, 'action', None) not in self.dgii_actions):
-            return True
-
-        if user.is_superuser or getattr(user, 'is_tenant_owner', False):
-            return True
-
-        if getattr(user, 'role', None) not in self.allowed_roles:
-            raise PermissionDenied({
-                'detail': 'Solo administradores y contadores pueden gestionar la facturación '
-                          f'electrónica. Tu rol actual es: {user.get_role_display()}',
-                'required_permission': 'CanManageBilling',
-                'required_roles': list(self.allowed_roles),
-                'current_role': user.role,
-            })
-
-        return True
+class CanManageBilling(ViewPermissionRequired):
+    """Facturación fiscal: certificados, secuencias e-NCF, facturas, proveedor e-CF y reportes."""

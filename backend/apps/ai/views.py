@@ -14,6 +14,8 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+
+from apps.users.authz import ViewPermissionRequired
 from django.db import connection
 from djangosdk.models.conversation import Conversation
 from djangosdk.providers.schemas import ProviderConfig
@@ -246,7 +248,8 @@ class AIConfigView(APIView):
     GET: Ver configuración AI del tenant actual.
     PUT: Actualizar configuración AI (solo admin).
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'GET': 'settings.view', 'PUT': 'settings.edit'}
 
     def get(self, request):
         tenant = getattr(connection, 'tenant', None)
@@ -276,14 +279,6 @@ class AIConfigView(APIView):
             return Response(
                 {'error': 'No hay tenant activo.'},
                 status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Mismo criterio que TenantSettingsView: dueño, admin o superusuario (nunca is_staff)
-        user = request.user
-        if not (user.is_tenant_owner or user.role == 'admin' or user.is_superuser):
-            return Response(
-                {'error': 'Solo administradores pueden cambiar la configuración AI.'},
-                status=status.HTTP_403_FORBIDDEN
             )
 
         # Update fields

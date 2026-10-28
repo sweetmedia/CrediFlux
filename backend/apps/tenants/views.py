@@ -9,6 +9,8 @@ from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+
+from apps.users.authz import ViewPermissionRequired
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -344,7 +346,8 @@ class TenantSettingsView(APIView):
     **Permissions:** User must belong to a tenant
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'GET': 'settings.view', 'PUT': 'settings.edit', 'PATCH': 'settings.edit'}
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def _get_effective_tenant(self, request):
@@ -476,13 +479,6 @@ class TenantSettingsView(APIView):
         if not tenant:
             return Response(
                 {'error': 'You do not belong to any tenant.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Check if user has permission (owner or admin)
-        if not (user.is_tenant_owner or user.role == 'admin' or user.is_superuser):
-            return Response(
-                {'error': 'You do not have permission to update tenant settings.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 

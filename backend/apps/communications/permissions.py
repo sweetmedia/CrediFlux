@@ -1,63 +1,17 @@
 """
-Permisos del módulo de comunicaciones.
+Permisos de comunicaciones sobre el catálogo (D6).
+
+Cada viewset declara su mapa `permission_codes` (acción → código `comms.*`). Las clases
+conservan sus nombres históricos para los imports pero ya no miran el rol: dueño y superusuario
+tienen todos los códigos; el resto, los de su Role. Lo que el mapa no nombra se niega
+(«Acción no configurada.») y el 403 por permiso lleva `required_permission`.
 """
-from rest_framework import permissions
-from rest_framework.exceptions import PermissionDenied
+from apps.users.authz import ViewPermissionRequired
 
 
-class CanSendMessages(permissions.BasePermission):
-    """
-    Enviar mensajes a clientes: gerencia, oficiales y cobranza.
-    El dueño del tenant y el superusuario siempre pasan.
-    """
-
-    allowed_roles = ['admin', 'manager', 'loan_officer', 'collector', 'collection_supervisor']
-
-    def has_permission(self, request, view):
-        user = request.user
-        if not user or not user.is_authenticated:
-            return False
-
-        if user.is_superuser or user.is_tenant_owner:
-            return True
-
-        if user.role not in self.allowed_roles:
-            raise PermissionDenied({
-                'detail': f'Tu rol no puede enviar mensajes a clientes. Tu rol actual es: {user.get_role_display()}',
-                'required_permission': 'CanSendMessages',
-                'required_roles': self.allowed_roles,
-                'current_role': user.role,
-            })
-
-        return True
+class CanSendMessages(ViewPermissionRequired):
+    """Enviar mensajes a clientes (WhatsApp): `comms.whatsapp` en `view.permission_codes`."""
 
 
-class CanManageTasks(permissions.BasePermission):
-    """
-    Tablero de tareas: cualquier usuario autenticado lee; crear, editar, mover,
-    reordenar y borrar queda para roles operativos. El dueño del tenant y el
-    superusuario siempre pasan.
-    """
-
-    allowed_roles = ['admin', 'manager', 'loan_officer', 'collector', 'collection_supervisor']
-
-    def has_permission(self, request, view):
-        user = request.user
-        if not user or not user.is_authenticated:
-            return False
-
-        if request.method in permissions.SAFE_METHODS:
-            return True
-
-        if user.is_superuser or user.is_tenant_owner:
-            return True
-
-        if user.role not in self.allowed_roles:
-            raise PermissionDenied({
-                'detail': f'Tu rol no puede gestionar tareas. Tu rol actual es: {user.get_role_display()}',
-                'required_permission': 'CanManageTasks',
-                'required_roles': self.allowed_roles,
-                'current_role': user.role,
-            })
-
-        return True
+class CanManageTasks(ViewPermissionRequired):
+    """Tablero de tareas: leer con `comms.view`, escribir con `comms.tasks`."""

@@ -187,8 +187,8 @@ def _matrix(allowed, ok, denied=frozenset({403})):
 
 
 # Grupos de personas que pasan cada chequeo de hoy. `owner` pasa siempre (bypass o rol admin);
-# `owner_viewer` pasa por el bypass de dueño donde lo hay (OWNERS se une a cada grupo) — no en
-# auditoría, que sólo mira el rol (audit/views.py:17,82).
+# `owner_viewer` pasa por el bypass de dueño (OWNERS se une a cada grupo), también en auditoría
+# desde D6 (R5).
 OWNERS = {'owner', 'owner_viewer'}
 APPROVERS = {'admin', 'manager', 'loan_officer'} | OWNERS                    # CanApproveLoan
 LOAN_MANAGERS = {'admin', 'manager', 'loan_officer'} | OWNERS                # CanManageLoans
@@ -200,7 +200,9 @@ CASH = {'admin', 'manager', 'accountant', 'cashier'} | OWNERS               # Ca
 OWNER_ADMIN = {'admin'} | OWNERS                                             # dueño/admin(/superusuario)
 OWNER_ONLY = OWNERS                                                          # dueño(/superusuario)
 BILLING = {'admin', 'accountant'} | OWNERS                                   # CanManageBilling
-AUDIT = {'admin', 'manager', 'owner'}                                        # rol admin/manager, sin bypass
+# cambio intencional D6 (R5): el dueño conserva todos los permisos. Hasta aquí la auditoría sólo
+# miraba el rol admin/manager y dejaba fuera al dueño con otro rol (`owner_viewer`).
+AUDIT = {'admin', 'manager'} | OWNERS                                        # settings.audit
 OVERSIGHT = {'admin', 'manager', 'collection_supervisor'} | OWNERS           # COLLECTOR_OVERSIGHT_ROLES
 EVERYONE = set(PERSONAS)
 

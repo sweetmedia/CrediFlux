@@ -13,6 +13,7 @@ import requests
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
+from apps.users.permissions_catalog import ALL_CODES, DEFAULT_ROLE_PERMISSIONS
 from apps.billing import views
 from apps.billing.models import ECFSubmission, Invoice
 from apps.billing.serializers import (
@@ -42,8 +43,14 @@ def make_tenant(**overrides):
 
 def make_user(**overrides):
     # Contador: rol de facturación (CanManageBilling) sin ser dueño ni admin.
-    fields = dict(is_authenticated=True, is_superuser=False, is_tenant_owner=False, role='accountant')
+    fields = dict(is_authenticated=True, is_active=True, is_superuser=False, is_tenant_owner=False,
+                  role='accountant')
     fields.update(overrides)
+    # Usuario sin base de datos: el memo `_cf_perms` evita consultar el Role (D6); el dueño tiene todos.
+    fields['_cf_perms'] = frozenset(
+        ALL_CODES if fields['is_tenant_owner'] or fields['is_superuser']
+        else DEFAULT_ROLE_PERMISSIONS[fields['role']]
+    )
     return SimpleNamespace(**fields)
 
 
