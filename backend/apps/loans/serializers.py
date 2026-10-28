@@ -130,6 +130,7 @@ class CustomerSerializer(SignedFilesModelSerializer):
         fields = [
             'id', 'customer_id', 'first_name', 'middle_name', 'last_name', 'full_name',
             'date_of_birth', 'gender', 'email', 'phone', 'alternate_phone',
+            'nickname', 'supervisor_name', 'supervisor_phone',
             'address_line1', 'address_line2', 'city', 'state', 'country', 'postal_code',
             'id_type', 'id_number', 'id_expiry_date', 'id_document',
             'employment_status', 'employer_name', 'occupation', 'employment_start_date', 'monthly_income',
@@ -217,7 +218,7 @@ class CustomerListSerializer(SignedFilesModelSerializer):
     class Meta:
         model = Customer
         fields = [
-            'id', 'customer_id', 'first_name', 'last_name', 'full_name',
+            'id', 'customer_id', 'first_name', 'last_name', 'full_name', 'nickname',
             'email', 'phone', 'id_number', 'address_line1', 'address_line2',
             'city', 'state', 'country', 'postal_code',
             'status', 'total_loans', 'active_loans', 'loan_details',

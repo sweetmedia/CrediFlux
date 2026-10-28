@@ -32,6 +32,11 @@ class Customer(UUIDModel, AuditModel):
     email = models.EmailField()
     phone = PhoneNumberField()
     alternate_phone = PhoneNumberField(blank=True, null=True)
+    nickname = models.CharField('apodo', max_length=80, blank=True)
+
+    # Supervisor inmediato (D4)
+    supervisor_name = models.CharField('supervisor inmediato', max_length=120, blank=True)
+    supervisor_phone = PhoneNumberField('teléfono del supervisor', blank=True)
 
     # Address
     address_line1 = models.CharField(max_length=255)

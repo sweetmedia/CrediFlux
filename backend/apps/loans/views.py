@@ -77,6 +77,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
             Q(customer_id__icontains=search) |
             Q(first_name__icontains=search) |
             Q(last_name__icontains=search) |
+            Q(nickname__icontains=search) |
             Q(email__icontains=search) |
             Q(phone__icontains=search) |
             Q(id_number__icontains=search)
