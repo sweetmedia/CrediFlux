@@ -26,9 +26,15 @@ def print_reset():
     return '@media print{' + DARK_SCOPE + '{color-scheme:light;' + light + '}}\n'
 
 
+# En oscuro --tenant-primary es casi negro (fondo del sidebar): el botón primario
+# se perdería sobre el fondo, así que usa el verde de fondo del oscuro.
+DARK_FIXES = DARK_SCOPE + ' .cf-btn--primary{background:rgb(var(--bg-forest-900))}\n' \
+    + DARK_SCOPE + ' .cf-btn--primary:hover{background:rgb(var(--bg-forest-300))}\n'
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / 'tokens.css').write_text(HEADER + base_tokens() + theme_vars(':root', DARK_SCOPE) + print_reset())
+    (OUT / 'tokens.css').write_text(HEADER + base_tokens() + theme_vars(':root', DARK_SCOPE) + DARK_FIXES + print_reset())
     bundle = (DS / 'bundle.css').read_text() + '\n' + (DS / 'patterns.css').read_text()
     (OUT / 'bundle.css').write_text(HEADER + recolor_css(bundle))
     (OUT / 'print.css').write_text(HEADER + recolor_css((DS / 'print.css').read_text()))

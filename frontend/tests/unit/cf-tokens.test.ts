@@ -72,3 +72,12 @@ describe('tokens del DS', () => {
     expect(bundle).toMatch(/rgb\(var\(--bg-forest-900\)\)/);
   });
 });
+
+describe('botón primario en oscuro', () => {
+  it('no usa el casi negro del sidebar sino el verde de fondo del oscuro, con texto legible', () => {
+    expect(tokens).toContain('.dark .cf-root .cf-btn--primary{background:rgb(var(--bg-forest-900))}');
+    const dark = { ...block(':root'), ...block('.dark .cf-root') };
+    expect(contrast(dark['bg-forest-900'], [255, 255, 255])).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(dark['bg-forest-900'], dark['bg-cream'])).toBeGreaterThan(1.5);
+  });
+});

@@ -29,7 +29,7 @@ export function AuthShell({ title, eyebrow, description, topRight, children }: A
   return (
     <div className="cf-root grid min-h-[100dvh] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <aside className="cf-auth-masthead masthead flex flex-col px-5 pb-7 pt-6 lg:px-12 lg:py-10">
-        <Image src="/logo-white.svg" alt="CrediFlux" width={110} height={22} className="h-[20px] w-auto lg:h-[22px]" priority />
+        <Image src="/logo-white.svg" alt="CrediFlux" width={110} height={22} className="h-[20px] w-auto self-start lg:h-[22px]" priority />
         {general ? (
           <div className="mt-8 lg:mt-auto">
             <div className="font-display text-[26px] font-medium leading-[1.08] tracking-tight lg:text-[34px]">
