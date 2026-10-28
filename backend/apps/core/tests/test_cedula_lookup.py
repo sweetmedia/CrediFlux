@@ -116,7 +116,7 @@ def test_topes_diarios_por_defecto():
     assert tasas["cedula_lookup_day"] == "300/day"
     assert tasas["cedula_lookup_tenant_day"] == "2000/day"
     nombres = {c.__name__ for c in views.validate_cedula_view.cls.throttle_classes}
-    assert nombres == {"ScopedRateThrottle", "CedulaUsuarioDiaThrottle", "CedulaFinancieraDiaThrottle"}
+    assert nombres == {"TopesPadronThrottle"}
 
 
 def test_tope_diario_por_usuario(api_client, user_factory, padron, cache_limpio):
@@ -161,3 +161,40 @@ def test_cedula_con_guiones_y_espacios_se_normaliza(api_client, user_factory, pa
     response = api_client.get(URL, {"cedula": " 001-0000001-9 "})
     assert response.status_code == 200
     assert response.json()["found"] is True
+
+
+# --- R22: un rechazo no consume los topes que sí lo dejaban pasar; tasa faltante falla ----------
+
+
+def test_rechazos_por_minuto_no_gastan_el_tope_de_la_financiera(api_client, user_factory, padron, cache_limpio):
+    with _tasas(cedula_lookup="2/min", cedula_lookup_tenant_day="3/day"):
+        _officer(api_client, user_factory)
+        for _ in range(2):
+            assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 200
+        for _ in range(5):
+            assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 429
+        # La financiera sólo gastó 2 de 3: otro usuario todavía puede consultar.
+        _officer(api_client, user_factory)
+        assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 200
+
+
+def test_rechazos_del_tope_del_usuario_no_gastan_el_de_la_financiera(api_client, user_factory, padron, cache_limpio):
+    with _tasas(cedula_lookup_day="1/day", cedula_lookup_tenant_day="2/day"):
+        _officer(api_client, user_factory)
+        assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 200
+        for _ in range(5):
+            assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 429
+        _officer(api_client, user_factory)
+        assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 200
+
+
+@pytest.mark.parametrize("scope", ["cedula_lookup", "cedula_lookup_day", "cedula_lookup_tenant_day"])
+def test_sin_tasa_configurada_falla_en_vez_de_apagar_el_tope(api_client, user_factory, padron, cache_limpio, scope):
+    from django.core.exceptions import ImproperlyConfigured
+
+    rest = dict(dj_settings.REST_FRAMEWORK)
+    rest["DEFAULT_THROTTLE_RATES"] = {k: v for k, v in rest["DEFAULT_THROTTLE_RATES"].items() if k != scope}
+    with override_settings(REST_FRAMEWORK=rest):
+        _officer(api_client, user_factory)
+        with pytest.raises(ImproperlyConfigured):
+            api_client.get(URL, {"cedula": EXISTENTE})

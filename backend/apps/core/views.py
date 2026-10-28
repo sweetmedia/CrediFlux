@@ -2,6 +2,7 @@
 Core views
 """
 import re
+import time
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -40,10 +41,12 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.settings import api_settings
-from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
+from rest_framework.throttling import BaseThrottle, ScopedRateThrottle, SimpleRateThrottle
 from apps.core.services.rnc_lookup import validate_rnc, is_rnc_database_loaded, RNCLookupService
 from apps.core.permissions import TenantMatches
 from apps.users.authz import MENSAJE_DENEGADO, ViewPermissionRequired, has_perm
+from django.core.cache import cache as default_cache
+from django.core.exceptions import ImproperlyConfigured
 import logging
 
 logger = logging.getLogger(__name__)
@@ -92,33 +95,52 @@ def _auditar_consulta_cedula(request, cedula, found):
     )
 
 
-class _TopeDiarioPadron(SimpleRateThrottle):
-    """Tope diario de consultas al padrón (run-8 M1). La tasa se lee en cada request de
-    `DEFAULT_THROTTLE_RATES` (no al importar), así `override_settings` la cambia en los tests."""
+class TopesPadronThrottle(BaseThrottle):
+    """Topes de consultas al padrón (run-8 M1, R22): por minuto y por día del usuario, y por día
+    de la financiera. Se revisan los tres y la consulta sólo se anota en los tres si todos la dejan
+    pasar: un rechazo de uno no gasta el cupo de los otros (con throttles separados DRF anota en
+    los que sí dejan pasar, y un usuario podía agotar el tope de toda la financiera). Una tasa que
+    falte en DEFAULT_THROTTLE_RATES es un error de configuración, no un tope apagado. La tasa se
+    lee en cada request para que `override_settings` la cambie en los tests."""
 
-    def get_rate(self):
-        return api_settings.DEFAULT_THROTTLE_RATES.get(self.scope)
+    cache = default_cache
+    timer = time.time
+    VENTANAS = (
+        ('cedula_lookup', lambda request: request.user.pk),
+        ('cedula_lookup_day', lambda request: request.user.pk),
+        ('cedula_lookup_tenant_day', lambda request: (
+            request.user.tenant_id
+            or getattr(getattr(request, 'tenant', None), 'pk', None)
+            or f'user-{request.user.pk}'
+        )),
+    )
 
+    def _ventanas(self, request):
+        tasas = api_settings.DEFAULT_THROTTLE_RATES
+        for scope, ident in self.VENTANAS:
+            tasa = tasas.get(scope)
+            if not tasa:
+                raise ImproperlyConfigured(f'Falta la tasa «{scope}» en DEFAULT_THROTTLE_RATES.')
+            num, duracion = SimpleRateThrottle.parse_rate(None, tasa)
+            yield f'throttle_{scope}_{ident(request)}', num, duracion
 
-class CedulaUsuarioDiaThrottle(_TopeDiarioPadron):
-    """Por usuario y día (`cedula_lookup_day`)."""
+    def allow_request(self, request, view):
+        ahora = self.timer()
+        revisadas, espera = [], 0
+        for clave, num, duracion in self._ventanas(request):
+            historia = [t for t in self.cache.get(clave, []) if t > ahora - duracion]
+            if len(historia) >= num:
+                espera = max(espera, duracion - (ahora - historia[-1]))
+            revisadas.append((clave, historia, duracion))
+        if espera:
+            self._espera = espera
+            return False
+        for clave, historia, duracion in revisadas:
+            self.cache.set(clave, [ahora] + historia, duracion)
+        return True
 
-    scope = 'cedula_lookup_day'
-
-    def get_cache_key(self, request, view):
-        return self.cache_format % {'scope': self.scope, 'ident': request.user.pk}
-
-
-class CedulaFinancieraDiaThrottle(_TopeDiarioPadron):
-    """Por financiera y día (`cedula_lookup_tenant_day`): varias cuentas de la misma financiera
-    no multiplican el volumen."""
-
-    scope = 'cedula_lookup_tenant_day'
-
-    def get_cache_key(self, request, view):
-        tenant = getattr(request, 'tenant', None)
-        ident = request.user.tenant_id or getattr(tenant, 'pk', None) or f'user-{request.user.pk}'
-        return self.cache_format % {'scope': self.scope, 'ident': ident}
+    def wait(self):
+        return getattr(self, '_espera', None)
 
 
 CEDULA_INVALIDA = 'Cédula inválida: debe tener exactamente 11 dígitos.'
@@ -132,7 +154,7 @@ def _normalizar_cedula(valor):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, TenantMatches, CanLookupCedula])
-@throttle_classes([ScopedRateThrottle, CedulaUsuarioDiaThrottle, CedulaFinancieraDiaThrottle])
+@throttle_classes([TopesPadronThrottle])
 def validate_cedula_view(request):
     """
     Busca una cédula en el Padrón JCE (~7.9M registros).
@@ -323,7 +345,6 @@ def rnc_database_status(request):
 # @api_view no propaga throttle_scope a la vista envuelta: se fija en la clase generada.
 validate_rnc_view.cls.throttle_scope = 'validate_rnc'
 # Padrón JCE: datos personales de ~7.9M ciudadanos; límite propio por usuario.
-validate_cedula_view.cls.throttle_scope = 'cedula_lookup'
 rnc_database_status.cls.throttle_scope = 'validate_rnc'
 
 

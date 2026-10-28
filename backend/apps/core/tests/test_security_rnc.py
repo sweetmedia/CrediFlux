@@ -180,12 +180,10 @@ def test_either_customer_write_code_allows_cedula(api_client, user_factory, tena
 
 def test_cedula_view_uses_scoped_throttle():
     view = views.validate_cedula_view
-    assert view.cls.throttle_scope == "cedula_lookup"
-    # Run-8 M1: además del límite por minuto, topes diarios por usuario y por financiera
-    # (test_cedula_lookup.py los prueba).
-    assert list(view.cls.throttle_classes) == [
-        ScopedRateThrottle, views.CedulaUsuarioDiaThrottle, views.CedulaFinancieraDiaThrottle,
-    ]
+    # Run-8 M1 / R22: un solo throttle con el límite por minuto (cedula_lookup) y los topes
+    # diarios por usuario y por financiera (test_cedula_lookup.py los prueba).
+    assert list(view.cls.throttle_classes) == [views.TopesPadronThrottle]
+    assert views.TopesPadronThrottle.VENTANAS[0][0] == "cedula_lookup"
     assert settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["cedula_lookup"] == "30/minute"
 
 
