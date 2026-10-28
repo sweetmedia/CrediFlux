@@ -8,7 +8,7 @@ el código sale del mapa de la vista y se resuelve con `has_perm` (superusuario 
 Lo que el mapa no nombra se niega («Acción no configurada.», R12); el 403 por permiso lleva
 `required_permission`.
 """
-from apps.users.authz import PermissionRequired, ViewPermissionRequired, has_perm
+from apps.users.authz import ViewPermissionRequired, has_perm
 
 
 class CanManageLoans(ViewPermissionRequired):
@@ -21,19 +21,6 @@ class CanRegisterPayments(ViewPermissionRequired):
 
 class CanManageCollections(ViewPermissionRequired):
     """Cobranza (recordatorios, contactos, teléfonos, correos, visitas y GPS): `view.permission_codes`."""
-
-
-class CanApproveLoan(PermissionRequired):
-    """Aprobar, rechazar y desembolsar con su código propio.
-
-    LoanViewSet ya los incluye en su `permission_codes`; esta clase queda para quien la importe.
-    """
-
-    action_map = {
-        'approve': 'loans.approve',
-        'reject': 'loans.reject',
-        'disburse': 'loans.disburse',
-    }
 
 
 def can_manage_loans(user, code='loans.edit'):

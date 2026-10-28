@@ -9,9 +9,10 @@ pantalla Configuración › Roles) en su orden, más tres que cubren chequeos qu
 `DEFAULT_ROLE_PERMISSIONS` son los permisos con que nacen los 8 roles de sistema. Se derivan de
 la matriz de autorización de hoy (`tests/authz_cases.py`: `CODE` + `EXPECTED`) para que pasar de
 roles fijos a permisos no cambie lo que cada rol puede hacer; lo verifica
-`apps/users/tests/test_roles_model.py`. Quedan fuera del catálogo, como reglas aparte: el
-reverso de pagos (dueño/superusuario), dar el rol admin (dueño/superusuario), la exención
-maker-checker del desembolso (admin/dueño) y el bypass del dueño y del superusuario.
+`apps/users/tests/test_roles_model.py`. El reverso de un pago exige `payments.void` más el
+código TOTP de un dueño o administrador con 2FA activa. Quedan fuera del catálogo, como reglas
+aparte: ese TOTP, dar el rol admin (dueño/superusuario), la exención maker-checker del
+desembolso (admin/dueño) y el bypass del dueño y del superusuario.
 """
 
 MODULES = [
