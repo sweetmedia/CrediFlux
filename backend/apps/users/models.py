@@ -177,3 +177,7 @@ class User(AbstractUser):
     def belongs_to_tenant(self, tenant):
         """Check if user belongs to a specific tenant"""
         return self.tenant == tenant if tenant else False
+
+
+# Roles editables por financiera (D6): el modelo vive en models_roles.py.
+from .models_roles import Role, ensure_system_roles  # noqa: E402,F401

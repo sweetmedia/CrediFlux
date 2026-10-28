@@ -12,6 +12,8 @@ from django.db import connection, transaction
 from django.utils import timezone
 from django_tenants.utils import schema_exists
 
+from apps.users.models import ensure_system_roles
+
 from .models import Tenant
 from .serializers import _spend_daily_budget
 
@@ -49,6 +51,8 @@ def provision_pending_tenant(tenant_pk):
                          interactive=False, verbosity=0)
             connection.set_schema_to_public()
         get_user_model().objects.filter(tenant=tenant, is_tenant_owner=True).update(is_active=True)
+        # Un pendiente registrado antes de D6 no tiene roles; idempotente para el resto.
+        ensure_system_roles(tenant)
     _spend_daily_budget(f'tenant_provisioning:{timezone.now():%Y%m%d}')
     logger.info('Tenant pendiente aprovisionado: %s (id=%s)', tenant.schema_name, tenant.pk)
     return True

@@ -351,3 +351,168 @@ EXTRA_SETUP = {
 assert set(EXPECTED) == set(CASE_NAMES), set(EXPECTED) ^ set(CASE_NAMES)
 assert len(CASE_NAMES) == len(set(CASE_NAMES))
 assert all(set(row) == set(PERSONAS) for row in EXPECTED.values())
+
+
+# =========================================================================================
+# CODE: caso → código de permiso que exigirá el endpoint tras Tasks 9–11 (D6, R7), o None
+# para los casos con regla propia fuera del catálogo. `DEFAULT_ROLE_PERMISSIONS`
+# (apps/users/permissions_catalog.py) debe dar, para cada uno de los 8 roles, el mismo
+# sí/no que `permitido_hoy` — lo comprueba apps/users/tests/test_roles_model.py.
+# =========================================================================================
+CODE = {
+    'prestamo_aprobar': 'loans.approve',
+    'prestamo_rechazar': 'loans.reject',
+    # El 200/400 lo decide la exención maker-checker de admin/dueño (regla aparte, R3/R4);
+    # el permiso de entrar al endpoint es loans.disburse.
+    'prestamo_desembolsar_aprobado_por_mi': 'loans.disburse',
+
+    'cliente_crear': 'customers.create',
+    # Subir un documento modifica la ficha del cliente; verificar/rechazar es aparte.
+    'cliente_documento_crear': 'customers.edit',
+    'prestamo_crear': 'loans.create',
+    'garantia_crear': 'loans.edit',
+    'plantilla_contrato_crear': 'contracts.templates',
+    'contrato_crear': 'contracts.create',
+    'garante_crear': 'loans.edit',
+    'pago_confirmar': 'payments.void',  # R6: confirmar/cancelar exigen anular, no registrar
+    'pago_cancelar': 'payments.void',
+    'cliente_leer': 'customers.view',
+
+    'pago_registrar': 'payments.create',
+    # R3: reverso exclusivo de dueño/superusuario hasta Task 14 (payments.void + TOTP).
+    'pago_revertir': None,
+
+    'recordatorio_crear': 'collections.reminders',
+    'contacto_cobro_crear': 'collections.contacts',
+    'telefono_cliente_crear': 'collections.contacts',
+    'correo_cliente_crear': 'collections.contacts',
+    'visita_cobrador_crear': 'collections.mobile',
+    'ubicacion_cobrador_ping': 'collections.mobile',
+    # Alcance: el código decide si se ven las visitas de otros cobradores (VISIBLE).
+    'visitas_de_otro_cobrador': 'collections.supervise',
+
+    # Task 9 aceptará customers.create O customers.edit (restricción global del padrón);
+    # aquí se fija customers.create. Cambia el resultado de cobrador y supervisor de
+    # cobros: ver CAMBIOS_PREVISTOS.
+    'cedula_consultar': 'customers.create',
+
+    # Crear/editar caja exigen hoy CanManageCashOperations (los mismos roles que abrir
+    # turno); borrarla, además dueño/admin → cashbox.registers («Administrar cajas»).
+    'caja_crear': 'cashbox.open',
+    'caja_borrar': 'cashbox.registers',
+    'turno_abrir': 'cashbox.open',
+    'turno_cerrar': 'cashbox.close',
+    'movimiento_caja_crear': 'cashbox.movements',
+    # Conteo de billetes de apertura o cierre: se registra como movimiento de caja.
+    'conteo_denominaciones_crear': 'cashbox.movements',
+
+    'ajustes_tenant_editar': 'settings.edit',
+
+    # La lista queda abierta y filtrada por queryset: el código decide si se ven los
+    # registros (VISIBLE); stats y detalle lo exigen directamente.
+    'auditoria_lista': 'settings.audit',
+    'auditoria_stats': 'settings.audit',
+
+    'ia_config_editar': 'settings.edit',
+
+    'secuencia_fiscal_crear': 'billing.create',
+    'factura_estado_dgii': 'billing.submit',  # acción DGII aunque sea GET
+    'secuencia_fiscal_leer': 'billing.view',
+    'proveedor_ecf_config_editar': 'billing.config',
+
+    'whatsapp_enviar': 'comms.whatsapp',
+    'tarea_crear': 'comms.tasks',
+    # Leer el tablero está abierto a todos hoy; comms.tasks queda para escribir.
+    'tarea_leer': 'comms.view',
+
+    'usuario_crear': 'team.create',
+    'usuario_editar': 'team.edit',
+    'usuario_desactivar': 'team.delete',
+    # R4: dar el rol admin es sólo del dueño/superusuario, siempre; no es un código.
+    'usuario_asignar_admin': None,
+    # Cambiar el rol de alguien (aquí, el del dueño, que el serializer rechaza con 400).
+    'dueno_cambiar_rol': 'team.assign_roles',
+    'dueno_desactivar': 'team.edit',  # PATCH is_active
+    'usuario_reemplazar': 'team.edit',
+
+    # Lecturas
+    'prestamo_leer': 'loans.view',
+    'cliente_documento_leer': 'customers.documents.view',
+    'garantia_leer': 'loans.view',
+    'garante_leer': 'loans.view',
+    'contrato_leer': 'contracts.view',
+    'plantilla_contrato_leer': 'contracts.view',  # contracts.templates queda para escribir
+    'pago_leer': 'payments.view',
+    'recordatorio_leer': 'collections.view',
+    'contacto_cobro_leer': 'collections.view',
+    'telefono_cliente_leer': 'collections.view',
+    'correo_cliente_leer': 'collections.view',
+    # Alcance: el código decide si se ven las ubicaciones de otros cobradores (VISIBLE).
+    'ubicaciones_cobrador_leer': 'collections.supervise',
+    'caja_leer': 'cashbox.view',
+    'turno_leer': 'cashbox.view',
+    'movimiento_caja_leer': 'cashbox.view',
+    'factura_leer': 'billing.view',
+    'certificado_leer': 'billing.view',
+    'proveedor_ecf_config_leer': 'billing.view',  # billing.config queda para escribir
+    'equipo_leer': 'team.view',
+    'ajustes_tenant_leer': 'settings.view',
+    'ia_config_leer': 'settings.view',
+    'auditoria_detalle': 'settings.audit',  # fuera de alcance → 404 (DENEGADO)
+
+    # Ediciones y borrados
+    'cliente_editar': 'customers.edit',
+    'cliente_borrar': 'customers.delete',
+    'prestamo_editar': 'loans.edit',
+    # No hay loans.delete en el catálogo aprobado: borrar un préstamo (sólo en borrador)
+    # es una edición del expediente.
+    'prestamo_borrar': 'loans.edit',
+    'garantia_editar': 'loans.edit',
+    'garantia_borrar': 'loans.edit',
+    'garante_editar': 'loans.edit',
+    'garante_borrar': 'loans.edit',
+    'plantilla_contrato_editar': 'contracts.templates',
+    'plantilla_contrato_borrar': 'contracts.templates',
+    'tarea_editar': 'comms.tasks',
+    'tarea_borrar': 'comms.tasks',
+    'caja_editar': 'cashbox.open',  # igual que caja_crear
+
+    # Acciones
+    'cliente_documento_verificar': 'customers.documents.verify',
+    'cliente_documento_rechazar': 'customers.documents.verify',
+    # El catálogo sólo tiene contracts.view/create/templates: todas las acciones sobre un
+    # contrato (regenerar, firmas, activar, cancelar, archivar, enviar a firma) son parte
+    # de generarlo y formalizarlo → contracts.create.
+    'contrato_regenerar': 'contracts.create',
+    'contrato_firmar_cliente': 'contracts.create',
+    'contrato_firmar_oficial': 'contracts.create',
+    'contrato_activar': 'contracts.create',
+    'contrato_cancelar': 'contracts.create',
+    'contrato_archivar': 'contracts.create',
+    'contrato_desarchivar': 'contracts.create',
+    'contrato_enviar_a_firma': 'contracts.create',
+    # El certificado digital es la llave con que se firman los e-CF.
+    'certificado_crear': 'billing.sign',
+}
+
+# Respuesta que significa «denegado» cuando no es 403 (restricción por queryset).
+DENEGADO = {'auditoria_detalle': {404}}
+
+
+def permitido_hoy(case, persona):
+    """¿La persona pasa HOY el chequeo del caso? Alcance → VISIBLE; si no, no denegado."""
+    if case in VISIBLE:
+        return VISIBLE[case][persona]
+    return EXPECTED[case][persona] != DENEGADO.get(case, {403})
+
+
+# (caso, rol) cuyo resultado cambiará A PROPÓSITO al pasar a permisos, con el motivo.
+# El test de coherencia exige que éstas sean exactamente las discrepancias.
+CAMBIOS_PREVISTOS = {
+    ('cedula_consultar', 'collector'):
+        'El padrón es dato personal: sólo customers.create/edit (restricción global, Task 9).',
+    ('cedula_consultar', 'collection_supervisor'):
+        'El padrón es dato personal: sólo customers.create/edit (restricción global, Task 9).',
+}
+
+assert set(CODE) == set(CASE_NAMES), set(CODE) ^ set(CASE_NAMES)

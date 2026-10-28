@@ -18,6 +18,7 @@ from apps.core.admin_mixins import is_platform_admin
 from apps.core.media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, SignedImageField, signed_media_url
 from apps.core.net import client_registration_key
 from apps.users import lockout
+from apps.users.models import ensure_system_roles
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
 
@@ -389,6 +390,8 @@ class TenantRegistrationSerializer(serializers.Serializer):
             tenant.save()
         else:
             tenant = Tenant.objects.create(**tenant_data)
+        # Roles de sistema (viven en public: también para un pendiente, sin schema).
+        ensure_system_roles(tenant)
 
         # 2. Create Domain (también para un pendiente: reserva el subdominio; el middleware
         # no sirve peticiones en el dominio de un tenant sin aprovisionar)
