@@ -42,3 +42,20 @@ def test_cedula_es_clave_primaria_char11(public_schema):
 @pytest.mark.django_db
 def test_tenant_no_tiene_padron_propio(tenant_schema):
     assert _columnas(tenant_schema.schema_name) == set()
+
+
+@pytest.mark.django_db
+def test_orm_lee_la_tabla_del_padron(public_schema):
+    from apps.core.models import PadronJCE
+
+    with connection.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.padron_jce (cedula, nombres, apellido1, apellido2, "
+            "fecha_nacimiento, sexo, estado_civil, lugar_nacimiento) VALUES "
+            "('00100000019', 'JUAN', 'PEREZ', 'GOMEZ', '1980-05-01', 'M', 'S', 'SANTO DOMINGO')"
+        )
+    p = PadronJCE.objects.get(cedula='00100000019')
+    assert p.pk == '00100000019'
+    assert p.nombre_completo == 'JUAN PEREZ GOMEZ'
+    assert (p.sexo, p.estado_civil, p.lugar_nacimiento) == ('M', 'S', 'SANTO DOMINGO')
+    assert p.cedula_formateada == '001-0000001-9'

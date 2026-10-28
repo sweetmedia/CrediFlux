@@ -84,7 +84,7 @@ class PadronJCE(models.Model):
     ~7.9 millones de ciudadanos dominicanos.
     Tabla en schema public, compartida entre todos los tenants.
     """
-    cedula = models.CharField(max_length=15, unique=True, db_index=True)
+    cedula = models.CharField(max_length=11, primary_key=True)
     nombres = models.CharField(max_length=150)
     apellido1 = models.CharField(max_length=100)
     apellido2 = models.CharField(max_length=100, blank=True, null=True)
@@ -95,7 +95,7 @@ class PadronJCE(models.Model):
 
     class Meta:
         db_table = 'padron_jce'
-        managed = False  # Table already exists, don't create via migrations
+        managed = False  # La tabla la crea la migración core.0001 con SQL (public.padron_jce), no el ORM
         verbose_name = 'Registro Padrón JCE'
         verbose_name_plural = 'Padrón JCE'
 
