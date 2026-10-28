@@ -933,7 +933,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
     Los pagos son inmutables por la API: no hay PUT/PATCH/DELETE (405). Un pago
     sólo cambia de estado con `confirm`, `cancel` (pendientes) o `reverse`
-    (completados, sólo el dueño del tenant).
+    (completados, con `payments.void` y el TOTP de un dueño o administrador).
     """
     http_method_names = ['get', 'post', 'head', 'options']
     queryset = LoanPayment.objects.select_related('loan', 'schedule').all()
@@ -948,9 +948,9 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         'create': 'payments.create',
         'confirm': 'payments.void',  # R6
         'cancel': 'payments.void',
-        # R3: la regla real del reverso está en la vista (dueño o superusuario); aquí se
-        # conserva el filtro de entrada de siempre. Task 14 lo pasa a payments.void + TOTP.
-        'reverse': 'payments.create',
+        # Task 14: además del permiso, la vista exige motivo y el TOTP de un autorizador
+        # (dueño o admin con 2FA de la financiera).
+        'reverse': 'payments.void',
     }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'payment_method', 'loan']
@@ -1114,21 +1114,86 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Pago cancelado'})
 
+    def _log_void_auth_failed(self, request, payment, authorizer, attempts):
+        """Traza de un código de autorización fallido (nunca el código)."""
+        from apps.audit.middleware import get_client_ip, get_user_agent
+        from apps.audit.models import AuditLog
+
+        AuditLog.log(
+            tenant=request.tenant,
+            user=request.user,
+            action='payment_void_auth_failed',
+            model_name='LoanPayment',
+            object_id=payment.id,
+            object_repr=str(payment),
+            ip_address=get_client_ip(request),
+            user_agent=get_user_agent(request),
+            extra_data={
+                'authorizer_id': authorizer.id,
+                'authorizer_name': authorizer.get_full_name(),
+                'attempts': attempts,
+                'payment_number': payment.payment_number,
+            },
+        )
+
+    def _authorize_reversal(self, request, payment):
+        """Valida el autorizador y su TOTP. Devuelve (autorizador, None) o (None, Response).
+
+        Orden: autorizador válido (si no, 400 en `authorizer_id` SIN contar fallo) → formato
+        del código (400 sin contar) → intento contado por autorizador (bloqueado → 429 aunque
+        el código sea bueno) → `verify_totp_once` (fallo → 400 con los intentos que quedan y
+        traza en AuditLog; acierto → se borran los fallos).
+        """
+        from apps.users.authorizers import authorizer_or_none
+        from apps.users.lockout import (
+            REVERT_AUTH_FAIL_LIMIT, REVERT_AUTH_LOCK_MESSAGE, count_authorizer_attempt,
+            reset_authorizer,
+        )
+        from apps.users.totp import verify_totp_once
+
+        authorizer = authorizer_or_none(request, request.data.get('authorizer_id'))
+        if authorizer is None:
+            return None, Response(
+                {'authorizer_id': [
+                    'Elige un autorizador válido: el dueño o un administrador con 2FA activa.'
+                ]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        code = str(request.data.get('code') or '').strip()
+        if not re.fullmatch(r'[0-9]{6}', code):
+            return None, Response(
+                {'code': ['Ingresa el código de 6 dígitos del autorizador.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        attempts = count_authorizer_attempt(authorizer)
+        if attempts > REVERT_AUTH_FAIL_LIMIT:
+            return None, Response(
+                {'detail': REVERT_AUTH_LOCK_MESSAGE}, status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        if not verify_totp_once(authorizer, code):
+            self._log_void_auth_failed(request, payment, authorizer, attempts)
+            quedan = REVERT_AUTH_FAIL_LIMIT - attempts
+            return None, Response(
+                {'code': [f'Código incorrecto. Quedan {quedan} intentos.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        reset_authorizer(authorizer)
+        return authorizer, None
+
     @action(detail=True, methods=['post'])
     def reverse(self, request, pk=None):
         """
         Reverse a completed payment.
         This will reverse the updates made to loan and schedule.
 
-        Exige `reason`; guarda quién, cuándo y por qué en el pago y en AuditLog.
+        Exige `payments.void` (mapa del viewset), `reason` y la autorización de un dueño o
+        administrador con 2FA: `authorizer_id` + `code` (su TOTP de 6 dígitos), aunque quien
+        revierte sea admin. Guarda quién, cuándo, por qué y quién autorizó en el pago y en
+        AuditLog.
         """
         from .signals import reconcile_loan_from_payments
-
-        if not (request.user.is_tenant_owner or request.user.is_superuser):
-            return Response(
-                {'error': 'Solo el dueño de la financiera puede revertir pagos'},
-                status=status.HTTP_403_FORBIDDEN
-            )
 
         payment = self.get_object()
 
@@ -1151,6 +1216,10 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        authorizer, error = self._authorize_reversal(request, payment)
+        if error is not None:
+            return error
+
         from apps.cashbox.services import record_payment_reversal
 
         loan = payment.loan
@@ -1170,6 +1239,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
             self._log_void(
                 request, payment, 'completed', reason,
                 cash_refund_movements=[str(m.id) for m in refunds],
+                authorized_by={'id': authorizer.id, 'name': authorizer.get_full_name()},
             )
 
         return Response({'message': 'Pago reversado exitosamente'})

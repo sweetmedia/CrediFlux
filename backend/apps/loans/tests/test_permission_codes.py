@@ -76,10 +76,8 @@ def test_confirmar_pago_exige_payments_void(api_client, user_factory, tenant_sch
     assert api_client.post(url, {}, format='json').status_code == 404
 
 
-def test_reverso_sigue_siendo_solo_del_duenio_aunque_tenga_payments_void(
-    api_client, user_factory, tenant_schema
-):
-    """R3: hasta Task 14 el reverso no se abre con payments.void."""
+def test_reverso_mira_payments_void(api_client, user_factory, tenant_schema):
+    """Task 14: la puerta del reverso es payments.void (el TOTP del autorizador va en la vista)."""
     from apps.loans.models import LoanPayment
     from moneyed import Money
 
@@ -89,9 +87,14 @@ def test_reverso_sigue_siendo_solo_del_duenio_aunque_tenga_payments_void(
         loan=_prestamo(), amount=Money(Decimal('500.00'), 'DOP'),
         payment_method='bank_transfer', status='completed',
     )
-    api_client.force_authenticate(user=user_factory(role='manager'))  # tiene payments.void
-    resp = api_client.post(f'/api/loans/payments/{pago.pk}/reverse/', {'reason': 'x'}, format='json')
-    assert resp.status_code == 403
+    url = f'/api/loans/payments/{pago.pk}/reverse/'
+    api_client.force_authenticate(user=user_factory(role='cashier'))
+    resp = api_client.post(url, {'reason': 'x'}, format='json')
+    assert resp.status_code == 403 and resp.json()['required_permission'] == 'payments.void'
+    _dar(tenant_schema, 'cashier', 'payments.void')
+    api_client.force_authenticate(user=user_factory(role='cashier'))
+    resp = api_client.post(url, {'reason': 'x'}, format='json')
+    assert resp.status_code == 400 and 'authorizer_id' in resp.json()
 
 
 def test_pagos_siguen_siendo_inmutables_405(api_client, user_factory):

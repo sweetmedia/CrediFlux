@@ -56,7 +56,7 @@ CASES = [
 
     # --- CanRegisterPayments (loans/permissions.py:88; views.py:896)
     ('pago_registrar', 'POST', '/api/loans/payments/', {}),
-    # Reverso: dueño o superusuario (views.py:1069), detrás de CanRegisterPayments del viewset.
+    # Reverso: payments.void + motivo + TOTP de un dueño o admin (Task 14); el cuerpo vacío da 400.
     ('pago_revertir', 'POST', '/api/loans/payments/{pago_completado}/reverse/', {}),
 
     # --- CanManageCollections (loans/permissions.py:117): escrituras; lectura abierta
@@ -206,7 +206,6 @@ COLLECTIONS = {'admin', 'manager', 'loan_officer', 'collector',
                'collection_supervisor'} | OWNERS                             # CanManageCollections y afines
 CASH = {'admin', 'manager', 'accountant', 'cashier'} | OWNERS               # CanManageCashOperations
 OWNER_ADMIN = {'admin'} | OWNERS                                             # dueño/admin(/superusuario)
-OWNER_ONLY = OWNERS                                                          # dueño(/superusuario)
 BILLING = {'admin', 'accountant'} | OWNERS                                   # CanManageBilling
 # cambio intencional D6 (R5): el dueño conserva todos los permisos. Hasta aquí la auditoría sólo
 # miraba el rol admin/manager y dejaba fuera al dueño con otro rol (`owner_viewer`).
@@ -237,8 +236,10 @@ EXPECTED = {
     'cliente_leer': _matrix(EVERYONE, {200}),
 
     'pago_registrar': _matrix(PAYMENT_TAKERS, {400}),
-    # Sin `reason` el dueño recibe 400; el admin que no es dueño, 403.
-    'pago_revertir': _matrix(OWNER_ONLY, {400}),
+    # cambio intencional (Task 14): revertir exige payments.void + TOTP del dueño o un admin.
+    # Quien tiene payments.void pasa la puerta y recibe 400 (sin motivo ni autorizador); hasta
+    # aquí sólo pasaba el dueño (regla R3 en la vista).
+    'pago_revertir': _matrix(LOAN_MANAGERS, {400}),
 
     'recordatorio_crear': _matrix(COLLECTIONS, {400}),
     'contacto_cobro_crear': _matrix(COLLECTIONS, {400}),
@@ -396,8 +397,9 @@ CODE = {
     'cliente_leer': 'customers.view',
 
     'pago_registrar': 'payments.create',
-    # R3: reverso exclusivo de dueño/superusuario hasta Task 14 (payments.void + TOTP).
-    'pago_revertir': None,
+    # Task 14: la puerta es payments.void; la vista exige además motivo y el TOTP de un
+    # dueño o admin con 2FA.
+    'pago_revertir': 'payments.void',
 
     'recordatorio_crear': 'collections.reminders',
     'contacto_cobro_crear': 'collections.contacts',

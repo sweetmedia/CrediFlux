@@ -22,6 +22,7 @@ class AuditLog(models.Model):
         # Payment Operations
         ('payment', 'Pago'),
         ('payment_void', 'Anular Pago'),
+        ('payment_void_auth_failed', 'Autorizacion de Reverso Fallida'),
         # Authentication
         ('login', 'Iniciar Sesion'),
         ('logout', 'Cerrar Sesion'),

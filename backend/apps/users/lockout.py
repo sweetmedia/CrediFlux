@@ -46,13 +46,13 @@ def _ip_key(request):
     return f'login_fail_ip:{client_ip(request)}'
 
 
-def _increment(key):
-    cache.add(key, 0, LOGIN_FAIL_WINDOW)
+def _increment(key, window=LOGIN_FAIL_WINDOW):
+    cache.add(key, 0, window)
     try:
         return cache.incr(key)
     except ValueError:
         # La clave caducó entre add e incr: arranca de nuevo la ventana.
-        cache.set(key, 1, LOGIN_FAIL_WINDOW)
+        cache.set(key, 1, window)
         return 1
 
 
@@ -97,6 +97,32 @@ def check_and_count_2fa(user):
 def reset_2fa(user):
     """Tras un segundo factor correcto: borra el contador del usuario."""
     cache.delete(_twofa_key(user))
+
+
+REVERT_AUTH_FAIL_LIMIT = 3  # códigos TOTP fallidos por autorizador de reversos
+REVERT_AUTH_FAIL_WINDOW = 900  # segundos: 15 minutos de bloqueo
+REVERT_AUTH_LOCK_MESSAGE = 'Autorización bloqueada 15 minutos por intentos fallidos.'
+
+
+def _revert_auth_key(authorizer):
+    return f'revert_auth_fail:{authorizer.pk}'
+
+
+def count_authorizer_attempt(authorizer):
+    """Cuenta el intento de autorizar un reverso ANTES de verificar el código y devuelve el total.
+
+    Incr atómico antes de verificar (como el 2FA del login): dos peticiones simultáneas no
+    pueden colarse por debajo del límite. Si el total supera REVERT_AUTH_FAIL_LIMIT, el
+    autorizador está bloqueado (aunque el código sea bueno) hasta que caduque la ventana, que
+    no se alarga con los intentos bloqueados (incr conserva el TTL). Tras un acierto,
+    `reset_authorizer`; tras un fallo, el intento queda contado.
+    """
+    return _increment(_revert_auth_key(authorizer), window=REVERT_AUTH_FAIL_WINDOW)
+
+
+def reset_authorizer(authorizer):
+    """Tras un código correcto: borra los fallos del autorizador."""
+    cache.delete(_revert_auth_key(authorizer))
 
 
 REAUTH_FAIL_LIMIT = 5  # contraseñas actuales por usuario y ventana (cambio de clave, 2FA)

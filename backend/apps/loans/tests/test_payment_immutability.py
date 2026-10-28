@@ -1,7 +1,8 @@
 """Bug 3 (Fase 0): los pagos no se editan ni se borran por la API.
 
 Un pago registrado sólo cambia de estado por sus acciones (`confirm`,
-`cancel`, `reverse`); el reverso exige al dueño del tenant y deja traza.
+`cancel`, `reverse`); el reverso exige `payments.void`, motivo y el TOTP de un dueño o
+administrador (Task 14, test_payment_reverse_totp.py), y deja traza.
 """
 
 from decimal import Decimal
@@ -74,8 +75,10 @@ def test_cancelar_pago_pendiente_usa_un_estado_valido(auth_client, active_loan, 
     pending.full_clean()
 
 
-def test_el_reverso_sigue_siendo_la_via_para_anular_un_pago(auth_client, payment):
-    response = auth_client.post(_url(payment, "reverse/"), {"reason": "Pago duplicado"}, format="json")
+def test_el_reverso_sigue_siendo_la_via_para_anular_un_pago(auth_client, payment, autorizacion_reverso):
+    response = auth_client.post(
+        _url(payment, "reverse/"), {"reason": "Pago duplicado", **autorizacion_reverso()}, format="json"
+    )
 
     assert response.status_code == 200, response.content
     payment.refresh_from_db()
@@ -91,11 +94,15 @@ def test_el_reverso_exige_motivo(auth_client, payment, body):
     assert payment.status == "completed"
 
 
-def test_el_reverso_deja_traza_en_el_pago_y_en_auditoria(auth_client, payment, tenant):
+def test_el_reverso_deja_traza_en_el_pago_y_en_auditoria(
+    auth_client, payment, tenant, autorizacion_reverso
+):
     from apps.audit.models import AuditLog
 
     response = auth_client.post(
-        _url(payment, "reverse/"), {"reason": "Cliente pagó dos veces"}, format="json"
+        _url(payment, "reverse/"),
+        {"reason": "Cliente pagó dos veces", **autorizacion_reverso()},
+        format="json",
     )
     assert response.status_code == 200, response.content
 
@@ -131,12 +138,13 @@ def test_cancelar_deja_traza_en_auditoria(auth_client, active_loan, admin_user):
     assert log.extra_data["reason"] == "Cheque devuelto"
 
 
-def test_el_reverso_exige_dueno_del_tenant(api_client, user_factory, payment):
-    manager = user_factory(role="manager")
-    api_client.force_authenticate(user=manager)
+def test_el_reverso_exige_payments_void(api_client, user_factory, payment):
+    cashier = user_factory(role="cashier")  # registra pagos, no anula
+    api_client.force_authenticate(user=cashier)
 
     response = api_client.post(_url(payment, "reverse/"), {"reason": "x"}, format="json")
 
     assert response.status_code == 403
+    assert response.json()["required_permission"] == "payments.void"
     payment.refresh_from_db()
     assert payment.status == "completed"

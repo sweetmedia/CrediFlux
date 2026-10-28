@@ -32,20 +32,18 @@ import {
   BadgeDollarSign,
   CircleDollarSign,
 } from 'lucide-react';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { getApiErrorMessage } from '@/lib/api/client';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { ReversePaymentDialog } from '@/components/payments/ReversePaymentDialog';
+import { useCan } from '@/lib/permissions';
 
 export default function PaymentDetailPage() {
   const router = useRouter();
   const params = useParams();
   const paymentId = params.id as string;
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { config } = useConfig();
   const [payment, setPayment] = useState<any>(null);
   const [showReverseDialog, setShowReverseDialog] = useState(false);
-  const [reverseReason, setReverseReason] = useState('');
+  const can = useCan();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -75,23 +73,6 @@ export default function PaymentDetailPage() {
       setError('Error al cargar el pago');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleReversePayment = async () => {
-    const reason = reverseReason.trim();
-    if (!reason) return;
-    try {
-      setIsProcessing(true);
-      setError('');
-      await paymentsAPI.reversePayment(paymentId, reason);
-      setReverseReason('');
-      await loadPayment(); // Reload payment details
-    } catch (err: any) {
-      console.error('Error reversing payment:', err);
-      setError(getApiErrorMessage(err, 'Error al revertir el pago'));
-    } finally {
-      setIsProcessing(false);
     }
   };
 
@@ -208,8 +189,8 @@ export default function PaymentDetailPage() {
   const lateFeePaid = Number(payment?.late_fee_paid || 0);
   const loanOutstandingBalance = Number(payment?.loan_outstanding_balance || 0);
   const loanPrincipalAmount = Number(payment?.loan_principal_amount || 0);
-  // TODO(Task 14): revertir pasa a payments.void + código TOTP; hoy la regla del backend es dueño o superusuario.
-  const canReversePayment = !!user && (user.is_tenant_owner || user.is_superuser);
+  // Revertir: payments.void; el backend exige además el TOTP de un dueño o administrador.
+  const canReversePayment = can('payments.void');
 
   const paymentExplanation =
     interestPaid > 0 || lateFeePaid > 0
@@ -252,34 +233,14 @@ export default function PaymentDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f8f7] p-4 py-8 print:bg-white md:p-6">
-      <ConfirmDialog
+      <ReversePaymentDialog
         open={showReverseDialog}
-        onOpenChange={(open) => {
-          setShowReverseDialog(open);
-          if (!open) setReverseReason('');
-        }}
-        title="¿Revertir este pago?"
-        description="El pago se anulará y el balance del préstamo se recalculará. Esta acción no se puede deshacer."
+        onOpenChange={setShowReverseDialog}
+        paymentId={paymentId}
         customer={payment?.customer_name}
         amount={payment?.amount}
-        confirmLabel="Revertir pago"
-        variant="destructive"
-        confirmDisabled={!reverseReason.trim()}
-        onConfirm={handleReversePayment}
-      >
-        <div className="space-y-2">
-          <Label htmlFor="reverse-reason">
-            Motivo del reverso <span className="font-normal text-fg-muted">(obligatorio)</span>
-          </Label>
-          <Textarea
-            id="reverse-reason"
-            value={reverseReason}
-            onChange={(e) => setReverseReason(e.target.value)}
-            rows={3}
-            placeholder="Ej.: pago registrado en el préstamo equivocado"
-          />
-        </div>
-      </ConfirmDialog>
+        onReversed={loadPayment}
+      />
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between print:hidden">
           <div>

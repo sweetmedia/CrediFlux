@@ -103,7 +103,7 @@ def test_defaults_coinciden_con_la_matriz_de_hoy():
 def test_casos_sin_codigo_son_los_de_regla_propia():
     """`admin` = ALL_CODES: todo caso donde admin no pase hoy debe ser de regla propia."""
     assert {c for c, codigo in CODE.items() if codigo is None} == {
-        'pago_revertir', 'usuario_asignar_admin', 'ajustes_tenant_leer', 'catalogo_leer',
+        'usuario_asignar_admin', 'ajustes_tenant_leer', 'catalogo_leer',
     }
     for case in CASE_NAMES:
         if not permitido_hoy(case, 'admin'):

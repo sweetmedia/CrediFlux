@@ -538,6 +538,31 @@ class TeamMemberCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class AuthorizerListView(APIView):
+    """
+    Autorizadores de reversos de pago (Task 14): dueño y administradores activos de la
+    financiera con 2FA. Sólo de la financiera del request.
+
+    **Permissions:** payments.void
+    """
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'GET': 'payments.void'}
+
+    @swagger_auto_schema(
+        operation_id='list_payment_authorizers',
+        operation_description='Dueño y administradores con 2FA que pueden autorizar un reverso',
+        tags=['Team Management'],
+    )
+    def get(self, request):
+        from .authorizers import authorizers_queryset, role_label
+
+        users = authorizers_queryset(request).order_by('first_name', 'last_name', 'pk')
+        return Response([
+            {'id': u.id, 'full_name': u.get_full_name(), 'role_label': role_label(u)}
+            for u in users
+        ])
+
+
 class TeamMemberDetailView(APIView):
     """
     Retrieve, update, or delete a team member.

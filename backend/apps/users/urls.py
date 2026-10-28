@@ -22,6 +22,7 @@ from .views import (
     TeamMemberListView,
     TeamMemberCreateView,
     TeamMemberDetailView,
+    AuthorizerListView,
     # Two-Factor Authentication
     TwoFactorSetupView,
     TwoFactorVerifyView,
@@ -66,6 +67,8 @@ urlpatterns = [
     path('team/', TeamMemberListView.as_view(), name='team-list'),
     path('team/create/', TeamMemberCreateView.as_view(), name='team-create'),
     path('team/<int:pk>/', TeamMemberDetailView.as_view(), name='team-detail'),
+    # Autorizadores de reversos de pago (dueño/admin con 2FA), Task 14
+    path('authorizers/', AuthorizerListView.as_view(), name='authorizers'),
 
     # ========================================================================
     # ROLES Y CATÁLOGO DE PERMISOS (D6)
