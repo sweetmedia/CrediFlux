@@ -13,6 +13,14 @@ export function OtpInput({ value, onChange, length = 6, disabled, autoFocus }: O
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = Array.from({ length }, (_, i) => value[i] ?? '');
 
+  const repartir = (texto: string) => {
+    const pegado = texto.replace(/\D/g, '').slice(0, length);
+    if (!pegado) return false;
+    onChange(pegado);
+    refs.current[Math.min(pegado.length, length - 1)]?.focus();
+    return true;
+  };
+
   const setAt = (i: number, d: string) => {
     const next = digits.slice();
     next[i] = d;
@@ -30,13 +38,15 @@ export function OtpInput({ value, onChange, length = 6, disabled, autoFocus }: O
           type="text"
           inputMode="numeric"
           autoComplete={i === 0 ? 'one-time-code' : 'off'}
-          maxLength={1}
+          maxLength={length}
           aria-label={`Dígito ${i + 1}`}
           value={d}
           disabled={disabled}
           autoFocus={autoFocus && i === 0}
           className="cf-input cf-input--mono h-12 text-center text-[20px]"
           onChange={(e) => {
+            // El autocompletado del sistema (one-time-code) escribe el código entero aquí.
+            if (e.target.value.replace(/\D/g, '').length > 1 && repartir(e.target.value)) return;
             const v = e.target.value.replace(/\D/g, '').slice(-1);
             if (!v) return;
             setAt(i, v);
@@ -53,11 +63,7 @@ export function OtpInput({ value, onChange, length = 6, disabled, autoFocus }: O
             }
           }}
           onPaste={(e) => {
-            const pegado = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
-            if (!pegado) return;
-            e.preventDefault();
-            onChange(pegado);
-            refs.current[Math.min(pegado.length, length - 1)]?.focus();
+            if (repartir(e.clipboardData.getData('text'))) e.preventDefault();
           }}
         />
       ))}

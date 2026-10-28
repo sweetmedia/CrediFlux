@@ -159,7 +159,7 @@ export default function ResetPasswordPage() {
             className="cf-input"
             autoComplete="new-password"
             aria-invalid={newPasswordErrorId ? true : undefined}
-            aria-describedby={newPasswordErrorId}
+            aria-describedby={[newPasswordErrorId, 'new-password-req'].filter(Boolean).join(' ')}
             {...register('new_password')}
             disabled={isConfirming}
           />
@@ -168,7 +168,7 @@ export default function ResetPasswordPage() {
               {passwordError || errors.new_password?.message}
             </p>
           )}
-          <PasswordRequirements password={watch('new_password') ?? ''} ctx={{}} />
+          <PasswordRequirements password={watch('new_password') ?? ''} id="new-password-req" />
         </div>
 
         <div className="cf-field">

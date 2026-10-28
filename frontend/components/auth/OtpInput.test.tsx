@@ -46,6 +46,14 @@ describe('OtpInput', () => {
     expect(onChange).toHaveBeenLastCalledWith('');
   });
 
+  it('el autocompletado del sistema escribe el código entero en la primera caja y se reparte', () => {
+    const onChange = vi.fn();
+    render(<Controlado onChange={onChange} />);
+    fireEvent.change(cajas()[0], { target: { value: '123456' } });
+    expect(onChange).toHaveBeenLastCalledWith('123456');
+    expect(cajas().map((c) => (c as HTMLInputElement).value)).toEqual(['1', '2', '3', '4', '5', '6']);
+  });
+
   it('cada caja tiene su nombre', () => {
     render(<Controlado onChange={() => {}} />);
     expect(cajas().map((c) => c.getAttribute('aria-label'))).toEqual([

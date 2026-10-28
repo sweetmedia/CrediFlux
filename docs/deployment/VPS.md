@@ -54,6 +54,8 @@ Rellenar `.env.production`:
 
 `VITE_APP_URL` tiene que tener el mismo host que `FRONTEND_URL`, porque se incrusta en el build.
 
+`VITE_TENANT_BASE_DOMAIN` (igual que `TENANT_BASE_DOMAIN`, p. ej. `crediflux.com.do`) también se incrusta en el build: con ella `/select-tenant` lleva a `https://<financiera>.crediflux.com.do/login`. Es obligatoria en `docker-compose.prod.yml`; un `.env.production` de antes de F3 hay que completarlo antes de reconstruir el frontend.
+
 ## 2. Construir e inicializar
 
 ```bash

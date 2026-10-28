@@ -20,7 +20,7 @@ describe('/access-denied', () => {
     expect(screen.getByRole('link', { name: /ir al dashboard/i })).toHaveAttribute('href', '/dashboard');
   });
 
-  it.each(['https://evil.example', '//evil.example/x', 'javascript:alert(1)', 'payments/9', '/\\evil.example'])(
+  it.each(['https://evil.example', '//evil.example/x', 'javascript:alert(1)', 'payments/9', '/\\evil.example', '/\t/evil.example', '/\n/evil.example'])(
     'ignora un returnUrl externo o relativo (%s)',
     (url) => {
       montar(`/access-denied?returnUrl=${encodeURIComponent(url)}`);

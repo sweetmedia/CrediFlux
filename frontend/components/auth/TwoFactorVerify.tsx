@@ -60,13 +60,12 @@ export function TwoFactorVerify({ onVerify, onCancel, isLoading, error }: TwoFac
               id="2fa-backup"
               type="text"
               className="cf-input cf-input--mono tracking-widest"
-              maxLength={8}
               placeholder="XXXXXXXX"
               autoComplete="one-time-code"
               autoFocus
               value={code}
               disabled={isLoading}
-              onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))}
             />
           </div>
         ) : (

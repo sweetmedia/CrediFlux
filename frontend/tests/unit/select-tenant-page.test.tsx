@@ -49,6 +49,13 @@ describe('/select-tenant', () => {
     expect(screen.getByText(/sólo letras, números y guiones/i)).toBeInTheDocument();
   });
 
+  it('una entrada guardada que no es subdominio válido no rompe la página', () => {
+    window.localStorage.setItem('cf-recent-tenants', '["-x","demo"]');
+    montar();
+    expect(screen.getByRole('link', { name: /demo/ })).toBeInTheDocument();
+    expect(screen.queryByText('-x')).not.toBeInTheDocument();
+  });
+
   it('muestra las usadas en este equipo como enlaces', () => {
     window.localStorage.setItem('cf-recent-tenants', '["demo","coop-san-jose"]');
     montar();

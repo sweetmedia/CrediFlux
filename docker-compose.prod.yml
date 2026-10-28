@@ -105,7 +105,7 @@ services:
         # dominio); VITE_APP_URL debe tener el host de FRONTEND_URL (ver docs/deployment).
         VITE_API_URL: ${VITE_API_URL}
         VITE_APP_URL: ${VITE_APP_URL}
-        VITE_TENANT_BASE_DOMAIN: ${VITE_TENANT_BASE_DOMAIN}
+        VITE_TENANT_BASE_DOMAIN: ${VITE_TENANT_BASE_DOMAIN:?falta VITE_TENANT_BASE_DOMAIN, ver docs/deployment/VPS.md}
     image: crediflux-frontend:prod
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3700}:3000"

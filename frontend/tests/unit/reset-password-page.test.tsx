@@ -63,7 +63,7 @@ describe('/reset-password', () => {
     montar('/reset-password?uid=MQ&token=abc');
     await guardar();
     const msg = await screen.findByText('Esta contraseña es demasiado común.');
-    expect(screen.getByLabelText('Contraseña nueva')).toHaveAttribute('aria-describedby', msg.id);
+    expect(screen.getByLabelText('Contraseña nueva').getAttribute('aria-describedby')?.split(' ')).toContain(msg.id);
   });
 
   it('no inventa requisitos que el backend no aplica', () => {

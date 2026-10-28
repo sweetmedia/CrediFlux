@@ -387,16 +387,13 @@ export default function RegisterPage() {
             <div className="cf-field">
               <label className="cf-label" htmlFor="owner_password">Contraseña</label>
               <div className="relative">
-                <input id="owner_password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" className="cf-input pr-10" {...register('owner_password')} aria-invalid={!!errors.owner_password} aria-describedby={errors.owner_password ? 'owner_password-error' : undefined} />
+                <input id="owner_password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" className="cf-input pr-10" {...register('owner_password')} aria-invalid={!!errors.owner_password} aria-describedby={errors.owner_password ? 'owner_password-error owner-password-req' : 'owner-password-req'} />
                 <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-0 top-1/2 -translate-y-1/2 p-1.5 text-sage-500 hover:text-forest-900" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
                   {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                 </button>
               </div>
               {fieldError(errors.owner_password?.message, 'owner_password-error')}
-              <PasswordRequirements
-                password={watch('owner_password') ?? ''}
-                ctx={{ email: watch('owner_email'), names: [watch('owner_first_name') ?? '', watch('owner_last_name') ?? ''] }}
-              />
+              <PasswordRequirements password={watch('owner_password') ?? ''} id="owner-password-req" />
             </div>
             <div className="cf-field">
               <label className="cf-label" htmlFor="owner_password_confirm">Repite la contraseña</label>

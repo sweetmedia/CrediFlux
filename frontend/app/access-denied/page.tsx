@@ -2,9 +2,19 @@ import { useSearchParams } from '@/lib/navigation';
 import { ArrowLeft, ShieldX } from 'lucide-react';
 import Link from '@/lib/navigation/link';
 
-/** Sólo rutas internas: `/algo`, nunca `//host`, `/\host` ni URLs absolutas. */
+/**
+ * Sólo rutas internas. Se resuelve como lo haría el navegador (que quita
+ * tabuladores y saltos de línea y trata la barra invertida como «/») y se exige
+ * el mismo origen.
+ */
 function rutaInterna(url: string | null): string {
-  return url && /^\/(?![/\\])/.test(url) ? url : '/dashboard';
+  if (!url || !url.startsWith('/')) return '/dashboard';
+  try {
+    const u = new URL(url, window.location.origin);
+    return u.origin === window.location.origin ? `${u.pathname}${u.search}${u.hash}` : '/dashboard';
+  } catch {
+    return '/dashboard';
+  }
 }
 
 export default function AccessDeniedPage() {

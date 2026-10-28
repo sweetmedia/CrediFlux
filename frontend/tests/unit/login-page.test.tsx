@@ -59,7 +59,7 @@ describe('/login', () => {
     expect(screen.getAllByRole('textbox', { name: /dígito/i })).toHaveLength(6);
 
     fireEvent.click(screen.getByRole('button', { name: 'Usar un código de respaldo' }));
-    fireEvent.change(screen.getByLabelText('Código de respaldo'), { target: { value: 'abcd1234' } });
+    fireEvent.change(screen.getByLabelText('Código de respaldo'), { target: { value: ' abcd-1234' } });
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /verificar y entrar/i }));
     });
