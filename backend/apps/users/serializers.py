@@ -21,7 +21,9 @@ from apps.core.media import SignedFilesModelSerializer
 from apps.core.permissions import user_matches_tenant
 from . import lockout
 from .authentication import token_revoked
-from .authz import codigo_que_falta, denegar, has_perm, invalidate_permissions, puede_dar_admin
+from .authz import (
+    codigo_que_falta, denegar, exigir_gestion, has_perm, invalidate_permissions, puede_dar_admin,
+)
 from .models_roles import Role
 from .tokens import (
     PWD_TS_CLAIM,
@@ -707,6 +709,11 @@ class TeamMemberUpdateSerializer(serializers.ModelSerializer):
             self.context['request'].user, instance.tenant_id, value,
             destino_es_dueno=instance.is_tenant_owner,
         )
+
+    def validate(self, attrs):
+        """Tras validar los campos: sólo se edita a quien no tiene más permisos que uno (D6)."""
+        exigir_gestion(self.context['request'].user, self.instance)
+        return attrs
 
     def update(self, instance, validated_data):
         instance = super().update(instance, validated_data)

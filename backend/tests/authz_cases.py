@@ -103,7 +103,8 @@ CASES = [
     ('tarea_crear', 'POST', '/api/communications/tasks/', {}),  # CanManageTasks, communications/views.py:36
     ('tarea_leer', 'GET', '/api/communications/tasks/', {}),  # lectura abierta de CanManageTasks
 
-    # --- Gestión de usuarios: can_manage_users() = dueño/admin/superusuario (users/models.py:173)
+    # --- Gestión de usuarios: team.view/create/edit/delete (users/views.py), team.assign_roles al
+    # cambiar el rol y puede_gestionar (users/authz.py) sobre el destino; por defecto, dueño/admin.
     ('usuario_crear', 'POST', '/api/users/team/create/', {}),  # users/views.py:512
     ('usuario_editar', 'PATCH', '/api/users/team/{usuario_destino}/', {}),  # users/views.py:650
     ('usuario_desactivar', 'DELETE', '/api/users/team/{usuario_destino}/', {}),  # users/views.py:682

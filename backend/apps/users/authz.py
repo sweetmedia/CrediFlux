@@ -32,15 +32,21 @@ def user_permissions(user) -> frozenset:
     memo = getattr(user, '_cf_perms', None)
     if memo is not None:
         return memo
-    if user.is_superuser or getattr(user, 'is_tenant_owner', False):
-        permisos = frozenset(ALL_CODES)
-    else:
-        codigos = Role.objects.filter(tenant_id=user.tenant_id, key=user.role).values_list(
-            'permissions', flat=True
-        ).first()
-        permisos = frozenset(codigos or ()) & ALL_CODES
+    permisos = permisos_del_puesto(user)
     user._cf_perms = permisos
     return permisos
+
+
+def permisos_del_puesto(user) -> frozenset:
+    """Códigos que concede la posición del usuario (dueño/superusuario o su Role), aunque la
+    cuenta esté inactiva. Sin memo: sirve para medir a un usuario destino (`puede_gestionar`),
+    donde una cuenta desactivada con un rol fuerte debe seguir protegida."""
+    if user.is_superuser or getattr(user, 'is_tenant_owner', False):
+        return frozenset(ALL_CODES)
+    codigos = Role.objects.filter(tenant_id=user.tenant_id, key=user.role).values_list(
+        'permissions', flat=True
+    ).first()
+    return frozenset(codigos or ()) & ALL_CODES
 
 
 def has_perm(user, code) -> bool:
@@ -68,6 +74,37 @@ def codigo_que_falta(user, codigos):
     """
     faltan = (set(codigos or ()) & ALL_CODES) - user_permissions(user)
     return min(faltan) if faltan else None
+
+
+SOLO_DUENO_GESTIONA = 'Sólo el dueño de la financiera gestiona al dueño y a los administradores.'
+
+
+def puede_gestionar(actor, target):
+    """¿Puede `actor` gestionar (editar, desactivar, borrar, resetear clave) a `target`? (D6)
+
+    Devuelve None si puede; si no, el código del catálogo que le falta o `SOLO_DUENO_GESTIONA`.
+    Uno mismo siempre (las reglas de rol y las protecciones del dueño siguen aparte). El dueño y
+    el superusuario, siempre. El resto: al dueño o a un admin, nunca (R4: hacer o deshacer admins
+    es del dueño); a cualquier otro, sólo si tiene todos los códigos que tiene el destino, para
+    que un `team.edit` no tome ni bloquee la cuenta de alguien con más permisos.
+    """
+    if getattr(actor, 'pk', None) is not None and actor.pk == target.pk:
+        return None
+    if puede_dar_admin(actor):
+        return None
+    if target.is_superuser or target.is_tenant_owner or target.role == 'admin':
+        return SOLO_DUENO_GESTIONA
+    return codigo_que_falta(actor, permisos_del_puesto(target))
+
+
+def exigir_gestion(actor, target):
+    """403 si `actor` no puede gestionar a `target` (ver puede_gestionar)."""
+    motivo = puede_gestionar(actor, target)
+    if motivo is None:
+        return
+    if motivo in ALL_CODES:
+        denegar(motivo)
+    raise PermissionDenied({'detail': motivo})
 
 
 def denegar(code):

@@ -22,7 +22,7 @@ from allauth.account.views import ConfirmEmailView
 from allauth.account.models import EmailConfirmation, EmailConfirmationHMAC
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .authz import ViewPermissionRequired
+from .authz import ViewPermissionRequired, exigir_gestion
 
 from .serializers import (
     UserSerializer,
@@ -682,6 +682,9 @@ class TeamMemberDetailView(APIView):
                 {'error': 'You cannot delete your own account. Use profile settings instead.'},
                 status=status.HTTP_403_FORBIDDEN
             )
+
+        # Sólo a quien no tiene más permisos que uno (D6).
+        exigir_gestion(request.user, user)
 
         # Deactivate instead of deleting
         user.is_active = False

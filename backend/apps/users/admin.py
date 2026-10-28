@@ -17,7 +17,7 @@ from allauth.account.models import EmailAddress
 from allauth.account.utils import send_email_confirmation
 from rest_framework import serializers
 from apps.core.admin_mixins import is_platform_admin as _is_platform_admin
-from .authz import codigo_que_falta, has_perm, invalidate_permissions, puede_dar_admin
+from .authz import codigo_que_falta, has_perm, invalidate_permissions, puede_dar_admin, puede_gestionar
 from .lockout import validate_strength
 from .models import Role, User
 from .permissions_catalog import SYSTEM_ROLES
@@ -68,6 +68,8 @@ def _role_error(actor, tenant_id, role, previous, target_is_owner, adding):
     """
     if role == previous or (adding and role == ROLE_DEFAULT):
         return None
+    if not has_perm(actor, 'team.assign_roles'):
+        return ROLE_ASSIGN_FORBIDDEN
     if target_is_owner:
         return OWNER_ROLE_LOCKED
     if tenant_id is None:
@@ -80,8 +82,6 @@ def _role_error(actor, tenant_id, role, previous, target_is_owner, adding):
             return ROLE_UNKNOWN
     if role == 'admin' and not _can_assign_admin(actor):
         return ROLE_ADMIN_FORBIDDEN
-    if not has_perm(actor, 'team.assign_roles'):
-        return ROLE_ASSIGN_FORBIDDEN
     falta = codigo_que_falta(actor, permisos)
     if falta:
         return f'No puedes dar un rol con permisos que no tienes ({falta}).'
@@ -303,6 +303,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             and target.tenant_id == actor.tenant_id
             and not target.is_superuser
             and not _protects_owner(actor, target)
+            and puede_gestionar(actor, target) is None
         )
 
     @action(description="🔑 Resetear contraseña", permissions=['change'])
@@ -370,6 +371,11 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         """Deactivate selected users (excluding yourself and tenant owners)"""
         # Exclude current user and tenant owners from deactivation
         safe_qs = queryset.exclude(pk=request.user.pk).exclude(is_tenant_owner=True)
+        if not _is_platform_admin(request.user):
+            # Ni a quien tiene más permisos que uno (D6).
+            safe_qs = safe_qs.filter(
+                pk__in=[u.pk for u in safe_qs if puede_gestionar(request.user, u) is None]
+            )
         skipped = queryset.count() - safe_qs.count()
         count = safe_qs.filter(is_active=True).update(is_active=False)
 
@@ -382,7 +388,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         if skipped:
             self.message_user(
                 request,
-                f'⚠️ {skipped} usuario(s) omitido(s) (tu cuenta o tenant owners no se pueden desactivar).',
+                f'⚠️ {skipped} usuario(s) omitido(s) (tu cuenta, el dueño o quien tiene más permisos que tú).',
                 level=messages.WARNING
             )
 
@@ -506,6 +512,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 and not obj.is_superuser
                 and not _protects_owner(request.user, obj)
                 and has_perm(request.user, 'team.edit')
+                and puede_gestionar(request.user, obj) is None
             )
         return has_perm(request.user, 'team.edit')
 

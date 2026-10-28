@@ -343,3 +343,97 @@ def test_admin_aplica_assign_roles_y_anti_escalada(user_factory, tenant_schema):
 
     r = client.post(url, {**body, 'role': 'viewer', 'first_name': 'Otro'})  # sin cambiar el rol
     assert r.status_code == 302, r.context['adminform'].form.errors if r.context else r.content
+
+
+# ---------------------------------------------------------------------------
+# Dominancia: sólo se gestiona a quien no tiene más permisos que uno (fix 1)
+# ---------------------------------------------------------------------------
+
+
+def test_clave_con_otra_capitalizacion_es_400(api_client, user_factory, tenant_schema):
+    destino = user_factory(role='viewer')
+    resp = _como(api_client, user_factory(role='viewer', is_tenant_owner=True)).patch(
+        _detalle(destino), {'role': 'Admin'}, format='json')
+    assert resp.status_code == 400 and 'role' in resp.json()
+
+
+def test_put_que_cambia_el_rol_exige_assign_roles(api_client, user_factory, tenant_schema):
+    destino = user_factory(role='viewer')
+    cliente = _como(api_client, _gestor(tenant_schema, user_factory, dar=['team.edit']))
+    resp = cliente.put(_detalle(destino), {'first_name': 'Ana', 'role': 'cashier'}, format='json')
+    assert resp.status_code == 403 and resp.json()['required_permission'] == 'team.assign_roles'
+    destino.refresh_from_db()
+    assert destino.role == 'viewer'
+
+
+def test_admin_no_desactiva_a_otro_admin_reenviando_su_rol(api_client, user_factory, tenant_schema):
+    otro_admin = user_factory(role='admin')
+    resp = _como(api_client, user_factory(role='admin')).patch(
+        _detalle(otro_admin), {'role': 'admin', 'is_active': False}, format='json')
+    assert resp.status_code == 403
+    assert 'required_permission' not in resp.json()
+    otro_admin.refresh_from_db()
+    assert otro_admin.is_active
+
+
+def test_admin_no_edita_ni_borra_a_otro_admin_y_el_dueno_si(api_client, user_factory, tenant_schema):
+    otro_admin = user_factory(role='admin')
+    cliente = _como(api_client, user_factory(role='admin'))
+    assert cliente.patch(_detalle(otro_admin), {'job_title': 'X'}, format='json').status_code == 403
+    assert cliente.put(_detalle(otro_admin), {}, format='json').status_code == 403
+    assert cliente.delete(_detalle(otro_admin)).status_code == 403
+    otro_admin.refresh_from_db()
+    assert otro_admin.is_active and otro_admin.job_title != 'X'
+    dueno = _como(api_client, user_factory(role='viewer', is_tenant_owner=True))
+    assert dueno.patch(_detalle(otro_admin), {'job_title': 'X'}, format='json').status_code == 200
+    assert dueno.delete(_detalle(otro_admin)).status_code == 200
+
+
+def test_no_se_gestiona_a_quien_tiene_mas_codigos(api_client, user_factory, tenant_schema):
+    _rol(tenant_schema, 'super-gerente', {'billing.config', 'team.view'})
+    fuerte = user_factory(role='super-gerente')
+    inactivo = user_factory(role='super-gerente', is_active=False)  # desactivado sigue protegido
+    cliente = _como(api_client, _gestor(tenant_schema, user_factory, dar=['team.edit', 'team.delete']))
+    for destino in (fuerte, inactivo):
+        resp = cliente.patch(_detalle(destino), {'email': 'x@y.z', 'first_name': 'Tomado'}, format='json')
+        assert resp.status_code == 403 and resp.json()['required_permission'] == 'billing.config'
+        resp = cliente.delete(_detalle(destino))
+        assert resp.status_code == 403 and resp.json()['required_permission'] == 'billing.config'
+    # A quien tiene menos (o lo mismo), sí.
+    debil = user_factory(role='cashier')
+    cambiar_rol(tenant_schema, 'manager', dar=sorted(Role.objects.get(tenant=tenant_schema, key='cashier').permissions))
+    assert cliente.patch(_detalle(debil), {'first_name': 'Ok'}, format='json').status_code == 200
+    assert cliente.delete(_detalle(debil)).status_code == 200
+
+
+def test_un_admin_edita_su_propia_cuenta(api_client, user_factory, tenant_schema):
+    yo = user_factory(role='admin')
+    resp = _como(api_client, yo).patch(_detalle(yo), {'job_title': 'Jefe', 'role': 'admin'}, format='json')
+    assert resp.status_code == 200, resp.content
+
+
+def test_admin_django_respeta_la_dominancia(user_factory, tenant_schema):
+    from django.test import Client
+    from django.urls import reverse
+
+    from apps.users.models import User as U
+
+    clave = 'clave-de-prueba-123'
+    gestor = _gestor(tenant_schema, user_factory, dar=['team.edit'])
+    gestor.is_staff = True
+    gestor.save()
+    otro_admin = user_factory(role='admin')
+    debil = user_factory(role='viewer')
+    client = Client(HTTP_HOST='tenant.test.localhost')
+    client.force_login(gestor)
+
+    assert client.get(reverse('admin:users_user_change', args=[otro_admin.pk])).status_code == 403
+    assert client.post(reverse('admin:users_user_reset_password', args=[otro_admin.pk]),
+                       {'generate_random': 'true'}).status_code == 403
+    changelist = reverse('admin:users_user_changelist')
+    client.post(changelist, {'action': 'reset_password_action', '_selected_action': [otro_admin.pk, debil.pk]})
+    client.post(changelist, {'action': 'deactivate_users', '_selected_action': [otro_admin.pk, debil.pk]})
+    otro_admin = U.objects.get(pk=otro_admin.pk)
+    debil = U.objects.get(pk=debil.pk)
+    assert otro_admin.is_active and otro_admin.check_password(clave)
+    assert not debil.is_active and not debil.check_password(clave)
