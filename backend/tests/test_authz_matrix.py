@@ -5,7 +5,7 @@ persona en el tenant de pruebas, lo autentica y comprueba que el código de
 respuesta está en `EXPECTED`. En los casos de alcance comprueba además si la
 respuesta incluye el objeto de otro usuario (`VISIBLE`).
 
-Dueño y admin se crean con 2FA activa para que la matriz no cambie de sentido
+Dueños (`owner`, `owner_viewer`) y admin se crean con 2FA activa para que la matriz no cambie de sentido
 cuando la 2FA sea obligatoria en esos roles.
 """
 
@@ -50,6 +50,10 @@ def _persona(user_factory, persona):
     if persona == 'owner':
         # Como lo crea el registro del tenant: dueño con rol admin.
         return user_factory(role='admin', is_tenant_owner=True,
+                            is_2fa_enabled=True, totp_secret=pyotp.random_base32())
+    if persona == 'owner_viewer':
+        # Dueño sin rol admin: fija el bypass de dueño por separado del rol.
+        return user_factory(role='viewer', is_tenant_owner=True,
                             is_2fa_enabled=True, totp_secret=pyotp.random_base32())
     if persona == 'admin':
         return user_factory(role='admin', is_2fa_enabled=True, totp_secret=pyotp.random_base32())
@@ -148,6 +152,15 @@ def _visita_ajena(ctx):
     )
 
 
+def _ubicacion_ajena(ctx):
+    from apps.loans.models_geolocation import CollectorLocation
+
+    return CollectorLocation.objects.create(
+        collector=ctx['user_factory'](role='collector'),
+        latitude=Decimal('18.4861000'), longitude=Decimal('-69.9312000'),
+    )
+
+
 def _registro_auditoria(ctx):
     from apps.audit.models import AuditLog
 
@@ -175,6 +188,7 @@ OBJETOS = {
     'usuario_destino': _usuario_destino,
     'dueno_destino': _dueno_destino,
     'visita_ajena': _visita_ajena,
+    'ubicacion_ajena': _ubicacion_ajena,
     'registro_auditoria': _registro_auditoria,
     'politica_permisiva': _politica_permisiva,
 }

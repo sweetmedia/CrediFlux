@@ -11,7 +11,8 @@ cada app) deben dejar esta matriz pasando SIN CAMBIOS; `DEFAULT_ROLE_PERMISSIONS
   inválido: si el permiso deja pasar, la respuesta es 400 (o 404 si el objeto
   no existe) y no se escribe nada.
 * `EXPECTED`: caso → persona → códigos aceptados. Personas: los 8 roles más
-  `owner` (dueño del tenant con rol `admin`, como lo crea el registro). Lo que
+  `owner` (dueño del tenant con rol `admin`, como lo crea el registro) y
+  `owner_viewer` (dueño con rol `viewer`: el bypass de dueño sin el rol admin). Lo que
   importa es 403 frente a no-403; los conjuntos son tan estrechos como permite
   el comportamiento estable de hoy.
 * `VISIBLE`: casos de alcance (no 403): caso → persona → si la respuesta
@@ -26,7 +27,9 @@ ROLES = (
     'admin', 'manager', 'loan_officer', 'collector', 'collection_supervisor',
     'accountant', 'cashier', 'viewer',
 )
-PERSONAS = ROLES + ('owner',)
+# `owner`: dueño con rol admin (como lo crea el registro). `owner_viewer`: dueño con rol
+# viewer, para fijar el bypass de dueño independiente del rol admin.
+PERSONAS = ROLES + ('owner', 'owner_viewer')
 
 # Uuid que no existe: para acciones de detalle donde basta ver si el permiso deja pasar.
 UUID_INEXISTENTE = '00000000-0000-0000-0000-000000000000'
@@ -110,6 +113,69 @@ CASES = [
     ('dueno_cambiar_rol', 'PATCH', '/api/users/team/{dueno_destino}/', {'role': 'manager'}),
     # El dueño no se desactiva (users/serializers.py:700)
     ('dueno_desactivar', 'PATCH', '/api/users/team/{dueno_destino}/', {'is_active': False}),
+    ('usuario_reemplazar', 'PUT', '/api/users/team/{usuario_destino}/', {}),  # users/views.py:623
+
+    # =====================================================================================
+    # Lecturas (cada una tendrá su `.view`). Abiertas a todo autenticado salvo donde se indica.
+    # =====================================================================================
+    ('prestamo_leer', 'GET', '/api/loans/', {}),  # CanManageLoans, lectura abierta
+    ('cliente_documento_leer', 'GET', '/api/loans/customer-documents/', {}),
+    ('garantia_leer', 'GET', '/api/loans/collaterals/', {}),
+    ('garante_leer', 'GET', '/api/loans/guarantors/', {}),
+    ('contrato_leer', 'GET', '/api/loans/contracts/', {}),
+    ('plantilla_contrato_leer', 'GET', '/api/loans/contract-templates/', {}),
+    ('pago_leer', 'GET', '/api/loans/payments/', {}),  # CanRegisterPayments, lectura abierta
+    ('recordatorio_leer', 'GET', '/api/loans/collection-reminders/', {}),  # CanManageCollections
+    ('contacto_cobro_leer', 'GET', '/api/loans/collection-contacts/', {}),
+    ('telefono_cliente_leer', 'GET', '/api/loans/customer-phones/', {}),
+    ('correo_cliente_leer', 'GET', '/api/loans/customer-emails/', {}),
+    # Abierta, pero con alcance (views_geolocation.py:28): el resto sólo ve sus ubicaciones.
+    ('ubicaciones_cobrador_leer', 'GET', '/api/loans/collector-locations/', {}),
+    ('caja_leer', 'GET', '/api/cashbox/registers/', {}),  # CanManageCashOperations, lectura abierta
+    ('turno_leer', 'GET', '/api/cashbox/sessions/', {}),  # IsAuthenticated (cashbox/views.py:78)
+    ('movimiento_caja_leer', 'GET', '/api/cashbox/movements/', {}),
+    ('factura_leer', 'GET', '/api/billing/invoices/', {}),  # CanManageBilling, lectura abierta
+    ('certificado_leer', 'GET', '/api/billing/certificates/', {}),
+    ('proveedor_ecf_config_leer', 'GET', '/api/billing/ecf-provider/config/', {}),  # billing/views.py:409
+    ('equipo_leer', 'GET', '/api/users/team/', {}),  # IsAuthenticated (users/views.py:453)
+    ('ajustes_tenant_leer', 'GET', '/api/tenants/settings/', {}),  # IsAuthenticated (tenants/views.py:347)
+    ('ia_config_leer', 'GET', '/api/ai/config/', {}),  # IsAuthenticated (ai/views.py:249)
+    # Detalle de auditoría: mismo queryset que la lista (audit/views.py:17) → 404 fuera de alcance.
+    ('auditoria_detalle', 'GET', '/api/audit/{registro_auditoria}/', {}),
+
+    # =====================================================================================
+    # Ediciones y borrados (se separarán en `.edit`/`.delete`). Uuid inexistente: el permiso
+    # se comprueba en initial(), antes de get_object → 404 si pasa, 403 si no.
+    # =====================================================================================
+    ('cliente_editar', 'PATCH', f'/api/loans/customers/{UUID_INEXISTENTE}/', {}),
+    ('cliente_borrar', 'DELETE', f'/api/loans/customers/{UUID_INEXISTENTE}/', {}),
+    ('prestamo_editar', 'PATCH', f'/api/loans/{UUID_INEXISTENTE}/', {}),
+    ('prestamo_borrar', 'DELETE', f'/api/loans/{UUID_INEXISTENTE}/', {}),
+    ('garantia_editar', 'PATCH', f'/api/loans/collaterals/{UUID_INEXISTENTE}/', {}),
+    ('garantia_borrar', 'DELETE', f'/api/loans/collaterals/{UUID_INEXISTENTE}/', {}),
+    ('garante_editar', 'PATCH', f'/api/loans/guarantors/{UUID_INEXISTENTE}/', {}),
+    ('garante_borrar', 'DELETE', f'/api/loans/guarantors/{UUID_INEXISTENTE}/', {}),
+    ('plantilla_contrato_editar', 'PATCH', f'/api/loans/contract-templates/{UUID_INEXISTENTE}/', {}),
+    ('plantilla_contrato_borrar', 'DELETE', f'/api/loans/contract-templates/{UUID_INEXISTENTE}/', {}),
+    ('tarea_editar', 'PATCH', f'/api/communications/tasks/{UUID_INEXISTENTE}/', {}),  # CanManageTasks
+    ('tarea_borrar', 'DELETE', f'/api/communications/tasks/{UUID_INEXISTENTE}/', {}),
+    # Editar caja: sólo CanManageCashOperations (el borrado, con chequeo propio, es caja_borrar).
+    ('caja_editar', 'PATCH', f'/api/cashbox/registers/{UUID_INEXISTENTE}/', {}),
+
+    # --- Acciones: documentos de cliente (CanManageLoans, loans/views.py:191,218)
+    ('cliente_documento_verificar', 'POST', f'/api/loans/customer-documents/{UUID_INEXISTENTE}/verify/', {}),
+    ('cliente_documento_rechazar', 'POST', f'/api/loans/customer-documents/{UUID_INEXISTENTE}/reject/', {}),
+    # --- Acciones de contrato (CanManageLoans, loans/views.py:1660-1951)
+    ('contrato_regenerar', 'POST', f'/api/loans/contracts/{UUID_INEXISTENTE}/regenerate/', {}),
+    ('contrato_firmar_cliente', 'POST', f'/api/loans/contracts/{UUID_INEXISTENTE}/sign_customer/', {}),
+    ('contrato_firmar_oficial', 'POST', f'/api/loans/contracts/{UUID_INEXISTENTE}/sign_officer/', {}),
+    ('contrato_activar', 'POST', f'/api/loans/contracts/{UUID_INEXISTENTE}/activate/', {}),
+    ('contrato_cancelar', 'POST', f'/api/loans/contracts/{UUID_INEXISTENTE}/cancel/', {}),
+    ('contrato_archivar', 'POST', f'/api/loans/contracts/{UUID_INEXISTENTE}/archive/', {}),
+    ('contrato_desarchivar', 'POST', f'/api/loans/contracts/{UUID_INEXISTENTE}/unarchive/', {}),
+    ('contrato_enviar_a_firma', 'POST', f'/api/loans/contracts/{UUID_INEXISTENTE}/send_for_signature/', {}),
+    # --- Certificado digital (CanManageBilling, billing/views.py:69)
+    ('certificado_crear', 'POST', '/api/billing/certificates/', {}),
 ]
 
 CASE_NAMES = [case[0] for case in CASES]
@@ -120,19 +186,22 @@ def _matrix(allowed, ok, denied=frozenset({403})):
     return {p: set(ok) if p in allowed else set(denied) for p in PERSONAS}
 
 
-# Grupos de personas que pasan cada chequeo de hoy (el dueño pasa siempre: bypass o rol admin).
-APPROVERS = {'admin', 'manager', 'loan_officer', 'owner'}                    # CanApproveLoan
-LOAN_MANAGERS = {'admin', 'manager', 'loan_officer', 'owner'}                # CanManageLoans
+# Grupos de personas que pasan cada chequeo de hoy. `owner` pasa siempre (bypass o rol admin);
+# `owner_viewer` pasa por el bypass de dueño donde lo hay (OWNERS se une a cada grupo) — no en
+# auditoría, que sólo mira el rol (audit/views.py:17,82).
+OWNERS = {'owner', 'owner_viewer'}
+APPROVERS = {'admin', 'manager', 'loan_officer'} | OWNERS                    # CanApproveLoan
+LOAN_MANAGERS = {'admin', 'manager', 'loan_officer'} | OWNERS                # CanManageLoans
 PAYMENT_TAKERS = {'admin', 'manager', 'loan_officer', 'collector',
-                  'collection_supervisor', 'cashier', 'owner'}               # CanRegisterPayments
+                  'collection_supervisor', 'cashier'} | OWNERS               # CanRegisterPayments
 COLLECTIONS = {'admin', 'manager', 'loan_officer', 'collector',
-               'collection_supervisor', 'owner'}                             # CanManageCollections y afines
-CASH = {'admin', 'manager', 'accountant', 'cashier', 'owner'}               # CanManageCashOperations
-OWNER_ADMIN = {'admin', 'owner'}                                             # dueño/admin(/superusuario)
-OWNER_ONLY = {'owner'}                                                       # dueño(/superusuario)
-BILLING = {'admin', 'accountant', 'owner'}                                   # CanManageBilling
-AUDIT = {'admin', 'manager', 'owner'}                                        # rol admin/manager
-OVERSIGHT = {'admin', 'manager', 'collection_supervisor', 'owner'}           # COLLECTOR_OVERSIGHT_ROLES
+               'collection_supervisor'} | OWNERS                             # CanManageCollections y afines
+CASH = {'admin', 'manager', 'accountant', 'cashier'} | OWNERS               # CanManageCashOperations
+OWNER_ADMIN = {'admin'} | OWNERS                                             # dueño/admin(/superusuario)
+OWNER_ONLY = OWNERS                                                          # dueño(/superusuario)
+BILLING = {'admin', 'accountant'} | OWNERS                                   # CanManageBilling
+AUDIT = {'admin', 'manager', 'owner'}                                        # rol admin/manager, sin bypass
+OVERSIGHT = {'admin', 'manager', 'collection_supervisor'} | OWNERS           # COLLECTOR_OVERSIGHT_ROLES
 EVERYONE = set(PERSONAS)
 
 EXPECTED = {
@@ -143,6 +212,7 @@ EXPECTED = {
         **_matrix(APPROVERS, {400}),
         'admin': {200},
         'owner': {200},
+        'owner_viewer': {200},
     },
 
     'cliente_crear': _matrix(LOAN_MANAGERS, {400}),
@@ -199,25 +269,82 @@ EXPECTED = {
     'usuario_editar': _matrix(OWNER_ADMIN, {200}),
     'usuario_desactivar': _matrix(OWNER_ADMIN, {200}),
     # El admin que no es dueño llega al serializer y recibe 400; el dueño lo asigna.
-    'usuario_asignar_admin': {**_matrix(OWNER_ADMIN, {400}), 'owner': {200}},
+    'usuario_asignar_admin': {**_matrix(OWNER_ADMIN, {400}), 'owner': {200}, 'owner_viewer': {200}},
     'dueno_cambiar_rol': _matrix(OWNER_ADMIN, {400}),
     'dueno_desactivar': _matrix(OWNER_ADMIN, {400}),
+    'usuario_reemplazar': _matrix(OWNER_ADMIN, {200}),
+
+    # Lecturas
+    'prestamo_leer': _matrix(EVERYONE, {200}),
+    'cliente_documento_leer': _matrix(EVERYONE, {200}),
+    'garantia_leer': _matrix(EVERYONE, {200}),
+    'garante_leer': _matrix(EVERYONE, {200}),
+    'contrato_leer': _matrix(EVERYONE, {200}),
+    'plantilla_contrato_leer': _matrix(EVERYONE, {200}),
+    'pago_leer': _matrix(EVERYONE, {200}),
+    'recordatorio_leer': _matrix(EVERYONE, {200}),
+    'contacto_cobro_leer': _matrix(EVERYONE, {200}),
+    'telefono_cliente_leer': _matrix(EVERYONE, {200}),
+    'correo_cliente_leer': _matrix(EVERYONE, {200}),
+    'ubicaciones_cobrador_leer': _matrix(EVERYONE, {200}),  # alcance en VISIBLE
+    'caja_leer': _matrix(EVERYONE, {200}),
+    'turno_leer': _matrix(EVERYONE, {200}),
+    'movimiento_caja_leer': _matrix(EVERYONE, {200}),
+    'factura_leer': _matrix(EVERYONE, {200}),
+    'certificado_leer': _matrix(EVERYONE, {200}),
+    'proveedor_ecf_config_leer': _matrix(EVERYONE, {200}),
+    'equipo_leer': _matrix(EVERYONE, {200}),
+    'ajustes_tenant_leer': _matrix(EVERYONE, {200}),
+    'ia_config_leer': _matrix(EVERYONE, {200}),
+    # Fuera de alcance el queryset está vacío: 404, no 403.
+    'auditoria_detalle': _matrix(AUDIT, {200}, denied={404}),
+
+    # Ediciones y borrados (uuid inexistente → 404 si el permiso pasa)
+    'cliente_editar': _matrix(LOAN_MANAGERS, {404}),
+    'cliente_borrar': _matrix(LOAN_MANAGERS, {404}),
+    'prestamo_editar': _matrix(LOAN_MANAGERS, {404}),
+    'prestamo_borrar': _matrix(LOAN_MANAGERS, {404}),
+    'garantia_editar': _matrix(LOAN_MANAGERS, {404}),
+    'garantia_borrar': _matrix(LOAN_MANAGERS, {404}),
+    'garante_editar': _matrix(LOAN_MANAGERS, {404}),
+    'garante_borrar': _matrix(LOAN_MANAGERS, {404}),
+    'plantilla_contrato_editar': _matrix(LOAN_MANAGERS, {404}),
+    'plantilla_contrato_borrar': _matrix(LOAN_MANAGERS, {404}),
+    'tarea_editar': _matrix(COLLECTIONS, {404}),
+    'tarea_borrar': _matrix(COLLECTIONS, {404}),
+    'caja_editar': _matrix(CASH, {404}),
+
+    # Acciones
+    'cliente_documento_verificar': _matrix(LOAN_MANAGERS, {404}),
+    'cliente_documento_rechazar': _matrix(LOAN_MANAGERS, {404}),
+    'contrato_regenerar': _matrix(LOAN_MANAGERS, {404}),
+    'contrato_firmar_cliente': _matrix(LOAN_MANAGERS, {404}),
+    'contrato_firmar_oficial': _matrix(LOAN_MANAGERS, {404}),
+    'contrato_activar': _matrix(LOAN_MANAGERS, {404}),
+    'contrato_cancelar': _matrix(LOAN_MANAGERS, {404}),
+    'contrato_archivar': _matrix(LOAN_MANAGERS, {404}),
+    'contrato_desarchivar': _matrix(LOAN_MANAGERS, {404}),
+    'contrato_enviar_a_firma': _matrix(LOAN_MANAGERS, {404}),
+    'certificado_crear': _matrix(BILLING, {400}),
 }
 
 # Casos de alcance: ¿la respuesta incluye el objeto de otro usuario?
 SCOPE_OBJECT = {
     'visitas_de_otro_cobrador': 'visita_ajena',      # views_geolocation.py:23,28
     'auditoria_lista': 'registro_auditoria',         # audit/views.py:17
+    'ubicaciones_cobrador_leer': 'ubicacion_ajena',  # views_geolocation.py:28
 }
 VISIBLE = {
     'visitas_de_otro_cobrador': {p: p in OVERSIGHT for p in PERSONAS},
     'auditoria_lista': {p: p in AUDIT for p in PERSONAS},
+    'ubicaciones_cobrador_leer': {p: p in OVERSIGHT for p in PERSONAS},
 }
 
 # Objetos que el caso necesita además de los marcadores de su ruta.
 EXTRA_SETUP = {
     'visitas_de_otro_cobrador': ['visita_ajena'],
     'auditoria_lista': ['registro_auditoria'],
+    'ubicaciones_cobrador_leer': ['ubicacion_ajena'],
     'prestamo_desembolsar_aprobado_por_mi': ['politica_permisiva'],
 }
 
