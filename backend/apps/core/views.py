@@ -67,6 +67,33 @@ class CanLookupCedula(CanManageCollections):
         return True
 
 
+def _buscar_en_padron(cedula):
+    """Una fila de public.padron_jce o None. Consulta calificada: no toca el search_path de la conexión."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT cedula, nombres, apellido1, apellido2, fecha_nacimiento, "
+            "sexo, estado_civil, lugar_nacimiento "
+            "FROM public.padron_jce WHERE cedula = %s LIMIT 1",
+            [cedula]
+        )
+        return cursor.fetchone()
+
+
+def _auditar_consulta_cedula(request, cedula, found):
+    """Deja constancia de quién consultó qué cédula; sin datos personales del padrón."""
+    from apps.audit.models import AuditLog
+    from apps.audit.middleware import get_client_ip, get_user_agent
+    AuditLog.log(
+        tenant=getattr(request, 'tenant', None),
+        user=request.user,
+        action='cedula_lookup',
+        model_name='PadronJCE',
+        ip_address=get_client_ip(request),
+        user_agent=get_user_agent(request),
+        extra_data={'cedula': cedula, 'found': found},
+    )
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, TenantMatches, CanLookupCedula])
 @throttle_classes([ScopedRateThrottle])
@@ -84,61 +111,54 @@ def validate_cedula_view(request):
         )
 
     try:
-        from .models import PadronJCE
-        # Search in public schema directly
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SET search_path = 'public'"
-            )
-            cursor.execute(
-                "SELECT cedula, nombres, apellido1, apellido2, fecha_nacimiento "
-                "FROM padron_jce WHERE cedula = %s LIMIT 1",
-                [cedula]
-            )
-            row = cursor.fetchone()
-
-        if row:
-            cedula_raw = row[0]
-            # Format cedula: XXX-XXXXXXX-X
-            cedula_fmt = cedula_raw
-            if len(cedula_raw) == 11:
-                cedula_fmt = f'{cedula_raw[:3]}-{cedula_raw[3:10]}-{cedula_raw[10]}'
-
-            nombres = row[1] or ''
-            apellido1 = row[2] or ''
-            apellido2 = row[3] or ''
-            fecha_nac = row[4]
-
-            # Build full name
-            nombre_parts = nombres.split()
-            first_name = nombre_parts[0].title() if nombre_parts else ''
-            middle_name = ' '.join(nombre_parts[1:]).title() if len(nombre_parts) > 1 else ''
-
-            return Response({
-                'found': True,
-                'cedula': cedula_fmt,
-                'cedula_raw': cedula_raw,
-                'nombres': nombres.title(),
-                'first_name': first_name,
-                'middle_name': middle_name,
-                'apellido1': apellido1.title(),
-                'apellido2': apellido2.title() if apellido2 else '',
-                'last_name': f"{apellido1.title()}{' ' + apellido2.title() if apellido2 else ''}",
-                'nombre_completo': f"{nombres.title()} {apellido1.title()}{' ' + apellido2.title() if apellido2 else ''}",
-                'fecha_nacimiento': str(fecha_nac) if fecha_nac else None,
-                'source': 'padron_jce',
-            })
-        else:
-            return Response({
-                'found': False,
-                'cedula': cedula,
-                'message': 'Cédula no encontrada en el Padrón JCE.',
-            })
-    except Exception as e:
+        row = _buscar_en_padron(cedula)
+        # Sin constancia no hay dato: si la auditoría falla, no se entrega la información.
+        _auditar_consulta_cedula(request, cedula, found=row is not None)
+    except Exception as exc:
+        # Sólo el tipo de la excepción: sin texto ni traceback (puede arrastrar datos personales).
+        logger.error('Fallo consultando el padrón JCE: %s', type(exc).__name__)
         return Response(
-            {'error': f'Error consultando el Padrón: {str(e)}'},
+            {'detail': 'No se pudo consultar el padrón.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+    if row is None:
+        return Response({
+            'found': False,
+            'cedula': cedula,
+            'message': 'Cédula no encontrada en el Padrón JCE.',
+        })
+
+    cedula_raw, nombres, apellido1, apellido2, fecha_nac, sexo, estado_civil, lugar_nac = row
+    nombres = nombres or ''
+    apellido1 = apellido1 or ''
+    apellido2 = apellido2 or ''
+    cedula_fmt = cedula_raw
+    if len(cedula_raw) == 11:
+        cedula_fmt = f'{cedula_raw[:3]}-{cedula_raw[3:10]}-{cedula_raw[10]}'
+
+    nombre_parts = nombres.split()
+    first_name = nombre_parts[0].title() if nombre_parts else ''
+    middle_name = ' '.join(nombre_parts[1:]).title() if len(nombre_parts) > 1 else ''
+    apellidos = f"{apellido1.title()}{' ' + apellido2.title() if apellido2.strip() else ''}"
+
+    return Response({
+        'found': True,
+        'cedula': cedula_fmt,
+        'cedula_raw': cedula_raw,
+        'nombres': nombres.title(),
+        'first_name': first_name,
+        'middle_name': middle_name,
+        'apellido1': apellido1.title(),
+        'apellido2': apellido2.title().strip(),
+        'last_name': apellidos,
+        'nombre_completo': f"{nombres.title()} {apellidos}",
+        'fecha_nacimiento': str(fecha_nac) if fecha_nac else None,
+        'sexo': (sexo or '').strip() or None,
+        'estado_civil': (estado_civil or '').strip() or None,
+        'lugar_nacimiento': (lugar_nac or '').strip() or None,
+        'source': 'padron_jce',
+    })
 
 
 @api_view(['POST'])

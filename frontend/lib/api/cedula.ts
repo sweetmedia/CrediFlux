@@ -16,6 +16,9 @@ export interface CedulaLookupResult {
   last_name?: string;
   nombre_completo?: string;
   fecha_nacimiento?: string | null;
+  sexo?: 'M' | 'F' | null;
+  estado_civil?: string | null;
+  lugar_nacimiento?: string | null;
   source?: string;
   message?: string;
 }

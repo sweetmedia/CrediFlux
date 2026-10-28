@@ -176,6 +176,9 @@ export default function NewCustomerPage() {
             if (jceResult.fecha_nacimiento) {
               setValue('date_of_birth', jceResult.fecha_nacimiento);
             }
+            if (jceResult.sexo === 'M' || jceResult.sexo === 'F') {
+              setValue('gender', jceResult.sexo);
+            }
 
             toast.success(`Encontrado: ${jceResult.nombre_completo}`, {
               id: 'cedula-lookup',

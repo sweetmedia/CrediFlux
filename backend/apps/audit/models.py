@@ -38,6 +38,7 @@ class AuditLog(models.Model):
         ('export', 'Exportar'),
         ('import', 'Importar'),
         ('config_change', 'Cambio de Configuracion'),
+        ('cedula_lookup', 'Consulta de Cedula'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
