@@ -4,7 +4,9 @@ from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory, force_authenticate
 from rest_framework.views import APIView
 
-from apps.users.authz import PermissionRequired, has_perm, user_permissions
+from apps.users.authz import (
+    PermissionRequired, ViewPermissionRequired, has_perm, invalidate_permissions, user_permissions,
+)
 from apps.users.models import Role, User
 from apps.users.models_roles import ensure_system_roles
 from apps.users.permissions_catalog import ALL_CODES, DEFAULT_ROLE_PERMISSIONS
@@ -76,6 +78,7 @@ def test_permitido_y_metodo_no_mapeado_denegado(roles, user_factory):
     resp = _llamar(u, 'delete')  # no está en el mapa: deniega aun al dueño
     assert resp.status_code == 403
     assert 'required_permission' not in resp.data
+    assert resp.data['detail'] == 'Acción no configurada.'
 
 
 def test_sin_sesion_no_es_403_de_permiso(roles):
@@ -144,3 +147,115 @@ def test_memo_en_la_instancia(roles, user_factory, django_assert_num_queries):
     user_permissions(u)
     with django_assert_num_queries(0):
         user_permissions(u)
+
+
+# --- R12: OPTIONS, huecos del mapa, HEAD, 405 e invalidate_permissions -----------------------
+
+
+def test_head_usa_el_codigo_de_get(roles, user_factory):
+    viewer = user_factory(role='viewer')
+    assert _llamar(viewer, 'head').status_code == 200
+    Role.objects.filter(tenant=roles, key='viewer').update(permissions=[])
+    resp = _llamar(User.objects.get(pk=viewer.pk), 'head')
+    assert resp.status_code == 403
+    assert resp.data['required_permission'] == 'customers.view'
+
+
+def test_options_sin_mapear_pasa_a_cualquier_autenticado(roles, user_factory):
+    sin_nada = user_factory(role='cashier')
+    Role.objects.filter(tenant=roles, key='cashier').update(permissions=[])
+    assert _llamar(User.objects.get(pk=sin_nada.pk), 'options').status_code == 200
+    request = APIRequestFactory().options('/x/')
+    assert VistaMetodos.as_view()(request).status_code in (401, 403)  # sin sesión, no
+
+
+def test_metodo_sin_mapear_deja_warning(roles, user_factory, caplog):
+    u = user_factory(role='admin', is_tenant_owner=True)
+    with caplog.at_level('WARNING', logger='apps.users.authz'):
+        resp = _llamar(u, 'delete')
+    assert resp.status_code == 403
+    assert resp.data == {'detail': 'Acción no configurada.'}
+    assert any('VistaMetodos' in r.getMessage() and 'DELETE' in r.getMessage() for r in caplog.records)
+
+
+def test_metodo_sin_manejador_es_405_no_403(roles, user_factory):
+    u = user_factory(role='viewer')
+    request = APIRequestFactory().put('/x/')  # VistaMetodos no define put
+    force_authenticate(request, user=u)
+    assert VistaMetodos.as_view()(request).status_code == 405
+
+
+class _VistaConMapa(APIView):
+    permission_classes = [ViewPermissionRequired]
+    permission_codes = {'GET': 'loans.view', 'POST': 'loans.create'}
+
+    def get(self, request):
+        return Response({'ok': True})
+
+    post = delete = get
+
+
+def test_view_permission_required_lee_el_mapa_de_la_vista(roles, user_factory, caplog):
+    def llamar(user, metodo):
+        request = getattr(APIRequestFactory(), metodo)('/x/')
+        force_authenticate(request, user=user)
+        return _VistaConMapa.as_view()(request)
+
+    oficial, cajero = user_factory(role='loan_officer'), user_factory(role='cashier')
+    assert llamar(oficial, 'get').status_code == 200
+    assert llamar(oficial, 'head').status_code == 200
+    assert llamar(oficial, 'post').status_code == 200
+    resp = llamar(cajero, 'post')
+    assert resp.status_code == 403 and resp.data['required_permission'] == 'loans.create'
+    with caplog.at_level('WARNING', logger='apps.users.authz'):
+        resp = llamar(oficial, 'delete')
+    assert resp.data == {'detail': 'Acción no configurada.'}
+    assert any('_VistaConMapa' in r.getMessage() for r in caplog.records)
+
+
+def test_view_permission_required_en_un_viewset_por_accion(roles, user_factory, caplog):
+    from rest_framework import viewsets
+
+    class ViewSetConMapa(viewsets.ViewSet):
+        permission_classes = [ViewPermissionRequired]
+        permission_codes = {'list': 'loans.view', 'create': 'loans.create'}
+
+        def list(self, request, **kw):
+            return Response([])
+
+        def create(self, request, **kw):
+            return Response({})
+
+        def destroy(self, request, pk=None):
+            return Response(status=204)
+
+    def llamar(user, metodo, actions):
+        request = getattr(APIRequestFactory(), metodo)('/x/')
+        force_authenticate(request, user=user)
+        return ViewSetConMapa.as_view(actions)(request, pk='1')
+
+    oficial, viewer = user_factory(role='loan_officer'), user_factory(role='viewer')
+    assert llamar(viewer, 'get', {'get': 'list'}).status_code == 200
+    assert llamar(viewer, 'options', {'get': 'list', 'post': 'create'}).status_code == 200
+    resp = llamar(viewer, 'post', {'get': 'list', 'post': 'create'})
+    assert resp.status_code == 403 and resp.data['required_permission'] == 'loans.create'
+    assert llamar(oficial, 'post', {'get': 'list', 'post': 'create'}).status_code == 200
+    with caplog.at_level('WARNING', logger='apps.users.authz'):
+        resp = llamar(oficial, 'delete', {'delete': 'destroy'})
+    assert resp.status_code == 403 and resp.data == {'detail': 'Acción no configurada.'}
+    assert any('acción destroy' in r.getMessage() for r in caplog.records)
+    # Método sin acción enrutada: 405 de DRF, sin warning.
+    caplog.clear()
+    with caplog.at_level('WARNING', logger='apps.users.authz'):
+        assert llamar(oficial, 'put', {'get': 'list'}).status_code == 405
+    assert not caplog.records
+
+
+def test_invalidate_permissions_olvida_el_memo(roles, user_factory):
+    u = user_factory(role='viewer')
+    assert has_perm(u, 'customers.view')
+    Role.objects.filter(tenant=roles, key='viewer').update(permissions=[])
+    assert has_perm(u, 'customers.view')  # memo de la instancia
+    invalidate_permissions(u)
+    assert not has_perm(u, 'customers.view')
+    invalidate_permissions(u)  # sin memo: no falla
