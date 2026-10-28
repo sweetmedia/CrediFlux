@@ -112,6 +112,25 @@ ufw delete allow 8625/tcp
 - Revisar su política de préstamos en Configuración. Los defaults de tenants nuevos son estrictos:
   cédula y aprobación de desembolso obligatorias, tasa máxima del 36 % anual.
 
+## 5b. Padrón de la JCE (D5)
+
+El padrón vive en `public.padron_jce` y se carga con un comando, todo o nada: si el archivo trae
+una línea con otro número de columnas, una cédula que no sea de 11 dígitos o un sexo distinto de
+M/F, no se carga nada y la tabla anterior queda intacta. Archivo `|`-delimitado, UTF-8, sin cabecera.
+
+```bash
+cd /opt/crediflux-prod
+C="docker compose -f docker-compose.prod.yml --env-file .env.production"
+$C cp /opt/crediflux/data/padron_extract.csv backend:/tmp/padron_extract.csv
+# 1) validar sin tocar la tabla
+$C exec backend python manage.py load_padron_jce /tmp/padron_extract.csv --dry-run
+# 2) cargar (reemplaza el contenido anterior; ~7,9 M de filas)
+$C exec backend python manage.py load_padron_jce /tmp/padron_extract.csv
+$C exec backend rm /tmp/padron_extract.csv
+```
+
+Es un dato de referencia pesado (550 MB): no va en el repo ni en los backups de media.
+
 ## 6. Comprobaciones después de subir
 
 Sin carga y sin datos reales:
