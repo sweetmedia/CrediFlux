@@ -27,7 +27,8 @@ class Migration(migrations.Migration):
                 (
                     "key",
                     models.SlugField(
-                        help_text="Clave del rol (la que guarda User.role)."
+                        help_text="Clave del rol (la que guarda User.role).",
+                        max_length=30,
                     ),
                 ),
                 ("name", models.CharField(max_length=80)),

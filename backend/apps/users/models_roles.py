@@ -19,7 +19,8 @@ class Role(models.Model):
         related_name='roles',
         help_text='Financiera dueña del rol.',
     )
-    key = models.SlugField(max_length=50, help_text='Clave del rol (la que guarda User.role).')
+    # 30 = User.role (CharField(30)): la clave se guarda ahí.
+    key = models.SlugField(max_length=30, help_text='Clave del rol (la que guarda User.role).')
     name = models.CharField(max_length=80)
     description = models.TextField(blank=True, default='')
     is_system = models.BooleanField(
@@ -46,6 +47,7 @@ class Role(models.Model):
         desconocidos = sorted(set(self.permissions) - ALL_CODES)
         if desconocidos:
             raise ValidationError({'permissions': f'Códigos de permiso desconocidos: {", ".join(desconocidos)}.'})
+        self.permissions = sorted(set(self.permissions))  # sin duplicados, orden estable
 
 
 def crear_roles_de_sistema(tenant, role_model=Role):

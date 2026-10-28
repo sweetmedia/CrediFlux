@@ -119,6 +119,7 @@ def test_ensure_system_roles_crea_los_8_con_sus_defaults(public_schema):
     from apps.users.permissions_catalog import DEFAULT_ROLE_PERMISSIONS
 
     financiera = _financiera('roles_a')
+    Role.objects.filter(tenant=financiera).delete()  # sin la señal del alta
     ensure_system_roles(financiera)
 
     roles = {r.key: r for r in Role.objects.filter(tenant=financiera)}
@@ -165,6 +166,27 @@ def test_role_rechaza_codigos_fuera_del_catalogo(public_schema):
 
 
 @pytest.mark.django_db
+def test_role_clean_quita_duplicados_y_ordena(public_schema):
+    from apps.users.models import Role
+
+    rol = Role(tenant=_financiera('roles_dup'), key='dup', name='Dup',
+               permissions=['loans.view', 'customers.view', 'loans.view'])
+    rol.full_clean()
+    assert rol.permissions == ['customers.view', 'loans.view']
+
+
+@pytest.mark.django_db
+def test_clave_de_rol_cabe_en_user_role(public_schema):
+    from apps.users.models import Role, User
+
+    assert Role._meta.get_field('key').max_length == User._meta.get_field('role').max_length == 30
+    rol = Role(tenant=_financiera('roles_len'), key='x' * 31, name='Larga')
+    with pytest.raises(ValidationError) as exc:
+        rol.full_clean()
+    assert 'key' in exc.value.message_dict
+
+
+@pytest.mark.django_db
 def test_mismo_rol_en_dos_financieras_son_filas_distintas(public_schema):
     from apps.users.models import Role
 
@@ -193,8 +215,68 @@ def test_clave_unica_por_financiera(public_schema):
 
 
 # ---------------------------------------------------------------------------
-# Dónde se crean: registro, aprovisionamiento, migración de datos
+# Dónde se crean: cualquier alta (señal), registro, admin, aprovisionamiento,
+# init_public_tenant, migración de datos
 # ---------------------------------------------------------------------------
+
+
+def _claves(tenant):
+    from apps.users.models import Role
+
+    return set(Role.objects.filter(tenant=tenant).values_list('key', flat=True))
+
+
+@pytest.mark.django_db
+def test_crear_un_tenant_directamente_crea_sus_roles(public_schema, monkeypatch):
+    from apps.tenants.models import Tenant
+
+    monkeypatch.setattr(Tenant, 'auto_create_schema', False)  # sin CREATE SCHEMA en el test
+
+    financiera = Tenant(schema_name='roles_directo', name='d', business_name='d', email='d@f.test')
+    financiera.save()
+    assert _claves(financiera) == SYSTEM_ROLE_KEYS
+
+    otra = Tenant.objects.create(schema_name='roles_create', name='c', business_name='c', email='c@f.test',
+                                 provisioning_pending=True, is_active=False)
+    assert _claves(otra) == SYSTEM_ROLE_KEYS
+
+
+@pytest.mark.django_db
+def test_crear_un_tenant_desde_el_admin_crea_sus_roles(public_schema):
+    from django.contrib import admin
+    from django.test import RequestFactory
+
+    from apps.tenants.models import Tenant
+
+    financiera = Tenant(schema_name='roles_admin', name='a', business_name='a', email='a@f.test',
+                        provisioning_pending=True, is_active=False)  # save_model no le crea schema
+    request = RequestFactory().post('/admin/tenants/tenant/add/')
+    admin.site._registry[Tenant].save_model(request, financiera, form=None, change=False)
+    assert _claves(financiera) == SYSTEM_ROLE_KEYS
+
+
+@pytest.mark.django_db
+def test_guardar_un_tenant_existente_no_recrea_roles_borrados(public_schema):
+    from apps.users.models import Role
+
+    financiera = _financiera('roles_resave')
+    Role.objects.filter(tenant=financiera, key='viewer').delete()
+    financiera.name = 'otro nombre'
+    financiera.save()
+    assert 'viewer' not in _claves(financiera)  # la señal sólo actúa en el alta
+
+
+@pytest.mark.django_db
+def test_init_public_tenant_deja_los_roles_del_tenant_publico(public_schema):
+    from django.core.management import call_command
+
+    from apps.tenants.models import Tenant
+    from apps.users.models import Role
+
+    publico = Tenant.objects.get(schema_name='public')
+    Role.objects.filter(tenant=publico).delete()  # como un public creado antes de D6
+    call_command('init_public_tenant', '--domain', 'localhost', stdout=__import__('io').StringIO())
+    assert _claves(publico) == SYSTEM_ROLE_KEYS
 
 
 @pytest.mark.django_db
@@ -223,6 +305,7 @@ def test_aprovisionar_un_pendiente_asegura_sus_roles(public_schema, monkeypatch)
 
     financiera = _financiera('roles_pend')
     Tenant.objects.filter(pk=financiera.pk).update(provisioning_pending=True, is_active=False)
+    Role.objects.filter(tenant=financiera).delete()  # pendiente registrado antes de D6
     monkeypatch.setattr(Tenant, 'create_schema', lambda self, *a, **kw: None)
 
     assert provision_pending_tenant(financiera.pk) is True
@@ -248,5 +331,6 @@ def test_la_funcion_de_la_migracion_crea_los_roles_de_cada_tenant(public_schema)
     from apps.users.models_roles import crear_roles_de_sistema_para_todos
 
     financiera = _financiera('roles_mig')
+    Role.objects.filter(tenant=financiera).delete()  # tenant anterior a D6
     crear_roles_de_sistema_para_todos(django_apps.get_model('tenants', 'Tenant'), Role)
     assert set(Role.objects.filter(tenant=financiera).values_list('key', flat=True)) == SYSTEM_ROLE_KEYS
