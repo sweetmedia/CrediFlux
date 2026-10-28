@@ -9,14 +9,13 @@ from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-
-from apps.users.authz import ViewPermissionRequired
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 from apps.core.admin_mixins import is_platform_admin
 from apps.core.net import client_network_key
+from apps.users.authz import ViewPermissionRequired
 from .serializers import (
     TenantRegistrationSerializer,
     TenantSerializer,
@@ -347,7 +346,8 @@ class TenantSettingsView(APIView):
     """
 
     permission_classes = [IsAuthenticated, ViewPermissionRequired]
-    permission_codes = {'GET': 'settings.view', 'PUT': 'settings.edit', 'PATCH': 'settings.edit'}
+    # GET abierto a todo miembro: el shell lo lee para la identidad de la financiera (R13).
+    permission_codes = {'GET': None, 'PUT': 'settings.edit', 'PATCH': 'settings.edit'}
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def _get_effective_tenant(self, request):

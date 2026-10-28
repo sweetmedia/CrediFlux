@@ -8,11 +8,9 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-
-from apps.users.authz import MENSAJE_DENEGADO, has_perm
 
 from .permissions import CanManageBilling
 
@@ -443,7 +441,8 @@ class ECFProviderViewSet(viewsets.ViewSet):
     """
     permission_classes = [IsAuthenticated, CanManageBilling]
     permission_codes = {
-        'config': 'billing.view',
+        # Una acción, dos códigos: leer billing.view; escribir sólo billing.config (sin exigir view).
+        'config': {'GET': 'billing.view', 'PATCH': 'billing.config'},
         'provider_status': 'billing.view',
         'submit_invoice': 'billing.submit',
         'query_invoice': 'billing.submit',
@@ -464,11 +463,6 @@ class ECFProviderViewSet(viewsets.ViewSet):
 
         if request.method == 'GET':
             return Response(ECFProviderConfigSerializer(tenant).data)
-
-        # El mapa deja pasar GET y PATCH con billing.view (misma acción `config`); escribir
-        # exige además billing.config, que es lo que nombra el 403.
-        if not has_perm(request.user, 'billing.config'):
-            raise PermissionDenied({'detail': MENSAJE_DENEGADO, 'required_permission': 'billing.config'})
 
         serializer = ECFProviderConfigSerializer(tenant, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

@@ -1,5 +1,7 @@
 """Resolutor de permisos y PermissionRequired (D6, Task 8)."""
 import pytest
+from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory, force_authenticate
 from rest_framework.views import APIView
@@ -259,3 +261,51 @@ def test_invalidate_permissions_olvida_el_memo(roles, user_factory):
     invalidate_permissions(u)
     assert not has_perm(u, 'customers.view')
     invalidate_permissions(u)  # sin memo: no falla
+
+
+class _VistaAbiertaYPorMetodo(APIView):
+    permission_classes = [ViewPermissionRequired]
+    permission_codes = {'GET': None, 'PATCH': 'loans.edit'}
+
+    def get(self, request):
+        return Response({'ok': True})
+
+    patch = delete = get
+
+
+def test_none_en_el_mapa_es_solo_autenticado_y_lo_ausente_sigue_negado(roles, user_factory):
+    def llamar(user, metodo):
+        request = getattr(APIRequestFactory(), metodo)('/x/')
+        force_authenticate(request, user=user)
+        return _VistaAbiertaYPorMetodo.as_view()(request)
+
+    Role.objects.filter(tenant=roles, key='viewer').update(permissions=[])
+    sin_nada = user_factory(role='viewer')
+    assert llamar(sin_nada, 'get').status_code == 200
+    assert llamar(sin_nada, 'head').status_code == 200
+    resp = llamar(sin_nada, 'patch')
+    assert resp.status_code == 403 and resp.data['required_permission'] == 'loans.edit'
+    assert llamar(sin_nada, 'delete').data == {'detail': 'Acción no configurada.'}
+
+
+class _ViewSetPorMetodo(viewsets.ViewSet):
+    permission_classes = [ViewPermissionRequired]
+    permission_codes = {'config': {'GET': 'loans.view', 'PATCH': 'loans.edit'}}
+
+    @action(detail=False, methods=['get', 'patch', 'post'])
+    def config(self, request):
+        return Response({'ok': True})
+
+
+def test_codigo_por_metodo_dentro_de_una_accion(roles, user_factory):
+    def llamar(user, metodo):
+        request = getattr(APIRequestFactory(), metodo)('/x/')
+        force_authenticate(request, user=user)
+        return _ViewSetPorMetodo.as_view({'get': 'config', 'patch': 'config', 'post': 'config'})(request)
+
+    cajero = user_factory(role='cashier')  # loans.view sí, loans.edit no
+    assert llamar(cajero, 'get').status_code == 200
+    resp = llamar(cajero, 'patch')
+    assert resp.status_code == 403 and resp.data['required_permission'] == 'loans.edit'
+    assert llamar(cajero, 'post').data == {'detail': 'Acción no configurada.'}
+    assert llamar(user_factory(role='loan_officer'), 'patch').status_code == 200

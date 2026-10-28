@@ -53,6 +53,11 @@ def invalidate_permissions(user) -> None:
         user.__dict__.pop('_cf_perms', None)
 
 
+# `None` explícito en un mapa de ViewPermissionRequired: la acción sólo exige estar autenticado.
+ABIERTO = object()
+_FALTA = object()
+
+
 def _sin_manejador(request, view) -> bool:
     """¿DRF responderá 405? Mismo criterio que APIView.dispatch: método fuera de
     `http_method_names` o sin manejador (en un viewset, sin acción enrutada para ese método)."""
@@ -97,6 +102,8 @@ class PermissionRequired(BasePermission):
         if _sin_manejador(request, view):
             return True
         code = self._code(request, view)
+        if code is ABIERTO:
+            return True
         if code is None:
             return self._sin_mapear(request, view)
         if has_perm(user, code):
@@ -130,10 +137,32 @@ class ViewPermissionRequired(PermissionRequired):
 
     En un viewset las claves son acciones (`{'list': 'loans.view', 'approve': ...}`); en una
     APIView, métodos HTTP. Así cada vista declara su mapa completo junto a su código.
+
+    El valor de una clave puede ser:
+    * un código del catálogo: se exige;
+    * `None`: la acción sólo exige sesión, sin código (p. ej. la lectura de los ajustes de la
+      financiera, que el shell de la app necesita para cualquier miembro, R13). Es explícito:
+      una clave ausente sigue negándose con «Acción no configurada.»;
+    * un dict método → código, para una acción que atiende varios métodos con códigos
+      distintos (`{'config': {'GET': 'billing.view', 'PATCH': 'billing.config'}}`); un
+      método que el dict no nombra se niega como cualquier hueco del mapa.
     """
 
     def _code(self, request, view):
         mapa = getattr(view, 'permission_codes', None) or {}
         if hasattr(view, 'action'):
-            return mapa.get(view.action)
-        return _codigo_por_metodo(mapa, request)
+            entrada = mapa.get(view.action, _FALTA)
+        else:
+            entrada = _buscar(mapa, request)
+        if isinstance(entrada, dict):
+            entrada = _buscar(entrada, request)
+        if entrada is _FALTA:
+            return None
+        return ABIERTO if entrada is None else entrada
+
+
+def _buscar(mapa, request):
+    metodo = request.method.upper()
+    if metodo == 'HEAD' and 'HEAD' not in mapa:
+        metodo = 'GET'
+    return mapa.get(metodo, _FALTA)

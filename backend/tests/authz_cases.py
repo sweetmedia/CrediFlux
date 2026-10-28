@@ -459,7 +459,7 @@ CODE = {
     'certificado_leer': 'billing.view',
     'proveedor_ecf_config_leer': 'billing.view',  # billing.config queda para escribir
     'equipo_leer': 'team.view',
-    'ajustes_tenant_leer': 'settings.view',
+    'ajustes_tenant_leer': None,  # regla propia: identidad de la financiera (R13)
     'ia_config_leer': 'settings.view',
     'auditoria_detalle': 'settings.audit',  # fuera de alcance → 404 (DENEGADO)
 

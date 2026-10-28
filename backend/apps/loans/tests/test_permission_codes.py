@@ -4,60 +4,30 @@ La matriz (tests/test_authz_matrix.py) fija que los roles de sistema siguen pudi
 aquí se comprueba que el chequeo mira el código y no el rol: quitar o dar un código a un Role
 cambia el resultado. Y que cada acción de cada viewset tiene su código (R12 niega lo demás).
 """
-import inspect
 from decimal import Decimal
 
 import pytest
 from django.contrib.auth.models import Permission
 from django.test import Client
 from django.urls import reverse
-from rest_framework import viewsets
 
 from apps.loans import views, views_geolocation
-from apps.users.models import Role
+from tests.authz_helpers import cambiar_rol, comprobar_completitud, viewsets_de
 
 HOST = 'tenant.test.localhost'
-ACCIONES_CRUD = ('list', 'retrieve', 'create', 'update', 'partial_update', 'destroy')
-METODO_DE = {'list': 'get', 'retrieve': 'get', 'create': 'post', 'update': 'put',
-             'partial_update': 'patch', 'destroy': 'delete'}
 
 
-def _viewsets():
-    for modulo in (views, views_geolocation):
-        for _, cls in inspect.getmembers(modulo, inspect.isclass):
-            if issubclass(cls, viewsets.GenericViewSet) and cls.__module__ == modulo.__name__:
-                yield cls
-
-
-def _acciones(cls):
-    """Acciones enrutables: las CRUD que la clase define (y su método HTTP admite) y las @action."""
-    acciones = {
-        a for a in ACCIONES_CRUD
-        if hasattr(cls, a) and METODO_DE[a] in cls.http_method_names
-    }
-    return acciones | {a.__name__ for a in cls.get_extra_actions()}
-
-
-@pytest.mark.parametrize('cls', list(_viewsets()), ids=lambda c: c.__name__)
+@pytest.mark.parametrize('cls', viewsets_de(views, views_geolocation), ids=lambda c: c.__name__)
 def test_cada_accion_de_cada_viewset_tiene_su_codigo(cls):
-    from apps.users.permissions_catalog import ALL_CODES
-
-    mapa = getattr(cls, 'permission_codes', None)
-    assert mapa, f'{cls.__name__} sin permission_codes'
-    assert set(mapa) == _acciones(cls), set(mapa) ^ _acciones(cls)
-    assert set(mapa.values()) <= ALL_CODES
+    comprobar_completitud(cls)
 
 
 def _quitar(tenant, rol, *codigos):
-    role = Role.objects.get(tenant=tenant, key=rol)
-    role.permissions = [c for c in role.permissions if c not in codigos]
-    role.save()
+    cambiar_rol(tenant, rol, quitar=codigos)
 
 
 def _dar(tenant, rol, *codigos):
-    role = Role.objects.get(tenant=tenant, key=rol)
-    role.permissions = sorted(set(role.permissions) | set(codigos))
-    role.save()
+    cambiar_rol(tenant, rol, dar=codigos)
 
 
 def test_aprobar_mira_loans_approve_no_el_rol(api_client, user_factory, loan_factory, tenant_schema):
