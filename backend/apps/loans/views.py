@@ -21,6 +21,8 @@ from django.db import transaction
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
 from .models_guarantors import Guarantor
+from .services.guarantors import guarantor_of
+from .utils_ids import normalize_id_number
 from .serializers import (
     CustomerSerializer, CustomerListSerializer,
     CustomerDocumentSerializer, CustomerDocumentListSerializer,
@@ -92,6 +94,22 @@ class CustomerViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return CustomerListSerializer
         return CustomerSerializer
+
+    @action(detail=False, methods=['get'], url_path='guarantor-check')
+    def guarantor_check(self, request):
+        """¿Esta cédula es de un cliente y garantiza préstamos de otros?"""
+        id_number = (request.query_params.get('id_number') or '').strip()
+        digits = normalize_id_number(id_number)
+        if not digits:
+            raise ValidationError({'id_number': 'Indica la cédula a consultar.'})
+        customer = Customer.objects.annotate(
+            _digits=Replace(Replace('id_number', Value('-'), Value('')), Value(' '), Value(''))
+        ).filter(_digits=digits).first()
+        return Response({
+            'is_customer': customer is not None,
+            'customer_id': str(customer.id) if customer else None,
+            'guarantor_of': guarantor_of(id_number, exclude_customer_id=customer.id if customer else None),
+        })
 
     @action(detail=True, methods=['get'])
     def loans(self, request, pk=None):

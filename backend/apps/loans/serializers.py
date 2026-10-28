@@ -12,6 +12,8 @@ from .models_contracts import ContractTemplate, Contract
 from .models_guarantors import Guarantor
 from apps.core.media import SignedFilesModelSerializer
 from .fields import TenantUserField
+from .utils_ids import normalize_id_number  # noqa: F401  (reexportada)
+from .services.guarantors import guarantor_of
 from .policy import (
     LOAN_LIFECYCLE_FIELDS, LOAN_LOCKED_FIELDS, LOAN_TERM_FIELDS, OPEN_CONTRACT_MESSAGE,
     loan_has_open_contract, loan_terms_locked, validate_origination,
@@ -20,11 +22,6 @@ from .policy import (
 # `id_number` del cliente: sin caracteres que una hoja de cálculo interprete (=, +, @...).
 ID_NUMBER_RE = re.compile(r'^[A-Za-z0-9 -]+$')
 ID_NUMBER_DIGITS = {'cedula': 11, 'rnc': 9}
-
-
-def normalize_id_number(value):
-    """id_number sin guiones ni espacios, para comparar valores equivalentes."""
-    return re.sub(r'[-\s]', '', value or '')
 
 
 class MoneyAmountField(serializers.DecimalField):
@@ -121,6 +118,7 @@ class CustomerSerializer(SignedFilesModelSerializer):
     total_loans = serializers.SerializerMethodField()
     active_loans = serializers.SerializerMethodField()
     documents = CustomerDocumentListSerializer(many=True, read_only=True)
+    guarantor_of = serializers.SerializerMethodField()
 
     # Convert Money fields to decimal for frontend
     monthly_income = serializers.SerializerMethodField()
@@ -135,9 +133,12 @@ class CustomerSerializer(SignedFilesModelSerializer):
             'id_type', 'id_number', 'id_expiry_date', 'id_document',
             'employment_status', 'employer_name', 'occupation', 'employment_start_date', 'monthly_income',
             'credit_score', 'status', 'notes', 'photo',
-            'total_loans', 'active_loans', 'documents', 'created_at', 'updated_at'
+            'total_loans', 'active_loans', 'documents', 'guarantor_of', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'customer_id', 'created_at', 'updated_at']
+
+    def get_guarantor_of(self, obj):
+        return guarantor_of(obj.id_number, exclude_customer_id=obj.id)
 
     def get_total_loans(self, obj):
         return obj.loans.count()
