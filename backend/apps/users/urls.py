@@ -2,6 +2,9 @@
 User authentication and management URLs
 """
 from django.urls import path
+from rest_framework.routers import SimpleRouter
+
+from .views_roles import PermissionCatalogView, RoleViewSet
 from .views import (
     # Email Verification
     EmailVerificationSendView,
@@ -28,6 +31,9 @@ from .views import (
 )
 
 app_name = 'users'
+
+router = SimpleRouter()
+router.register('roles', RoleViewSet, basename='role')
 
 urlpatterns = [
     # ========================================================================
@@ -62,6 +68,11 @@ urlpatterns = [
     path('team/<int:pk>/', TeamMemberDetailView.as_view(), name='team-detail'),
 
     # ========================================================================
+    # ROLES Y CATÁLOGO DE PERMISOS (D6)
+    # ========================================================================
+    path('permissions/catalog/', PermissionCatalogView.as_view(), name='permissions-catalog'),
+
+    # ========================================================================
     # TWO-FACTOR AUTHENTICATION
     # ========================================================================
     path('auth/2fa/setup/', TwoFactorSetupView.as_view(), name='2fa-setup'),
@@ -70,3 +81,5 @@ urlpatterns = [
     path('auth/2fa/disable/', TwoFactorDisableView.as_view(), name='2fa-disable'),
     path('auth/2fa/backup-codes/', TwoFactorBackupCodesView.as_view(), name='2fa-backup-codes'),
 ]
+
+urlpatterns += router.urls

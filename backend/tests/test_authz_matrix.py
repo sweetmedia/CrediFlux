@@ -143,6 +143,17 @@ def _dueno_destino(ctx):
     return ctx['user_factory'](role='admin', is_tenant_owner=True)
 
 
+def _rol_propio(ctx):
+    """Rol propio de la financiera con un código que tienen todos los que pasan el permiso;
+    la ruta usa su clave."""
+    from apps.users.models import Role
+
+    return Role.objects.create(
+        tenant=ctx['tenant'], key=f'rol-matriz-{next(_seq)}', name='Rol de la matriz',
+        permissions=['loans.view'],
+    ).key
+
+
 def _visita_ajena(ctx):
     from apps.loans.models_geolocation import CollectorVisit
 
@@ -187,6 +198,7 @@ OBJETOS = {
     'turno_cerrado': _turno_cerrado,
     'usuario_destino': _usuario_destino,
     'dueno_destino': _dueno_destino,
+    'rol_propio': _rol_propio,
     'visita_ajena': _visita_ajena,
     'ubicacion_ajena': _ubicacion_ajena,
     'registro_auditoria': _registro_auditoria,

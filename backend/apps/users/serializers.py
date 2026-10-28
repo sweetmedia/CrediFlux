@@ -23,6 +23,7 @@ from . import lockout
 from .authentication import token_revoked
 from .authz import (
     codigo_que_falta, denegar, exigir_gestion, has_perm, invalidate_permissions, puede_dar_admin,
+    user_permissions,
 )
 from .models_roles import Role
 from .tokens import (
@@ -94,6 +95,8 @@ class UserSerializer(SignedFilesModelSerializer):
     """Basic user serializer for displaying user information"""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     tenant_name = serializers.CharField(read_only=True)
+    # Sólo del usuario actual (perfil y login): el equipo usa TeamMemberListSerializer, sin esto.
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -102,13 +105,16 @@ class UserSerializer(SignedFilesModelSerializer):
             'phone', 'avatar', 'bio', 'job_title', 'department', 'role',
             'tenant', 'tenant_name', 'is_tenant_owner', 'is_staff',
             'is_superuser', 'email_verified', 'receive_notifications',
-            'is_2fa_enabled', 'created_at', 'last_login_at'
+            'is_2fa_enabled', 'created_at', 'last_login_at', 'permissions',
         ]
         read_only_fields = [
             'id', 'email', 'username', 'role', 'tenant', 'is_tenant_owner',
             'is_staff', 'is_superuser', 'email_verified', 'is_2fa_enabled',
             'created_at', 'last_login_at'
         ]
+
+    def get_permissions(self, obj):
+        return sorted(user_permissions(obj))
 
 
 def _frontend_url_for(user):

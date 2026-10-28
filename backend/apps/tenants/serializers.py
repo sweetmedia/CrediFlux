@@ -18,6 +18,7 @@ from apps.core.admin_mixins import is_platform_admin
 from apps.core.media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, SignedImageField, signed_media_url
 from apps.core.net import client_registration_key
 from apps.users import lockout
+from apps.users.authz import user_permissions
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
 
@@ -761,6 +762,8 @@ class TenantLoginSerializer(serializers.Serializer):
                 'is_staff': user.is_staff,
                 'is_superuser': user.is_superuser,
                 'is_2fa_enabled': user.is_2fa_enabled,
+                # Lo guarda AuthContext para decidir qué muestra el frontend (D6).
+                'permissions': sorted(user_permissions(user)),
             }
         return None
 

@@ -115,6 +115,13 @@ CASES = [
     # El dueño no se desactiva (users/serializers.py:700)
     ('dueno_desactivar', 'PATCH', '/api/users/team/{dueno_destino}/', {'is_active': False}),
     ('usuario_reemplazar', 'PUT', '/api/users/team/{usuario_destino}/', {}),  # users/views.py:623
+    # --- Roles y catálogo (users/views_roles.py, Task 12). Cuerpos inválidos: si el permiso
+    # deja pasar, 400 (alta/edición) o 404 (borrar una clave que no existe), antes de R14.
+    ('rol_leer', 'GET', '/api/users/roles/', {}),
+    ('rol_crear', 'POST', '/api/users/roles/', {}),
+    ('rol_editar', 'PATCH', '/api/users/roles/{rol_propio}/', {'permissions': 'no-es-lista'}),
+    ('rol_borrar', 'DELETE', '/api/users/roles/no-existe/', {}),
+    ('catalogo_leer', 'GET', '/api/users/permissions/catalog/', {}),
 
     # =====================================================================================
     # Lecturas (cada una tendrá su `.view`). Abiertas a todo autenticado salvo donde se indica.
@@ -278,6 +285,11 @@ EXPECTED = {
     'dueno_cambiar_rol': _matrix(OWNER_ADMIN, {400}),
     'dueno_desactivar': _matrix(OWNER_ADMIN, {400}),
     'usuario_reemplazar': _matrix(OWNER_ADMIN, {200}),
+    'rol_leer': _matrix(EVERYONE, {200}),
+    'rol_crear': _matrix(OWNER_ADMIN, {400}),
+    'rol_editar': _matrix(OWNER_ADMIN, {400}),
+    'rol_borrar': _matrix(OWNER_ADMIN, {404}),
+    'catalogo_leer': _matrix(EVERYONE, {200}),
 
     # Lecturas
     'prestamo_leer': _matrix(EVERYONE, {200}),
@@ -438,6 +450,11 @@ CODE = {
     'dueno_cambiar_rol': 'team.assign_roles',
     'dueno_desactivar': 'team.edit',  # PATCH is_active
     'usuario_reemplazar': 'team.edit',
+    'rol_leer': 'team.view',
+    'rol_crear': 'team.assign_roles',
+    'rol_editar': 'team.assign_roles',
+    'rol_borrar': 'team.assign_roles',
+    'catalogo_leer': None,  # sólo sesión: el editor de roles y el shell lo leen
 
     # Lecturas
     'prestamo_leer': 'loans.view',
