@@ -21,6 +21,9 @@ from django.db import transaction
 from .models import Customer, CustomerDocument, Loan, LoanSchedule, LoanPayment, Collateral
 from .models_collections import CollectionReminder, CollectionContact
 from .models_guarantors import Guarantor
+from .services.guarantors import guarantor_of
+from apps.users.authz import has_perm
+from .utils_ids import normalize_id_number
 from .serializers import (
     CustomerSerializer, CustomerListSerializer,
     CustomerDocumentSerializer, CustomerDocumentListSerializer,
@@ -31,7 +34,7 @@ from .serializers import (
     LoanCalculatorInputSerializer, LoanCalculatorResultSerializer,
     GuarantorSerializer, GuarantorListSerializer,
 )
-from .permissions import CanApproveLoan, CanManageCollections, CanManageLoans, CanRegisterPayments
+from .permissions import CanManageCollections, CanManageLoans, CanRegisterPayments
 from .policy import (
     LOAN_STATUSES_BEFORE_DISBURSEMENT, OPEN_CONTRACT_MESSAGE, OPEN_CONTRACT_STATUSES, TERMINAL_CONTRACT_STATUSES,
     contract_deletable, loan_has_open_contract, validate_approval,
@@ -50,6 +53,19 @@ class CustomerViewSet(viewsets.ModelViewSet):
     """
     queryset = Customer.objects.all()
     permission_classes = [IsAuthenticated, CanManageLoans]
+    permission_codes = {
+        'list': 'customers.view',
+        'retrieve': 'customers.view',
+        'create': 'customers.create',
+        'update': 'customers.edit',
+        'partial_update': 'customers.edit',
+        'destroy': 'customers.delete',
+        'guarantor_check': 'customers.view',
+        'loans': 'loans.view',
+        'statistics': 'customers.view',
+        'statement_pdf': 'customers.statement',
+        'statement_preview': 'customers.statement',
+    }
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'employment_status', 'id_type']
     ordering_fields = ['created_at', 'first_name', 'last_name']
@@ -77,6 +93,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
             Q(customer_id__icontains=search) |
             Q(first_name__icontains=search) |
             Q(last_name__icontains=search) |
+            Q(nickname__icontains=search) |
             Q(email__icontains=search) |
             Q(phone__icontains=search) |
             Q(id_number__icontains=search)
@@ -91,6 +108,27 @@ class CustomerViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return CustomerListSerializer
         return CustomerSerializer
+
+    @action(detail=False, methods=['get'], url_path='guarantor-check')
+    def guarantor_check(self, request):
+        """¿Esta cédula es de un cliente y garantiza préstamos de otros?"""
+        id_number = (request.query_params.get('id_number') or '').strip()
+        digits = normalize_id_number(id_number)
+        if not digits:
+            raise ValidationError({'id_number': 'Indica la cédula a consultar.'})
+        # Si la misma cédula está en dos fichas (otro formato), manda la más antigua.
+        customer = Customer.objects.annotate(
+            _digits=Replace(Replace('id_number', Value('-'), Value('')), Value(' '), Value(''))
+        ).filter(_digits=digits).order_by('created_at', 'pk').first()
+        return Response({
+            'is_customer': customer is not None,
+            'customer_id': str(customer.id) if customer else None,
+            'guarantor_of': guarantor_of(
+                id_number,
+                exclude_customer_id=customer.id if customer else None,
+                con_prestamo=has_perm(request.user, 'loans.view'),
+            ),
+        })
 
     @action(detail=True, methods=['get'])
     def loans(self, request, pk=None):
@@ -154,6 +192,20 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
     """
     queryset = CustomerDocument.objects.select_related('customer', 'verified_by').all()
     permission_classes = [IsAuthenticated, CanManageLoans]
+    # Subir, cambiar o borrar un documento (y marcarlo principal) edita la ficha del cliente.
+    permission_codes = {
+        'list': 'customers.documents.view',
+        'retrieve': 'customers.documents.view',
+        'expired': 'customers.documents.view',
+        'pending_verification': 'customers.documents.view',
+        'create': 'customers.edit',
+        'update': 'customers.edit',
+        'partial_update': 'customers.edit',
+        'destroy': 'customers.edit',
+        'mark_primary': 'customers.edit',
+        'verify': 'customers.documents.verify',
+        'reject': 'customers.documents.verify',
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['customer', 'document_type', 'verification_status', 'is_primary']
     search_fields = ['title', 'description', 'customer__customer_id', 'customer__first_name', 'customer__last_name']
@@ -169,7 +221,7 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
         """Auto-assign created_by user"""
         serializer.save(created_by=self.request.user)
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def verify(self, request, pk=None):
         """
         Verify a customer document.
@@ -196,7 +248,7 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
             'document': serializer.data
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         """
         Reject a customer document.
@@ -354,6 +406,24 @@ class LoanViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, CanManageLoans]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'loan_type', 'customer']
+    # Borrar (sólo pendientes o rechazados) es editar el expediente: no hay loans.delete.
+    # El maker-checker del desembolso es regla aparte (policy.validate_disbursement).
+    permission_codes = {
+        'list': 'loans.view',
+        'retrieve': 'loans.view',
+        'schedule': 'loans.view',
+        'payments': 'payments.view',
+        'balance_report': 'loans.view',
+        'statistics': 'loans.view',
+        'dashboard_statistics': 'loans.view',
+        'create': 'loans.create',
+        'update': 'loans.edit',
+        'partial_update': 'loans.edit',
+        'destroy': 'loans.edit',
+        'approve': 'loans.approve',
+        'reject': 'loans.reject',
+        'disburse': 'loans.disburse',
+    }
     ordering_fields = ['created_at', 'disbursement_date', 'principal_amount']
     ordering = ['-created_at']
 
@@ -454,7 +524,7 @@ class LoanViewSet(viewsets.ModelViewSet):
                 loan.save(update_fields=['payment_amount', 'updated_at'])
                 regenerate_latest_loan_contract(loan)
 
-    @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
+    @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         """
         Approve a loan.
@@ -494,7 +564,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             'loan': serializer.data
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
+    @action(detail=True, methods=['post'])
     def disburse(self, request, pk=None):
         """
         Disburse a loan (mark as active).
@@ -540,7 +610,7 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         return Response({'status': 'loan disbursed', 'contract_id': str(contract.id)})
 
-    @action(detail=True, methods=['post'], permission_classes=[CanApproveLoan])
+    @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         """
         Reject a loan.
@@ -869,12 +939,25 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
     Los pagos son inmutables por la API: no hay PUT/PATCH/DELETE (405). Un pago
     sólo cambia de estado con `confirm`, `cancel` (pendientes) o `reverse`
-    (completados, sólo el dueño del tenant).
+    (completados, con `payments.void` y el TOTP de un dueño o administrador).
     """
     http_method_names = ['get', 'post', 'head', 'options']
     queryset = LoanPayment.objects.select_related('loan', 'schedule').all()
     serializer_class = LoanPaymentSerializer
     permission_classes = [CanRegisterPayments]
+    # PUT/PATCH/DELETE no existen (http_method_names): DRF responde 405 sin mirar el mapa.
+    permission_codes = {
+        'list': 'payments.view',
+        'retrieve': 'payments.view',
+        'receipt_pdf': 'payments.receipt',
+        'receipt_preview': 'payments.receipt',
+        'create': 'payments.create',
+        'confirm': 'payments.void',  # R6
+        'cancel': 'payments.void',
+        # Task 14: además del permiso, la vista exige motivo y el TOTP de un autorizador
+        # (dueño o admin con 2FA de la financiera).
+        'reverse': 'payments.void',
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'payment_method', 'loan']
     search_fields = ['payment_number', 'reference_number', 'loan__loan_number']
@@ -922,7 +1005,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'inline; filename="recibo-{payment.payment_number}.pdf"'
         return response
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
         """
         Confirm a pending payment.
@@ -1018,7 +1101,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
             },
         )
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         """Cancel a pending payment (`reason` opcional, queda en AuditLog)."""
         payment = self.get_object()
@@ -1037,35 +1120,113 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Pago cancelado'})
 
+    def _log_void_auth_failed(self, request, payment, authorizer, attempts):
+        """Traza de un código de autorización fallido (nunca el código)."""
+        from apps.audit.middleware import get_client_ip, get_user_agent
+        from apps.audit.models import AuditLog
+
+        AuditLog.log(
+            tenant=request.tenant,
+            user=request.user,
+            action='payment_void_auth_failed',
+            model_name='LoanPayment',
+            object_id=payment.id,
+            object_repr=str(payment),
+            ip_address=get_client_ip(request),
+            user_agent=get_user_agent(request),
+            extra_data={
+                'authorizer_id': authorizer.id,
+                'authorizer_name': authorizer.get_full_name(),
+                'attempts': attempts,
+                'payment_number': payment.payment_number,
+            },
+        )
+
+    def _authorize_reversal(self, request, payment):
+        """Valida el autorizador y su TOTP. Devuelve (autorizador, None) o (None, Response).
+
+        Orden: autorizador válido (si no, 400 en `authorizer_id` SIN contar fallo) → formato
+        del código (400 sin contar) → intento contado por autorizador (bloqueado → 429 aunque
+        el código sea bueno) → `verify_totp_once` (fallo → 400 con los intentos que quedan y
+        traza en AuditLog; acierto → se borran los fallos).
+        """
+        from apps.users.authorizers import authorizer_or_none
+        from apps.users.lockout import (
+            REVERT_AUTH_FAIL_LIMIT, REVERT_AUTH_LOCK_MESSAGE, authorizer_locked,
+            count_authorizer_attempt, reset_authorizer,
+        )
+        from apps.users.totp import verify_totp_once
+
+        authorizer = authorizer_or_none(request, request.data.get('authorizer_id'))
+        if authorizer is None:
+            return None, Response(
+                {'authorizer_id': [
+                    'Elige un autorizador válido: el dueño o un administrador con 2FA activa.'
+                ]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Bloqueado → 429 siempre, aun con un código mal escrito (que no cuenta fallo).
+        if authorizer_locked(authorizer):
+            return None, Response(
+                {'detail': REVERT_AUTH_LOCK_MESSAGE}, status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        code = str(request.data.get('code') or '').strip()
+        if not re.fullmatch(r'[0-9]{6}', code):
+            return None, Response(
+                {'code': ['Ingresa el código de 6 dígitos del autorizador.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        attempts = count_authorizer_attempt(authorizer)
+        if attempts > REVERT_AUTH_FAIL_LIMIT:
+            return None, Response(
+                {'detail': REVERT_AUTH_LOCK_MESSAGE}, status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        if not verify_totp_once(authorizer, code):
+            self._log_void_auth_failed(request, payment, authorizer, attempts)
+            quedan = REVERT_AUTH_FAIL_LIMIT - attempts
+            return None, Response(
+                {'code': [f'Código incorrecto. Quedan {quedan} intentos.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        reset_authorizer(authorizer)
+        return authorizer, None
+
+    @staticmethod
+    def _reverse_status_error(payment):
+        """400 si el pago no se puede reversar (ya reversado o no completado); si no, None."""
+        if payment.status == 'reversed':
+            return Response(
+                {'error': 'El pago ya ha sido reversado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if payment.status != 'completed':
+            return Response(
+                {'error': 'Solo se pueden reversar pagos completados'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return None
+
     @action(detail=True, methods=['post'])
     def reverse(self, request, pk=None):
         """
         Reverse a completed payment.
         This will reverse the updates made to loan and schedule.
 
-        Exige `reason`; guarda quién, cuándo y por qué en el pago y en AuditLog.
+        Exige `payments.void` (mapa del viewset), `reason` y la autorización de un dueño o
+        administrador con 2FA: `authorizer_id` + `code` (su TOTP de 6 dígitos), aunque quien
+        revierte sea admin. Guarda quién, cuándo, por qué y quién autorizó en el pago y en
+        AuditLog.
         """
         from .signals import reconcile_loan_from_payments
 
-        if not (request.user.is_tenant_owner or request.user.is_superuser):
-            return Response(
-                {'error': 'Solo el dueño de la financiera puede revertir pagos'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         payment = self.get_object()
 
-        if payment.status == 'reversed':
-            return Response(
-                {'error': 'El pago ya ha sido reversado'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if payment.status != 'completed':
-            return Response(
-                {'error': 'Solo se pueden reversar pagos completados'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        status_error = self._reverse_status_error(payment)
+        if status_error is not None:
+            return status_error
 
         reason = (request.data.get('reason') or '').strip()
         if not reason:
@@ -1074,12 +1235,23 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        authorizer, error = self._authorize_reversal(request, payment)
+        if error is not None:
+            return error
+
         from apps.cashbox.services import record_payment_reversal
 
-        loan = payment.loan
-
-        # Mark payment as reversed, then rebuild the loan state from remaining completed payments
+        # Mark payment as reversed, then rebuild the loan state from remaining completed payments.
+        # El estado se vuelve a leer con el pago bloqueado: dos reversos simultáneos (cada uno con
+        # su código válido) pasan la lectura de arriba, pero sólo uno encuentra 'completed' aquí;
+        # sin esto la caja abierta saldría dos veces. La autorización (TOTP) queda fuera del lock.
         with transaction.atomic():
+            payment = LoanPayment.objects.select_for_update().get(pk=payment.pk)
+            status_error = self._reverse_status_error(payment)
+            if status_error is not None:
+                return status_error
+            loan = payment.loan
+
             payment.status = 'reversed'
             payment.reversed_at = timezone.now()
             payment.reversed_by = request.user
@@ -1093,6 +1265,7 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
             self._log_void(
                 request, payment, 'completed', reason,
                 cash_refund_movements=[str(m.id) for m in refunds],
+                authorized_by={'id': authorizer.id, 'name': authorizer.get_full_name()},
             )
 
         return Response({'message': 'Pago reversado exitosamente'})
@@ -1104,7 +1277,12 @@ class LoanScheduleViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = LoanSchedule.objects.select_related('loan', 'loan__customer').all()
     serializer_class = LoanScheduleSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLoans]
+    permission_codes = {
+        'list': 'loans.view',
+        'retrieve': 'loans.view',
+        'overdue': 'loans.view',
+    }
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'loan']
     ordering_fields = ['due_date', 'installment_number']
@@ -1216,6 +1394,16 @@ class CollateralViewSet(_PendingLoanRowMixin, viewsets.ModelViewSet):
     queryset = Collateral.objects.select_related('loan').all()
     serializer_class = CollateralSerializer
     permission_classes = [IsAuthenticated, CanManageLoans]
+    permission_codes = {
+        'list': 'loans.view',
+        'retrieve': 'loans.view',
+        'create': 'loans.edit',
+        'update': 'loans.edit',
+        'partial_update': 'loans.edit',
+        'destroy': 'loans.edit',
+        'release': 'loans.edit',
+        'liquidate': 'loans.edit',
+    }
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['collateral_type', 'status', 'loan']
@@ -1268,6 +1456,18 @@ class CollectionReminderViewSet(viewsets.ModelViewSet):
         'loan', 'customer', 'loan_schedule', 'sent_by'
     ).all()
     permission_classes = [IsAuthenticated, CanManageCollections]
+    permission_codes = {
+        'list': 'collections.view',
+        'retrieve': 'collections.view',
+        'pending': 'collections.view',
+        'scheduled_today': 'collections.view',
+        'create': 'collections.reminders',
+        'update': 'collections.reminders',
+        'partial_update': 'collections.reminders',
+        'destroy': 'collections.reminders',
+        'send': 'collections.reminders',
+        'cancel': 'collections.reminders',
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'reminder_type', 'channel', 'loan', 'customer']
     search_fields = [
@@ -1358,6 +1558,21 @@ class CollectionContactViewSet(viewsets.ModelViewSet):
         'loan', 'customer', 'contacted_by'
     ).all()
     permission_classes = [IsAuthenticated, CanManageCollections]
+    permission_codes = {
+        'list': 'collections.view',
+        'retrieve': 'collections.view',
+        'requiring_escalation': 'collections.view',
+        'promises_due_today': 'collections.view',
+        'broken_promises': 'collections.view',
+        'by_collector': 'collections.view',
+        'create': 'collections.contacts',
+        'update': 'collections.contacts',
+        'partial_update': 'collections.contacts',
+        'destroy': 'collections.contacts',
+        'mark_promise_kept': 'collections.contacts',
+        'mark_promise_broken': 'collections.contacts',
+        'escalate': 'collections.contacts',
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = [
         'contact_type', 'outcome', 'loan', 'customer',
@@ -1476,6 +1691,17 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
 
     queryset = ContractTemplate.objects.all()
     permission_classes = [IsAuthenticated, CanManageLoans]
+    permission_codes = {
+        'list': 'contracts.view',
+        'retrieve': 'contracts.view',
+        'variables': 'contracts.view',
+        'create': 'contracts.templates',
+        'update': 'contracts.templates',
+        'partial_update': 'contracts.templates',
+        'destroy': 'contracts.templates',
+        'set_default': 'contracts.templates',
+        'duplicate': 'contracts.templates',
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'is_default']
     search_fields = ['name', 'description']
@@ -1543,6 +1769,26 @@ class ContractViewSet(viewsets.ModelViewSet):
         'loan', 'loan__customer', 'template', 'generated_by'
     ).all()
     permission_classes = [IsAuthenticated, CanManageLoans]
+    # El catálogo sólo tiene contracts.view/create/templates: editar, borrar y cada paso de la
+    # formalización (regenerar, firmas, activar, cancelar, archivar, enviar a firma) es contracts.create.
+    permission_codes = {
+        'list': 'contracts.view',
+        'retrieve': 'contracts.view',
+        'download_pdf': 'contracts.view',
+        'view_pdf': 'contracts.view',
+        'create': 'contracts.create',
+        'update': 'contracts.create',
+        'partial_update': 'contracts.create',
+        'destroy': 'contracts.create',
+        'regenerate': 'contracts.create',
+        'sign_customer': 'contracts.create',
+        'sign_officer': 'contracts.create',
+        'activate': 'contracts.create',
+        'cancel': 'contracts.create',
+        'archive': 'contracts.create',
+        'unarchive': 'contracts.create',
+        'send_for_signature': 'contracts.create',
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'loan', 'is_archived']
     search_fields = ['contract_number', 'loan__loan_number', 'loan__customer__first_name', 'loan__customer__last_name']
@@ -1638,7 +1884,7 @@ class ContractViewSet(viewsets.ModelViewSet):
                 })
             contract.delete()
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def regenerate(self, request, pk=None):
         """Regenerate contract content from template"""
         from .utils_contracts import replace_contract_variables
@@ -1679,7 +1925,7 @@ class ContractViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(contract)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def sign_customer(self, request, pk=None):
         """Mark contract as signed by customer"""
         contract = self.get_object()
@@ -1742,7 +1988,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato firmado por el cliente'})
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def sign_officer(self, request, pk=None):
         """Mark contract as signed by loan officer"""
         contract = self.get_object()
@@ -1804,7 +2050,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato firmado por el oficial'})
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
         """Activate a signed contract"""
         contract = self.get_object()
@@ -1838,7 +2084,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato activado'})
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         """Cancel a contract"""
         contract = self.get_object()
@@ -1872,7 +2118,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato cancelado'})
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def archive(self, request, pk=None):
         """Archive a contract (only for cancelled contracts)"""
         contract = self.get_object()
@@ -1900,7 +2146,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato archivado exitosamente'})
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def unarchive(self, request, pk=None):
         """Unarchive a contract"""
         contract = self.get_object()
@@ -1929,7 +2175,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Contrato desarchivado exitosamente'})
 
-    @action(detail=True, methods=['post'], permission_classes=[CanManageLoans])
+    @action(detail=True, methods=['post'])
     def send_for_signature(self, request, pk=None):
         """Send contract via email and/or WhatsApp for signature"""
         import secrets
@@ -2360,7 +2606,8 @@ class LoanCalculatorView(APIView):
         daily    → monthly_rate / 30
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLoans]
+    permission_codes = {'POST': 'loans.calculator'}
 
     # Date increment per payment_frequency. The per-period rate lives in
     # apps.loans.amortization (shared with the loan schedule).
@@ -2429,6 +2676,14 @@ class GuarantorViewSet(_PendingLoanRowMixin, viewsets.ModelViewSet):
     """
     queryset = Guarantor.objects.select_related('loan', 'loan__customer').all()
     permission_classes = [IsAuthenticated, CanManageLoans]
+    permission_codes = {
+        'list': 'loans.view',
+        'retrieve': 'loans.view',
+        'create': 'loans.edit',
+        'update': 'loans.edit',
+        'partial_update': 'loans.edit',
+        'destroy': 'loans.edit',
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['loan', 'status', 'relationship', 'id_type']
     search_fields = ['first_name', 'last_name', 'id_number', 'phone', 'email']
@@ -2458,6 +2713,14 @@ class CustomerPhoneViewSet(viewsets.ModelViewSet):
     queryset = CustomerPhone.objects.all()
     serializer_class = CustomerPhoneSerializer
     permission_classes = [IsAuthenticated, CanManageCollections]
+    permission_codes = {
+        'list': 'collections.view',
+        'retrieve': 'collections.view',
+        'create': 'collections.contacts',
+        'update': 'collections.contacts',
+        'partial_update': 'collections.contacts',
+        'destroy': 'collections.contacts',
+    }
     filterset_fields = ['customer', 'phone_type', 'is_primary']
 
 
@@ -2466,4 +2729,12 @@ class CustomerEmailViewSet(viewsets.ModelViewSet):
     queryset = CustomerEmail.objects.all()
     serializer_class = CustomerEmailSerializer
     permission_classes = [IsAuthenticated, CanManageCollections]
+    permission_codes = {
+        'list': 'collections.view',
+        'retrieve': 'collections.view',
+        'create': 'collections.contacts',
+        'update': 'collections.contacts',
+        'partial_update': 'collections.contacts',
+        'destroy': 'collections.contacts',
+    }
     filterset_fields = ['customer', 'email_type', 'is_primary']

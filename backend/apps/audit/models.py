@@ -22,6 +22,7 @@ class AuditLog(models.Model):
         # Payment Operations
         ('payment', 'Pago'),
         ('payment_void', 'Anular Pago'),
+        ('payment_void_auth_failed', 'Autorizacion de Reverso Fallida'),
         # Authentication
         ('login', 'Iniciar Sesion'),
         ('logout', 'Cerrar Sesion'),
@@ -38,6 +39,7 @@ class AuditLog(models.Model):
         ('export', 'Exportar'),
         ('import', 'Importar'),
         ('config_change', 'Cambio de Configuracion'),
+        ('cedula_lookup', 'Consulta de Cedula'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

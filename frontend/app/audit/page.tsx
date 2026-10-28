@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from '@/lib/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useCan } from '@/lib/permissions';
 import { auditAPI, AuditLog, AuditLogFilters, AuditLogStats } from '@/lib/api/audit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,6 +77,7 @@ const MODEL_NAMES: Record<string, string> = {
 export default function AuditPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const can = useCan();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [stats, setStats] = useState<AuditLogStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,15 +104,15 @@ export default function AuditPage() {
 
   // Check permission
   useEffect(() => {
-    if (user && user.role !== 'admin' && user.role !== 'manager') {
+    if (user && !can('settings.audit')) {
       setError('No tienes permiso para ver los registros de auditoria');
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, can]);
 
   // Load audit logs
   useEffect(() => {
-    if (isAuthenticated && user && (user.role === 'admin' || user.role === 'manager')) {
+    if (isAuthenticated && user && can('settings.audit')) {
       loadLogs();
       loadStats();
     }

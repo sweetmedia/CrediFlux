@@ -15,8 +15,10 @@ from drf_yasg import openapi
 
 from apps.core.admin_mixins import is_platform_admin
 from apps.core.net import client_network_key
+from apps.users.authz import ViewPermissionRequired, has_perm
 from .serializers import (
     TenantRegistrationSerializer,
+    TenantBrandingSerializer,
     TenantSerializer,
     TenantLoginSerializer,
     TenantUpdateSerializer,
@@ -344,7 +346,10 @@ class TenantSettingsView(APIView):
     **Permissions:** User must belong to a tenant
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    # GET abierto a todo miembro: el shell lo lee para la identidad de la financiera (R13). Sin
+    # settings.view sólo recibe la identidad y la marca (TenantBrandingSerializer, run-8 L4).
+    permission_codes = {'GET': None, 'PUT': 'settings.edit', 'PATCH': 'settings.edit'}
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def _get_effective_tenant(self, request):
@@ -391,7 +396,10 @@ class TenantSettingsView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = TenantSerializer(tenant)
+        if has_perm(user, 'settings.view'):
+            serializer = TenantSerializer(tenant)
+        else:
+            serializer = TenantBrandingSerializer(tenant)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @swagger_auto_schema(
@@ -476,13 +484,6 @@ class TenantSettingsView(APIView):
         if not tenant:
             return Response(
                 {'error': 'You do not belong to any tenant.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Check if user has permission (owner or admin)
-        if not (user.is_tenant_owner or user.role == 'admin' or user.is_superuser):
-            return Response(
-                {'error': 'You do not have permission to update tenant settings.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 

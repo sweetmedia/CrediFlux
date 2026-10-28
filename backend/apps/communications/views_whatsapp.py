@@ -36,7 +36,14 @@ class WhatsAppConversationViewSet(viewsets.ViewSet):
     Provides conversation-centric views of WhatsApp messages,
     grouping messages by phone number (conversation_id).
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanSendMessages]
+    permission_codes = {
+        'list': 'comms.view',
+        'retrieve': 'comms.view',
+        'mark_read': 'comms.view',
+        'unread_count': 'comms.view',
+        'send': 'comms.whatsapp',
+    }
 
     def list(self, request):
         """
@@ -164,7 +171,7 @@ class WhatsAppConversationViewSet(viewsets.ViewSet):
             'messages': serializer.data,
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, CanSendMessages])
+    @action(detail=True, methods=['post'])
     def send(self, request, pk=None):
         """
         Send a message to a conversation.

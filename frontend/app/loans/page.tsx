@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from '@/lib/navigation';
 import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useCan } from '@/lib/permissions';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI } from '@/lib/api/loans';
 import { Loan } from '@/types';
@@ -29,6 +30,7 @@ import { getApiErrorMessage } from '@/lib/api/client';
 export default function LoansListPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const can = useCan();
   const { config } = useConfig();
   const [loans, setLoans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,11 +53,7 @@ export default function LoansListPage() {
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
 
-  const canApproveLoan = user && (
-    user.is_superuser ||
-    user.is_tenant_owner ||
-    ['admin', 'manager', 'loan_officer'].includes(user.role)
-  );
+  const canApproveLoan = can('loans.approve');
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {

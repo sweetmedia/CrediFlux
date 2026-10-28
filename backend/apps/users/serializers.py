@@ -21,6 +21,11 @@ from apps.core.media import SignedFilesModelSerializer
 from apps.core.permissions import user_matches_tenant
 from . import lockout
 from .authentication import token_revoked
+from .authz import (
+    codigo_que_falta, denegar, exigir_gestion, has_perm, invalidate_permissions, puede_dar_admin,
+    user_permissions,
+)
+from .models_roles import Role
 from .tokens import (
     PWD_TS_CLAIM,
     email_verification_token,
@@ -90,6 +95,8 @@ class UserSerializer(SignedFilesModelSerializer):
     """Basic user serializer for displaying user information"""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     tenant_name = serializers.CharField(read_only=True)
+    # Sólo del usuario actual (perfil y login): el equipo usa TeamMemberListSerializer, sin esto.
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -98,13 +105,16 @@ class UserSerializer(SignedFilesModelSerializer):
             'phone', 'avatar', 'bio', 'job_title', 'department', 'role',
             'tenant', 'tenant_name', 'is_tenant_owner', 'is_staff',
             'is_superuser', 'email_verified', 'receive_notifications',
-            'is_2fa_enabled', 'created_at', 'last_login_at'
+            'is_2fa_enabled', 'created_at', 'last_login_at', 'permissions',
         ]
         read_only_fields = [
-            'id', 'email', 'username', 'tenant', 'is_tenant_owner',
+            'id', 'email', 'username', 'role', 'tenant', 'is_tenant_owner',
             'is_staff', 'is_superuser', 'email_verified', 'is_2fa_enabled',
             'created_at', 'last_login_at'
         ]
+
+    def get_permissions(self, obj):
+        return sorted(user_permissions(obj))
 
 
 def _frontend_url_for(user):
@@ -582,6 +592,34 @@ class PasswordChangeSerializer(serializers.Serializer):
 # TEAM MANAGEMENT
 # ============================================================================
 
+ROL_INEXISTENTE = 'El rol no existe en esta financiera.'
+ROL_DEL_DUENO = 'Cannot change role of tenant owner.'
+SOLO_DUENO_DA_ADMIN = 'Only tenant owners can assign admin role.'
+
+
+def validar_asignacion_de_rol(actor, tenant_id, key, destino_es_dueno=False):
+    """Reglas para dar el rol `key` a un usuario de la financiera `tenant_id` (D6).
+
+    En orden: exige team.assign_roles (403); el rol del dueño no cambia (400); el rol debe
+    existir en ESA financiera, de sistema o propio (400); `admin` sólo lo da el dueño o el
+    superusuario (R4, 400); y nadie da un rol con códigos que él no tiene (403 con el primero
+    que le falta). Quien llama decide cuándo hay asignación (alta con rol explícito o cambio).
+    """
+    if not has_perm(actor, 'team.assign_roles'):
+        denegar('team.assign_roles')
+    if destino_es_dueno:
+        raise serializers.ValidationError(ROL_DEL_DUENO)
+    role = Role.objects.filter(tenant_id=tenant_id, key=key).first() if tenant_id else None
+    if role is None:
+        raise serializers.ValidationError(ROL_INEXISTENTE)
+    if key == 'admin' and not puede_dar_admin(actor):
+        raise serializers.ValidationError(SOLO_DUENO_DA_ADMIN)
+    falta = codigo_que_falta(actor, role.permissions)
+    if falta:
+        denegar(falta)
+    return key
+
+
 class TeamMemberCreateSerializer(serializers.ModelSerializer):
     """Serializer for tenant owners to create staff users"""
     password = serializers.CharField(
@@ -611,16 +649,11 @@ class TeamMemberCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_role(self, value):
-        """Validate role - staff users can't be admins unless explicitly allowed"""
-        request_user = self.context['request'].user
-
-        # Only tenant owners and system admins can create admin users
-        if value == 'admin' and not (request_user.is_tenant_owner or request_user.is_superuser):
-            raise serializers.ValidationError(
-                "Only tenant owners can create users with admin role."
-            )
-
-        return value
+        """Un rol explícito en el alta es una asignación; sin rol queda `viewer` (team.create basta)."""
+        tenant = self.context.get('tenant') or self.context['request'].user.tenant
+        return validar_asignacion_de_rol(
+            self.context['request'].user, getattr(tenant, 'pk', None), value
+        )
 
     def validate_password(self, value):
         """Aplica los validadores de fortaleza de contraseña."""
@@ -674,23 +707,29 @@ class TeamMemberUpdateSerializer(serializers.ModelSerializer):
         ]
 
     def validate_role(self, value):
-        """Validate role changes"""
-        request_user = self.context['request'].user
+        """Mandar el rol que ya tiene no es asignar (basta team.edit); cambiarlo, sí."""
         instance = self.instance
+        if value == instance.role:
+            return value
+        return validar_asignacion_de_rol(
+            self.context['request'].user, instance.tenant_id, value,
+            destino_es_dueno=instance.is_tenant_owner,
+        )
 
-        # Can't change role of tenant owner
-        if instance.is_tenant_owner and value != instance.role:
-            raise serializers.ValidationError(
-                "Cannot change role of tenant owner."
-            )
+    def validate(self, attrs):
+        """Tras validar los campos: sólo se edita a quien no tiene más permisos que uno (D6)."""
+        exigir_gestion(self.context['request'].user, self.instance)
+        return attrs
 
-        # Only tenant owners can set admin role
-        if value == 'admin' and not (request_user.is_tenant_owner or request_user.is_superuser):
-            raise serializers.ValidationError(
-                "Only tenant owners can assign admin role."
-            )
-
-        return value
+    def update(self, instance, validated_data):
+        instance = super().update(instance, validated_data)
+        if 'role' in validated_data:
+            # El memo de permisos de las instancias en memoria ya no vale (D6).
+            invalidate_permissions(instance)
+            actor = self.context['request'].user
+            if getattr(actor, 'pk', None) == instance.pk:
+                invalidate_permissions(actor)
+        return instance
 
     def validate_is_active(self, value):
         """Validate deactivation"""

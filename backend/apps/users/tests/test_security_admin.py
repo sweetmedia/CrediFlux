@@ -290,11 +290,21 @@ def test_non_owner_admin_cannot_create_admin(non_owner_client):
     assert not User.objects.filter(email="nuevo-admin@crediflux.test").exists()
 
 
-def test_non_owner_admin_can_edit_existing_admin_without_changing_role(non_owner_client, user_factory):
+def test_non_owner_admin_can_edit_own_account_without_changing_role(non_owner_client, non_owner_admin):
+    # Mandar el rol admin que ya tiene no es asignarlo (D6).
+    url = reverse("admin:users_user_change", args=[non_owner_admin.pk])
+    r = non_owner_client.post(url, _change_body(non_owner_admin, first_name="Cambiado"))
+    assert r.status_code == 302, r.context["adminform"].form.errors if r.context else r.content
+
+
+def test_non_owner_admin_cannot_edit_another_admin(non_owner_client, user_factory):
+    # D6: a un admin sólo lo gestiona el dueño (puede_gestionar).
     other_admin = user_factory(role="admin", is_tenant_owner=False)
     url = reverse("admin:users_user_change", args=[other_admin.pk])
-    r = non_owner_client.post(url, _change_body(other_admin, first_name="Cambiado"))
-    assert r.status_code == 302, r.context["adminform"].form.errors if r.context else r.content
+    r = non_owner_client.post(url, _change_body(other_admin, email="tomado@atacante.test"))
+    assert r.status_code == 403
+    other_admin.refresh_from_db()
+    assert other_admin.email != "tomado@atacante.test"
 
 
 def test_non_owner_admin_cannot_toggle_is_tenant_owner(non_owner_client, user_factory):

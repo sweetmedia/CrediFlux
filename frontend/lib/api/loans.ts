@@ -143,6 +143,13 @@ export const loansAPI = {
   },
 };
 
+/** Autorizador de reversos (GET /api/users/authorizers/). */
+export interface ReverseAuthorizer {
+  id: number;
+  full_name: string;
+  role_label: string;
+}
+
 export const paymentsAPI = {
   // Get all payments
   async getPayments(params?: {
@@ -185,9 +192,24 @@ export const paymentsAPI = {
     return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/cancel/`, { reason });
   },
 
-  // Reverse payment (el backend exige el motivo)
-  async reversePayment(id: string, reason: string): Promise<{ message: string }> {
-    return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/reverse/`, { reason });
+  // Reverse payment: exige `payments.void`, el motivo y el código TOTP de un autorizador
+  // (dueño o administrador con 2FA, ver getReverseAuthorizers).
+  async reversePayment(
+    id: string,
+    reason: string,
+    authorizerId: number,
+    code: string
+  ): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(`/api/loans/payments/${id}/reverse/`, {
+      reason,
+      authorizer_id: authorizerId,
+      code,
+    });
+  },
+
+  // Quienes pueden autorizar un reverso: dueño y administradores con 2FA de la financiera
+  async getReverseAuthorizers(): Promise<ReverseAuthorizer[]> {
+    return apiClient.get<ReverseAuthorizer[]>('/api/users/authorizers/');
   },
 
   // Download payment receipt PDF

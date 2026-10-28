@@ -18,6 +18,7 @@ from apps.core.admin_mixins import is_platform_admin
 from apps.core.media import LEGACY_TOP_DIRS, PUBLIC_SCHEMA, SignedImageField, signed_media_url
 from apps.core.net import client_registration_key
 from apps.users import lockout
+from apps.users.authz import user_permissions
 from apps.users.tokens import issue_tokens
 from .models import Tenant, Domain
 
@@ -546,6 +547,20 @@ class TenantSerializer(serializers.ModelSerializer):
         return bool(obj.imap_password)
 
 
+class TenantBrandingSerializer(serializers.ModelSerializer):
+    """Identidad y marca de la financiera: lo que el shell de la app muestra a cualquier miembro
+    (nombre, logo, color, moneda, zona horaria, plan). Sin settings.view no se ve nada más (L4)."""
+    logo = SignedImageField(read_only=True, schema=PUBLIC_SCHEMA)
+
+    class Meta:
+        model = Tenant
+        fields = [
+            'id', 'name', 'business_name', 'logo', 'primary_color',
+            'default_currency', 'currency_symbol', 'timezone', 'is_active', 'subscription_plan',
+        ]
+        read_only_fields = fields
+
+
 class TenantUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating tenant settings"""
     logo = SignedImageField(required=False, allow_null=True, schema=PUBLIC_SCHEMA)
@@ -761,6 +776,8 @@ class TenantLoginSerializer(serializers.Serializer):
                 'is_staff': user.is_staff,
                 'is_superuser': user.is_superuser,
                 'is_2fa_enabled': user.is_2fa_enabled,
+                # Lo guarda AuthContext para decidir qué muestra el frontend (D6).
+                'permissions': sorted(user_permissions(user)),
             }
         return None
 

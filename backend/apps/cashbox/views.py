@@ -3,13 +3,15 @@ import logging
 from decimal import Decimal
 from django.utils import timezone
 from django.db.models import Sum, Q
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
+
+from apps.users.authz import ViewPermissionRequired
 
 from .models import CashRegister, CashSession, CashMovement, DenominationCount
 from .serializers import (
@@ -25,45 +27,33 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 
 
-class CanManageCashOperations(permissions.BasePermission):
-    """Restrict cash mutations to valid operational roles."""
+class CanManageCashOperations(ViewPermissionRequired):
+    """Caja: el código sale de `view.permission_codes` (cashbox.* del catálogo, D6).
 
-    allowed_roles = ['admin', 'manager', 'accountant', 'cashier']
-
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-
-        if request.method in permissions.SAFE_METHODS:
-            return True
-
-        if request.user.is_superuser or request.user.is_tenant_owner:
-            return True
-
-        if request.user.role not in self.allowed_roles:
-            raise PermissionDenied({
-                'detail': 'Solo dueño, admin, gerente, contabilidad o caja pueden ejecutar operaciones de caja.',
-                'required_permission': 'CanManageCashOperations',
-                'required_roles': self.allowed_roles,
-                'current_role': request.user.role,
-            })
-
-        return True
+    Conserva el nombre histórico para los imports. Ya no mira el rol: dueño y superusuario
+    tienen todos los códigos; el resto, los de su Role. Lo que el mapa no nombra se niega.
+    """
 
 
 class CashRegisterViewSet(viewsets.ModelViewSet):
     """CRUD for cash registers."""
     queryset = CashRegister.objects.all()
     serializer_class = CashRegisterSerializer
-    permission_classes = [CanManageCashOperations]
+    permission_classes = [IsAuthenticated, CanManageCashOperations]
+    # Crear y editar una caja exigen lo mismo que abrir turno; borrarla, administrar cajas.
+    permission_codes = {
+        'list': 'cashbox.view',
+        'retrieve': 'cashbox.view',
+        'create': 'cashbox.open',
+        'update': 'cashbox.open',
+        'partial_update': 'cashbox.open',
+        'destroy': 'cashbox.registers',
+    }
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'code']
 
     def perform_destroy(self, instance):
         # Borrar una caja arrastraría sus sesiones cerradas (y su diferencia) del libro.
-        user = self.request.user
-        if not (user.is_superuser or user.is_tenant_owner or user.role == 'admin'):
-            raise PermissionDenied('Solo el dueño o un administrador puede eliminar cajas.')
         if instance.sessions.exists():
             raise ValidationError({'detail': 'La caja tiene sesiones registradas; desactívela en lugar de eliminarla.'})
         instance.delete()
@@ -75,13 +65,22 @@ class CashSessionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = CashSession.objects.select_related('register', 'cashier', 'closed_by').all()
     serializer_class = CashSessionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageCashOperations]
+    permission_codes = {
+        'list': 'cashbox.view',
+        'retrieve': 'cashbox.view',
+        'open_session': 'cashbox.open',
+        'close_session': 'cashbox.close',
+        'session_movements': 'cashbox.view',
+        'session_summary': 'cashbox.view',
+        'active_sessions': 'cashbox.view',
+    }
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['register', 'status', 'cashier']
     ordering_fields = ['opened_at', 'closed_at']
     ordering = ['-opened_at']
 
-    @action(detail=False, methods=['post'], url_path='open', permission_classes=[CanManageCashOperations])
+    @action(detail=False, methods=['post'], url_path='open')
     def open_session(self, request):
         """Open a new cash session (apertura de caja)."""
         serializer = CashSessionOpenSerializer(data=request.data)
@@ -118,7 +117,7 @@ class CashSessionViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    @action(detail=True, methods=['post'], url_path='close', permission_classes=[CanManageCashOperations])
+    @action(detail=True, methods=['post'], url_path='close')
     def close_session(self, request, pk=None):
         """Close a cash session (cierre de caja)."""
         session = self.get_object()
@@ -214,7 +213,15 @@ class CashMovementViewSet(viewsets.ModelViewSet):
     queryset = CashMovement.objects.select_related(
         'session', 'session__register', 'recorded_by', 'loan_payment', 'loan'
     ).all()
-    permission_classes = [CanManageCashOperations]
+    permission_classes = [IsAuthenticated, CanManageCashOperations]
+    permission_codes = {
+        'list': 'cashbox.view',
+        'retrieve': 'cashbox.view',
+        'create': 'cashbox.movements',
+        'update': 'cashbox.movements',
+        'partial_update': 'cashbox.movements',
+        'destroy': 'cashbox.movements',
+    }
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['session', 'movement_type', 'category']
     search_fields = ['description', 'reference', 'customer_name']
@@ -247,7 +254,15 @@ class DenominationCountViewSet(viewsets.ModelViewSet):
     """CRUD for denomination counts."""
     queryset = DenominationCount.objects.select_related('session').all()
     serializer_class = DenominationCountSerializer
-    permission_classes = [CanManageCashOperations]
+    permission_classes = [IsAuthenticated, CanManageCashOperations]
+    permission_codes = {
+        'list': 'cashbox.view',
+        'retrieve': 'cashbox.view',
+        'create': 'cashbox.movements',
+        'update': 'cashbox.movements',
+        'partial_update': 'cashbox.movements',
+        'destroy': 'cashbox.movements',
+    }
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['session', 'count_type']
 

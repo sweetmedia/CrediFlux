@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
-import { endSession } from './session';
+import { endSession, goToTwoFactorSetup } from './session';
 
 /**
  * Get API URL based on current browser hostname
@@ -157,6 +157,12 @@ class APIClient {
         // If error is 403 (Forbidden) - redirect to access denied page
         if (error.response?.status === 403) {
           const errorData = error.response.data as any;
+
+          // Dueño o administrador sin 2FA: no es un acceso denegado, debe activarla primero.
+          if (errorData?.code === '2fa_required') {
+            goToTwoFactorSetup();
+            return Promise.reject(error);
+          }
           const reason = errorData?.detail || errorData?.error || 'No tienes permisos para acceder a este recurso.';
           const permission = errorData?.required_permission;
 

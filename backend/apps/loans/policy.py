@@ -234,7 +234,12 @@ def validate_approval(loan, request=None):
 
 
 def validate_disbursement(loan, user, request=None):
-    """Con require_disbursement_approval, quien aprobó no desembolsa (salvo admin/dueño)."""
+    """Con require_disbursement_approval, quien aprobó no desembolsa (salvo admin/dueño).
+
+    Entrar al desembolso exige loans.disburse (LoanViewSet.permission_codes); la exención es una
+    regla aparte del catálogo (D6, R7b): superusuario, dueño o rol `admin` (bloqueado, no
+    editable). Un rol propio con loans.disburse no queda exento.
+    """
     tenant = get_policy_tenant(request)
     if tenant is None or not tenant.require_disbursement_approval:
         return

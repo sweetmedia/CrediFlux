@@ -20,8 +20,11 @@ export interface ConfirmDialogProps {
   confirmLabel: string;
   cancelLabel?: string;
   variant?: 'default' | 'destructive';
-  /** Puede ser async: el diálogo queda abierto y bloqueado mientras corre. */
-  onConfirm: () => void | Promise<void>;
+  /**
+   * Puede ser async: el diálogo queda abierto y bloqueado mientras corre. Si devuelve
+   * `false`, el diálogo sigue abierto (p. ej. para mostrar un error y reintentar).
+   */
+  onConfirm: () => void | boolean | Promise<void | boolean>;
   confirmDisabled?: boolean;
   /** Contenido extra entre el resumen y los botones (p. ej. un motivo). */
   children?: React.ReactNode;
@@ -53,8 +56,8 @@ export function ConfirmDialog({
     e.preventDefault();
     try {
       setPending(true);
-      await onConfirm();
-      onOpenChange(false);
+      const result = await onConfirm();
+      if (result !== false) onOpenChange(false);
     } finally {
       setPending(false);
     }

@@ -67,6 +67,14 @@ class DigitalCertificateViewSet(viewsets.ModelViewSet):
     """CRUD para certificados digitales."""
     queryset = DigitalCertificate.objects.all()
     permission_classes = [IsAuthenticated, CanManageBilling]
+    permission_codes = {
+        'list': 'billing.view',
+        'retrieve': 'billing.view',
+        'create': 'billing.sign',
+        'update': 'billing.sign',
+        'partial_update': 'billing.sign',
+        'destroy': 'billing.sign',
+    }
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
@@ -79,6 +87,14 @@ class FiscalSequenceViewSet(viewsets.ModelViewSet):
     queryset = FiscalSequence.objects.all()
     serializer_class = FiscalSequenceSerializer
     permission_classes = [IsAuthenticated, CanManageBilling]
+    permission_codes = {
+        'list': 'billing.view',
+        'retrieve': 'billing.view',
+        'create': 'billing.create',
+        'update': 'billing.create',
+        'partial_update': 'billing.create',
+        'destroy': 'billing.create',
+    }
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):
@@ -91,6 +107,21 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     """
     queryset = Invoice.objects.all()
     permission_classes = [IsAuthenticated, CanManageBilling]
+    permission_codes = {
+        'list': 'billing.view',
+        'retrieve': 'billing.view',
+        'create': 'billing.create',
+        'update': 'billing.create',
+        'partial_update': 'billing.create',
+        'destroy': 'billing.create',
+        'generate_ecf': 'billing.create',
+        'sign_ecf': 'billing.sign',
+        'submit_to_dgii': 'billing.submit',
+        'check_dgii_status': 'billing.submit',
+        'emit': 'billing.submit',
+        'refresh_status': 'billing.submit',
+        'submissions': 'billing.view',
+    }
 
     def _refuse_direct_flow(self):
         """Respuesta 400 si el tenant emite vía NexConnect; None si puede usar el flujo directo."""
@@ -397,7 +428,11 @@ class ECFSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     """Historial de envíos a DGII (solo lectura)."""
     queryset = ECFSubmission.objects.all()
     serializer_class = ECFSubmissionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageBilling]
+    permission_codes = {
+        'list': 'billing.view',
+        'retrieve': 'billing.view',
+    }
 
 
 class ECFProviderViewSet(viewsets.ViewSet):
@@ -405,6 +440,14 @@ class ECFProviderViewSet(viewsets.ViewSet):
     Endpoints para gestión del proveedor e-CF configurado.
     """
     permission_classes = [IsAuthenticated, CanManageBilling]
+    permission_codes = {
+        # Una acción, dos códigos: leer billing.view; escribir sólo billing.config (sin exigir view).
+        'config': {'GET': 'billing.view', 'PATCH': 'billing.config'},
+        'provider_status': 'billing.view',
+        'submit_invoice': 'billing.submit',
+        'query_invoice': 'billing.submit',
+        'cancel_invoice': 'billing.submit',
+    }
 
     @action(detail=False, methods=['get', 'patch'], url_path='config')
     def config(self, request):
@@ -420,14 +463,6 @@ class ECFProviderViewSet(viewsets.ViewSet):
 
         if request.method == 'GET':
             return Response(ECFProviderConfigSerializer(tenant).data)
-
-        user = request.user
-        if not (getattr(user, 'is_tenant_owner', False) or getattr(user, 'role', None) == 'admin'
-                or user.is_superuser):
-            return Response(
-                {'error': 'Solo el dueño o un administrador puede cambiar la facturación electrónica.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
         serializer = ECFProviderConfigSerializer(tenant, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -532,6 +567,12 @@ class DGIIReportViewSet(viewsets.ViewSet):
         GET /api/billing/dgii-reports/606/csv/?year=2026&month=3  → CSV download
     """
     permission_classes = [IsAuthenticated, CanManageBilling]
+    permission_codes = {
+        'report_607_summary': 'billing.reports',
+        'report_607_csv': 'billing.reports',
+        'report_606_summary': 'billing.reports',
+        'report_606_csv': 'billing.reports',
+    }
 
     def _parse_period(self, request):
         """Extract year and month from query params"""

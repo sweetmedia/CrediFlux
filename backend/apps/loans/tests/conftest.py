@@ -108,3 +108,28 @@ def policy(tenant_schema):
 @pytest.fixture
 def superuser(user_factory):
     return user_factory(role="admin", is_staff=True, is_superuser=True)
+
+
+@pytest.fixture
+def autorizacion_reverso(admin_user):
+    """Cuerpo de autorización para revertir (Task 14): el dueño con 2FA y su TOTP vigente.
+
+    `autorizacion_reverso()` devuelve `{'authorizer_id', 'code'}`. Congela el reloj de
+    `apps.users.totp` para que el código no cambie de paso a mitad del test.
+    """
+    from types import SimpleNamespace
+    from unittest import mock
+
+    import pyotp
+    from django.core.cache import cache
+
+    admin_user.is_2fa_enabled = True
+    admin_user.totp_secret = pyotp.random_base32()
+    admin_user.save(update_fields=['is_2fa_enabled', 'totp_secret'])
+    ahora = 1_900_000_015
+    cache.delete(f'totp_last_step_{admin_user.pk}')
+    with mock.patch('apps.users.totp.time', SimpleNamespace(time=lambda: ahora)):
+        yield lambda: {
+            'authorizer_id': admin_user.id,
+            'code': pyotp.TOTP(admin_user.totp_secret).at(ahora),
+        }

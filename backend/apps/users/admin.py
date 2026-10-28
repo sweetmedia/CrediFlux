@@ -17,8 +17,10 @@ from allauth.account.models import EmailAddress
 from allauth.account.utils import send_email_confirmation
 from rest_framework import serializers
 from apps.core.admin_mixins import is_platform_admin as _is_platform_admin
+from .authz import codigo_que_falta, has_perm, invalidate_permissions, puede_dar_admin, puede_gestionar
 from .lockout import validate_strength
-from .models import User
+from .models import Role, User
+from .permissions_catalog import SYSTEM_ROLES
 from .quota import SEAT_LIMIT_MESSAGE, seats_left
 from .tokens import revoke_user_credentials
 
@@ -27,8 +29,8 @@ PRIVILEGE_FIELDS = ('is_superuser', 'is_staff', 'groups', 'user_permissions', 't
 
 
 def _can_assign_admin(user):
-    """Misma regla que la API (TeamMember*Serializer.validate_role): dueño o superusuario."""
-    return user.is_tenant_owner or user.is_superuser
+    """Misma regla que la API (validar_asignacion_de_rol, R4): dueño o superusuario."""
+    return puede_dar_admin(user)
 
 
 def _protects_owner(actor, target):
@@ -38,6 +40,52 @@ def _protects_owner(actor, target):
 
 ROLE_ADMIN_FORBIDDEN = 'Sólo el dueño del tenant puede asignar el rol de administrador.'
 OWNER_ROLE_LOCKED = 'No se puede cambiar el rol del dueño del tenant.'
+ROLE_UNKNOWN = 'El rol no existe en la financiera del usuario.'
+ROLE_ASSIGN_FORBIDDEN = 'No tienes permiso para asignar roles (team.assign_roles).'
+ROLE_DEFAULT = User._meta.get_field('role').default
+
+
+def _role_choices(tenant_id, current=None):
+    """Roles que se ofrecen en el formulario: los de la financiera del usuario destino.
+
+    Sin financiera (usuario de plataforma o alta de plataforma sin tenant aún) se ofrecen las
+    claves de sistema; `clean_role` valida luego contra la financiera elegida. Si el valor
+    actual ya no existe (rol borrado) se conserva como opción para no cambiarlo sin querer.
+    """
+    if tenant_id is None:
+        choices = [(key, name) for key, (name, _) in SYSTEM_ROLES.items()]
+    else:
+        choices = list(Role.objects.filter(tenant_id=tenant_id).order_by('name').values_list('key', 'name'))
+    if current and current not in {key for key, _ in choices}:
+        choices.append((current, f'{current} (rol inexistente)'))
+    return choices
+
+
+def _role_error(actor, tenant_id, role, previous, target_is_owner, adding):
+    """Misma regla que la API (serializers.validar_asignacion_de_rol) en mensajes del admin.
+
+    Mandar el rol que ya tiene, o dar el rol por defecto en un alta, no es asignar.
+    """
+    if role == previous or (adding and role == ROLE_DEFAULT):
+        return None
+    if not has_perm(actor, 'team.assign_roles'):
+        return ROLE_ASSIGN_FORBIDDEN
+    if target_is_owner:
+        return OWNER_ROLE_LOCKED
+    if tenant_id is None:
+        if role not in SYSTEM_ROLES:
+            return ROLE_UNKNOWN
+        permisos = ()
+    else:
+        permisos = Role.objects.filter(tenant_id=tenant_id, key=role).values_list('permissions', flat=True).first()
+        if permisos is None:
+            return ROLE_UNKNOWN
+    if role == 'admin' and not _can_assign_admin(actor):
+        return ROLE_ADMIN_FORBIDDEN
+    falta = codigo_que_falta(actor, permisos)
+    if falta:
+        return f'No puedes dar un rol con permisos que no tienes ({falta}).'
+    return None
 
 
 def _strength_errors(password, user):
@@ -250,11 +298,12 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         if _is_platform_admin(actor):
             return True
         return (
-            actor.can_manage_users()
+            has_perm(actor, 'team.edit')
             and actor.tenant_id is not None
             and target.tenant_id == actor.tenant_id
             and not target.is_superuser
             and not _protects_owner(actor, target)
+            and puede_gestionar(actor, target) is None
         )
 
     @action(description="🔑 Resetear contraseña", permissions=['change'])
@@ -295,8 +344,15 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     @action(description="✅ Activar usuarios seleccionados", permissions=['change'])
     def activate_users(self, request, queryset):
         """Activate selected users"""
+        skipped = 0
         with transaction.atomic():
             pending = queryset.filter(is_active=False)
+            if not _is_platform_admin(request.user):
+                # Sólo a quien uno puede gestionar (D6): reactivar devuelve el acceso con la
+                # misma clave, así que no se reactiva a quien tiene más permisos que uno.
+                allowed = [u.pk for u in pending if puede_gestionar(request.user, u) is None]
+                skipped = pending.count() - len(allowed)
+                pending = pending.filter(pk__in=allowed)
             # El changelist del admin de tenant sólo muestra su tenant: el cupo es el suyo.
             if not _is_platform_admin(request.user):
                 left = seats_left(request.user.tenant_id)
@@ -310,11 +366,17 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 f'✅ {count} usuario(s) activado(s) exitosamente.',
                 level=messages.SUCCESS
             )
-        else:
+        elif not skipped:
             self.message_user(
                 request,
                 'Todos los usuarios seleccionados ya están activos.',
                 level=messages.INFO
+            )
+        if skipped:
+            self.message_user(
+                request,
+                f'⚠️ {skipped} usuario(s) omitido(s) (el dueño, un administrador o quien tiene más permisos que tú).',
+                level=messages.WARNING
             )
 
     @action(description="🚫 Desactivar usuarios seleccionados", permissions=['change'])
@@ -322,6 +384,11 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         """Deactivate selected users (excluding yourself and tenant owners)"""
         # Exclude current user and tenant owners from deactivation
         safe_qs = queryset.exclude(pk=request.user.pk).exclude(is_tenant_owner=True)
+        if not _is_platform_admin(request.user):
+            # Ni a quien tiene más permisos que uno (D6).
+            safe_qs = safe_qs.filter(
+                pk__in=[u.pk for u in safe_qs if puede_gestionar(request.user, u) is None]
+            )
         skipped = queryset.count() - safe_qs.count()
         count = safe_qs.filter(is_active=True).update(is_active=False)
 
@@ -334,7 +401,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         if skipped:
             self.message_user(
                 request,
-                f'⚠️ {skipped} usuario(s) omitido(s) (tu cuenta o tenant owners no se pueden desactivar).',
+                f'⚠️ {skipped} usuario(s) omitido(s) (tu cuenta, el dueño o quien tiene más permisos que tú).',
                 level=messages.WARNING
             )
 
@@ -447,7 +514,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def has_add_permission(self, request):
-        return request.user.is_superuser or request.user.can_manage_users()
+        return request.user.is_superuser or has_perm(request.user, 'team.create')
 
     def has_change_permission(self, request, obj=None):
         if _is_platform_admin(request.user):
@@ -457,15 +524,21 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 obj.tenant_id == request.user.tenant_id
                 and not obj.is_superuser
                 and not _protects_owner(request.user, obj)
-                and request.user.can_manage_users()
+                and has_perm(request.user, 'team.edit')
+                and puede_gestionar(request.user, obj) is None
             )
-        return request.user.can_manage_users()
+        return has_perm(request.user, 'team.edit')
 
     def has_delete_permission(self, request, obj=None):
         if _is_platform_admin(request.user):
             return True
         if obj and request.user.tenant:
-            return self.has_change_permission(request, obj) and not obj.is_tenant_owner
+            # Como DELETE /api/users/team/<pk>/: team.delete, además de poder gestionarlo (run-8 L5).
+            return (
+                has_perm(request.user, 'team.delete')
+                and self.has_change_permission(request, obj)
+                and not obj.is_tenant_owner
+            )
         return False
 
     # ------------------------------------------------------------------
@@ -473,24 +546,51 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     # ------------------------------------------------------------------
 
     def get_form(self, request, obj=None, **kwargs):
-        """Añade al formulario (alta y edición) la regla de la API para `role`."""
+        """Añade al formulario (alta y edición) la regla de la API para `role`: sólo roles de la
+        financiera del usuario destino, y las mismas reglas de asignación (D6)."""
         form_class = super().get_form(request, obj, **kwargs)
         if 'role' not in form_class.base_fields:
             return form_class
         actor = request.user
+        platform = _is_platform_admin(actor)
         parent_clean_role = getattr(form_class, 'clean_role', None)
+        parent_init = form_class.__init__
+
+        def target_tenant_id(form):
+            if 'tenant' in form.fields:  # sólo plataforma: la financiera elegida en el formulario
+                tenant = form.cleaned_data.get('tenant')
+                return tenant.pk if tenant else None
+            if form.instance.pk:
+                return form.instance.tenant_id
+            return None if platform else actor.tenant_id
+
+        def __init__(form, *args, **kw):
+            parent_init(form, *args, **kw)
+            instance = form.instance
+            if instance.pk:
+                tenant_id, current = instance.tenant_id, instance.role
+            else:
+                tenant_id, current = (None if platform else actor.tenant_id), None
+            field = form.fields['role']
+            form.fields['role'] = forms.ChoiceField(
+                choices=_role_choices(tenant_id, current),
+                label=field.label, help_text=field.help_text, initial=field.initial,
+            )
 
         def clean_role(form):
             role = parent_clean_role(form) if parent_clean_role else form.cleaned_data.get('role')
             instance = form.instance
-            previous = instance.role if instance.pk else None
-            if instance.pk and instance.is_tenant_owner and role != previous:
-                raise forms.ValidationError(OWNER_ROLE_LOCKED)
-            if role == 'admin' and previous != 'admin' and not _can_assign_admin(actor):
-                raise forms.ValidationError(ROLE_ADMIN_FORBIDDEN)
+            error = _role_error(
+                actor, target_tenant_id(form), role,
+                previous=instance.role if instance.pk else None,
+                target_is_owner=bool(instance.pk and instance.is_tenant_owner),
+                adding=not instance.pk,
+            )
+            if error:
+                raise forms.ValidationError(error)
             return role
 
-        return type(form_class.__name__, (form_class,), {'clean_role': clean_role})
+        return type(form_class.__name__, (form_class,), {'__init__': __init__, 'clean_role': clean_role})
 
     def get_fieldsets(self, request, obj=None):
         fieldsets = super().get_fieldsets(request, obj)
@@ -521,3 +621,5 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 if left is not None and left <= 0:
                     raise PermissionDenied(SEAT_LIMIT_MESSAGE)
             super().save_model(request, obj, form, change)
+        if 'role' in form.changed_data:
+            invalidate_permissions(obj)

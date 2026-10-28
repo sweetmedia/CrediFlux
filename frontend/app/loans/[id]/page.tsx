@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from '@/lib/navigation';
 import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useCan } from '@/lib/permissions';
 import { useConfig } from '@/lib/contexts/ConfigContext';
 import { loansAPI } from '@/lib/api/loans';
 import { Loan } from '@/types';
@@ -57,14 +58,11 @@ export default function LoanDetailPage() {
   const [pendingAction, setPendingAction] = useState<'approve' | 'disburse' | 'reject' | null>(null);
   const [rejectionNotes, setRejectionNotes] = useState('');
 
-  // Check if user can approve/reject loans (admin, manager, loan_officer, or tenant owner)
-  const canManageLoans = user && (
-    user.role === 'admin' ||
-    user.role === 'manager' ||
-    user.role === 'loan_officer' ||
-    user.is_tenant_owner ||
-    user.is_superuser
-  );
+  // Permisos del usuario (D6): aprobar/rechazar y desembolsar son permisos distintos.
+  const can = useCan();
+  const canApprove = can('loans.approve');
+  const canReject = can('loans.reject');
+  const canDisburse = can('loans.disburse');
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -300,19 +298,19 @@ export default function LoanDetailPage() {
                 Balance de cuotas
               </Button>
             )}
-            {loan.status === 'pending' && canManageLoans && (
-              <>
-                <Button variant="outline" onClick={() => setPendingAction('reject')} disabled={isProcessing} className="border-red-300 bg-white text-red-700 hover:bg-red-50">
-                  {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
-                  Rechazar
-                </Button>
-                <Button onClick={() => setPendingAction('approve')} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700">
-                  {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                  Aprobar
-                </Button>
-              </>
+            {loan.status === 'pending' && canReject && (
+              <Button variant="outline" onClick={() => setPendingAction('reject')} disabled={isProcessing} className="border-red-300 bg-white text-red-700 hover:bg-red-50">
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+                Rechazar
+              </Button>
             )}
-            {loan.status === 'approved' && canManageLoans && (
+            {loan.status === 'pending' && canApprove && (
+              <Button onClick={() => setPendingAction('approve')} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700">
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                Aprobar
+              </Button>
+            )}
+            {loan.status === 'approved' && canDisburse && (
               <Button
                 onClick={() => setPendingAction('disburse')}
                 disabled={isProcessing || (loan.contract_id ? !loan.contract_is_signed : true)}

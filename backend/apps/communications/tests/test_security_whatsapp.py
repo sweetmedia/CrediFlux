@@ -63,7 +63,7 @@ def test_viewer_cannot_send(api_client, user_factory, conversation):
         response = client.post(_send_url(conversation.conversation_id), {'message': 'Hola'}, format='json')
 
     assert response.status_code == 403
-    assert response.json()['required_permission'] == 'CanSendMessages'
+    assert response.json()['required_permission'] == 'comms.whatsapp'
     task.delay.assert_not_called()
 
 

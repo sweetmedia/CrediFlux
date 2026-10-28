@@ -124,14 +124,18 @@ def test_pago_pendiente_mueve_caja_al_confirmarse(auth_client, active_loan, open
     assert CashMovement.objects.get().loan_payment == payment
 
 
-def test_reverso_con_la_caja_aun_abierta_saca_el_efectivo(auth_client, active_loan, open_session):
+def test_reverso_con_la_caja_aun_abierta_saca_el_efectivo(
+    auth_client, active_loan, open_session, autorizacion_reverso
+):
     from apps.cashbox.models import CashMovement
     from apps.loans.models import LoanPayment
 
     _pay(auth_client, active_loan)
     payment = LoanPayment.objects.get(loan=active_loan)
     assert auth_client.post(
-        f"/api/loans/payments/{payment.id}/reverse/", {"reason": "Error de cobro"}, format="json"
+        f"/api/loans/payments/{payment.id}/reverse/",
+        {"reason": "Error de cobro", **autorizacion_reverso()},
+        format="json",
     ).status_code == 200
 
     refund = CashMovement.objects.get(movement_type="outflow")

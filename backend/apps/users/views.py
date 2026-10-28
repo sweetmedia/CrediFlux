@@ -22,6 +22,8 @@ from allauth.account.views import ConfirmEmailView
 from allauth.account.models import EmailConfirmation, EmailConfirmationHMAC
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from .authz import ViewPermissionRequired, exigir_gestion
+
 from .serializers import (
     UserSerializer,
     EmailVerificationSendSerializer,
@@ -448,9 +450,10 @@ class TeamMemberListView(APIView):
     List all team members in the user's tenant.
 
     **Authentication:** Required
-    **Permissions:** User must belong to a tenant
+    **Permissions:** team.view y pertenecer a una financiera
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'GET': 'team.view'}
 
     @swagger_auto_schema(
         operation_id='list_team_members',
@@ -491,9 +494,10 @@ class TeamMemberCreateView(APIView):
     Create a new team member (staff user).
 
     **Authentication:** Required
-    **Permissions:** User must be tenant owner or have can_manage_users permission
+    **Permissions:** team.create (y team.assign_roles si se manda `role`)
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'POST': 'team.create'}
 
     @swagger_auto_schema(
         operation_id='create_team_member',
@@ -508,13 +512,6 @@ class TeamMemberCreateView(APIView):
     )
     def post(self, request):
         """Create team member"""
-        # Check permissions
-        if not request.user.can_manage_users():
-            return Response(
-                {'error': 'You do not have permission to create users.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         # Check if user belongs to a tenant
         if not request.user.tenant:
             return Response(
@@ -541,14 +538,43 @@ class TeamMemberCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class AuthorizerListView(APIView):
+    """
+    Autorizadores de reversos de pago (Task 14): dueño y administradores activos de la
+    financiera con 2FA. Sólo de la financiera del request.
+
+    **Permissions:** payments.void
+    """
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'GET': 'payments.void'}
+
+    @swagger_auto_schema(
+        operation_id='list_payment_authorizers',
+        operation_description='Dueño y administradores con 2FA que pueden autorizar un reverso',
+        tags=['Team Management'],
+    )
+    def get(self, request):
+        from .authorizers import authorizers_queryset, role_label
+
+        users = authorizers_queryset(request).order_by('first_name', 'last_name', 'pk')
+        return Response([
+            {'id': u.id, 'full_name': u.get_full_name(), 'role_label': role_label(u)}
+            for u in users
+        ])
+
+
 class TeamMemberDetailView(APIView):
     """
     Retrieve, update, or delete a team member.
 
     **Authentication:** Required
-    **Permissions:** User must be in same tenant and have appropriate permissions
+    **Permissions:** misma financiera; GET team.view, PUT/PATCH team.edit (+ team.assign_roles
+    si cambia `role`, ver validar_asignacion_de_rol), DELETE team.delete.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {
+        'GET': 'team.view', 'PUT': 'team.edit', 'PATCH': 'team.edit', 'DELETE': 'team.delete',
+    }
 
     def _update(self, request, user, partial):
         # Mismo bloqueo que el alta: una reactivación no puede saltarse max_users.
@@ -619,13 +645,6 @@ class TeamMemberDetailView(APIView):
     )
     def put(self, request, pk):
         """Update team member (full update)"""
-        # Check permissions
-        if not request.user.can_manage_users():
-            return Response(
-                {'error': 'You do not have permission to update users.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         user, error_response = self.get_object(request, pk)
         if error_response:
             return error_response
@@ -646,13 +665,6 @@ class TeamMemberDetailView(APIView):
     )
     def patch(self, request, pk):
         """Update team member (partial update)"""
-        # Check permissions
-        if not request.user.can_manage_users():
-            return Response(
-                {'error': 'You do not have permission to update users.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         user, error_response = self.get_object(request, pk)
         if error_response:
             return error_response
@@ -678,13 +690,6 @@ class TeamMemberDetailView(APIView):
     )
     def delete(self, request, pk):
         """Delete (deactivate) team member"""
-        # Check permissions
-        if not request.user.can_manage_users():
-            return Response(
-                {'error': 'You do not have permission to delete users.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         user, error_response = self.get_object(request, pk)
         if error_response:
             return error_response
@@ -702,6 +707,9 @@ class TeamMemberDetailView(APIView):
                 {'error': 'You cannot delete your own account. Use profile settings instead.'},
                 status=status.HTTP_403_FORBIDDEN
             )
+
+        # Sólo a quien no tiene más permisos que uno (D6).
+        exigir_gestion(request.user, user)
 
         # Deactivate instead of deleting
         user.is_active = False

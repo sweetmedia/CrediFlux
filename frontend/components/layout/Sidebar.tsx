@@ -6,7 +6,8 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api/client';
 import { GlobalSearch } from '@/components/search';
 import { ChevronDown, LogOut, Search } from 'lucide-react';
-import { activeHref, NAV_GROUPS } from './nav';
+import { activeHref, NAV_GROUPS, visibleNavGroups } from './nav';
+import { useCan } from '@/lib/permissions';
 
 interface SidebarProps {
   /** En móvil es un cajón: cerrado sale del orden de tabulación (inert). */
@@ -58,8 +59,8 @@ export function Sidebar({ drawer = false, isOpen = false, onClose }: SidebarProp
     return () => document.removeEventListener('keydown', onKey);
   }, [drawer, isOpen, onClose]);
 
-  const isAdmin = !!(user?.is_tenant_owner || user?.role === 'admin');
-  const groups = NAV_GROUPS.filter((g) => !g.adminOnly || isAdmin);
+  const can = useCan();
+  const groups = visibleNavGroups(NAV_GROUPS, can);
   const current = activeHref(pathname, groups.flatMap((g) => g.items.map((i) => i.href)));
 
   const isCollapsed = (id: string, byDefault?: boolean) => {

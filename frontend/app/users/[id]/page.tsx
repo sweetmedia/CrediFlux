@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from '@/lib/navigation';
 import Link from '@/lib/navigation/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useCan } from '@/lib/permissions';
 import { usersAPI, User, UpdateUserData } from '@/lib/api/users';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +41,7 @@ export default function UserDetailPage() {
   const params = useParams();
   const userId = params?.id as string;
   const { isAuthenticated, isLoading: authLoading, user: currentUser } = useAuth();
+  const can = useCan();
   const [user, setUser] = useState<User | null>(null);
   const [askConfirm, confirmDialog] = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
@@ -188,7 +190,9 @@ export default function UserDetailPage() {
     });
   };
 
-  const canEdit = currentUser?.is_tenant_owner || currentUser?.role === 'admin';
+  // team.edit abre la edición; la regla de dominancia del backend puede aun así dar 403 (se muestra el error de la API).
+  const canEdit = can('team.edit');
+  const canAssignRoles = can('team.assign_roles');
   const canDeactivate = canEdit && !user?.is_tenant_owner && user?.id !== currentUser?.id;
 
   // Show loading state while checking authentication
@@ -423,7 +427,7 @@ export default function UserDetailPage() {
                         value={editForm.role}
                         onChange={(e) => setEditForm({ ...editForm, role: e.target.value as any })}
                         className="pl-10"
-                        disabled={user.is_tenant_owner}
+                        disabled={user.is_tenant_owner || !canAssignRoles}
                       >
                         <option value="viewer">Visualizador</option>
                         <option value="cashier">Cajero</option>

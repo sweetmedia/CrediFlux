@@ -126,11 +126,20 @@ def user_factory(tenant_schema):
 
     `user_factory(role="loan_officer", email="x@y.z")` — los kwargs van al
     UserFactory de `tests/factories.py`.
+
+    Un dueño o un `admin` de la financiera sale con 2FA activa: sin ella la API
+    sólo le deja activarla (`apps/users/permissions_2fa.py`). Para probar ese
+    caso pasa `is_2fa_enabled=False` explícito.
     """
+    import pyotp
     from tests.factories import UserFactory
 
     def _create(**overrides):
         overrides.setdefault("tenant", tenant_schema)
+        privileged = overrides.get("is_tenant_owner") or overrides.get("role") == "admin"
+        if privileged and overrides["tenant"] is not None and "is_2fa_enabled" not in overrides:
+            overrides["is_2fa_enabled"] = True
+            overrides.setdefault("totp_secret", pyotp.random_base32())
         return UserFactory(**overrides)
 
     return _create

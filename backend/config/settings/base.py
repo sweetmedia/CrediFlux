@@ -281,6 +281,10 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
     'tenant_registration': config('DRF_THROTTLE_TENANT_REGISTRATION', default='3/hour'),
     'validate_rnc': config('DRF_THROTTLE_VALIDATE_RNC', default='10/minute'),
     'cedula_lookup': config('DRF_THROTTLE_CEDULA_LOOKUP', default='30/minute'),
+    # Padrón JCE (run-8 M1): topes diarios por usuario y por financiera contra la extracción
+    # masiva, además del límite por minuto.
+    'cedula_lookup_day': config('DRF_THROTTLE_CEDULA_LOOKUP_DAY', default='300/day'),
+    'cedula_lookup_tenant_day': config('DRF_THROTTLE_CEDULA_LOOKUP_TENANT_DAY', default='2000/day'),
     'verify_email_send': config('DRF_THROTTLE_VERIFY_EMAIL_SEND', default='5/hour'),
     'password_reset_request': config('DRF_THROTTLE_PASSWORD_RESET_REQUEST', default='5/hour'),
 }

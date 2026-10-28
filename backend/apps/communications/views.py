@@ -34,6 +34,18 @@ class TaskViewSet(viewsets.ModelViewSet):
     """
     queryset = Task.objects.select_related('assignee', 'created_by', 'customer').all()
     permission_classes = [IsAuthenticated, TenantMatches, CanManageTasks]
+    permission_codes = {
+        'list': 'comms.view',
+        'retrieve': 'comms.view',
+        'by_status': 'comms.view',
+        'statistics': 'comms.view',
+        'create': 'comms.tasks',
+        'update': 'comms.tasks',
+        'partial_update': 'comms.tasks',
+        'destroy': 'comms.tasks',
+        'move': 'comms.tasks',
+        'reorder': 'comms.tasks',
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'priority', 'assignee', 'customer']
     search_fields = ['title', 'description', 'tags']

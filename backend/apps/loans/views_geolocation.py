@@ -15,17 +15,15 @@ from rest_framework import filters
 
 from apps.core.media import SignedFilesModelSerializer
 from .models_geolocation import CollectorVisit, CollectorLocation
+from apps.users.authz import has_perm
 from .permissions import CanManageCollections
 
 logger = logging.getLogger(__name__)
 
-# Roles que ven las visitas y ubicaciones de todos los cobradores.
-COLLECTOR_OVERSIGHT_ROLES = ('admin', 'manager', 'collection_supervisor')
-
 
 def _scope_to_collector(queryset, user):
-    """Gerencia, supervisión y dueños ven todo; el resto sólo lo suyo."""
-    if user.is_superuser or user.is_tenant_owner or user.role in COLLECTOR_OVERSIGHT_ROLES:
+    """Con collections.supervise (gerencia, supervisión, dueños) se ve todo; si no, sólo lo suyo."""
+    if has_perm(user, 'collections.supervise'):
         return queryset
     return queryset.filter(collector=user)
 
@@ -101,6 +99,19 @@ class CollectorVisitViewSet(viewsets.ModelViewSet):
         'collector', 'customer', 'loan', 'schedule'
     ).all()
     permission_classes = [IsAuthenticated, CanManageCollections]
+    # Lo que se ve de otros cobradores lo decide _scope_to_collector (collections.supervise).
+    permission_codes = {
+        'list': 'collections.view',
+        'retrieve': 'collections.view',
+        'my_visits': 'collections.view',
+        'today_visits': 'collections.view',
+        'visit_stats': 'collections.view',
+        'create': 'collections.mobile',
+        'update': 'collections.mobile',
+        'partial_update': 'collections.mobile',
+        'destroy': 'collections.mobile',
+        'checkout': 'collections.mobile',
+    }
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['collector', 'customer', 'loan', 'visit_type', 'outcome']
     search_fields = ['notes', 'customer__first_name', 'customer__last_name']
@@ -188,6 +199,13 @@ class CollectorLocationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = CollectorLocation.objects.select_related('collector').all()
     serializer_class = CollectorLocationSerializer
     permission_classes = [IsAuthenticated, CanManageCollections]
+    permission_codes = {
+        'list': 'collections.view',
+        'retrieve': 'collections.view',
+        'latest_locations': 'collections.view',
+        'collector_route': 'collections.view',
+        'ping': 'collections.mobile',
+    }
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['collector']
     ordering = ['-timestamp']

@@ -2,6 +2,9 @@
 User authentication and management URLs
 """
 from django.urls import path
+from rest_framework.routers import SimpleRouter
+
+from .views_roles import PermissionCatalogView, RoleViewSet
 from .views import (
     # Email Verification
     EmailVerificationSendView,
@@ -19,6 +22,7 @@ from .views import (
     TeamMemberListView,
     TeamMemberCreateView,
     TeamMemberDetailView,
+    AuthorizerListView,
     # Two-Factor Authentication
     TwoFactorSetupView,
     TwoFactorVerifyView,
@@ -28,6 +32,9 @@ from .views import (
 )
 
 app_name = 'users'
+
+router = SimpleRouter()
+router.register('roles', RoleViewSet, basename='role')
 
 urlpatterns = [
     # ========================================================================
@@ -60,6 +67,13 @@ urlpatterns = [
     path('team/', TeamMemberListView.as_view(), name='team-list'),
     path('team/create/', TeamMemberCreateView.as_view(), name='team-create'),
     path('team/<int:pk>/', TeamMemberDetailView.as_view(), name='team-detail'),
+    # Autorizadores de reversos de pago (dueño/admin con 2FA), Task 14
+    path('authorizers/', AuthorizerListView.as_view(), name='authorizers'),
+
+    # ========================================================================
+    # ROLES Y CATÁLOGO DE PERMISOS (D6)
+    # ========================================================================
+    path('permissions/catalog/', PermissionCatalogView.as_view(), name='permissions-catalog'),
 
     # ========================================================================
     # TWO-FACTOR AUTHENTICATION
@@ -70,3 +84,5 @@ urlpatterns = [
     path('auth/2fa/disable/', TwoFactorDisableView.as_view(), name='2fa-disable'),
     path('auth/2fa/backup-codes/', TwoFactorBackupCodesView.as_view(), name='2fa-backup-codes'),
 ]
+
+urlpatterns += router.urls

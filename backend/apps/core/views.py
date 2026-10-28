@@ -1,6 +1,8 @@
 """
 Core views
 """
+import re
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -35,110 +37,161 @@ class HealthCheckView(APIView):
 
 # RNC Validation Views
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.settings import api_settings
+from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
 from apps.core.services.rnc_lookup import validate_rnc, is_rnc_database_loaded, RNCLookupService
 from apps.core.permissions import TenantMatches
-from apps.loans.permissions import CanManageCollections
+from apps.users.authz import MENSAJE_DENEGADO, ViewPermissionRequired, has_perm
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class CanLookupCedula(CanManageCollections):
+class CanLookupCedula(BasePermission):
     """
-    Consulta del Padrón JCE: mismos roles que la gestión de cobranza
-    (CanManageCollections.allowed_roles), pero exigidos también en GET.
+    Consulta del Padrón JCE: es dato personal, así que exige customers.create o customers.edit
+    (quien da de alta o corrige la ficha del cliente), también en GET. Cambio intencional D5 (R8):
+    cobrador y supervisor de cobros ya no consultan el padrón con sus permisos por defecto.
     """
 
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
+        user = request.user
+        if not user or not user.is_authenticated:
             return False
-        if request.user.is_superuser or request.user.is_tenant_owner:
+        if has_perm(user, 'customers.create') or has_perm(user, 'customers.edit'):
             return True
-        if request.user.role not in self.allowed_roles:
-            raise PermissionDenied({
-                'detail': f'Tu rol ({request.user.get_role_display()}) no puede consultar el Padrón.',
-                'required_permission': 'CanLookupCedula',
-                'required_roles': self.allowed_roles,
-                'current_role': request.user.role,
-            })
-        return True
+        raise PermissionDenied({'detail': MENSAJE_DENEGADO, 'required_permission': 'customers.create'})
+
+
+def _buscar_en_padron(cedula):
+    """Una fila de public.padron_jce o None. Consulta calificada: no toca el search_path de la conexión."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT cedula, nombres, apellido1, apellido2, fecha_nacimiento, "
+            "sexo, estado_civil, lugar_nacimiento "
+            "FROM public.padron_jce WHERE cedula = %s LIMIT 1",
+            [cedula]
+        )
+        return cursor.fetchone()
+
+
+def _auditar_consulta_cedula(request, cedula, found):
+    """Deja constancia de quién consultó qué cédula; sin datos personales del padrón."""
+    from apps.audit.models import AuditLog
+    from apps.audit.middleware import get_client_ip, get_user_agent
+    AuditLog.log(
+        tenant=getattr(request, 'tenant', None),
+        user=request.user,
+        action='cedula_lookup',
+        model_name='PadronJCE',
+        ip_address=get_client_ip(request),
+        user_agent=get_user_agent(request),
+        extra_data={'cedula': cedula, 'found': found},
+    )
+
+
+class _TopeDiarioPadron(SimpleRateThrottle):
+    """Tope diario de consultas al padrón (run-8 M1). La tasa se lee en cada request de
+    `DEFAULT_THROTTLE_RATES` (no al importar), así `override_settings` la cambia en los tests."""
+
+    def get_rate(self):
+        return api_settings.DEFAULT_THROTTLE_RATES.get(self.scope)
+
+
+class CedulaUsuarioDiaThrottle(_TopeDiarioPadron):
+    """Por usuario y día (`cedula_lookup_day`)."""
+
+    scope = 'cedula_lookup_day'
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {'scope': self.scope, 'ident': request.user.pk}
+
+
+class CedulaFinancieraDiaThrottle(_TopeDiarioPadron):
+    """Por financiera y día (`cedula_lookup_tenant_day`): varias cuentas de la misma financiera
+    no multiplican el volumen."""
+
+    scope = 'cedula_lookup_tenant_day'
+
+    def get_cache_key(self, request, view):
+        tenant = getattr(request, 'tenant', None)
+        ident = request.user.tenant_id or getattr(tenant, 'pk', None) or f'user-{request.user.pk}'
+        return self.cache_format % {'scope': self.scope, 'ident': ident}
+
+
+CEDULA_INVALIDA = 'Cédula inválida: debe tener exactamente 11 dígitos.'
+
+
+def _normalizar_cedula(valor):
+    """Los 11 dígitos de la cédula (sin guiones ni espacios) o None si no los tiene."""
+    cedula = re.sub(r'[-\s]', '', valor or '')
+    return cedula if re.fullmatch(r'[0-9]{11}', cedula) else None
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, TenantMatches, CanLookupCedula])
-@throttle_classes([ScopedRateThrottle])
+@throttle_classes([ScopedRateThrottle, CedulaUsuarioDiaThrottle, CedulaFinancieraDiaThrottle])
 def validate_cedula_view(request):
     """
     Busca una cédula en el Padrón JCE (~7.9M registros).
     GET /api/core/validate-cedula/?cedula=00112345678
     """
-    cedula = request.query_params.get('cedula', '').strip().replace('-', '')
-
-    if not cedula or len(cedula) < 9:
-        return Response(
-            {'error': 'Cédula inválida. Debe tener al menos 9 dígitos.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    # Sólo 11 dígitos (run-8 L3): nada más se consulta ni se guarda en la auditoría.
+    cedula = _normalizar_cedula(request.query_params.get('cedula', ''))
+    if cedula is None:
+        return Response({'detail': CEDULA_INVALIDA}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        from .models import PadronJCE
-        # Search in public schema directly
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SET search_path = 'public'"
-            )
-            cursor.execute(
-                "SELECT cedula, nombres, apellido1, apellido2, fecha_nacimiento "
-                "FROM padron_jce WHERE cedula = %s LIMIT 1",
-                [cedula]
-            )
-            row = cursor.fetchone()
-
-        if row:
-            cedula_raw = row[0]
-            # Format cedula: XXX-XXXXXXX-X
-            cedula_fmt = cedula_raw
-            if len(cedula_raw) == 11:
-                cedula_fmt = f'{cedula_raw[:3]}-{cedula_raw[3:10]}-{cedula_raw[10]}'
-
-            nombres = row[1] or ''
-            apellido1 = row[2] or ''
-            apellido2 = row[3] or ''
-            fecha_nac = row[4]
-
-            # Build full name
-            nombre_parts = nombres.split()
-            first_name = nombre_parts[0].title() if nombre_parts else ''
-            middle_name = ' '.join(nombre_parts[1:]).title() if len(nombre_parts) > 1 else ''
-
-            return Response({
-                'found': True,
-                'cedula': cedula_fmt,
-                'cedula_raw': cedula_raw,
-                'nombres': nombres.title(),
-                'first_name': first_name,
-                'middle_name': middle_name,
-                'apellido1': apellido1.title(),
-                'apellido2': apellido2.title() if apellido2 else '',
-                'last_name': f"{apellido1.title()}{' ' + apellido2.title() if apellido2 else ''}",
-                'nombre_completo': f"{nombres.title()} {apellido1.title()}{' ' + apellido2.title() if apellido2 else ''}",
-                'fecha_nacimiento': str(fecha_nac) if fecha_nac else None,
-                'source': 'padron_jce',
-            })
-        else:
-            return Response({
-                'found': False,
-                'cedula': cedula,
-                'message': 'Cédula no encontrada en el Padrón JCE.',
-            })
-    except Exception as e:
+        row = _buscar_en_padron(cedula)
+        # Sin constancia no hay dato: si la auditoría falla, no se entrega la información.
+        _auditar_consulta_cedula(request, cedula, found=row is not None)
+    except Exception as exc:
+        # Sólo el tipo de la excepción: sin texto ni traceback (puede arrastrar datos personales).
+        logger.error('Fallo consultando el padrón JCE: %s', type(exc).__name__)
         return Response(
-            {'error': f'Error consultando el Padrón: {str(e)}'},
+            {'detail': 'No se pudo consultar el padrón.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+    if row is None:
+        return Response({
+            'found': False,
+            'cedula': cedula,
+            'message': 'Cédula no encontrada en el Padrón JCE.',
+        })
+
+    cedula_raw, nombres, apellido1, apellido2, fecha_nac, sexo, estado_civil, lugar_nac = row
+    nombres = nombres or ''
+    apellido1 = apellido1 or ''
+    apellido2 = apellido2 or ''
+    cedula_fmt = cedula_raw
+    if len(cedula_raw) == 11:
+        cedula_fmt = f'{cedula_raw[:3]}-{cedula_raw[3:10]}-{cedula_raw[10]}'
+
+    nombre_parts = nombres.split()
+    first_name = nombre_parts[0].title() if nombre_parts else ''
+    middle_name = ' '.join(nombre_parts[1:]).title() if len(nombre_parts) > 1 else ''
+    apellidos = f"{apellido1.title()}{' ' + apellido2.title() if apellido2.strip() else ''}"
+
+    return Response({
+        'found': True,
+        'cedula': cedula_fmt,
+        'cedula_raw': cedula_raw,
+        'nombres': nombres.title(),
+        'first_name': first_name,
+        'middle_name': middle_name,
+        'apellido1': apellido1.title(),
+        'apellido2': apellido2.title().strip(),
+        'last_name': apellidos,
+        'nombre_completo': f"{nombres.title()} {apellidos}",
+        'fecha_nacimiento': str(fecha_nac) if fecha_nac else None,
+        'sexo': (sexo or '').strip() or None,
+        'estado_civil': (estado_civil or '').strip() or None,
+        'lugar_nacimiento': (lugar_nac or '').strip() or None,
+        'source': 'padron_jce',
+    })
 
 
 @api_view(['POST'])
@@ -351,9 +404,19 @@ class GlobalSearchView(APIView):
     """
     Global search across customers, loans, contracts, and payments.
     Uses django-tenants schema isolation - no need to filter by tenant.
+
+    Abierta a cualquier miembro (`None`), pero cada sección sólo se llena si el usuario tiene
+    el código que deja ver ese dato (`CODIGO_POR_SECCION`); sin él, la sección va vacía.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'GET': None}
+    CODIGO_POR_SECCION = {
+        'customers': 'customers.view',
+        'loans': 'loans.view',
+        'payments': 'payments.view',
+        'contracts': 'contracts.view',
+    }
 
     @staticmethod
     def _format_dominican_id(value):
@@ -372,28 +435,27 @@ class GlobalSearchView(APIView):
 
     def get(self, request):
         query = request.query_params.get('q', '').strip()
+        results = {seccion: [] for seccion in self.CODIGO_POR_SECCION}
 
         if len(query) < 2:
             return Response({
                 'query': query,
                 'total_results': 0,
-                'results': {
-                    'customers': [],
-                    'loans': [],
-                    'payments': [],
-                    'contracts': [],
-                },
+                'results': results,
                 'message': 'La busqueda debe tener al menos 2 caracteres'
             })
 
-        results = {
-            'customers': [],
-            'loans': [],
-            'payments': [],
-            'contracts': [],
-        }
+        for seccion, codigo in self.CODIGO_POR_SECCION.items():
+            if has_perm(request.user, codigo):
+                results[seccion] = getattr(self, f'_buscar_{seccion}')(query)
 
-        # Search Customers (tenant isolation handled by django-tenants schema)
+        return Response({
+            'query': query,
+            'total_results': sum(len(v) for v in results.values()),
+            'results': results,
+        })
+
+    def _buscar_customers(self, query):
         from apps.loans.models import Customer
         customers = Customer.objects.filter(
             Q(first_name__icontains=query) |
@@ -402,8 +464,7 @@ class GlobalSearchView(APIView):
             Q(email__icontains=query) |
             Q(phone__icontains=query)
         )[:5]
-
-        results['customers'] = [
+        return [
             {
                 'id': str(c.id),
                 'type': 'customer',
@@ -414,15 +475,14 @@ class GlobalSearchView(APIView):
             for c in customers
         ]
 
-        # Search Loans
+    def _buscar_loans(self, query):
         from apps.loans.models import Loan
         loans = Loan.objects.filter(
             Q(loan_number__icontains=query) |
             Q(customer__first_name__icontains=query) |
             Q(customer__last_name__icontains=query)
         ).select_related('customer')[:5]
-
-        results['loans'] = [
+        return [
             {
                 'id': str(loan.id),
                 'type': 'loan',
@@ -433,7 +493,7 @@ class GlobalSearchView(APIView):
             for loan in loans
         ]
 
-        # Search Payments
+    def _buscar_payments(self, query):
         from apps.loans.models import LoanPayment
         payments = LoanPayment.objects.filter(
             Q(reference_number__icontains=query) |
@@ -441,46 +501,34 @@ class GlobalSearchView(APIView):
             Q(loan__customer__first_name__icontains=query) |
             Q(loan__customer__last_name__icontains=query)
         ).select_related('loan', 'loan__customer')[:5]
-
-        results['payments'] = [
+        return [
             {
                 'id': str(payment.id),
                 'type': 'payment',
                 'title': f'Pago #{payment.payment_number}',
-                'subtitle': f'{payment.loan.loan_number} - ${payment.amount}',
+                'subtitle': f'{payment.loan.loan_number} - RD$ {payment.amount.amount:,.2f}',
                 'url': f'/payments/{payment.id}',
             }
             for payment in payments
         ]
 
-        # Search Contracts (if app exists)
-        try:
-            from apps.contracts.models import Contract
-            contracts = Contract.objects.filter(
-                Q(contract_number__icontains=query) |
-                Q(loan__loan_number__icontains=query) |
-                Q(loan__customer__first_name__icontains=query) |
-                Q(loan__customer__last_name__icontains=query)
-            ).select_related('loan', 'loan__customer')[:5]
-
-            results['contracts'] = [
-                {
-                    'id': str(contract.id),
-                    'type': 'contract',
-                    'title': f'Contrato {contract.contract_number}',
-                    'subtitle': contract.loan.customer.get_full_name() if contract.loan else 'Sin prestamo',
-                    'url': f'/contracts/{contract.id}',
-                }
-                for contract in contracts
-            ]
-        except (ImportError, Exception):
-            pass
-
-        # Calculate total results
-        total_results = sum(len(v) for v in results.values())
-
-        return Response({
-            'query': query,
-            'total_results': total_results,
-            'results': results,
-        })
+    def _buscar_contracts(self, query):
+        # Los contratos viven en apps.loans (antes se importaba un apps.contracts inexistente
+        # y la sección salía siempre vacía).
+        from apps.loans.models_contracts import Contract
+        contracts = Contract.objects.filter(
+            Q(contract_number__icontains=query) |
+            Q(loan__loan_number__icontains=query) |
+            Q(loan__customer__first_name__icontains=query) |
+            Q(loan__customer__last_name__icontains=query)
+        ).select_related('loan', 'loan__customer')[:5]
+        return [
+            {
+                'id': str(contract.id),
+                'type': 'contract',
+                'title': f'Contrato {contract.contract_number}',
+                'subtitle': contract.loan.customer.get_full_name() if contract.loan else 'Sin prestamo',
+                'url': f'/contracts/{contract.id}',
+            }
+            for contract in contracts
+        ]

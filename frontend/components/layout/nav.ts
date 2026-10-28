@@ -1,6 +1,6 @@
 /**
  * Menú de la app (ShellV1 del canvas F3). Los grupos plegables recuerdan su
- * estado; Administración sólo la ve el dueño o un administrador. Facturas
+ * estado; cada ítem pide un permiso y un grupo sin ítems visibles se oculta. Facturas
  * recibidas, Proveedores (F6) e Impresos (F7) entran cuando existan sus rutas.
  */
 import {
@@ -9,10 +9,18 @@ import {
   PenLine, Phone, Receipt, Settings, Shield, Sparkles, UserCog, Users, type LucideIcon,
 } from 'lucide-react';
 
+/*
+ * Códigos más finos del catálogo (contracts.create/templates, comms.tasks,
+ * collections.mobile/contacts/reminders) se limitan a _PRESTAMOS/_COBRANZA y
+ * esconderían entradas que hoy ven contador, cajero y visualizador; por eso
+ * esos ítems piden el código de «ver» de su módulo.
+ */
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** Código de permiso para verlo; sin él, siempre visible. */
+  permission?: string;
 }
 
 export interface NavGroup {
@@ -22,7 +30,6 @@ export interface NavGroup {
   collapsible: boolean;
   /** Plegado la primera vez (luego manda lo que eligió el usuario). */
   collapsedByDefault?: boolean;
-  adminOnly?: boolean;
   items: NavItem[];
 }
 
@@ -30,56 +37,63 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     id: 'overview', label: 'Overview', collapsible: false, items: [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/calculator', label: 'Calculadora', icon: Calculator },
-      { href: '/ai', label: 'Asistente IA', icon: Sparkles },
+      { href: '/calculator', label: 'Calculadora', icon: Calculator, permission: 'loans.calculator' },
+      { href: '/ai', label: 'Asistente IA', icon: Sparkles, permission: 'ai.access' },
     ],
   },
   {
     id: 'operacion', label: 'Operación', collapsible: true, items: [
-      { href: '/loans', label: 'Préstamos', icon: FileText },
-      { href: '/customers', label: 'Clientes', icon: Users },
-      { href: '/payments', label: 'Pagos', icon: DollarSign },
-      { href: '/cashbox', label: 'Caja', icon: Banknote },
+      { href: '/loans', label: 'Préstamos', icon: FileText, permission: 'loans.view' },
+      { href: '/customers', label: 'Clientes', icon: Users, permission: 'customers.view' },
+      { href: '/payments', label: 'Pagos', icon: DollarSign, permission: 'payments.view' },
+      { href: '/cashbox', label: 'Caja', icon: Banknote, permission: 'cashbox.view' },
     ],
   },
   {
     id: 'cobranza', label: 'Cobranza', collapsible: true, items: [
-      { href: '/collections', label: 'Mesa de cobranza', icon: Phone },
-      { href: '/collections/contacts', label: 'Gestiones', icon: PenLine },
-      { href: '/collections/reminders', label: 'Recordatorios', icon: Bell },
-      { href: '/collector', label: 'Cobrador móvil', icon: MapPin },
-      { href: '/collections/reports', label: 'Reportes', icon: BarChart3 },
+      { href: '/collections', label: 'Mesa de cobranza', icon: Phone, permission: 'collections.view' },
+      { href: '/collections/contacts', label: 'Gestiones', icon: PenLine, permission: 'collections.view' },
+      { href: '/collections/reminders', label: 'Recordatorios', icon: Bell, permission: 'collections.view' },
+      { href: '/collector', label: 'Cobrador móvil', icon: MapPin, permission: 'collections.view' },
+      { href: '/collections/reports', label: 'Reportes', icon: BarChart3, permission: 'collections.view' },
     ],
   },
   {
     id: 'facturacion', label: 'Facturación', collapsible: true, collapsedByDefault: true, items: [
-      { href: '/billing', label: 'Facturas e-CF', icon: Receipt },
-      { href: '/billing/sequences', label: 'Secuencias e-NCF', icon: Hash },
-      { href: '/billing/certificates', label: 'Certificados', icon: Shield },
-      { href: '/billing/dgii-reports', label: 'Reportes DGII', icon: FileSpreadsheet },
+      { href: '/billing', label: 'Facturas e-CF', icon: Receipt, permission: 'billing.view' },
+      { href: '/billing/sequences', label: 'Secuencias e-NCF', icon: Hash, permission: 'billing.view' },
+      { href: '/billing/certificates', label: 'Certificados', icon: Shield, permission: 'billing.view' },
+      { href: '/billing/dgii-reports', label: 'Reportes DGII', icon: FileSpreadsheet, permission: 'billing.reports' },
     ],
   },
   {
     id: 'contratos', label: 'Contratos', collapsible: true, collapsedByDefault: true, items: [
-      { href: '/contracts', label: 'Contratos', icon: FileSignature },
-      { href: '/contracts/generate', label: 'Generar contrato', icon: FilePlus },
-      { href: '/contract-templates', label: 'Plantillas', icon: List },
+      { href: '/contracts', label: 'Contratos', icon: FileSignature, permission: 'contracts.view' },
+      { href: '/contracts/generate', label: 'Generar contrato', icon: FilePlus, permission: 'contracts.view' },
+      { href: '/contract-templates', label: 'Plantillas', icon: List, permission: 'contracts.view' },
     ],
   },
   {
     id: 'comunicaciones', label: 'Comunicaciones', collapsible: true, collapsedByDefault: true, items: [
-      { href: '/communications', label: 'Mensajes', icon: MessageSquare },
-      { href: '/tasks', label: 'Tareas', icon: CheckSquare },
+      { href: '/communications', label: 'Mensajes', icon: MessageSquare, permission: 'comms.view' },
+      { href: '/tasks', label: 'Tareas', icon: CheckSquare, permission: 'comms.view' },
     ],
   },
   {
-    id: 'admin', label: 'Administración', collapsible: false, adminOnly: true, items: [
-      { href: '/users', label: 'Equipo', icon: UserCog },
-      { href: '/audit', label: 'Auditoría', icon: ClipboardCheck },
-      { href: '/settings', label: 'Configuración', icon: Settings },
+    id: 'admin', label: 'Administración', collapsible: false, items: [
+      { href: '/users', label: 'Equipo', icon: UserCog, permission: 'team.view' },
+      { href: '/audit', label: 'Auditoría', icon: ClipboardCheck, permission: 'settings.audit' },
+      { href: '/settings', label: 'Configuración', icon: Settings, permission: 'settings.view' },
     ],
   },
 ];
+
+/** Grupos con sus ítems filtrados por permiso; los grupos que quedan vacíos se omiten. */
+export function visibleNavGroups(groups: NavGroup[], can: (code: string) => boolean): NavGroup[] {
+  return groups
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || can(i.permission)) }))
+    .filter((g) => g.items.length > 0);
+}
 
 /** Marca activa la ruta exacta o una hija; `/collections` no se activa en `/collections/contacts`. */
 export function activeHref(pathname: string, hrefs: string[]): string | undefined {

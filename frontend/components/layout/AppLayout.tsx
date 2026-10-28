@@ -9,6 +9,7 @@ import { useIsMobile } from './useIsMobile';
 import { Loader2 } from 'lucide-react';
 import { SimplePageTransition } from '@/components/PageTransition';
 import { AIChatBubble } from '@/components/AIChatBubble';
+import { useCan } from '@/lib/permissions';
 import { esPaginaPublica } from './public-pages';
 import './shell.css';
 
@@ -27,6 +28,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuth();
+  const can = useCan();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
   // Con el teclado abierto la barra inferior taparía el botón del formulario.
@@ -102,7 +104,8 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {conBarraInferior && <MobileNav onMore={() => setSidebarOpen(true)} />}
 
-        <AIChatBubble />
+        {/* El backend exige ai.access en el chat; sin él, ni se ofrece. */}
+        {can('ai.access') && <AIChatBubble />}
       </div>
     );
   }

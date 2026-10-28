@@ -20,6 +20,8 @@ export interface User {
   tenant?: number;
   tenant_name?: string;
   is_tenant_owner: boolean;
+  /** Códigos de permiso del usuario actual (ausente en sesiones cacheadas antes de D6). */
+  permissions?: string[];
   is_staff: boolean;
   is_superuser: boolean;
   is_active: boolean;

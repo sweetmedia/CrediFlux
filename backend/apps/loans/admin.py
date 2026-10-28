@@ -24,17 +24,12 @@ from .policy import (
     OPEN_CONTRACT_MESSAGE, TERMINAL_CONTRACT_STATUSES, contract_deletable, loan_has_open_contract,
     loan_terms_locked, validate_approval, validate_origination,
 )
+from apps.users.authz import has_perm
 from .permissions import can_manage_loans
 from .disbursement import apply_disbursement, calculate_payment_amount, check_disbursable
 from .locks import (
     LoanNotPending, lock_contract, lock_loan, lock_loan_contracts, lock_pending_loans, lock_row_loans,
 )
-
-
-# Roles que pueden aprobar, rechazar y desembolsar: mismo criterio que CanApproveLoan en
-# permissions.py (superusuario, dueño del tenant o uno de estos roles). Allí la regla está
-# dentro de has_permission y lanza la excepción de DRF, así que se replica aquí.
-APPROVER_ROLES = ('admin', 'manager', 'loan_officer')
 
 
 def is_tenant_schema():
@@ -444,19 +439,19 @@ class LoanAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKMixin
         """Only allow view in tenant schemas"""
         return is_tenant_schema() and super().has_view_permission(request, obj)
 
-    # Escribir exige, como LoanViewSet (CanManageLoans), el rol gestor además del permiso de
-    # modelo: un cajero o viewer con permisos de préstamo sólo consulta.
+    # Escribir exige, como LoanViewSet, el código del catálogo (loans.create / loans.edit)
+    # además del permiso de modelo: un cajero o viewer con permisos de préstamo sólo consulta.
     def has_add_permission(self, request):
         """Only allow add in tenant schemas"""
         return (
-            is_tenant_schema() and can_manage_loans(request.user)
+            is_tenant_schema() and can_manage_loans(request.user, 'loans.create')
             and super().has_add_permission(request)
         )
 
     def has_change_permission(self, request, obj=None):
         """Only allow change in tenant schemas"""
         return (
-            is_tenant_schema() and can_manage_loans(request.user)
+            is_tenant_schema() and can_manage_loans(request.user, 'loans.edit')
             and super().has_change_permission(request, obj)
         )
 
@@ -465,7 +460,7 @@ class LoanAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKMixin
         if obj is not None and obj.status not in ('pending', 'rejected'):
             return False
         return (
-            is_tenant_schema() and can_manage_loans(request.user)
+            is_tenant_schema() and can_manage_loans(request.user, 'loans.edit')
             and super().has_delete_permission(request, obj)
         )
 
@@ -488,21 +483,21 @@ class LoanAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKMixin
             perms_needed.discard(model._meta.verbose_name)
         return deleted, model_count, perms_needed, protected
 
-    def has_approve_permission(self, request, obj=None):
-        """Aprobar, rechazar y desembolsar: paridad con la API (CanApproveLoan).
+    # Aprobar, rechazar y desembolsar: paridad con la API (LoanViewSet.permission_codes). Además
+    # de poder editar préstamos, cada acción exige su código; declaran permissions=['approve'],
+    # ['reject'] o ['disburse']: Django las quita de get_actions para los demás y un POST
+    # manipulado al changelist no las ejecuta.
+    def _has_lifecycle_permission(self, request, obj, code):
+        return self.has_change_permission(request, obj) and has_perm(request.user, code)
 
-        Además de poder editar préstamos, el usuario debe ser superusuario, dueño del tenant o
-        tener un rol aprobador. Las acciones declaran permissions=['approve']: Django las quita de
-        get_actions para los demás y un POST manipulado al changelist no las ejecuta.
-        """
-        if not self.has_change_permission(request, obj):
-            return False
-        user = request.user
-        return bool(
-            user.is_superuser
-            or getattr(user, 'is_tenant_owner', False)
-            or getattr(user, 'role', None) in APPROVER_ROLES
-        )
+    def has_approve_permission(self, request, obj=None):
+        return self._has_lifecycle_permission(request, obj, 'loans.approve')
+
+    def has_reject_permission(self, request, obj=None):
+        return self._has_lifecycle_permission(request, obj, 'loans.reject')
+
+    def has_disburse_permission(self, request, obj=None):
+        return self._has_lifecycle_permission(request, obj, 'loans.disburse')
 
     @staticmethod
     def _lock_loan(pk):
@@ -864,7 +859,7 @@ class LoanAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKMixin
                 messages.SUCCESS
             )
 
-    @admin.action(description='Rechazar préstamos seleccionados', permissions=['approve'])
+    @admin.action(description='Rechazar préstamos seleccionados', permissions=['reject'])
     def reject_loans(self, request, queryset):
         """Rechaza los pendientes (estado comprobado sobre la fila bloqueada)."""
         from django.utils import timezone
@@ -888,7 +883,7 @@ class LoanAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKMixin
                 messages.SUCCESS
             )
 
-    @admin.action(description='Desembolsar préstamos aprobados', permissions=['approve'])
+    @admin.action(description='Desembolsar préstamos aprobados', permissions=['disburse'])
     def disburse_loans(self, request, queryset):
         """Desembolsa los aprobados que cumplen las precondiciones; informa los que no."""
         from django.contrib import messages
@@ -1105,12 +1100,12 @@ class CollateralAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserF
 
     # Las garantías sólo se dan de alta, editan o borran mientras el préstamo está pendiente
     # (lo que el aprobador revisó); después cambian por sus flujos.
-    # Escribir exige, como CollateralViewSet (CanManageLoans), el rol gestor además del permiso
-    # de modelo: un cajero o viewer con permisos de garantías sólo consulta.
+    # Escribir exige, como CollateralViewSet, loans.edit además del permiso de modelo: un cajero
+    # o viewer con permisos de garantías sólo consulta.
     def has_add_permission(self, request):
         """Only allow add in tenant schemas"""
         return (
-            is_tenant_schema() and can_manage_loans(request.user)
+            is_tenant_schema() and can_manage_loans(request.user, 'loans.edit')
             and super().has_add_permission(request)
         )
 
@@ -1118,7 +1113,7 @@ class CollateralAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserF
         if obj is not None and obj.loan.status != 'pending':
             return False
         return (
-            is_tenant_schema() and can_manage_loans(request.user)
+            is_tenant_schema() and can_manage_loans(request.user, 'loans.edit')
             and super().has_change_permission(request, obj)
         )
 
@@ -1126,7 +1121,7 @@ class CollateralAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserF
         if obj is not None and obj.loan.status != 'pending':
             return False
         return (
-            is_tenant_schema() and can_manage_loans(request.user)
+            is_tenant_schema() and can_manage_loans(request.user, 'loans.edit')
             and super().has_delete_permission(request, obj)
         )
 
@@ -1639,11 +1634,11 @@ class ContractAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKM
         """Only allow view in tenant schemas"""
         return is_tenant_schema() and super().has_view_permission(request, obj)
 
-    # Escribir exige, además del permiso de modelo, el rol de CanManageLoans (superusuario, dueño
-    # del tenant o rol gestor): un viewer o cajero con permisos de contrato sólo puede mirar.
+    # Escribir exige, además del permiso de modelo, contracts.create (como ContractViewSet): un
+    # viewer o cajero con permisos de contrato sólo puede mirar.
     def has_add_permission(self, request):
         return (
-            is_tenant_schema() and can_manage_loans(request.user)
+            is_tenant_schema() and can_manage_loans(request.user, 'contracts.create')
             and super().has_add_permission(request)
         )
 
@@ -1652,7 +1647,7 @@ class ContractAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKM
         if obj is not None and obj.status in TERMINAL_CONTRACT_STATUSES:
             return False
         return (
-            is_tenant_schema() and can_manage_loans(request.user)
+            is_tenant_schema() and can_manage_loans(request.user, 'contracts.create')
             and super().has_change_permission(request, obj)
         )
 
@@ -1661,7 +1656,7 @@ class ContractAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFKM
         if obj is not None and not contract_deletable(obj):
             return False
         return (
-            is_tenant_schema() and can_manage_loans(request.user)
+            is_tenant_schema() and can_manage_loans(request.user, 'contracts.create')
             and super().has_delete_permission(request, obj)
         )
 
@@ -1900,19 +1895,19 @@ class GuarantorAdmin(TenantHistoryMixin, AtomicDeleteSelectedMixin, TenantUserFK
     # Igual que las garantías: los garantes sólo se agregan, editan, mueven o borran mientras el
     # préstamo está pendiente (lo que el aprobador revisó). has_*_permission es el filtro de la
     # interfaz; la decisión al escribir se toma sobre el préstamo bloqueado (_lock_pending_loans).
-    # Escribir exige además, como GuarantorViewSet (CanManageLoans), el rol gestor.
+    # Escribir exige además, como GuarantorViewSet, loans.edit.
     def has_add_permission(self, request):
-        return can_manage_loans(request.user) and super().has_add_permission(request)
+        return can_manage_loans(request.user, 'loans.edit') and super().has_add_permission(request)
 
     def has_change_permission(self, request, obj=None):
         if obj is not None and obj.loan.status != 'pending':
             return False
-        return can_manage_loans(request.user) and super().has_change_permission(request, obj)
+        return can_manage_loans(request.user, 'loans.edit') and super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
         if obj is not None and obj.loan.status != 'pending':
             return False
-        return can_manage_loans(request.user) and super().has_delete_permission(request, obj)
+        return can_manage_loans(request.user, 'loans.edit') and super().has_delete_permission(request, obj)
 
     # Igual que GuarantorSerializer: el contrato por firmar nombra al primer garante, así que se
     # rehace al agregar, editar, mover o borrar garantes (uno firmado no se reescribe).

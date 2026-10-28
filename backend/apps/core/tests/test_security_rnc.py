@@ -153,30 +153,44 @@ def test_validate_rnc_is_throttled_per_client(api_client, loaded_registry):
     assert api_client.post(RNC_URL, {"rnc": "00000000003"}, format="json").status_code == 429
 
 
-# --- Cédula por rol ----------------------------------------------------------
+# --- Cédula por permiso: customers.create o customers.edit (cambio intencional D5, R8) --------
 
-@pytest.mark.parametrize("role", ["viewer", "accountant", "cashier"])
-def test_non_collection_roles_cannot_query_cedula(api_client, user_factory, role):
+@pytest.mark.parametrize("role", ["viewer", "accountant", "cashier", "collector", "collection_supervisor"])
+def test_roles_without_customer_write_cannot_query_cedula(api_client, user_factory, role):
     api_client.force_authenticate(user=user_factory(role=role))
     response = api_client.get(CEDULA_URL, {"cedula": "00112345678"})
     assert response.status_code == 403
+    assert response.json()["required_permission"] == "customers.create"
 
 
-def test_collector_can_query_cedula(api_client, user_factory):
-    api_client.force_authenticate(user=user_factory(role="collector"))
+def test_loan_officer_can_query_cedula(api_client, user_factory):
+    api_client.force_authenticate(user=user_factory(role="loan_officer"))
     response = api_client.get(CEDULA_URL, {"cedula": "123"})
     assert response.status_code == 400  # pasa el permiso y llega a la validación
+
+
+@pytest.mark.parametrize("codigo", ["customers.create", "customers.edit"])
+def test_either_customer_write_code_allows_cedula(api_client, user_factory, tenant_schema, codigo):
+    from apps.users.models import Role
+
+    Role.objects.filter(tenant=tenant_schema, key="viewer").update(permissions=[codigo])
+    api_client.force_authenticate(user=user_factory(role="viewer"))
+    assert api_client.get(CEDULA_URL, {"cedula": "123"}).status_code == 400
 
 
 def test_cedula_view_uses_scoped_throttle():
     view = views.validate_cedula_view
     assert view.cls.throttle_scope == "cedula_lookup"
-    assert list(view.cls.throttle_classes) == [ScopedRateThrottle]
+    # Run-8 M1: además del límite por minuto, topes diarios por usuario y por financiera
+    # (test_cedula_lookup.py los prueba).
+    assert list(view.cls.throttle_classes) == [
+        ScopedRateThrottle, views.CedulaUsuarioDiaThrottle, views.CedulaFinancieraDiaThrottle,
+    ]
     assert settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["cedula_lookup"] == "30/minute"
 
 
 def test_cedula_lookup_is_throttled_per_user(api_client, user_factory):
-    api_client.force_authenticate(user=user_factory(role="collector"))
+    api_client.force_authenticate(user=user_factory(role="loan_officer"))
     limit = int(ScopedRateThrottle.THROTTLE_RATES["cedula_lookup"].split("/")[0])
     assert limit == 30
     for _ in range(limit):

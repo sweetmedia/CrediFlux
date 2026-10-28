@@ -1,7 +1,9 @@
-from rest_framework import generics, filters, status
+from rest_framework import generics, filters
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, DateFromToRangeFilter
+
+from apps.users.authz import ViewPermissionRequired, has_perm
 
 from .models import AuditLog
 from .serializers import AuditLogSerializer, AuditLogDetailSerializer
@@ -14,7 +16,7 @@ def tenant_audit_logs(user):
     Sin tenant (p. ej. superusuario de plataforma) no ve nada: `tenant=user.tenant` con None
     devolvería justo las filas de plataforma (tenant=None), que sólo se ven en el admin público.
     """
-    if user.role not in ['admin', 'manager'] or user.tenant_id is None:
+    if not has_perm(user, 'settings.audit') or user.tenant_id is None:
         return AuditLog.objects.none()
     return AuditLog.objects.filter(tenant_id=user.tenant_id)
 
@@ -49,7 +51,7 @@ class AuditLogListView(generics.ListAPIView):
 
     def get_queryset(self):
         """Filter audit logs by the current user's tenant."""
-        # Only admin and manager roles of a tenant can view audit logs
+        # Sólo quien tiene settings.audit (dueño, y por defecto admin y gerente) ve los registros
         return tenant_audit_logs(self.request.user).select_related('user')
 
 
@@ -64,7 +66,7 @@ class AuditLogDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         """Filter audit logs by the current user's tenant."""
-        # Only admin and manager roles of a tenant can view audit logs
+        # Sólo quien tiene settings.audit (dueño, y por defecto admin y gerente) ve los registros
         return tenant_audit_logs(self.request.user).select_related('user')
 
 
@@ -73,17 +75,11 @@ class AuditLogStatsView(generics.GenericAPIView):
     Get statistics about audit logs.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'GET': 'settings.audit'}
 
     def get(self, request):
         user = request.user
-
-        # Only allow admin and manager roles
-        if user.role not in ['admin', 'manager']:
-            return Response(
-                {'error': 'No tienes permiso para ver los registros de auditoria'},
-                status=status.HTTP_403_FORBIDDEN
-            )
 
         from django.db.models import Count
         from django.db.models.functions import TruncDate

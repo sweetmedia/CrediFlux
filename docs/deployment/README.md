@@ -835,6 +835,8 @@ Pasos de operador que exige la rama `claude/security-remediation`. Hacerlos en e
   | `DRF_THROTTLE_TENANT_REGISTRATION` | `3/hour` | registro de tenants por cliente (IPv4 o red IPv6 /56) |
   | `DRF_THROTTLE_VALIDATE_RNC` | `10/minute` | consultas a `validate-rnc` |
   | `DRF_THROTTLE_CEDULA_LOOKUP` | `30/minute` | consultas al Padrón JCE (`validate-cedula`) por usuario |
+  | `DRF_THROTTLE_CEDULA_LOOKUP_DAY` | `300/day` | tope diario de consultas al Padrón JCE por usuario |
+  | `DRF_THROTTLE_CEDULA_LOOKUP_TENANT_DAY` | `2000/day` | tope diario de consultas al Padrón JCE por financiera (todas sus cuentas) |
   | `DRF_THROTTLE_VERIFY_EMAIL_SEND` | `5/hour` | peticiones de enlace de verificación (`verify-email/send`) por cliente (IPv4 o red IPv6 /56) |
   | `VERIFY_EMAIL_SEND_COOLDOWN` | `600` (s) | correos de verificación al mismo usuario (enfriamiento silencioso: la respuesta no cambia) |
   | `DRF_THROTTLE_PASSWORD_RESET_REQUEST` | `5/hour` | peticiones de enlace de reset de contraseña (`password-reset/request`) por cliente (IPv4 o red IPv6 /56) |

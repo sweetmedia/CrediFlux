@@ -9,6 +9,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 
 from apps.tenants.models import Domain, Tenant
+from apps.users.models import ensure_system_roles
 
 
 class Command(BaseCommand):
@@ -33,6 +34,9 @@ class Command(BaseCommand):
                 raise CommandError(f'{domain} ya pertenece al tenant {other.tenant.schema_name}.')
             Domain.objects.filter(tenant=tenant, is_primary=True).exclude(domain=domain).update(is_primary=False)
             Domain.objects.update_or_create(domain=domain, defaults={'tenant': tenant, 'is_primary': True})
+            # Si el tenant ya existía (get_or_create no lo crea, la señal no salta) se completan
+            # sus roles: usuarios del schema public en una instalación de un solo tenant.
+            ensure_system_roles(tenant)
         self.stdout.write(self.style.SUCCESS(
             f'Tenant public {"creado" if created else "ya existía"}; dominio primario {domain}.'
         ))
