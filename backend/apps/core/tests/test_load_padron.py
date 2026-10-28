@@ -109,7 +109,7 @@ def test_errores_de_insert_fallan_con_y_sin_dry_run(public_schema, tmp_path, cas
 
 @pytest.mark.django_db
 def test_error_no_encadena_la_excepcion_de_la_bd(public_schema, tmp_path):
-    ruta = _archivo(tmp_path, MALOS_EN_INSERT['fecha_texto'])
+    ruta = _archivo(tmp_path, MALOS_EN_INSERT['fecha_imposible'])
     with pytest.raises(CommandError) as ei:
         call_command('load_padron_jce', ruta)
     assert ei.value.__cause__ is None and ei.value.__suppress_context__
