@@ -18,7 +18,9 @@ def login(client, user):
     return data
 
 def test_password_change_invalidates_existing_tokens(api_client, user_factory):
-    user = user_factory(role="admin")
+    # Rol sin 2FA obligatoria: cubre los tokens emitidos por el login directo (sin segundo paso).
+    user = user_factory(role="manager")
+    assert not user.is_2fa_enabled
     tokens = login(api_client, user)
     hdr = {"HTTP_AUTHORIZATION": f"Bearer {tokens['access_token']}"}
     assert api_client.get("/api/users/profile/", **hdr).status_code == 200
@@ -76,7 +78,8 @@ def test_password_reset_confirm_revokes_tokens(api_client, user_factory):
     from django.contrib.auth.tokens import default_token_generator
     from django.utils.encoding import force_bytes
     from django.utils.http import urlsafe_base64_encode
-    user = user_factory(role="admin")
+    user = user_factory(role="manager")  # login directo, sin 2FA (ver arriba)
+    assert not user.is_2fa_enabled
     tokens = login(api_client, user)
     user.refresh_from_db()
     body = {
@@ -161,3 +164,13 @@ def test_revoked_refresh_body_carries_token_revoked_code(api_client, user_factor
     r = api_client.post("/api/auth/token/refresh/", {"refresh": tokens["refresh_token"]}, format="json")
     assert r.status_code == 401
     assert r.json() == {"detail": "Token revocado.", "code": "token_revoked"}
+
+def test_password_change_invalidates_tokens_issued_after_2fa_login(api_client, user_factory):
+    """El mismo caso con un admin (2FA obligatoria): el token del segundo paso también se revoca."""
+    user = user_factory(role="admin")
+    assert user.is_2fa_enabled
+    tokens = login(api_client, user)
+    hdr = {"HTTP_AUTHORIZATION": f"Bearer {tokens['access_token']}"}
+    body = {"current_password": PASSWORD, "new_password": "Nueva-Clave-456!", "confirm_password": "Nueva-Clave-456!"}
+    assert api_client.post("/api/users/profile/change-password/", body, format="json", **hdr).status_code == 200
+    assert api_client.get("/api/users/profile/", **hdr).status_code == 401
