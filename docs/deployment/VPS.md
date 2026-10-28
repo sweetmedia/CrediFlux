@@ -136,6 +136,8 @@ tarda casi lo mismo. Si el archivo trae menos del 90 % de las filas actuales el 
 
 Es un dato de referencia pesado (550 MB): no va en el repo ni en los backups de media.
 
+No cargarlo hasta que el despliegue tenga los topes diarios de consulta (ver 7b, punto 3).
+
 ## 6. Comprobaciones después de subir
 
 Sin carga y sin datos reales:
@@ -166,6 +168,48 @@ En el `crontab` de root:
 
 Probar una restauración en local antes de dar el beta por estable:
 `pg_restore -d <bd vacía> crediflux-AAAA-MM-DD.dump`.
+
+## 7b. Antes de desplegar F2 (roles editables, padrón, reverso con TOTP, 2FA obligatoria)
+
+F2 trae migraciones que tocan todos los schemas y reglas nuevas de acceso. Antes del `git pull`
+de la sección 8:
+
+1. **Probar las migraciones contra una copia de producción.** Son `users` 0009–0011 (modelo
+   `Role`, roles de sistema de cada financiera existente, `role` sin `choices`), `loans` 0023–0024
+   (apodo y supervisor del cliente, dígitos de la cédula del garante), `core` 0001 (tabla
+   `public.padron_jce`, sólo en public) y `audit` 0003–0004 (acciones `cedula_lookup` y
+   `payment_void_auth_failed`).
+
+   ```bash
+   cd /opt/crediflux-prod
+   C="docker compose -f docker-compose.prod.yml --env-file .env.production"
+   # copia de la BD de producción en una BD aparte del mismo Postgres
+   $C exec -T db pg_dump -U crediflux -Fc crediflux > /opt/backups/pre-f2.dump
+   $C exec -T db createdb -U crediflux crediflux_f2_ensayo
+   $C exec -T db pg_restore -U crediflux -d crediflux_f2_ensayo < /opt/backups/pre-f2.dump
+   # con el código de F2 ya construido (git fetch + checkout del commit + $C build backend):
+   $C run --rm -e DATABASE_URL=postgres://crediflux:<POSTGRES_PASSWORD>@db:5432/crediflux_f2_ensayo \
+       backend python manage.py migrate_schemas
+   $C exec -T db dropdb -U crediflux crediflux_f2_ensayo
+   ```
+
+   Sólo si termina sin errores en todos los schemas se sigue con la sección 8. Guardar
+   `pre-f2.dump` hasta que F2 esté estable (es el rollback).
+
+2. **2FA del dueño y los administradores.** Desde F2 la API niega todo, salvo la configuración de
+   la 2FA, al dueño y a los usuarios con rol `admin` que no la tengan activa: la app los manda a
+   `/setup-2fa` en el primer ingreso. Avisar al cliente beta antes de desplegar. La cuenta demo
+   también la necesita: si se comparte en demos, hay que compartir también el TOTP (o un código de
+   respaldo), o crear para las demos un usuario con un rol que no sea admin.
+
+3. **Padrón (5b) sólo después de los topes diarios.** No cargar el padrón en un despliegue que no
+   tenga los topes diarios de consulta (run-8 M1): `DRF_THROTTLE_CEDULA_LOOKUP_DAY` (por usuario,
+   300/día por defecto) y `DRF_THROTTLE_CEDULA_LOOKUP_TENANT_DAY` (por financiera, 2000/día),
+   además del `DRF_THROTTLE_CEDULA_LOOKUP` por minuto. Comprobar que están activos antes de cargar:
+
+   ```bash
+   $C exec backend python -c "from django.conf import settings as s; r=s.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']; print(r['cedula_lookup'], r['cedula_lookup_day'], r['cedula_lookup_tenant_day'])"
+   ```
 
 ## 8. Actualizar
 
