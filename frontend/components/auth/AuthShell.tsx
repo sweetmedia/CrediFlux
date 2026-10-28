@@ -11,7 +11,8 @@ import { esHostGeneral } from '@/lib/hosts';
 import './auth.css';
 
 export interface AuthShellProps {
-  title: string;
+  /** Sin título cuando el contenido trae el suyo (paso 2 del login). */
+  title?: string;
   eyebrow?: string;
   /** Línea bajo el título. */
   description?: ReactNode;
@@ -61,9 +62,9 @@ export function AuthShell({ title, eyebrow, description, topRight, children }: A
         <div className="flex flex-1 items-center">
           <div className="mx-auto w-full max-w-[400px] py-10">
             {eyebrow && <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-sage-600">{eyebrow}</div>}
-            <h1 className="font-display text-[34px] font-black leading-[1.05] tracking-tight text-forest-900">{title}</h1>
+            {title && <h1 className="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">{title}</h1>}
             {description && <div className="mt-3 text-[14px] text-sage-600">{description}</div>}
-            <div className="mt-8">{children}</div>
+            <div className={title ? 'mt-8' : undefined}>{children}</div>
           </div>
         </div>
       </main>

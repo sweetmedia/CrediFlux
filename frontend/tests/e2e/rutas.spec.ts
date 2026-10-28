@@ -41,9 +41,9 @@ test.beforeAll(async ({ browser }, testInfo) => {
   const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
   const page = await context.newPage();
   await page.goto('/login');
-  await page.getByPlaceholder('tu@email.com').fill(process.env.E2E_EMAIL!);
-  await page.locator('input[type=password]').fill(process.env.E2E_PASSWORD!);
-  await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
+  await page.getByLabel('Correo').fill(process.env.E2E_EMAIL!);
+  await page.getByLabel('Contraseña', { exact: true }).fill(process.env.E2E_PASSWORD!);
+  await page.getByRole('button', { name: 'Entrar' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   sesion = await context.storageState();
   await context.close();

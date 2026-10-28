@@ -1,9 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Shield, KeyRound, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, ChevronLeft, Loader2 } from 'lucide-react';
+import { OtpInput } from './OtpInput';
 
 interface TwoFactorVerifyProps {
   onVerify: (code: string, isBackupCode: boolean) => Promise<void>;
@@ -12,28 +9,17 @@ interface TwoFactorVerifyProps {
   error: string | null;
 }
 
+/** Paso 2 del login (login.html, estado 2fa): seis dígitos o un código de respaldo de 8. */
 export function TwoFactorVerify({ onVerify, onCancel, isLoading, error }: TwoFactorVerifyProps) {
   const [code, setCode] = useState('');
   const [useBackupCode, setUseBackupCode] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [useBackupCode]);
+  const completo = useBackupCode ? code.length === 8 : code.length === 6;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (code.length < 6) return;
+    if (!completo) return;
     await onVerify(code, useBackupCode);
-  };
-
-  const handleCodeChange = (value: string) => {
-    // Allow alphanumeric for backup codes, only digits for TOTP
-    if (useBackupCode) {
-      setCode(value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
-    } else {
-      setCode(value.replace(/\D/g, ''));
-    }
   };
 
   const toggleMode = () => {
@@ -42,78 +28,67 @@ export function TwoFactorVerify({ onVerify, onCancel, isLoading, error }: TwoFac
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-          <Shield className="h-6 w-6 text-blue-600" />
-        </div>
-        <h2 className="text-xl font-semibold text-slate-900">
-          Verificacion de Dos Factores
-        </h2>
-        <p className="text-sm text-slate-600 mt-1">
-          {useBackupCode
-            ? 'Ingresa uno de tus codigos de respaldo'
-            : 'Ingresa el codigo de tu aplicacion de autenticacion'}
-        </p>
+    <div>
+      <button type="button" onClick={onCancel} className="mb-6 inline-flex items-center gap-1.5 text-[13px] text-sage-600 hover:text-forest-900">
+        <ChevronLeft className="h-3 w-3" aria-hidden="true" />
+        Volver
+      </button>
+      <div className="mb-4 flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-sage-600">
+        <span>Paso 2 de 2</span>
+        <span className="h-px w-6 bg-forest-900/20" aria-hidden="true" />
+        <span>Verificación</span>
       </div>
+      <h1 className="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">Código de acceso</h1>
+      <p className="mt-3 text-[14px] leading-relaxed text-sage-600">
+        {useBackupCode
+          ? 'Escribe uno de tus códigos de respaldo de 8 caracteres.'
+          : 'Abre tu app autenticadora y escribe el código de 6 dígitos.'}
+      </p>
 
       {error && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div role="alert" className="mt-7 flex gap-2.5 rounded border border-flame-500/30 bg-flame-100 p-3 text-[13px] text-forest-900">
+          <AlertTriangle className="mt-0.5 h-[15px] w-[15px] shrink-0 text-flame-600" aria-hidden="true" />
+          {error}
+        </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="2fa-code">
-            {useBackupCode ? 'Codigo de respaldo' : 'Codigo de verificacion'}
-          </Label>
-          <Input
-            ref={inputRef}
-            id="2fa-code"
-            type="text"
-            inputMode={useBackupCode ? 'text' : 'numeric'}
-            maxLength={useBackupCode ? 8 : 6}
-            placeholder={useBackupCode ? 'XXXXXXXX' : '000000'}
-            value={code}
-            onChange={(e) => handleCodeChange(e.target.value)}
-            className="text-center text-2xl tracking-widest font-mono"
-            autoComplete="one-time-code"
-            disabled={isLoading}
-          />
-        </div>
+      <form onSubmit={handleSubmit} className="mt-9">
+        {useBackupCode ? (
+          <div className="cf-field">
+            <label className="cf-label" htmlFor="2fa-backup">Código de respaldo</label>
+            <input
+              id="2fa-backup"
+              type="text"
+              className="cf-input cf-input--mono tracking-widest"
+              maxLength={8}
+              placeholder="XXXXXXXX"
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              disabled={isLoading}
+              onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+            />
+          </div>
+        ) : (
+          <div>
+            <div className="cf-label mb-2">Código</div>
+            <OtpInput value={code} onChange={setCode} disabled={isLoading} autoFocus />
+            <div className="mt-3 text-right font-mono text-[11px] tabular-nums text-sage-600">{code.length} / 6</div>
+          </div>
+        )}
 
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={isLoading || (useBackupCode ? code.length < 8 : code.length !== 6)}
-        >
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Verificar
-        </Button>
-
-        <div className="flex items-center justify-between">
-          <Button
-            type="button"
-            variant="link"
-            onClick={toggleMode}
-            className="text-sm px-0"
-          >
-            <KeyRound className="h-4 w-4 mr-1" />
-            {useBackupCode ? 'Usar codigo de autenticacion' : 'Usar codigo de respaldo'}
-          </Button>
-
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onCancel}
-            className="text-sm"
-          >
-            Cancelar
-          </Button>
-        </div>
+        <button type="submit" className="cf-btn cf-btn--primary mt-7 h-11 w-full" disabled={isLoading || !completo}>
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          Verificar y entrar
+        </button>
       </form>
+
+      <div className="mt-8 border-t border-forest-900/10 pt-6 text-[12px] text-sage-600">
+        {useBackupCode ? '¿Tienes tu app a mano? ' : '¿Perdiste el acceso a tu app? '}
+        <button type="button" onClick={toggleMode} className="text-forest-900 underline decoration-forest-900/25 underline-offset-4">
+          {useBackupCode ? 'Usar el código de la app' : 'Usar un código de respaldo'}
+        </button>
+      </div>
     </div>
   );
 }

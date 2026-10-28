@@ -1,30 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from '@/lib/navigation';
 import Link from '@/lib/navigation/link';
-import Image from '@/components/ui/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, AlertTriangle, Eye, EyeOff, Shield } from 'lucide-react';
 import { TwoFactorVerify } from '@/components/auth';
+import { AuthShell } from '@/components/auth/AuthShell';
 import { toast } from 'sonner';
 import { consumeSessionEndNotice } from '@/lib/api/session';
 import { esHostGeneral } from '@/lib/hosts';
 
 const loginSchema = z.object({
-  email: z.string().email('Email invalido'),
-  password: z.string().min(1, 'Contrasena requerida'),
+  email: z.string().email('Correo inválido'),
+  password: z.string().min(1, 'Escribe tu contraseña'),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -41,6 +31,7 @@ export default function LoginPage() {
   const [tempToken, setTempToken] = useState<string>('');
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
   const [is2FALoading, setIs2FALoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     // Redirección de la confirmación de correo de allauth (un solo `verified`).
@@ -133,149 +124,120 @@ export default function LoginPage() {
 
   if (requires2FA) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-sm border-border shadow-none">
-          <CardHeader className="pb-4 pt-8 px-8">
-            <div className="flex justify-center">
-              <Image
-                src="/logo.svg"
-                alt="CrediFlux"
-                width={160}
-                height={40}
-                className="h-9 w-auto"
-                priority
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="px-8 pb-8">
-            <TwoFactorVerify
-              onVerify={handle2FAVerify}
-              onCancel={handleCancel2FA}
-              isLoading={is2FALoading}
-              error={twoFactorError}
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <AuthShell>
+        <TwoFactorVerify
+          onVerify={handle2FAVerify}
+          onCancel={handleCancel2FA}
+          isLoading={is2FALoading}
+          error={twoFactorError}
+        />
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo above card */}
-        <div className="flex justify-center mb-8">
-          <Image
-            src="/logo.svg"
-            alt="CrediFlux"
-            width={160}
-            height={40}
-            className="h-9 w-auto"
-            priority
+    <AuthShell
+      eyebrow="Acceso"
+      title="Iniciar sesión"
+      description="Entra con el correo que te asignó el administrador de tu financiera."
+      topRight={
+        <>
+          <span className="hidden sm:inline">¿Tu financiera aún no usa CrediFlux?</span>
+          <Link href="/register" className="font-medium text-forest-900 underline decoration-forest-900/25 underline-offset-4 hover:decoration-forest-900">
+            Crear cuenta
+          </Link>
+        </>
+      }
+    >
+      {showVerified && (
+        <div role="status" className="mb-6 flex gap-2.5 rounded border border-forest-500/30 bg-forest-50 p-3 text-[13px] text-forest-900">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-forest-500" aria-hidden="true" />
+          Tu correo electronico ha sido verificado exitosamente. Ya puedes iniciar sesion.
+        </div>
+      )}
+
+      {showVerifyInvalid && (
+        <div className="mb-6 flex gap-2.5 rounded border border-flame-500/30 bg-flame-100 p-3 text-[13px] text-forest-900">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-flame-600" aria-hidden="true" />
+          <div>
+            No pudimos verificar tu correo con ese enlace: es inválido o ya venció.{' '}
+            {/* Host general (`esHostGeneral`, adonde redirige allauth sin revelar el
+                tenant): desde aquí la API no le envía nada a un usuario de empresa.
+                Mismo texto para todos. */}
+            {esHostGeneral() &&
+              'Si tu cuenta es de una empresa, pide un enlace nuevo desde la dirección de tu empresa en CrediFlux: desde aquí no te llegará. '}
+            <Link href="/verify-email/resend" className="font-medium underline">
+              Solicitar un enlace nuevo
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div role="alert" className="mb-6 flex gap-2.5 rounded border border-flame-500/30 bg-flame-100 p-3 text-[13px] text-forest-900">
+          <AlertTriangle className="mt-0.5 h-[15px] w-[15px] shrink-0 text-flame-600" aria-hidden="true" />
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-7" noValidate>
+        <div className="cf-field">
+          <label className="cf-label" htmlFor="email">Correo</label>
+          <input
+            id="email"
+            type="email"
+            className="cf-input"
+            placeholder="ej: maria@financiera.com.do"
+            autoComplete="username"
+            {...register('email')}
+            disabled={isLoading}
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? 'email-error' : undefined}
           />
+          {errors.email && <p id="email-error" className="mt-1.5 text-[12px] text-flame-700">{errors.email.message}</p>}
         </div>
 
-        <Card className="border-border shadow-none">
-          <CardHeader className="px-7 pt-7 pb-1">
-            <h2 className="text-base font-semibold text-foreground text-center">Iniciar Sesión</h2>
-            <p className="text-sm text-muted-foreground text-center mt-0.5">
-              Ingresa a tu cuenta para continuar
-            </p>
-          </CardHeader>
+        <div className="cf-field">
+          <div className="flex items-baseline justify-between">
+            <label className="cf-label" htmlFor="password">Contraseña</label>
+            <Link href="/forgot-password" className="text-[12px] text-sage-600 transition-colors hover:text-forest-900">
+              ¿La olvidaste?
+            </Link>
+          </div>
+          <div className="relative">
+            <input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              className="cf-input pr-10"
+              placeholder="••••••••"
+              autoComplete="current-password"
+              {...register('password')}
+              disabled={isLoading}
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-0 top-1/2 -translate-y-1/2 p-1.5 text-sage-500 hover:text-forest-900"
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+            </button>
+          </div>
+          {errors.password && <p id="password-error" className="mt-1.5 text-[12px] text-flame-700">{errors.password.message}</p>}
+        </div>
 
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <CardContent className="px-7 py-5 space-y-4">
-              {showVerified && (
-                <Alert className="border-green-200 bg-green-50 text-green-800">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-xs">
-                    Tu correo electronico ha sido verificado exitosamente. Ya puedes iniciar sesion.
-                  </AlertDescription>
-                </Alert>
-              )}
+        <button type="submit" className="cf-btn cf-btn--primary h-11 w-full" disabled={isLoading}>
+          {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+          Entrar
+        </button>
+      </form>
 
-              {showVerifyInvalid && (
-                <Alert className="border-danger-border bg-danger-bg text-danger-fg">
-                  <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                  <AlertDescription className="text-xs">
-                    No pudimos verificar tu correo con ese enlace: es inválido o ya venció.{' '}
-                    {/* Host general (`esHostGeneral`, adonde redirige allauth sin revelar el
-                        tenant): desde aquí la API no le envía nada a un usuario de empresa.
-                        Mismo texto para todos. */}
-                    {esHostGeneral() &&
-                      'Si tu cuenta es de una empresa, pide un enlace nuevo desde la dirección de tu empresa en CrediFlux: desde aquí no te llegará. '}
-                    <Link href="/verify-email/resend" className="font-medium underline">
-                      Solicitar un enlace nuevo
-                    </Link>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription className="text-xs">{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-sm">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="tu@email.com"
-                  {...register('email')}
-                  disabled={isLoading}
-                  className="h-9 border-border shadow-none text-sm"
-                />
-                {errors.email && (
-                  <p className="text-xs text-destructive">{errors.email.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-sm">Contraseña</Label>
-                  <Link
-                    href="/forgot-password"
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  {...register('password')}
-                  disabled={isLoading}
-                  className="h-9 border-border shadow-none text-sm"
-                />
-                {errors.password && (
-                  <p className="text-xs text-destructive">{errors.password.message}</p>
-                )}
-              </div>
-            </CardContent>
-
-            <CardFooter className="flex flex-col gap-4 px-7 pb-7 pt-0">
-              <Button
-                type="submit"
-                className="w-full h-9 bg-primary hover:bg-primary/90 text-primary-foreground shadow-none text-sm"
-                disabled={isLoading}
-              >
-                {isLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-                Iniciar Sesión
-              </Button>
-
-              <p className="text-xs text-center text-muted-foreground">
-                ¿No tienes cuenta?{' '}
-                <Link href="/register" className="text-primary hover:underline font-medium">
-                  Regístrate aquí
-                </Link>
-              </p>
-            </CardFooter>
-          </form>
-        </Card>
+      <div className="mt-8 flex items-start gap-3 border-t border-forest-900/10 pt-6 text-[12px] leading-relaxed text-sage-600">
+        <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span>Cada inicio de sesión queda en la bitácora de auditoría con fecha, IP y equipo.</span>
       </div>
-    </div>
+    </AuthShell>
   );
 }
