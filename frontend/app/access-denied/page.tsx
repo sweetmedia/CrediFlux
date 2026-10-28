@@ -1,100 +1,60 @@
 import { useSearchParams } from '@/lib/navigation';
-import { ShieldX, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ShieldX } from 'lucide-react';
 import Link from '@/lib/navigation/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+
+/** Sólo rutas internas: `/algo`, nunca `//host`, `/\host` ni URLs absolutas. */
+function rutaInterna(url: string | null): string {
+  return url && /^\/(?![/\\])/.test(url) ? url : '/dashboard';
+}
 
 export default function AccessDeniedPage() {
   const searchParams = useSearchParams();
   const reason = searchParams.get('reason') || 'No tienes permisos para acceder a esta página.';
   const requiredPermission = searchParams.get('permission');
-  const returnUrl = searchParams.get('returnUrl') || '/dashboard';
+  const returnUrl = rutaInterna(searchParams.get('returnUrl'));
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <Card className="max-w-2xl w-full">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-100">
-            <ShieldX className="h-10 w-10 text-red-600" />
+    <main className="cf-root min-h-[calc(100dvh-56px)] bg-cream px-4 py-10 sm:px-8">
+      <div className="mx-auto grid max-w-[1100px] gap-12 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <div className="mb-4 flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-flame-700">
+            <ShieldX className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Error 403</span>
           </div>
-          <CardTitle className="text-3xl font-bold text-gray-900">
-            Acceso Denegado
-          </CardTitle>
-          <CardDescription className="text-lg">
-            No tienes los permisos necesarios para acceder a este recurso
-          </CardDescription>
-        </CardHeader>
+          <h1 className="font-display text-[38px] font-black leading-none tracking-tight text-forest-900">
+            No tienes permiso para esto
+          </h1>
+          <p className="mt-4 max-w-[52ch] text-[15px] leading-relaxed text-sage-600">{reason}</p>
 
-        <CardContent className="space-y-6">
-          {/* Main reason */}
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="ml-2">
-              <strong>Razón:</strong> {reason}
-            </AlertDescription>
-          </Alert>
-
-          {/* Required permission */}
           {requiredPermission && (
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-2">Permiso Requerido:</h3>
-              <p className="text-sm text-gray-600 font-mono bg-white px-3 py-2 rounded border border-gray-200">
-                {requiredPermission}
-              </p>
-            </div>
+            <dl className="mt-8 border-t border-forest-900/10">
+              <div className="flex items-baseline justify-between gap-6 border-b border-forest-900/10 py-3">
+                <dt className="text-[13px] text-sage-600">Permiso requerido</dt>
+                <dd className="font-mono text-[13px] text-forest-900">{requiredPermission}</dd>
+              </div>
+            </dl>
           )}
 
-          {/* What to do */}
-          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-            <h3 className="font-semibold text-blue-900 mb-2">¿Qué puedes hacer?</h3>
-            <ul className="text-sm text-blue-800 space-y-2">
-              <li className="flex items-start">
-                <span className="mr-2">•</span>
-                <span>Contacta a tu administrador para solicitar los permisos necesarios</span>
-              </li>
-              <li className="flex items-start">
-                <span className="mr-2">•</span>
-                <span>Verifica que estés usando la cuenta correcta</span>
-              </li>
-              <li className="flex items-start">
-                <span className="mr-2">•</span>
-                <span>Regresa a una página donde tengas acceso</span>
-              </li>
-            </ul>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link href={returnUrl} className="cf-btn cf-btn--primary h-11">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Volver
+            </Link>
+            <Link href="/dashboard" className="cf-btn cf-btn--secondary h-11">
+              Ir al dashboard
+            </Link>
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-4">
-            <Button
-              asChild
-              className="flex-1"
-              variant="default"
-            >
-              <Link href={returnUrl}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver
-              </Link>
-            </Button>
-            <Button
-              asChild
-              className="flex-1"
-              variant="outline"
-            >
-              <Link href="/dashboard">
-                Ir al Dashboard
-              </Link>
-            </Button>
-          </div>
-
-          {/* Help section */}
-          <div className="text-center pt-4 border-t border-gray-200">
-            <p className="text-sm text-gray-600">
-              ¿Necesitas ayuda? Contacta a tu administrador del sistema
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        <aside className="lg:col-span-5">
+          <h2 className="mb-4 font-mono text-[10px] uppercase tracking-widest text-sage-600">¿Qué puedes hacer?</h2>
+          <ol className="space-y-4 border-t border-forest-900/10 pt-4 text-[14px] text-forest-900">
+            <li>1. Pide el permiso al administrador de tu financiera.</li>
+            <li>2. Revisa que entraste con la cuenta correcta.</li>
+            <li>3. Vuelve a una página donde sí tengas acceso.</li>
+          </ol>
+        </aside>
+      </div>
+    </main>
   );
 }
