@@ -1,6 +1,13 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { AxiosError, AxiosHeaders, type AxiosResponse } from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+/** Error de axios como el que rechaza apiClient. */
+function axiosError(status: number, data: unknown) {
+  const response = { status, data, statusText: '', headers: {}, config: { headers: new AxiosHeaders() } };
+  return new AxiosError('Request failed', 'ERR_BAD_REQUEST', undefined, undefined, response as AxiosResponse);
+}
 
 const reversePayment = vi.fn();
 const getReverseAuthorizers = vi.fn();
@@ -68,9 +75,9 @@ describe('diálogo de reverso con autorización TOTP', () => {
   });
 
   it('muestra los intentos que quedan y sigue abierto', async () => {
-    reversePayment.mockRejectedValue({
-      response: { status: 400, data: { code: ['Código incorrecto. Quedan 2 intentos.'] } },
-    });
+    reversePayment.mockRejectedValue(
+      axiosError(400, { code: ['Código incorrecto. Quedan 2 intentos.'] })
+    );
     const usuario = userEvent.setup();
     const props = renderDialog();
     await llenar(usuario);
@@ -83,12 +90,9 @@ describe('diálogo de reverso con autorización TOTP', () => {
   });
 
   it('muestra el bloqueo de 15 minutos (429)', async () => {
-    reversePayment.mockRejectedValue({
-      response: {
-        status: 429,
-        data: { detail: 'Autorización bloqueada 15 minutos por intentos fallidos.' },
-      },
-    });
+    reversePayment.mockRejectedValue(
+      axiosError(429, { detail: 'Autorización bloqueada 15 minutos por intentos fallidos.' })
+    );
     const usuario = userEvent.setup();
     renderDialog();
     await llenar(usuario);

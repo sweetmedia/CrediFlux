@@ -114,10 +114,21 @@ def count_authorizer_attempt(authorizer):
     Incr atómico antes de verificar (como el 2FA del login): dos peticiones simultáneas no
     pueden colarse por debajo del límite. Si el total supera REVERT_AUTH_FAIL_LIMIT, el
     autorizador está bloqueado (aunque el código sea bueno) hasta que caduque la ventana, que
-    no se alarga con los intentos bloqueados (incr conserva el TTL). Tras un acierto,
+    se reinicia a 15 minutos al alcanzar el límite y no se alarga con los intentos bloqueados
+    (incr conserva el TTL). Tras un acierto,
     `reset_authorizer`; tras un fallo, el intento queda contado.
     """
-    return _increment(_revert_auth_key(authorizer), window=REVERT_AUTH_FAIL_WINDOW)
+    key = _revert_auth_key(authorizer)
+    count = _increment(key, window=REVERT_AUTH_FAIL_WINDOW)
+    if count == REVERT_AUTH_FAIL_LIMIT:
+        # Al llegar al límite el bloqueo dura 15 minutos desde ese intento, no desde el primero.
+        cache.touch(key, REVERT_AUTH_FAIL_WINDOW)
+    return count
+
+
+def authorizer_locked(authorizer):
+    """¿El autorizador ya agotó sus intentos? Sólo mira, no cuenta."""
+    return (cache.get(_revert_auth_key(authorizer)) or 0) >= REVERT_AUTH_FAIL_LIMIT
 
 
 def reset_authorizer(authorizer):

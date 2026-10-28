@@ -335,3 +335,90 @@ def test_lockout_generalizado_no_cambia_la_ventana_del_login():
     with mock.patch('apps.users.lockout.cache.add', wraps=cache.add) as add:
         lockout._increment('login_fail:x')
     add.assert_called_once_with('login_fail:x', 0, lockout.LOGIN_FAIL_WINDOW)
+
+
+# ---------------------------------------------------------------------------
+# Fix ronda 1: doble reverso, bloqueo de 15 minutos exactos, bloqueo antes del formato
+# ---------------------------------------------------------------------------
+
+
+def _pago_en_efectivo_con_caja(active_loan, admin_user):
+    from apps.cashbox.models import CashRegister, CashSession
+    from apps.cashbox.services import record_payment_inflow
+
+    CashSession.objects.create(
+        register=CashRegister.objects.create(name='Caja Principal', code='CAJA-01'),
+        cashier=admin_user, opening_balance=Money(Decimal('20000.00'), 'DOP'), status='open',
+    )
+    pago = _pago(active_loan, admin_user, metodo='cash')
+    assert record_payment_inflow(pago, admin_user)
+    return pago
+
+
+def test_un_segundo_reverso_con_lectura_vieja_no_saca_la_caja_dos_veces(
+    cliente, autorizador, active_loan, admin_user, reloj
+):
+    """Carrera: la 2.ª petición leyó el pago 'completed' antes de que la 1.ª lo reversara."""
+    from apps.cashbox.models import CashMovement
+    from apps.loans.models import LoanPayment
+    from apps.loans.views import LoanPaymentViewSet
+
+    pago = _pago_en_efectivo_con_caja(active_loan, admin_user)
+    vieja = LoanPayment.objects.get(pk=pago.pk)  # lectura previa al primer reverso
+
+    assert _revertir(
+        cliente, pago, authorizer_id=autorizador.id, code=_codigo(autorizador, reloj)
+    ).status_code == 200
+
+    reloj.avanzar(30)  # código nuevo y válido: la autorización pasa
+    with mock.patch.object(LoanPaymentViewSet, 'get_object', return_value=vieja):
+        resp = _revertir(cliente, pago, authorizer_id=autorizador.id, code=_codigo(autorizador, reloj))
+
+    assert resp.status_code == 400
+    assert resp.json() == {'error': 'El pago ya ha sido reversado'}
+    assert CashMovement.objects.filter(movement_type='outflow', loan_payment=pago).count() == 1
+
+
+def test_el_reverso_bloquea_el_pago_con_select_for_update(cliente, autorizador, pago, reloj):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    with CaptureQueriesContext(connection) as ctx:
+        resp = _revertir(cliente, pago, authorizer_id=autorizador.id, code=_codigo(autorizador, reloj))
+
+    assert resp.status_code == 200, resp.content
+    assert any(
+        'FOR UPDATE' in q['sql'] and 'loan_payments' in q['sql'] for q in ctx.captured_queries
+    ), [q['sql'] for q in ctx.captured_queries if 'FOR UPDATE' in q['sql']]
+
+
+def test_el_bloqueo_dura_15_minutos_desde_el_tercer_fallo(cliente, autorizador, pago, reloj):
+    clave = f'revert_auth_fail:{autorizador.pk}'
+    with mock.patch('apps.users.lockout.cache.touch', wraps=cache.touch) as touch:
+        for _ in range(2):
+            _revertir(cliente, pago, authorizer_id=autorizador.id, code=_malo(autorizador, reloj))
+        touch.assert_not_called()
+        _revertir(cliente, pago, authorizer_id=autorizador.id, code=_malo(autorizador, reloj))
+        touch.assert_called_once_with(clave, 900)
+        # Los intentos ya bloqueados no reinician la ventana.
+        _revertir(cliente, pago, authorizer_id=autorizador.id, code=_codigo(autorizador, reloj))
+        touch.assert_called_once()
+
+
+@pytest.mark.parametrize('codigo', ['', 'abc', '12345'])
+def test_bloqueado_responde_429_aun_con_codigo_mal_escrito(cliente, autorizador, pago, reloj, codigo):
+    for _ in range(3):
+        _revertir(cliente, pago, authorizer_id=autorizador.id, code=_malo(autorizador, reloj))
+
+    resp = _revertir(cliente, pago, authorizer_id=autorizador.id, code=codigo)
+
+    assert resp.status_code == 429
+    assert _fallos(autorizador) == 3  # el código mal escrito no cuenta
+
+
+def test_codigo_mal_escrito_sin_bloqueo_no_cuenta(cliente, autorizador, pago):
+    resp = _revertir(cliente, pago, authorizer_id=autorizador.id, code='12a456')
+
+    assert resp.status_code == 400
+    assert 'code' in resp.json()
+    assert _fallos(autorizador) is None

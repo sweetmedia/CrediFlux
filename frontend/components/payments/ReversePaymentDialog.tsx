@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { useEffect, useState } from 'react';
 
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -29,16 +28,17 @@ function fieldMessage(data: unknown, field: string): string | null {
 }
 
 /**
- * El cuerpo de error del reverso: `code` (intentos que quedan), `authorizer_id` o `detail`
- * (bloqueo 429, permiso). `getApiErrorMessage` ignora el campo `code`, por eso se leen aquí.
+ * Error del reverso. `code` (intentos que quedan) y `authorizer_id` se leen aquí porque
+ * `getApiErrorMessage` ignora la clave `code`; el resto (`detail` del 429 o del 403, red,
+ * 5xx) lo resuelve y traduce `getApiErrorMessage`.
  */
 function reverseErrorMessage(err: unknown): string {
   const data = (err as { response?: { data?: unknown } } | null)?.response?.data;
-  const campo = fieldMessage(data, 'code') || fieldMessage(data, 'authorizer_id');
-  if (campo) return campo;
-  // `detail` (429, 403): getApiErrorMessage lo lee y traduce en un error de axios.
-  if (!axios.isAxiosError(err) && fieldMessage(data, 'detail')) return fieldMessage(data, 'detail')!;
-  return getApiErrorMessage(err, 'Error al revertir el pago');
+  return (
+    fieldMessage(data, 'code') ||
+    fieldMessage(data, 'authorizer_id') ||
+    getApiErrorMessage(err, 'Error al revertir el pago')
+  );
 }
 
 /**

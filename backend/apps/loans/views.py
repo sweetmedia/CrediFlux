@@ -1146,8 +1146,8 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         """
         from apps.users.authorizers import authorizer_or_none
         from apps.users.lockout import (
-            REVERT_AUTH_FAIL_LIMIT, REVERT_AUTH_LOCK_MESSAGE, count_authorizer_attempt,
-            reset_authorizer,
+            REVERT_AUTH_FAIL_LIMIT, REVERT_AUTH_LOCK_MESSAGE, authorizer_locked,
+            count_authorizer_attempt, reset_authorizer,
         )
         from apps.users.totp import verify_totp_once
 
@@ -1158,6 +1158,12 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
                     'Elige un autorizador válido: el dueño o un administrador con 2FA activa.'
                 ]},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Bloqueado → 429 siempre, aun con un código mal escrito (que no cuenta fallo).
+        if authorizer_locked(authorizer):
+            return None, Response(
+                {'detail': REVERT_AUTH_LOCK_MESSAGE}, status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
         code = str(request.data.get('code') or '').strip()
@@ -1182,6 +1188,21 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
         reset_authorizer(authorizer)
         return authorizer, None
 
+    @staticmethod
+    def _reverse_status_error(payment):
+        """400 si el pago no se puede reversar (ya reversado o no completado); si no, None."""
+        if payment.status == 'reversed':
+            return Response(
+                {'error': 'El pago ya ha sido reversado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if payment.status != 'completed':
+            return Response(
+                {'error': 'Solo se pueden reversar pagos completados'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return None
+
     @action(detail=True, methods=['post'])
     def reverse(self, request, pk=None):
         """
@@ -1197,17 +1218,9 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
         payment = self.get_object()
 
-        if payment.status == 'reversed':
-            return Response(
-                {'error': 'El pago ya ha sido reversado'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if payment.status != 'completed':
-            return Response(
-                {'error': 'Solo se pueden reversar pagos completados'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        status_error = self._reverse_status_error(payment)
+        if status_error is not None:
+            return status_error
 
         reason = (request.data.get('reason') or '').strip()
         if not reason:
@@ -1222,10 +1235,17 @@ class LoanPaymentViewSet(viewsets.ModelViewSet):
 
         from apps.cashbox.services import record_payment_reversal
 
-        loan = payment.loan
-
-        # Mark payment as reversed, then rebuild the loan state from remaining completed payments
+        # Mark payment as reversed, then rebuild the loan state from remaining completed payments.
+        # El estado se vuelve a leer con el pago bloqueado: dos reversos simultáneos (cada uno con
+        # su código válido) pasan la lectura de arriba, pero sólo uno encuentra 'completed' aquí;
+        # sin esto la caja abierta saldría dos veces. La autorización (TOTP) queda fuera del lock.
         with transaction.atomic():
+            payment = LoanPayment.objects.select_for_update().get(pk=payment.pk)
+            status_error = self._reverse_status_error(payment)
+            if status_error is not None:
+                return status_error
+            loan = payment.loan
+
             payment.status = 'reversed'
             payment.reversed_at = timezone.now()
             payment.reversed_by = request.user
