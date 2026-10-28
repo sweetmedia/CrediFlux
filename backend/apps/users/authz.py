@@ -53,6 +53,28 @@ def invalidate_permissions(user) -> None:
         user.__dict__.pop('_cf_perms', None)
 
 
+def puede_dar_admin(user) -> bool:
+    """R4: el rol `admin` sólo lo da el dueño de la financiera o el superusuario. No es un
+    código: el admin tiene todos y aun así no hace admin a otros."""
+    return bool(getattr(user, 'is_tenant_owner', False) or getattr(user, 'is_superuser', False))
+
+
+def codigo_que_falta(user, codigos):
+    """Primer código (orden alfabético) de `codigos` que `user` no tiene, o None.
+
+    Anti-escalada al asignar roles: nadie da un rol con permisos que él mismo no tiene. Sólo
+    cuentan códigos del catálogo (los demás no conceden nada). El dueño y el superusuario
+    tienen todos, así que para ellos siempre es None.
+    """
+    faltan = (set(codigos or ()) & ALL_CODES) - user_permissions(user)
+    return min(faltan) if faltan else None
+
+
+def denegar(code):
+    """403 con el código que falta, igual que PermissionRequired."""
+    raise PermissionDenied({'detail': MENSAJE_DENEGADO, 'required_permission': code})
+
+
 # `None` explícito en un mapa de ViewPermissionRequired: la acción sólo exige estar autenticado.
 ABIERTO = object()
 _FALTA = object()

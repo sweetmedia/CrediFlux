@@ -45,18 +45,9 @@ class User(AbstractUser):
     job_title = models.CharField(max_length=100, blank=True, null=True)
     department = models.CharField(max_length=100, blank=True, null=True)
 
-    # Role and permissions (within their tenant)
-    ROLE_CHOICES = [
-        ('admin', 'Administrator'),
-        ('manager', 'Manager'),
-        ('loan_officer', 'Loan Officer'),
-        ('collector', 'Cobrador'),                              # NEW
-        ('collection_supervisor', 'Supervisor de Cobranza'),    # NEW
-        ('accountant', 'Accountant'),
-        ('cashier', 'Cashier'),
-        ('viewer', 'Viewer'),
-    ]
-    role = models.CharField(max_length=30, choices=ROLE_CHOICES, default='viewer')
+    # Rol dentro de su financiera (D6): clave de un `Role` del tenant del usuario (de sistema o
+    # propio). Sin `choices`: la API y el admin validan contra los roles de esa financiera.
+    role = models.CharField(max_length=30, default='viewer')
 
     # Collection-specific fields (for collectors and collection supervisors)
     collection_zone = models.CharField(
@@ -145,15 +136,13 @@ class User(AbstractUser):
         """Return user's full name"""
         return f"{self.first_name} {self.last_name}".strip() or self.username
 
-    @property
-    def is_admin(self):
-        """Check if user is an admin (tenant admin or system superuser)"""
-        return self.role == 'admin' or self.is_tenant_owner or self.is_superuser
-
-    @property
-    def is_manager(self):
-        """Check if user is a manager or above"""
-        return self.role in ['admin', 'manager'] or self.is_tenant_owner or self.is_superuser
+    def get_role_display(self):
+        """Nombre del `Role` de su financiera; la clave si el rol ya no existe."""
+        # `Role` se importa al final del módulo (models_roles).
+        nombre = Role.objects.filter(tenant_id=self.tenant_id, key=self.role).values_list(
+            'name', flat=True
+        ).first()
+        return nombre or self.role
 
     @property
     def is_system_admin(self):
@@ -169,10 +158,6 @@ class User(AbstractUser):
     def tenant_name(self):
         """Get the name of the user's tenant"""
         return self.tenant.name if self.tenant else 'System'
-
-    def can_manage_users(self):
-        """Check if user can create/edit users in their tenant"""
-        return self.is_tenant_owner or self.role == 'admin' or self.is_superuser
 
     def belongs_to_tenant(self, tenant):
         """Check if user belongs to a specific tenant"""
