@@ -104,6 +104,7 @@ def test_casos_sin_codigo_son_los_de_regla_propia():
     """`admin` = ALL_CODES: todo caso donde admin no pase hoy debe ser de regla propia."""
     assert {c for c, codigo in CODE.items() if codigo is None} == {
         'usuario_asignar_admin', 'ajustes_tenant_leer', 'catalogo_leer',
+        'busqueda_global',  # ola final F2: abierta, filtra cada sección por su código
     }
     for case in CASE_NAMES:
         if not permitido_hoy(case, 'admin'):

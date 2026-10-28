@@ -40,7 +40,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.throttling import ScopedRateThrottle
 from apps.core.services.rnc_lookup import validate_rnc, is_rnc_database_loaded, RNCLookupService
 from apps.core.permissions import TenantMatches
-from apps.users.authz import MENSAJE_DENEGADO, has_perm
+from apps.users.authz import MENSAJE_DENEGADO, ViewPermissionRequired, has_perm
 import logging
 
 logger = logging.getLogger(__name__)
@@ -366,9 +366,19 @@ class GlobalSearchView(APIView):
     """
     Global search across customers, loans, contracts, and payments.
     Uses django-tenants schema isolation - no need to filter by tenant.
+
+    Abierta a cualquier miembro (`None`), pero cada sección sólo se llena si el usuario tiene
+    el código que deja ver ese dato (`CODIGO_POR_SECCION`); sin él, la sección va vacía.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'GET': None}
+    CODIGO_POR_SECCION = {
+        'customers': 'customers.view',
+        'loans': 'loans.view',
+        'payments': 'payments.view',
+        'contracts': 'contracts.view',
+    }
 
     @staticmethod
     def _format_dominican_id(value):
@@ -387,28 +397,27 @@ class GlobalSearchView(APIView):
 
     def get(self, request):
         query = request.query_params.get('q', '').strip()
+        results = {seccion: [] for seccion in self.CODIGO_POR_SECCION}
 
         if len(query) < 2:
             return Response({
                 'query': query,
                 'total_results': 0,
-                'results': {
-                    'customers': [],
-                    'loans': [],
-                    'payments': [],
-                    'contracts': [],
-                },
+                'results': results,
                 'message': 'La busqueda debe tener al menos 2 caracteres'
             })
 
-        results = {
-            'customers': [],
-            'loans': [],
-            'payments': [],
-            'contracts': [],
-        }
+        for seccion, codigo in self.CODIGO_POR_SECCION.items():
+            if has_perm(request.user, codigo):
+                results[seccion] = getattr(self, f'_buscar_{seccion}')(query)
 
-        # Search Customers (tenant isolation handled by django-tenants schema)
+        return Response({
+            'query': query,
+            'total_results': sum(len(v) for v in results.values()),
+            'results': results,
+        })
+
+    def _buscar_customers(self, query):
         from apps.loans.models import Customer
         customers = Customer.objects.filter(
             Q(first_name__icontains=query) |
@@ -417,8 +426,7 @@ class GlobalSearchView(APIView):
             Q(email__icontains=query) |
             Q(phone__icontains=query)
         )[:5]
-
-        results['customers'] = [
+        return [
             {
                 'id': str(c.id),
                 'type': 'customer',
@@ -429,15 +437,14 @@ class GlobalSearchView(APIView):
             for c in customers
         ]
 
-        # Search Loans
+    def _buscar_loans(self, query):
         from apps.loans.models import Loan
         loans = Loan.objects.filter(
             Q(loan_number__icontains=query) |
             Q(customer__first_name__icontains=query) |
             Q(customer__last_name__icontains=query)
         ).select_related('customer')[:5]
-
-        results['loans'] = [
+        return [
             {
                 'id': str(loan.id),
                 'type': 'loan',
@@ -448,7 +455,7 @@ class GlobalSearchView(APIView):
             for loan in loans
         ]
 
-        # Search Payments
+    def _buscar_payments(self, query):
         from apps.loans.models import LoanPayment
         payments = LoanPayment.objects.filter(
             Q(reference_number__icontains=query) |
@@ -456,46 +463,34 @@ class GlobalSearchView(APIView):
             Q(loan__customer__first_name__icontains=query) |
             Q(loan__customer__last_name__icontains=query)
         ).select_related('loan', 'loan__customer')[:5]
-
-        results['payments'] = [
+        return [
             {
                 'id': str(payment.id),
                 'type': 'payment',
                 'title': f'Pago #{payment.payment_number}',
-                'subtitle': f'{payment.loan.loan_number} - ${payment.amount}',
+                'subtitle': f'{payment.loan.loan_number} - RD$ {payment.amount.amount:,.2f}',
                 'url': f'/payments/{payment.id}',
             }
             for payment in payments
         ]
 
-        # Search Contracts (if app exists)
-        try:
-            from apps.contracts.models import Contract
-            contracts = Contract.objects.filter(
-                Q(contract_number__icontains=query) |
-                Q(loan__loan_number__icontains=query) |
-                Q(loan__customer__first_name__icontains=query) |
-                Q(loan__customer__last_name__icontains=query)
-            ).select_related('loan', 'loan__customer')[:5]
-
-            results['contracts'] = [
-                {
-                    'id': str(contract.id),
-                    'type': 'contract',
-                    'title': f'Contrato {contract.contract_number}',
-                    'subtitle': contract.loan.customer.get_full_name() if contract.loan else 'Sin prestamo',
-                    'url': f'/contracts/{contract.id}',
-                }
-                for contract in contracts
-            ]
-        except (ImportError, Exception):
-            pass
-
-        # Calculate total results
-        total_results = sum(len(v) for v in results.values())
-
-        return Response({
-            'query': query,
-            'total_results': total_results,
-            'results': results,
-        })
+    def _buscar_contracts(self, query):
+        # Los contratos viven en apps.loans (antes se importaba un apps.contracts inexistente
+        # y la sección salía siempre vacía).
+        from apps.loans.models_contracts import Contract
+        contracts = Contract.objects.filter(
+            Q(contract_number__icontains=query) |
+            Q(loan__loan_number__icontains=query) |
+            Q(loan__customer__first_name__icontains=query) |
+            Q(loan__customer__last_name__icontains=query)
+        ).select_related('loan', 'loan__customer')[:5]
+        return [
+            {
+                'id': str(contract.id),
+                'type': 'contract',
+                'title': f'Contrato {contract.contract_number}',
+                'subtitle': contract.loan.customer.get_full_name() if contract.loan else 'Sin prestamo',
+                'url': f'/contracts/{contract.id}',
+            }
+            for contract in contracts
+        ]
