@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useCan } from '@/lib/permissions';
 import { tenantsAPI, Tenant, TenantUpdateData } from '@/lib/api/tenants';
 import { authAPI } from '@/lib/api/auth';
 import { getApiUrl } from '@/lib/api/client';
@@ -115,6 +116,7 @@ type PasswordChangeFormData = z.infer<typeof passwordChangeSchema>;
 export default function TenantSettingsPage() {
   const router = useRouter();
   const { user, tenant: authTenant, isAuthenticated, isLoading: authLoading, refreshTenant, refreshUser } = useAuth();
+  const can = useCan();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [askConfirm, confirmDialog] = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
@@ -254,6 +256,10 @@ export default function TenantSettingsPage() {
   };
 
   const onSubmit = async (data: TenantSettingsFormData) => {
+    if (!can('settings.edit')) {
+      setError('No tienes permiso para modificar la configuración');
+      return;
+    }
     try {
       setIsSaving(true);
       setError('');
@@ -733,13 +739,13 @@ export default function TenantSettingsPage() {
   }
 
   // Check if user has permission
-  if (user && !user.is_tenant_owner && user.role !== 'admin') {
+  if (user && !can('settings.view')) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 py-8">
         <div className="container mx-auto max-w-4xl">
           <Alert variant="destructive">
             <AlertDescription>
-              No tienes permiso para acceder a la configuración del tenant. Solo el propietario o administradores pueden modificar estos ajustes.
+              No tienes permiso para acceder a la configuración del tenant. Pide el permiso de configuración a un administrador.
             </AlertDescription>
           </Alert>
           <div className="mt-4">

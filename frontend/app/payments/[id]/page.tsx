@@ -208,6 +208,7 @@ export default function PaymentDetailPage() {
   const lateFeePaid = Number(payment?.late_fee_paid || 0);
   const loanOutstandingBalance = Number(payment?.loan_outstanding_balance || 0);
   const loanPrincipalAmount = Number(payment?.loan_principal_amount || 0);
+  // TODO(Task 14): revertir pasa a payments.void + código TOTP; hoy la regla del backend es dueño o superusuario.
   const canReversePayment = !!user && (user.is_tenant_owner || user.is_superuser);
 
   const paymentExplanation =

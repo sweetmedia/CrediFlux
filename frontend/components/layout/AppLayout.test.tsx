@@ -7,7 +7,7 @@ import { AppLayout } from './AppLayout';
 const auth = vi.hoisted(() => ({
   isAuthenticated: true,
   isLoading: false,
-  user: { first_name: 'María', last_name: 'Fernández', full_name: 'María Fernández', role: 'admin', is_tenant_owner: false },
+  user: { first_name: 'María', last_name: 'Fernández', full_name: 'María Fernández', role: 'admin', is_tenant_owner: false, permissions: ['customers.view', 'loans.view'] },
   tenant: { id: 1, name: 'coop-san-jose', business_name: 'Cooperativa San José', subscription_plan: 'basic', is_active: true },
   logout: vi.fn(),
 }));
