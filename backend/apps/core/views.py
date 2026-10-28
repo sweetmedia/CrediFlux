@@ -1,6 +1,8 @@
 """
 Core views
 """
+import re
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -37,7 +39,8 @@ class HealthCheckView(APIView):
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.settings import api_settings
+from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
 from apps.core.services.rnc_lookup import validate_rnc, is_rnc_database_loaded, RNCLookupService
 from apps.core.permissions import TenantMatches
 from apps.users.authz import MENSAJE_DENEGADO, ViewPermissionRequired, has_perm
@@ -89,21 +92,56 @@ def _auditar_consulta_cedula(request, cedula, found):
     )
 
 
+class _TopeDiarioPadron(SimpleRateThrottle):
+    """Tope diario de consultas al padrón (run-8 M1). La tasa se lee en cada request de
+    `DEFAULT_THROTTLE_RATES` (no al importar), así `override_settings` la cambia en los tests."""
+
+    def get_rate(self):
+        return api_settings.DEFAULT_THROTTLE_RATES.get(self.scope)
+
+
+class CedulaUsuarioDiaThrottle(_TopeDiarioPadron):
+    """Por usuario y día (`cedula_lookup_day`)."""
+
+    scope = 'cedula_lookup_day'
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {'scope': self.scope, 'ident': request.user.pk}
+
+
+class CedulaFinancieraDiaThrottle(_TopeDiarioPadron):
+    """Por financiera y día (`cedula_lookup_tenant_day`): varias cuentas de la misma financiera
+    no multiplican el volumen."""
+
+    scope = 'cedula_lookup_tenant_day'
+
+    def get_cache_key(self, request, view):
+        tenant = getattr(request, 'tenant', None)
+        ident = request.user.tenant_id or getattr(tenant, 'pk', None) or f'user-{request.user.pk}'
+        return self.cache_format % {'scope': self.scope, 'ident': ident}
+
+
+CEDULA_INVALIDA = 'Cédula inválida: debe tener exactamente 11 dígitos.'
+
+
+def _normalizar_cedula(valor):
+    """Los 11 dígitos de la cédula (sin guiones ni espacios) o None si no los tiene."""
+    cedula = re.sub(r'[-\s]', '', valor or '')
+    return cedula if re.fullmatch(r'[0-9]{11}', cedula) else None
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, TenantMatches, CanLookupCedula])
-@throttle_classes([ScopedRateThrottle])
+@throttle_classes([ScopedRateThrottle, CedulaUsuarioDiaThrottle, CedulaFinancieraDiaThrottle])
 def validate_cedula_view(request):
     """
     Busca una cédula en el Padrón JCE (~7.9M registros).
     GET /api/core/validate-cedula/?cedula=00112345678
     """
-    cedula = request.query_params.get('cedula', '').strip().replace('-', '')
-
-    if not cedula or len(cedula) < 9:
-        return Response(
-            {'error': 'Cédula inválida. Debe tener al menos 9 dígitos.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    # Sólo 11 dígitos (run-8 L3): nada más se consulta ni se guarda en la auditoría.
+    cedula = _normalizar_cedula(request.query_params.get('cedula', ''))
+    if cedula is None:
+        return Response({'detail': CEDULA_INVALIDA}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         row = _buscar_en_padron(cedula)

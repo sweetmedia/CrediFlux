@@ -86,3 +86,78 @@ def test_error_de_bd_responde_500_sin_detalle(api_client, user_factory):
 def test_viewer_recibe_403(api_client, user_factory):
     api_client.force_authenticate(user=user_factory(role="viewer"))
     assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 403
+
+
+# --- Run-8 M1: topes diarios por usuario y por financiera; L3: sólo 11 dígitos ---------------
+
+from django.conf import settings as dj_settings  # noqa: E402
+from django.core.cache import cache  # noqa: E402
+from django.test import override_settings  # noqa: E402
+
+
+@pytest.fixture
+def cache_limpio():
+    cache.clear()
+    yield
+    cache.clear()
+
+
+def _tasas(**cambios):
+    """REST_FRAMEWORK con las tasas de base.py y `cambios` encima (api_settings se recarga)."""
+    rest = dict(dj_settings.REST_FRAMEWORK)
+    rest["DEFAULT_THROTTLE_RATES"] = {**rest["DEFAULT_THROTTLE_RATES"], **cambios}
+    return override_settings(REST_FRAMEWORK=rest)
+
+
+def test_topes_diarios_por_defecto():
+    from apps.core import views
+
+    tasas = dj_settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
+    assert tasas["cedula_lookup_day"] == "300/day"
+    assert tasas["cedula_lookup_tenant_day"] == "2000/day"
+    nombres = {c.__name__ for c in views.validate_cedula_view.cls.throttle_classes}
+    assert nombres == {"ScopedRateThrottle", "CedulaUsuarioDiaThrottle", "CedulaFinancieraDiaThrottle"}
+
+
+def test_tope_diario_por_usuario(api_client, user_factory, padron, cache_limpio):
+    with _tasas(cedula_lookup_day="2/day"):
+        _officer(api_client, user_factory)
+        for _ in range(2):
+            assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 200
+        assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 429
+        # Otro usuario de la misma financiera sigue pudiendo (el tope es por usuario).
+        _officer(api_client, user_factory)
+        assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 200
+
+
+def test_tope_diario_por_financiera(api_client, user_factory, padron, cache_limpio):
+    with _tasas(cedula_lookup_tenant_day="3/day"):
+        for _ in range(2):
+            _officer(api_client, user_factory)
+            assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 200
+        # Cuarta consulta de la financiera (segunda del segundo usuario): 429.
+        assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 200
+        assert api_client.get(URL, {"cedula": EXISTENTE}).status_code == 429
+    assert AuditLog.objects.filter(action="cedula_lookup").count() == 3
+
+
+@pytest.mark.parametrize(
+    "cedula", ["A" * 5000, "0010000001", "001000000199", "00100000O19", "123"],
+    ids=["5000-letras", "10-digitos", "12-digitos", "con-letra", "corta"],
+)
+def test_cedula_que_no_es_de_11_digitos_da_400_sin_auditar(api_client, user_factory, cedula, cache_limpio):
+    _officer(api_client, user_factory)
+    with mock.patch("apps.core.views._buscar_en_padron") as buscar:
+        response = api_client.get(URL, {"cedula": cedula})
+    assert response.status_code == 400
+    body = response.json()
+    assert "detail" in body and "error" not in body
+    buscar.assert_not_called()
+    assert not AuditLog.objects.filter(action="cedula_lookup").exists()
+
+
+def test_cedula_con_guiones_y_espacios_se_normaliza(api_client, user_factory, padron, cache_limpio):
+    _officer(api_client, user_factory)
+    response = api_client.get(URL, {"cedula": " 001-0000001-9 "})
+    assert response.status_code == 200
+    assert response.json()["found"] is True
