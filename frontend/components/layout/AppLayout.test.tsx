@@ -13,13 +13,14 @@ const auth = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => auth }));
-vi.mock('@/components/AIChatBubble', () => ({ AIChatBubble: () => null }));
+vi.mock('@/components/AIChatBubble', () => ({ AIChatBubble: () => <div data-testid="ai-bubble" /> }));
 
 let movil = false;
 
 beforeEach(() => {
   movil = false;
   auth.isAuthenticated = true;
+  auth.user.permissions = ['customers.view', 'loans.view', 'ai.access'];
   vi.stubGlobal('matchMedia', (q: string) => ({
     matches: q.includes('max-width: 767px') ? movil : false,
     media: q,
@@ -135,5 +136,18 @@ describe('páginas públicas', () => {
     montar(ruta);
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
     expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+  });
+});
+
+describe('asistente IA', () => {
+  it('se muestra con ai.access', () => {
+    montar('/dashboard');
+    expect(screen.getByTestId('ai-bubble')).toBeInTheDocument();
+  });
+
+  it('no se muestra sin ai.access', () => {
+    auth.user.permissions = ['customers.view', 'loans.view'];
+    montar('/dashboard');
+    expect(screen.queryByTestId('ai-bubble')).not.toBeInTheDocument();
   });
 });

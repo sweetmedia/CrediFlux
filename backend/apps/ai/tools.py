@@ -2,11 +2,58 @@
 Herramientas AI para CrediFlux.
 Funciones que el agente puede invocar para consultar y analizar datos del sistema.
 """
-from djangosdk import tool
-from django.utils import timezone
-from django.db.models import Sum, Count, Q, Avg, F
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import timedelta
 from decimal import Decimal
+
+from django.db.models import Q, Sum
+from django.utils import timezone
+from djangosdk import tool
+
+from apps.users.authz import has_perm
+
+# Usuario de la petición que está atendiendo el agente. ChatView lo fija alrededor de
+# `agent.handle()` (las herramientas corren en el mismo hilo); fuera de una petición no hay
+# usuario y toda herramienta con datos se niega (falla cerrada).
+_usuario_actual = ContextVar('cf_ai_usuario', default=None)
+
+# Lo que cada código deja ver, para el texto que recibe el modelo cuando falta.
+_QUE_DEJA_VER = {
+    'customers.view': 'clientes',
+    'loans.view': 'préstamos',
+    'payments.view': 'pagos',
+}
+
+
+@contextmanager
+def con_usuario(user):
+    """Las herramientas llamadas dentro del bloque miden los permisos de `user`."""
+    token = _usuario_actual.set(user)
+    try:
+        yield
+    finally:
+        _usuario_actual.reset(token)
+
+
+def _puede(codigo):
+    user = _usuario_actual.get()
+    return user is not None and has_perm(user, codigo)
+
+
+def _sin_permiso(*codigos):
+    """Texto de negación del primer código que le falta al usuario, o None si los tiene todos."""
+    for codigo in codigos:
+        if not _puede(codigo):
+            return f"No tienes permiso para ver {_QUE_DEJA_VER[codigo]}."
+    return None
+
+
+def _monto(valor):
+    """Decimal de un Money, un Decimal o None."""
+    if valor is None:
+        return Decimal('0')
+    return valor.amount if hasattr(valor, 'amount') else Decimal(str(valor))
 
 
 @tool
@@ -17,6 +64,10 @@ def buscar_cliente(query: str) -> str:
         query: Nombre, número de cédula, o ID del cliente.
     """
     from apps.loans.models import Customer
+
+    negado = _sin_permiso('customers.view')
+    if negado:
+        return negado
 
     customers = Customer.objects.filter(
         Q(first_name__icontains=query) |
@@ -31,11 +82,19 @@ def buscar_cliente(query: str) -> str:
     results = []
     for c in customers:
         results.append(
-            f"- {c.full_name} | Cédula: {c.id_number} | "
+            f"- {c.get_full_name()} | Cédula: {c.id_number} | "
             f"ID: {c.customer_id} | Estado: {c.status} | "
             f"Tel: {c.phone or 'N/A'}"
         )
     return f"Se encontraron {len(results)} cliente(s):\n" + "\n".join(results)
+
+
+def _cliente(customer_id):
+    from apps.loans.models import Customer
+
+    return Customer.objects.filter(
+        Q(customer_id=customer_id) | Q(id_number=customer_id)
+    ).first()
 
 
 @tool
@@ -45,46 +104,54 @@ def resumen_cliente(customer_id: str) -> str:
     Args:
         customer_id: ID del cliente (ej: CUST-0001) o número de cédula.
     """
-    from apps.loans.models import Customer, Loan, Payment
+    from apps.loans.models import Loan, LoanPayment
 
-    try:
-        customer = Customer.objects.filter(
-            Q(customer_id=customer_id) | Q(id_number=customer_id)
-        ).first()
-        if not customer:
-            return f"Cliente '{customer_id}' no encontrado."
-    except Exception:
-        return f"Error buscando cliente '{customer_id}'."
+    negado = _sin_permiso('customers.view')
+    if negado:
+        return negado
 
-    loans = Loan.objects.filter(customer=customer)
-    active_loans = loans.filter(status='active')
-    total_disbursed = loans.aggregate(
-        total=Sum('amount')
-    )['total'] or Decimal('0')
-
-    payments = Payment.objects.filter(loan__customer=customer)
-    total_paid = payments.aggregate(
-        total=Sum('amount')
-    )['total'] or Decimal('0')
+    customer = _cliente(customer_id)
+    if not customer:
+        return f"Cliente '{customer_id}' no encontrado."
 
     info = [
-        f"📋 **{customer.full_name}**",
+        f"📋 **{customer.get_full_name()}**",
         f"   Cédula: {customer.id_number}",
         f"   Teléfono: {customer.phone or 'N/A'}",
         f"   Email: {customer.email or 'N/A'}",
         f"   Estado laboral: {customer.employment_status or 'N/A'}",
         f"   Empleador: {customer.employer_name or 'N/A'}",
-        f"   Ingreso mensual: RD$ {customer.monthly_income or 'N/A'}",
-        f"",
-        f"💰 Resumen financiero:",
-        f"   Total préstamos: {loans.count()}",
-        f"   Préstamos activos: {active_loans.count()}",
-        f"   Total desembolsado: RD$ {total_disbursed:,.2f}",
-        f"   Total pagado: RD$ {total_paid:,.2f}",
+        f"   Ingreso mensual: RD$ {_monto(customer.monthly_income):,.2f}",
+        "",
+        "💰 Resumen financiero:",
     ]
 
-    for loan in active_loans:
-        info.append(f"   📌 Préstamo {loan.loan_number}: RD$ {loan.amount:,.2f} - {loan.get_status_display()}")
+    negado = _sin_permiso('loans.view')
+    if negado:
+        info.append(f"   {negado}")
+    else:
+        loans = Loan.objects.filter(customer=customer)
+        active_loans = loans.filter(status='active')
+        total_disbursed = loans.aggregate(total=Sum('principal_amount'))['total'] or Decimal('0')
+        info += [
+            f"   Total préstamos: {loans.count()}",
+            f"   Préstamos activos: {active_loans.count()}",
+            f"   Total desembolsado: RD$ {total_disbursed:,.2f}",
+        ]
+        for loan in active_loans:
+            info.append(
+                f"   📌 Préstamo {loan.loan_number}: RD$ {_monto(loan.principal_amount):,.2f}"
+                f" - {loan.get_status_display()}"
+            )
+
+    negado = _sin_permiso('payments.view')
+    if negado:
+        info.append(f"   {negado}")
+    else:
+        total_paid = LoanPayment.objects.filter(
+            loan__customer=customer, status='completed'
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        info.append(f"   Total pagado: RD$ {total_paid:,.2f}")
 
     return "\n".join(info)
 
@@ -96,11 +163,14 @@ def analizar_riesgo_cliente(customer_id: str) -> str:
     Args:
         customer_id: ID del cliente o número de cédula.
     """
-    from apps.loans.models import Customer, Loan, LoanSchedule, Payment
+    from apps.loans.models import Loan, LoanSchedule
 
-    customer = Customer.objects.filter(
-        Q(customer_id=customer_id) | Q(id_number=customer_id)
-    ).first()
+    # El análisis se hace con sus préstamos y cuotas: sin loans.view no hay análisis.
+    negado = _sin_permiso('customers.view', 'loans.view')
+    if negado:
+        return negado
+
+    customer = _cliente(customer_id)
     if not customer:
         return f"Cliente '{customer_id}' no encontrado."
 
@@ -124,18 +194,15 @@ def analizar_riesgo_cliente(customer_id: str) -> str:
             employment_score = 50
         else:
             employment_score = 25
-    else:
-        employment_score = 0
 
     # Factor 3: Capacidad de pago (deuda vs ingreso)
     active_monthly_obligations = Decimal('0')
-    active_loans = loans.filter(status='active')
-    for loan in active_loans:
+    for loan in loans.filter(status='active'):
         pending = schedules.filter(loan=loan, status='pending').first()
         if pending:
-            active_monthly_obligations += pending.total_amount.amount if hasattr(pending.total_amount, 'amount') else Decimal(str(pending.total_amount))
+            active_monthly_obligations += _monto(pending.total_amount)
 
-    monthly_income = customer.monthly_income.amount if customer.monthly_income and hasattr(customer.monthly_income, 'amount') else Decimal('0')
+    monthly_income = _monto(customer.monthly_income)
     debt_ratio = (active_monthly_obligations / monthly_income * 100) if monthly_income > 0 else 100
 
     # Score compuesto
@@ -163,17 +230,17 @@ def analizar_riesgo_cliente(customer_id: str) -> str:
         recommendation = "No recomendado sin garantías sustanciales."
 
     return "\n".join([
-        f"📊 **Análisis de Riesgo — {customer.full_name}**",
-        f"",
+        f"📊 **Análisis de Riesgo — {customer.get_full_name()}**",
+        "",
         f"Puntaje total: {total_score:.0f}/100 → Riesgo: {risk_level}",
-        f"",
-        f"Desglose:",
+        "",
+        "Desglose:",
         f"  • Pagos puntuales: {on_time_rate:.0f}% ({total_schedules - overdue_schedules}/{total_schedules} a tiempo)",
         f"  • Estabilidad laboral: {employment_score}/100",
         f"  • Ratio deuda/ingreso: {debt_ratio:.1f}% (score: {debt_score:.0f}/100)",
         f"  • Ingreso mensual: RD$ {monthly_income:,.2f}",
         f"  • Obligaciones mensuales: RD$ {active_monthly_obligations:,.2f}",
-        f"",
+        "",
         f"💡 Recomendación: {recommendation}",
     ])
 
@@ -181,7 +248,11 @@ def analizar_riesgo_cliente(customer_id: str) -> str:
 @tool
 def dashboard_resumen() -> str:
     """Obtiene el resumen ejecutivo del dashboard: cartera total, préstamos activos, mora, cobros del día."""
-    from apps.loans.models import Loan, LoanSchedule, Payment
+    from apps.loans.models import Loan, LoanPayment, LoanSchedule
+
+    negado = _sin_permiso('loans.view')
+    if negado:
+        return negado
 
     today = timezone.localdate()
 
@@ -189,7 +260,7 @@ def dashboard_resumen() -> str:
     active_loans = Loan.objects.filter(status='active').count()
 
     total_portfolio = Loan.objects.filter(status='active').aggregate(
-        total=Sum('amount')
+        total=Sum('principal_amount')
     )['total'] or Decimal('0')
 
     # Mora
@@ -202,38 +273,45 @@ def dashboard_resumen() -> str:
         total=Sum('total_amount')
     )['total'] or Decimal('0')
 
-    # Cobros del día
-    today_payments = Payment.objects.filter(payment_date=today)
-    today_collected = today_payments.aggregate(
-        total=Sum('amount')
-    )['total'] or Decimal('0')
-
     # Vencimientos hoy
     due_today = LoanSchedule.objects.filter(
         due_date=today,
         status__in=['pending', 'partial']
     ).count()
 
-    return "\n".join([
+    lineas = [
         f"📊 **Dashboard CrediFlux — {today.strftime('%d/%m/%Y')}**",
-        f"",
+        "",
         f"Cartera total: RD$ {total_portfolio:,.2f}",
         f"Préstamos activos: {active_loans} de {total_loans}",
-        f"",
-        f"⚠️ Mora:",
+        "",
+        "⚠️ Mora:",
         f"  • Préstamos en mora: {overdue_count}",
         f"  • Monto vencido: RD$ {overdue_amount:,.2f}",
-        f"",
-        f"💵 Hoy:",
-        f"  • Cobros realizados: RD$ {today_collected:,.2f} ({today_payments.count()} pagos)",
-        f"  • Cuotas por vencer hoy: {due_today}",
-    ])
+        "",
+        "💵 Hoy:",
+    ]
+    negado = _sin_permiso('payments.view')
+    if negado:
+        lineas.append(f"  • {negado}")
+    else:
+        today_payments = LoanPayment.objects.filter(payment_date=today, status='completed')
+        today_collected = today_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        lineas.append(
+            f"  • Cobros realizados: RD$ {today_collected:,.2f} ({today_payments.count()} pagos)"
+        )
+    lineas.append(f"  • Cuotas por vencer hoy: {due_today}")
+    return "\n".join(lineas)
 
 
 @tool
 def clientes_en_mora() -> str:
     """Lista los clientes con cuotas vencidas, ordenados por días de atraso (más críticos primero)."""
     from apps.loans.models import LoanSchedule
+
+    negado = _sin_permiso('loans.view', 'customers.view')
+    if negado:
+        return negado
 
     today = timezone.localdate()
     overdue = LoanSchedule.objects.filter(
@@ -252,10 +330,9 @@ def clientes_en_mora() -> str:
             continue
         seen.add(customer.id)
         days = (today - s.due_date).days
-        amount = s.total_amount.amount if hasattr(s.total_amount, 'amount') else s.total_amount
         results.append(
-            f"  {'🔴' if days > 30 else '🟡'} {customer.full_name} — "
-            f"{days} días | RD$ {amount:,.2f} | "
+            f"  {'🔴' if days > 30 else '🟡'} {customer.get_full_name()} — "
+            f"{days} días | RD$ {_monto(s.total_amount):,.2f} | "
             f"Préstamo: {s.loan.loan_number} | Tel: {customer.phone or 'N/A'}"
         )
 
@@ -331,6 +408,10 @@ def proyeccion_cobros(dias: int = 7) -> str:
     """
     from apps.loans.models import LoanSchedule
 
+    negado = _sin_permiso('loans.view')
+    if negado:
+        return negado
+
     today = timezone.localdate()
     upcoming = LoanSchedule.objects.filter(
         due_date__gte=today,
@@ -344,7 +425,7 @@ def proyeccion_cobros(dias: int = 7) -> str:
     total = Decimal('0')
     by_day = {}
     for s in upcoming:
-        amount = s.total_amount.amount if hasattr(s.total_amount, 'amount') else Decimal(str(s.total_amount))
+        amount = _monto(s.total_amount)
         total += amount
         day_str = s.due_date.strftime('%a %d/%m')
         if day_str not in by_day:

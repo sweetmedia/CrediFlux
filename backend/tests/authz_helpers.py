@@ -45,3 +45,18 @@ def cambiar_rol(tenant, rol, quitar=(), dar=()):
     role = Role.objects.get(tenant=tenant, key=rol)
     role.permissions = sorted((set(role.permissions) - set(quitar)) | set(dar))
     role.save()
+
+
+def comprobar_completitud_apiview(cls):
+    """Como comprobar_completitud, para una APIView: exige ViewPermissionRequired y un código (o
+    `None` explícito) por cada método HTTP con manejador (OPTIONS y HEAD siguen a DRF/GET)."""
+    from apps.users.authz import ViewPermissionRequired
+    from apps.users.permissions_catalog import ALL_CODES
+
+    assert any(issubclass(p, ViewPermissionRequired) for p in cls.permission_classes), cls.__name__
+    mapa = getattr(cls, 'permission_codes', None)
+    assert mapa, f'{cls.__name__} sin permission_codes'
+    metodos = {m.upper() for m in cls.http_method_names
+               if m not in ('options', 'head') and hasattr(cls, m)}
+    assert set(mapa) == metodos, set(mapa) ^ metodos
+    assert {c for c in mapa.values() if c is not None} <= ALL_CODES

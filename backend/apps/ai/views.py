@@ -20,6 +20,7 @@ from djangosdk.providers.schemas import ProviderConfig
 
 from apps.users.authz import ViewPermissionRequired
 from .agents import CrediFluxAssistant, CrediFluxLiteAgent, CreditAnalystAgent
+from .tools import con_usuario
 
 
 def get_ai_config():
@@ -117,8 +118,12 @@ class ChatView(APIView):
     Endpoint principal del chat AI.
     POST /api/ai/chat/
     Body: {"prompt": "...", "conversation_id": "...", "agent": "assistant|analyst|lite"}
+
+    Exige `ai.access`; cada herramienta del agente mide además el código del dato que lee
+    con los permisos del usuario de la petición (`con_usuario`).
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'POST': 'ai.access'}
 
     AGENTS = {
         'assistant': CrediFluxAssistant,
@@ -177,7 +182,8 @@ class ChatView(APIView):
             conversation_id = conversation.id
 
         try:
-            response = agent.handle(prompt)
+            with con_usuario(request.user):
+                response = agent.handle(prompt)
         except Exception as e:
             return Response(
                 {'error': f'Error del asistente: {str(e)}'},
@@ -201,7 +207,8 @@ class AgentsListView(APIView):
     Lista los agentes AI disponibles.
     GET /api/ai/agents/
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ViewPermissionRequired]
+    permission_codes = {'GET': 'ai.access'}
 
     def get(self, request):
         # Check if AI is enabled

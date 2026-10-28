@@ -166,7 +166,7 @@ _ROLES_POR_CODIGO = {
     'settings.view': _TODOS,
     'settings.edit': _SOLO_ADMIN,
     'settings.audit': _AUDITORIA,
-    'ai.access': _TODOS,                 # sin caso: el chat de IA sólo pide autenticación
+    'ai.access': _TODOS,                 # caso ia_agentes_leer: chat y agentes (ai/views.py)
 }
 assert set(_ROLES_POR_CODIGO) == ALL_CODES, set(_ROLES_POR_CODIGO) ^ ALL_CODES
 

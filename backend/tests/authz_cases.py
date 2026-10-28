@@ -148,6 +148,9 @@ CASES = [
     ('equipo_leer', 'GET', '/api/users/team/', {}),  # IsAuthenticated (users/views.py:453)
     ('ajustes_tenant_leer', 'GET', '/api/tenants/settings/', {}),  # IsAuthenticated (tenants/views.py:347)
     ('ia_config_leer', 'GET', '/api/ai/config/', {}),  # IsAuthenticated (ai/views.py:249)
+    # Fila añadida en la ola final de F2: el asistente exige ai.access (antes sólo sesión).
+    # Todos los roles de sistema lo traen por defecto, así que nadie pierde acceso hoy.
+    ('ia_agentes_leer', 'GET', '/api/ai/agents/', {}),
     # Detalle de auditoría: mismo queryset que la lista (audit/views.py:17) → 404 fuera de alcance.
     ('auditoria_detalle', 'GET', '/api/audit/{registro_auditoria}/', {}),
 
@@ -314,6 +317,7 @@ EXPECTED = {
     'equipo_leer': _matrix(EVERYONE, {200}),
     'ajustes_tenant_leer': _matrix(EVERYONE, {200}),
     'ia_config_leer': _matrix(EVERYONE, {200}),
+    'ia_agentes_leer': _matrix(EVERYONE, {200}),
     # Fuera de alcance el queryset está vacío: 404, no 403.
     'auditoria_detalle': _matrix(AUDIT, {200}, denied={404}),
 
@@ -481,6 +485,7 @@ CODE = {
     'equipo_leer': 'team.view',
     'ajustes_tenant_leer': None,  # regla propia: identidad de la financiera (R13)
     'ia_config_leer': 'settings.view',
+    'ia_agentes_leer': 'ai.access',
     'auditoria_detalle': 'settings.audit',  # fuera de alcance → 404 (DENEGADO)
 
     # Ediciones y borrados
