@@ -5,6 +5,7 @@ const endSession = vi.fn();
 vi.mock('@/lib/api/session', () => ({
   endSession: (...args: unknown[]) => endSession(...args),
   clearStoredSession: vi.fn(),
+  goToTwoFactorSetup: vi.fn(),
 }));
 
 import { apiClient } from '@/lib/api/client';

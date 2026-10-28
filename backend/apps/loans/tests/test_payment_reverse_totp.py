@@ -303,7 +303,7 @@ def test_autorizadores_lista_solo_dueno_y_admins_con_2fa(cliente, user_factory, 
     secreto = pyotp.random_base32()
     admin_user.is_2fa_enabled, admin_user.totp_secret = True, secreto
     admin_user.save()
-    user_factory(role='admin')  # sin 2FA
+    user_factory(role='admin', is_2fa_enabled=False)  # sin 2FA
     user_factory(role='manager', is_2fa_enabled=True, totp_secret=secreto)
     user_factory(role='admin', is_2fa_enabled=True, totp_secret=secreto, is_active=False)
     user_factory(role='admin', is_2fa_enabled=True, totp_secret=secreto, tenant=_otra_financiera())

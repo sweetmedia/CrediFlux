@@ -42,3 +42,21 @@ export function consumeSessionEndNotice(): string | null {
     return null;
   }
 }
+
+/** Página donde un dueño o administrador sin 2FA la activa (Task 15). */
+export const SETUP_2FA_PATH = '/setup-2fa';
+
+let yendoA2fa = false;
+
+/**
+ * La API respondió 403 `2fa_required`: el usuario es dueño o administrador y
+ * todavía no activó la verificación en dos pasos. Lo manda a `/setup-2fa` sin
+ * tocar la sesión, una sola vez aunque fallen varias peticiones a la vez y
+ * nunca estando ya ahí (las llamadas del shell en esa página no hacen bucle).
+ */
+export function goToTwoFactorSetup(): void {
+  if (typeof window === 'undefined') return;
+  if (yendoA2fa || window.location.pathname === SETUP_2FA_PATH) return;
+  yendoA2fa = true;
+  window.location.href = SETUP_2FA_PATH;
+}

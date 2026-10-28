@@ -5,7 +5,17 @@ PASSWORD = "clave-de-prueba-123"
 def login(client, user):
     r = client.post("/api/tenants/login/", {"email": user.email, "password": PASSWORD}, format="json")
     assert r.status_code == 200, r.content
-    return r.json()
+    data = r.json()
+    if data.get("requires_2fa"):
+        # Dueño/admin: el fixture les da 2FA (obligatoria, Task 15); se completa el segundo paso.
+        import pyotp
+        r = client.post("/api/users/auth/2fa/login/",
+                        {"temp_token": data["temp_token"], "code": pyotp.TOTP(user.totp_secret).now()},
+                        format="json")
+        assert r.status_code == 200, r.content
+        data = r.json()
+        data = {"access_token": data["access"], "refresh_token": data["refresh"], "user": data["user"]}
+    return data
 
 def test_password_change_invalidates_existing_tokens(api_client, user_factory):
     user = user_factory(role="admin")
