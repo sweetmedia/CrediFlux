@@ -89,6 +89,9 @@ class PadronJCE(models.Model):
     apellido1 = models.CharField(max_length=100)
     apellido2 = models.CharField(max_length=100, blank=True, null=True)
     fecha_nacimiento = models.DateField(blank=True, null=True)
+    sexo = models.CharField(max_length=1, blank=True, null=True)
+    estado_civil = models.CharField(max_length=1, blank=True, null=True)
+    lugar_nacimiento = models.TextField(blank=True, null=True)
 
     class Meta:
         db_table = 'padron_jce'
