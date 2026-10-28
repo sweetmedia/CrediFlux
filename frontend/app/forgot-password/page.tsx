@@ -1,23 +1,11 @@
 import { useState } from 'react';
 import Link from '@/lib/navigation/link';
-import Image from '@/components/ui/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { usePasswordReset } from '@/hooks/usePasswordReset';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Loader2 } from 'lucide-react';
+import { AuthShell } from '@/components/auth/AuthShell';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -55,103 +43,78 @@ export default function ForgotPasswordPage() {
 
   if (requestSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-[#e8eddf] p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <div className="flex justify-center mb-4">
-              <CheckCircle2 className="h-16 w-16 text-green-500" />
-            </div>
-            <CardTitle className="text-2xl font-bold text-center">
-              Email Enviado
-            </CardTitle>
-            <CardDescription className="text-center">
-              Hemos enviado un email con instrucciones para recuperar tu contraseña.
-              Por favor revisa tu bandeja de entrada y sigue los pasos indicados.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex justify-center">
-            <Link href="/login">
-              <Button variant="outline">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver al Login
-              </Button>
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
+      <AuthShell eyebrow="Email enviado" title="Revisa tu correo">
+        <p className="text-[14px] leading-relaxed text-sage-600">
+          Hemos enviado un email con instrucciones para recuperar tu contraseña. Revisa tu bandeja de entrada y sigue
+          los pasos indicados.
+        </p>
+        <dl className="mt-8 border-t border-forest-900/10">
+          <div className="flex items-baseline justify-between border-b border-forest-900/10 py-3">
+            <dt className="text-[13px] text-sage-600">Enlace válido por</dt>
+            <dd className="font-mono text-[13px] tabular-nums text-forest-900">24 h</dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 border-b border-forest-900/10 py-3">
+            <dt className="text-[13px] text-sage-600">¿No llegó?</dt>
+            <dd className="text-right text-[13px] text-forest-900">Revisa spam y vuelve a pedirlo en unos minutos</dd>
+          </div>
+        </dl>
+        <Link href="/login" className="cf-btn cf-btn--primary mt-8 h-11 w-full">
+          Volver a iniciar sesión
+        </Link>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-[#e8eddf] p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-4">
-          <div className="flex justify-center">
-            <Image
-              src="/logo.svg"
-              alt="CrediFlux"
-              width={200}
-              height={50}
-              className="h-12 w-auto"
-              priority
-            />
-          </div>
-          <CardTitle className="text-2xl font-bold text-center">
-            Recuperar Contraseña
-          </CardTitle>
-          <CardDescription className="text-center">
-            Ingresa tu email y te enviaremos instrucciones para restablecer tu contraseña
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <CardContent className="space-y-4">
-            {localError && (
-              <Alert variant="destructive">
-                <AlertDescription>{localError}</AlertDescription>
-              </Alert>
-            )}
+    <AuthShell
+      eyebrow="Acceso"
+      title="Recuperar contraseña"
+      description="Escribe el correo de tu cuenta y te enviaremos instrucciones para restablecer la contraseña."
+    >
+      <Link href="/login" className="-mt-2 mb-6 inline-flex items-center gap-1.5 text-[13px] text-sage-600 hover:text-forest-900">
+        <ChevronLeft className="h-3 w-3" aria-hidden="true" />
+        Iniciar sesión
+      </Link>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="tu@email.com"
-                aria-invalid={errors.email ? true : undefined}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-                {...register('email')}
-                disabled={isRequesting}
-              />
-              {errors.email && (
-                <p id="email-error" className="text-sm text-danger-fg">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
+      {localError && (
+        <div role="alert" className="mb-6 flex gap-2.5 rounded border border-flame-500/30 bg-flame-100 p-3 text-[13px] text-forest-900">
+          <AlertTriangle className="mt-0.5 h-[15px] w-[15px] shrink-0 text-flame-600" aria-hidden="true" />
+          {localError}
+        </div>
+      )}
 
-            <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-md">
-              <p>
-                Recibirás un email con un enlace para restablecer tu contraseña.
-                El enlace será válido por 24 horas.
-              </p>
-            </div>
-          </CardContent>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-7">
+        <div className="cf-field">
+          <label className="cf-label" htmlFor="email">
+            Correo<span className="sr-only"> (email)</span>
+          </label>
+          <input
+            id="email"
+            type="email"
+            className="cf-input"
+            placeholder="ej: maria@financiera.com.do"
+            autoComplete="username"
+            aria-invalid={errors.email ? true : undefined}
+            aria-describedby={errors.email ? 'email-error' : undefined}
+            {...register('email')}
+            disabled={isRequesting}
+          />
+          {errors.email && (
+            <p id="email-error" className="mt-1.5 text-[12px] text-flame-700">
+              {errors.email.message}
+            </p>
+          )}
+        </div>
+        <button type="submit" className="cf-btn cf-btn--primary h-11 w-full" disabled={isRequesting}>
+          {isRequesting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          Enviar instrucciones
+        </button>
+      </form>
 
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={isRequesting}>
-              {isRequesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Enviar Instrucciones
-            </Button>
-
-            <Link href="/login" className="w-full">
-              <Button variant="outline" className="w-full">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver al Login
-              </Button>
-            </Link>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+      <div className="mt-8 border-t border-forest-900/10 pt-6 text-[12px] leading-relaxed text-sage-600">
+        El enlace vale <span className="font-mono tabular-nums text-forest-900">24</span> horas. Si no te llega en unos
+        minutos, revisa la carpeta de spam.
+      </div>
+    </AuthShell>
   );
 }
