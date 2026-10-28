@@ -129,6 +129,11 @@ $C exec backend python manage.py load_padron_jce /tmp/padron_extract.csv
 $C exec backend rm /tmp/padron_extract.csv
 ```
 
+La carga bloquea la tabla del padrón mientras dura (las consultas por cédula esperan), así que hay
+que correrla en una ventana tranquila. `--dry-run` hace la carga completa y la revierte, por lo que
+tarda casi lo mismo. Si el archivo trae menos del 90 % de las filas actuales el comando se niega
+(parece truncado); `--force` sólo para un archivo intencionalmente más pequeño.
+
 Es un dato de referencia pesado (550 MB): no va en el repo ni en los backups de media.
 
 ## 6. Comprobaciones después de subir
