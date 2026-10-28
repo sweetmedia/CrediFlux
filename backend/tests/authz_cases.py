@@ -69,7 +69,7 @@ CASES = [
     # Alcance de visitas: COLLECTOR_OVERSIGHT_ROLES (views_geolocation.py:23,28) ve las de otros.
     ('visitas_de_otro_cobrador', 'GET', '/api/loans/collector-visits/', {}),
 
-    # --- CanLookupCedula (core/views.py:49): roles de cobranza, también en GET
+    # --- CanLookupCedula (core/views.py:49): customers.create o customers.edit, también en GET
     ('cedula_consultar', 'GET', '/api/validate-cedula/?cedula=1', {}),
 
     # --- CanManageCashOperations (cashbox/views.py:28): escrituras; lectura abierta
@@ -238,7 +238,9 @@ EXPECTED = {
     'ubicacion_cobrador_ping': _matrix(COLLECTIONS, {400}),
     'visitas_de_otro_cobrador': _matrix(EVERYONE, {200}),  # alcance en VISIBLE
 
-    'cedula_consultar': _matrix(COLLECTIONS, {400}),
+    # Cambio intencional D5 (R8): el padrón es dato personal, sólo con customers.create o
+    # customers.edit; cobrador y supervisor de cobros (que hoy pasaban) ya no lo consultan.
+    'cedula_consultar': _matrix(LOAN_MANAGERS, {400}),
 
     'caja_crear': _matrix(CASH, {400}),
     # Gerente/contabilidad/caja pasan la clase pero el borrado exige dueño/admin → 403.
@@ -391,9 +393,8 @@ CODE = {
     # Alcance: el código decide si se ven las visitas de otros cobradores (VISIBLE).
     'visitas_de_otro_cobrador': 'collections.supervise',
 
-    # Task 9 aceptará customers.create O customers.edit (restricción global del padrón);
-    # aquí se fija customers.create. Cambia el resultado de cobrador y supervisor de
-    # cobros: ver CAMBIOS_PREVISTOS.
+    # CanLookupCedula acepta customers.create O customers.edit (restricción global del
+    # padrón) y su 403 nombra customers.create. Cambio intencional D5 (R8) en EXPECTED.
     'cedula_consultar': 'customers.create',
 
     # Crear/editar caja exigen hoy CanManageCashOperations (los mismos roles que abrir
@@ -508,11 +509,8 @@ def permitido_hoy(case, persona):
 
 # (caso, rol) cuyo resultado cambiará A PROPÓSITO al pasar a permisos, con el motivo.
 # El test de coherencia exige que éstas sean exactamente las discrepancias.
-CAMBIOS_PREVISTOS = {
-    ('cedula_consultar', 'collector'):
-        'El padrón es dato personal: sólo customers.create/edit (restricción global, Task 9).',
-    ('cedula_consultar', 'collection_supervisor'):
-        'El padrón es dato personal: sólo customers.create/edit (restricción global, Task 9).',
-}
+# Vacío: el único cambio previsto (cedula_consultar para cobrador y supervisor, R8) ya está
+# aplicado en EXPECTED (Task 9).
+CAMBIOS_PREVISTOS = {}
 
 assert set(CODE) == set(CASE_NAMES), set(CODE) ^ set(CASE_NAMES)

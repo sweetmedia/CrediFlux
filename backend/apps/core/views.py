@@ -35,36 +35,31 @@ class HealthCheckView(APIView):
 
 # RNC Validation Views
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.throttling import ScopedRateThrottle
 from apps.core.services.rnc_lookup import validate_rnc, is_rnc_database_loaded, RNCLookupService
 from apps.core.permissions import TenantMatches
-from apps.loans.permissions import CanManageCollections
+from apps.users.authz import MENSAJE_DENEGADO, has_perm
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class CanLookupCedula(CanManageCollections):
+class CanLookupCedula(BasePermission):
     """
-    Consulta del Padrón JCE: mismos roles que la gestión de cobranza
-    (CanManageCollections.allowed_roles), pero exigidos también en GET.
+    Consulta del Padrón JCE: es dato personal, así que exige customers.create o customers.edit
+    (quien da de alta o corrige la ficha del cliente), también en GET. Cambio intencional D5 (R8):
+    cobrador y supervisor de cobros ya no consultan el padrón con sus permisos por defecto.
     """
 
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
+        user = request.user
+        if not user or not user.is_authenticated:
             return False
-        if request.user.is_superuser or request.user.is_tenant_owner:
+        if has_perm(user, 'customers.create') or has_perm(user, 'customers.edit'):
             return True
-        if request.user.role not in self.allowed_roles:
-            raise PermissionDenied({
-                'detail': f'Tu rol ({request.user.get_role_display()}) no puede consultar el Padrón.',
-                'required_permission': 'CanLookupCedula',
-                'required_roles': self.allowed_roles,
-                'current_role': request.user.role,
-            })
-        return True
+        raise PermissionDenied({'detail': MENSAJE_DENEGADO, 'required_permission': 'customers.create'})
 
 
 def _buscar_en_padron(cedula):
