@@ -30,28 +30,30 @@ export function useCan(): (code: string) => boolean {
   );
 }
 
-const labels = new Map<string, string>();
-
 export const PERMISSION_CATALOG_KEY = ['permissions-catalog'] as const;
 
-/** Catálogo de permisos (cacheado por TanStack Query); alimenta `permissionLabel`. */
+/** Catálogo de permisos (cacheado por TanStack Query). */
 export function usePermissionCatalog() {
   const { user } = useAuth();
   return useQuery({
     queryKey: PERMISSION_CATALOG_KEY,
     enabled: !!user,
     staleTime: 60 * 60 * 1000,
-    queryFn: async () => {
-      const catalog = await apiClient.get<PermissionCatalogGroup[]>('/api/users/permissions/catalog/');
-      for (const group of catalog) {
-        for (const p of group.permissions) labels.set(p.code, p.label);
-      }
-      return catalog;
-    },
+    queryFn: () => apiClient.get<PermissionCatalogGroup[]>('/api/users/permissions/catalog/'),
   });
 }
 
-/** Etiqueta legible del permiso; el código mismo si el catálogo no se ha cargado. */
-export function permissionLabel(code: string): string {
-  return labels.get(code) ?? code;
+/** Etiqueta legible del permiso según el catálogo; el código mismo si no lo trae. */
+export function permissionLabel(code: string, catalog?: PermissionCatalogGroup[]): string {
+  for (const group of catalog ?? []) {
+    const hit = group.permissions.find((p) => p.code === code);
+    if (hit) return hit.label;
+  }
+  return code;
+}
+
+/** `(code) => etiqueta`; el componente se vuelve a renderizar cuando llega el catálogo. */
+export function usePermissionLabel(): (code: string) => string {
+  const { data } = usePermissionCatalog();
+  return useCallback((code: string) => permissionLabel(code, data), [data]);
 }

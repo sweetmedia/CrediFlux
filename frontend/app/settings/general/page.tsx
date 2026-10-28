@@ -120,6 +120,7 @@ export default function TenantSettingsPage() {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [askConfirm, confirmDialog] = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
+  const canEdit = can('settings.edit');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
@@ -339,6 +340,7 @@ export default function TenantSettingsPage() {
   };
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canEdit) return;
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -420,6 +422,7 @@ export default function TenantSettingsPage() {
   };
 
   const handleLogoRemove = async () => {
+    if (!canEdit) return;
     if (!(await askConfirm({
       title: '¿Eliminar el logo?',
       description: 'Los contratos, recibos y la interfaz volverán a mostrar el logo por defecto.',
@@ -1416,6 +1419,7 @@ export default function TenantSettingsPage() {
             {/* BUSINESS TAB */}
             <TabsContent value="business">
             <form onSubmit={handleSubmit(onSubmit)}>
+            <fieldset disabled={!canEdit} className="m-0 min-w-0 border-0 p-0">
               {/* Business Information */}
               <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
@@ -1688,24 +1692,28 @@ export default function TenantSettingsPage() {
               )}
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 mt-6">
-                <Link href="/dashboard">
-                  <Button type="button" variant="outline" disabled={isSaving}>
-                    Cancelar
+              {canEdit && (
+                <div className="flex justify-end gap-3 mt-6">
+                  <Link href="/dashboard">
+                    <Button type="button" variant="outline" disabled={isSaving}>
+                      Cancelar
+                    </Button>
+                  </Link>
+                  <Button type="submit" disabled={isSaving} className="bg-[#163300] hover:bg-[#0f2400]">
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Save className="mr-2 h-4 w-4" />
+                    Guardar Información del Negocio
                   </Button>
-                </Link>
-                <Button type="submit" disabled={isSaving} className="bg-[#163300] hover:bg-[#0f2400]">
-                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar Información del Negocio
-                </Button>
-              </div>
+                </div>
+              )}
+            </fieldset>
             </form>
             </TabsContent>
 
             {/* EMAIL CONFIGURATION TAB */}
             <TabsContent value="email">
             <form onSubmit={handleSubmit(onSubmit)}>
+            <fieldset disabled={!canEdit} className="m-0 min-w-0 border-0 p-0">
               <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-900">
@@ -1910,23 +1918,27 @@ export default function TenantSettingsPage() {
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end mt-6">
-                <Button
-                  type="submit"
-                  disabled={isSaving}
-                  className="bg-[#163300] hover:bg-[#0f2400] text-white"
-                >
-                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar Configuración de Email
-                </Button>
-              </div>
+              {canEdit && (
+                <div className="flex justify-end mt-6">
+                  <Button
+                    type="submit"
+                    disabled={isSaving}
+                    className="bg-[#163300] hover:bg-[#0f2400] text-white"
+                  >
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Save className="mr-2 h-4 w-4" />
+                    Guardar Configuración de Email
+                  </Button>
+                </div>
+              )}
+            </fieldset>
             </form>
             </TabsContent>
 
             {/* NOTIFICATIONS TAB */}
             <TabsContent value="notifications">
             <form onSubmit={handleSubmit(onSubmit)}>
+            <fieldset disabled={!canEdit} className="m-0 min-w-0 border-0 p-0">
               {/* WhatsApp Configuration */}
               <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
@@ -2054,24 +2066,28 @@ export default function TenantSettingsPage() {
               </Card>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 mt-6">
-                <Link href="/dashboard">
-                  <Button type="button" variant="outline" disabled={isSaving}>
-                    Cancelar
+              {canEdit && (
+                <div className="flex justify-end gap-3 mt-6">
+                  <Link href="/dashboard">
+                    <Button type="button" variant="outline" disabled={isSaving}>
+                      Cancelar
+                    </Button>
+                  </Link>
+                  <Button type="submit" disabled={isSaving} className="bg-green-600 hover:bg-green-700">
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Save className="mr-2 h-4 w-4" />
+                    Guardar Configuración de WhatsApp
                   </Button>
-                </Link>
-                <Button type="submit" disabled={isSaving} className="bg-green-600 hover:bg-green-700">
-                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar Configuración de WhatsApp
-                </Button>
-              </div>
+                </div>
+              )}
+            </fieldset>
             </form>
             </TabsContent>
 
             {/* APPEARANCE TAB */}
             <TabsContent value="appearance">
             <form onSubmit={handleSubmit(onSubmit)}>
+            <fieldset disabled={!canEdit} className="m-0 min-w-0 border-0 p-0">
               {/* Branding */}
               <Card className="rounded-3xl border-slate-200/80 shadow-none">
                 <CardHeader>
@@ -2100,7 +2116,7 @@ export default function TenantSettingsPage() {
                             alt="Logo"
                             className="max-w-xs max-h-32 object-contain"
                           />
-                          {!isUploadingLogo && (
+                          {!isUploadingLogo && canEdit && (
                             <Button
                               type="button"
                               variant="destructive"
@@ -2120,6 +2136,7 @@ export default function TenantSettingsPage() {
                       )}
 
                       {/* Upload Button */}
+                      {canEdit && (
                       <div className="flex gap-2">
                         <label htmlFor="logo-upload">
                           <Button
@@ -2150,6 +2167,7 @@ export default function TenantSettingsPage() {
                           disabled={isUploadingLogo}
                         />
                       </div>
+                      )}
 
                       <p className="text-xs text-slate-500 text-center">
                         PNG, JPG o GIF. Máximo 5MB.
@@ -2187,18 +2205,21 @@ export default function TenantSettingsPage() {
               </Card>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 mt-4">
-                <Link href="/dashboard">
-                  <Button type="button" variant="outline" disabled={isSaving || isUploadingLogo}>
-                    Cancelar
+              {canEdit && (
+                <div className="flex justify-end gap-3 mt-4">
+                  <Link href="/dashboard">
+                    <Button type="button" variant="outline" disabled={isSaving || isUploadingLogo}>
+                      Cancelar
+                    </Button>
+                  </Link>
+                  <Button type="submit" disabled={isSaving || isUploadingLogo} className="bg-[#163300] hover:bg-[#0f2400]">
+                    {(isSaving || isUploadingLogo) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Save className="mr-2 h-4 w-4" />
+                    Guardar Apariencia
                   </Button>
-                </Link>
-                <Button type="submit" disabled={isSaving || isUploadingLogo} className="bg-[#163300] hover:bg-[#0f2400]">
-                  {(isSaving || isUploadingLogo) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar Apariencia
-                </Button>
-              </div>
+                </div>
+              )}
+            </fieldset>
             </form>
             </TabsContent>
           </Tabs>

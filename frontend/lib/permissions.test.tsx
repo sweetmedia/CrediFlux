@@ -11,7 +11,7 @@ vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => ({ user: currentUs
 const get = vi.fn();
 vi.mock('@/lib/api/client', () => ({ apiClient: { get: (...a: unknown[]) => get(...a) } }));
 
-import { useCan, permissionLabel, usePermissionCatalog } from '@/lib/permissions';
+import { useCan, permissionLabel, usePermissionLabel } from '@/lib/permissions';
 import { PermissionGate } from '@/components/auth/PermissionGate';
 import { NAV_GROUPS, visibleNavGroups } from '@/components/layout/nav';
 
@@ -74,6 +74,14 @@ describe('menú', () => {
     expect(labels((c) => codes.includes(c))).toContain('Equipo');
   });
 
+  it('cada ítem lleva el código de su pantalla', () => {
+    const byLabel = Object.fromEntries(NAV_GROUPS.flatMap((g) => g.items).map((i) => [i.label, i.permission]));
+    expect(byLabel['Contratos']).toBe('contracts.view');
+    expect(byLabel['Reportes DGII']).toBe('billing.reports');
+    expect(byLabel['Tareas']).toBe('comms.view');
+    expect(byLabel['Gestiones']).toBe('collections.view');
+  });
+
   it('oculta «Equipo» y el grupo Administración sin los permisos', () => {
     const l = labels(() => false);
     expect(l).not.toContain('Equipo');
@@ -82,11 +90,11 @@ describe('menú', () => {
 });
 
 describe('permissionLabel', () => {
-  it('devuelve el código si el catálogo no se ha cargado', () => {
+  it('devuelve el código si no hay catálogo', () => {
     expect(permissionLabel('zzz.unknown')).toBe('zzz.unknown');
   });
 
-  it('usa la etiqueta del catálogo una vez cargado', async () => {
+  it('usePermissionLabel se actualiza cuando llega el catálogo', async () => {
     currentUser = { permissions: [] };
     get.mockResolvedValue([
       { key: 'payments', label: 'Pagos', permissions: [{ code: 'payments.void', label: 'Anular pago' }] },
@@ -95,9 +103,9 @@ describe('permissionLabel', () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
     );
-    const { result } = renderHook(() => usePermissionCatalog(), { wrapper });
-    await vi.waitFor(() => expect(result.current.data).toBeDefined());
+    const { result } = renderHook(() => usePermissionLabel(), { wrapper });
+    expect(result.current('payments.void')).toBe('payments.void');
+    await vi.waitFor(() => expect(result.current('payments.void')).toBe('Anular pago'));
     expect(get).toHaveBeenCalledWith('/api/users/permissions/catalog/');
-    expect(permissionLabel('payments.void')).toBe('Anular pago');
   });
 });
