@@ -1,6 +1,7 @@
 import { useSearchParams } from '@/lib/navigation';
 import { ArrowLeft, ShieldX } from 'lucide-react';
 import Link from '@/lib/navigation/link';
+import { usePermissionLabel } from '@/lib/permissions';
 
 /**
  * Sólo rutas internas. Se resuelve como lo haría el navegador (que quita
@@ -22,6 +23,7 @@ export default function AccessDeniedPage() {
   const reason = searchParams.get('reason') || 'No tienes permisos para acceder a esta página.';
   const requiredPermission = searchParams.get('permission');
   const returnUrl = rutaInterna(searchParams.get('returnUrl'));
+  const etiqueta = usePermissionLabel();
 
   return (
     <main className="cf-root min-h-[calc(100dvh-56px)] bg-cream px-4 py-10 sm:px-8">
@@ -40,7 +42,12 @@ export default function AccessDeniedPage() {
             <dl className="mt-8 border-t border-forest-900/10">
               <div className="flex items-baseline justify-between gap-6 border-b border-forest-900/10 py-3">
                 <dt className="text-[13px] text-sage-600">Permiso requerido</dt>
-                <dd className="font-mono text-[13px] text-forest-900">{requiredPermission}</dd>
+                <dd className="text-right">
+                  {etiqueta(requiredPermission) !== requiredPermission && (
+                    <span className="block text-[13px] text-forest-900">{etiqueta(requiredPermission)}</span>
+                  )}
+                  <span className="font-mono text-[12px] text-sage-600">{requiredPermission}</span>
+                </dd>
               </div>
             </dl>
           )}
