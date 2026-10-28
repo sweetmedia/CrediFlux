@@ -533,7 +533,12 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         if _is_platform_admin(request.user):
             return True
         if obj and request.user.tenant:
-            return self.has_change_permission(request, obj) and not obj.is_tenant_owner
+            # Como DELETE /api/users/team/<pk>/: team.delete, además de poder gestionarlo (run-8 L5).
+            return (
+                has_perm(request.user, 'team.delete')
+                and self.has_change_permission(request, obj)
+                and not obj.is_tenant_owner
+            )
         return False
 
     # ------------------------------------------------------------------
