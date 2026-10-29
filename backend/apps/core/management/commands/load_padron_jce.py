@@ -8,6 +8,7 @@ validación en SQL y, en la misma transacción, ``TRUNCATE`` + ``INSERT``. Si al
 tabla anterior queda intacta. Siempre usa nombres calificados: no depende del search_path.
 """
 import os
+import re
 
 import psycopg2
 from django.core.management.base import BaseCommand, CommandError
@@ -55,8 +56,9 @@ FROM {STAGING}
 class _Ensayo(Exception):
     """Centinela: --dry-run hace la carga completa y la revierte lanzando esto."""
 
-    def __init__(self, total):
+    def __init__(self, total, omitidas):
         self.total = total
+        self.omitidas = omitidas
 
 
 class _SinNulos:
@@ -74,6 +76,57 @@ class _SinNulos:
         return self._fh.readline(size).replace(b'\x00', b'')
 
 
+# Byte de DOS (CP850) leído como Windows-1252 o Latin-1 -> carácter correcto ('¥' -> 'Ñ', 'Ö' -> 'Í').
+_DOS = {}
+for _b in range(0x80, 0x100):
+    _DOS[_b] = bytes([_b]).decode('cp850')
+    try:
+        _DOS[ord(bytes([_b]).decode('cp1252'))] = _DOS[_b]
+    except UnicodeDecodeError:
+        pass
+
+_FECHA = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+
+
+class _ExtractoCP850:
+    """El extracto real de la JCE salió de DOS (CP850) y se guardó como si fuera Windows-1252:
+    la Ñ llega como '¥', la Í como 'Ö', etc., y en el lugar de nacimiento a veces la Ñ llega
+    como '|' (el separador). Se repara línea a línea: sin 0x00, con los caracteres de CP850 y,
+    si sobran columnas pero fecha y sexo están en su sitio, el sobrante es el lugar (se une con
+    'Ñ'). Una línea con '|' de más en un nombre es ambigua: se omite y se cuenta."""
+
+    def __init__(self, fh):
+        self._lineas = iter(fh)
+        self._buf = b''
+        self.omitidas = 0
+
+    def _siguiente(self):
+        for cruda in self._lineas:
+            linea = cruda.replace(b'\x00', b'').decode('utf-8').rstrip('\r\n').translate(_DOS)
+            campos = linea.split('|')
+            if len(campos) > 8 and _FECHA.match(campos[4].strip()) and campos[5].strip() in ('M', 'F'):
+                campos = campos[:7] + ['Ñ'.join(campos[7:])]
+            if len(campos) != 8:
+                self.omitidas += 1
+                continue
+            return ('|'.join(campos) + '\n').encode('utf-8')
+        return b''
+
+    def read(self, size=-1):
+        while size < 0 or len(self._buf) < size:
+            linea = self._siguiente()
+            if not linea:
+                break
+            self._buf += linea
+        if size < 0:
+            size = len(self._buf)
+        trozo, self._buf = self._buf[:size], self._buf[size:]
+        return trozo
+
+    def readline(self, size=-1):
+        return self.read(size) if self._buf else self._siguiente()
+
+
 class Command(BaseCommand):
     help = 'Carga el padrón de la JCE (CSV con "|") en public.padron_jce, todo o nada.'
 
@@ -87,6 +140,11 @@ class Command(BaseCommand):
             '--force', action='store_true',
             help='Permite cargar un archivo con menos del 90 %% de las filas actuales.',
         )
+        parser.add_argument(
+            '--origen-cp850', action='store_true',
+            help='El archivo es el extracto de la JCE (CP850 leído como Windows-1252): repara la Ñ y '
+                 'las tildes, y omite (contándolas) las líneas con un | de más en un nombre.',
+        )
 
     def handle(self, *args, **opts):
         ruta = opts['ruta']
@@ -95,9 +153,9 @@ class Command(BaseCommand):
         dry_run = opts['dry_run']
         try:
             try:
-                cargadas = self._cargar(ruta, dry_run, opts['force'])
+                cargadas, omitidas = self._cargar(ruta, dry_run, opts['force'], opts['origen_cp850'])
             except _Ensayo as e:
-                cargadas = e.total
+                cargadas, omitidas = e.total, e.omitidas
         except OSError as exc:
             raise CommandError(f'No se pudo leer {ruta}: {exc.strerror or type(exc).__name__}') from None
         except (psycopg2.Error, DjangoDBError) as exc:
@@ -106,6 +164,10 @@ class Command(BaseCommand):
             raise CommandError(
                 f'Carga abortada, la tabla no cambió ({type(exc).__name__}: {detalle})'
             ) from None
+        if omitidas:
+            self.stdout.write(self.style.WARNING(
+                f'{omitidas} línea(s) omitidas: un | de más en un nombre, no se sabe a qué campo va.'
+            ))
         if dry_run:
             self.stdout.write(self.style.SUCCESS(
                 f'[dry-run] {cargadas} filas se cargarían; la tabla no se modificó.'
@@ -113,16 +175,23 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.SUCCESS(f'{cargadas} filas cargadas en public.padron_jce.'))
 
-    def _cargar(self, ruta, dry_run, force):
+    def _cargar(self, ruta, dry_run, force, origen_cp850):
         with transaction.atomic():
             cur = connection.cursor()
             # La tabla temporal nace dentro de la transacción: si algo falla, el rollback la elimina.
             cur.execute('DROP TABLE IF EXISTS pg_temp.padron_jce_staging')
             cur.execute(CREAR_STAGING)
             with open(ruta, 'rb') as fh:
-                cur.cursor.copy_expert(COPIAR, _SinNulos(fh))
+                lector = _ExtractoCP850(fh) if origen_cp850 else _SinNulos(fh)
+                cur.cursor.copy_expert(COPIAR, lector)
+            omitidas = getattr(lector, 'omitidas', 0)
             cur.execute(f'SELECT count(*) FROM {STAGING}')
             total = cur.fetchone()[0]
+            if omitidas > max(100, total // 1000):
+                raise CommandError(
+                    f'{omitidas} líneas con columnas de más (más de 100 y del 0,1 %): el archivo no parece '
+                    'el extracto de la JCE. No se cargó nada.'
+                )
             if total == 0:
                 raise CommandError('El archivo no tiene filas.')
             cur.execute(CONTAR_INVALIDAS)
@@ -143,5 +212,5 @@ class Command(BaseCommand):
             cur.execute(INSERTAR)
             cur.execute('DROP TABLE pg_temp.padron_jce_staging')
             if dry_run:
-                raise _Ensayo(total)  # revierte TRUNCATE + INSERT
-            return total
+                raise _Ensayo(total, omitidas)  # revierte TRUNCATE + INSERT
+            return total, omitidas

@@ -169,3 +169,35 @@ def test_byte_nulo_cuenta_como_vacio(public_schema, tmp_path):
     assert [f[0] for f in filas] == ['00100000019', '00200000027']
     assert filas[0][3] is None and filas[0][7] is None
     assert filas[1][3] == 'DIAZ'
+
+
+@pytest.mark.django_db
+def test_origen_cp850_repara_enes_tildes_y_el_lugar(public_schema, tmp_path, capsys):
+    p = _archivo(
+        tmp_path,
+        '00100000019|MARÖA|PE¥A|\x00|1990-01-02|F|S|MONSE|OR NOUEL\n'
+        '00200000027|JOÇO|LEBRàN|GšIRA|1985-03-04|M|C|SANTIAGO, R.D.\n'
+        '00300000035|RAMIRO|ENCARNACI|N||1923-04-12|M|S|VALLEJUELO\n',
+    )
+    call_command('load_padron_jce', p, '--origen-cp850')
+    filas = _filas()
+    assert [f[0] for f in filas] == ['00100000019', '00200000027']
+    assert filas[0][1:4] == ('MARÍA', 'PEÑA', None)
+    assert filas[0][7] == 'MONSEÑOR NOUEL'
+    assert filas[1][1:4] == ('JOÃO', 'LEBRÓN', 'GÜIRA')
+    assert '1 línea(s) omitidas' in capsys.readouterr().out
+
+
+@pytest.mark.django_db
+def test_origen_cp850_aborta_si_sobran_columnas_en_muchas_lineas(public_schema, tmp_path):
+    _previa()
+    malas = ''.join(f'00{i:09d}|A|B|C|D|1990-01-02|F|S|X\n' for i in range(150))
+    with pytest.raises(CommandError, match='no parece'):
+        call_command('load_padron_jce', _archivo(tmp_path, malas), '--origen-cp850')
+    assert [f[0] for f in _filas()] == ['99900000011']
+
+
+@pytest.mark.django_db
+def test_sin_origen_cp850_no_toca_los_caracteres(public_schema, tmp_path):
+    call_command('load_padron_jce', _archivo(tmp_path, '00100000019|ÑOÑO|PEÑA||1990-01-02|M|S|\n'))
+    assert _filas()[0][1:3] == ('ÑOÑO', 'PEÑA')
