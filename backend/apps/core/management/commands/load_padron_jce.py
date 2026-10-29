@@ -59,6 +59,21 @@ class _Ensayo(Exception):
         self.total = total
 
 
+class _SinNulos:
+    """El extracto del padrón (bcp de SQL Server) marca con 0x00 los campos vacíos, como el
+    segundo apellido o el lugar de nacimiento; Postgres no acepta ese byte en texto UTF-8. Se
+    quita al leer, y el campo queda vacío (luego NULL), como cualquier otro campo vacío."""
+
+    def __init__(self, fh):
+        self._fh = fh
+
+    def read(self, size=-1):
+        return self._fh.read(size).replace(b'\x00', b'')
+
+    def readline(self, size=-1):
+        return self._fh.readline(size).replace(b'\x00', b'')
+
+
 class Command(BaseCommand):
     help = 'Carga el padrón de la JCE (CSV con "|") en public.padron_jce, todo o nada.'
 
@@ -105,7 +120,7 @@ class Command(BaseCommand):
             cur.execute('DROP TABLE IF EXISTS pg_temp.padron_jce_staging')
             cur.execute(CREAR_STAGING)
             with open(ruta, 'rb') as fh:
-                cur.cursor.copy_expert(COPIAR, fh)
+                cur.cursor.copy_expert(COPIAR, _SinNulos(fh))
             cur.execute(f'SELECT count(*) FROM {STAGING}')
             total = cur.fetchone()[0]
             if total == 0:

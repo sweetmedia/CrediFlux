@@ -153,3 +153,19 @@ def test_dry_run_no_cambia_la_tabla(public_schema, capsys):
 def test_archivo_inexistente(public_schema):
     with pytest.raises(CommandError):
         call_command('load_padron_jce', '/no/existe.csv')
+
+
+@pytest.mark.django_db
+def test_byte_nulo_cuenta_como_vacio(public_schema, tmp_path):
+    """El extracto real (bcp de SQL Server) marca con 0x00 el segundo apellido o el lugar de
+    nacimiento vacíos; Postgres rechaza ese byte en texto UTF-8."""
+    p = tmp_path / 'nulos.csv'
+    p.write_bytes(
+        b'00100000019|ANA|PEREZ|\x00|1990-01-02|F|S|\x00\n'
+        b'00200000027|LUIS|GOMEZ|DIAZ|1985-03-04|M|C|SANTIAGO, R.D.\n'
+    )
+    call_command('load_padron_jce', str(p))
+    filas = _filas()
+    assert [f[0] for f in filas] == ['00100000019', '00200000027']
+    assert filas[0][3] is None and filas[0][7] is None
+    assert filas[1][3] == 'DIAZ'
