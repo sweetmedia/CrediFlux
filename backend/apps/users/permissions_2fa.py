@@ -8,8 +8,9 @@ responde 403 `{"detail": …, "code": "2fa_required"}` en todo salvo la lista
 blanca de abajo (lo justo para cerrar sesión, renovar el token, cargar el
 shell y activar la 2FA).
 
-No aplica a superusuarios de la plataforma (sin tenant), a los demás roles ni
-al admin de Django (sesión, fuera de DRF).
+No aplica a superusuarios de la plataforma (sin tenant), a los demás roles, al
+admin de Django (sesión, fuera de DRF) ni a una financiera con
+`Tenant.require_2fa` apagado (la demo; sólo lo cambia el admin de la plataforma).
 
 Dónde se aplica: en `APIView.perform_authentication`, que DRF llama en
 `APIView.initial` justo después de crear el `Request` y antes de permisos y
@@ -52,7 +53,9 @@ def requires_2fa_setup(user) -> bool:
     if getattr(user, 'tenant_id', None) is None:  # superusuario de la plataforma
         return False
     privileged = getattr(user, 'is_tenant_owner', False) or getattr(user, 'role', None) == 'admin'
-    return privileged and not getattr(user, 'is_2fa_enabled', False)
+    if not privileged or getattr(user, 'is_2fa_enabled', False):
+        return False
+    return getattr(user.tenant, 'require_2fa', True)
 
 
 def is_allowlisted(request) -> bool:

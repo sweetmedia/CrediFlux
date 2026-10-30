@@ -109,6 +109,11 @@ class Tenant(TenantMixin):
 
     # Settings
     is_active = models.BooleanField(default=True)
+    require_2fa = models.BooleanField(
+        default=True,
+        help_text='Dueño y administradores deben activar la 2FA. Sólo el admin de la plataforma '
+                  'lo apaga (p. ej. la financiera demo); sin 2FA nadie puede autorizar un reverso.',
+    )
     provisioning_pending = models.BooleanField(
         default=False,
         help_text='Registro de autoservicio recibido por encima del tope diario: sin schema '

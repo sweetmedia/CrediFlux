@@ -382,7 +382,7 @@ class TenantAdmin(PlatformAdminOnlyMixin, ModelAdmin):
 
     fieldsets = (
         ('Tenant Information', {
-            'fields': ('name', 'schema_name', 'is_active')
+            'fields': ('name', 'schema_name', 'is_active', 'require_2fa')
         }),
         ('Business Information', {
             'fields': ('business_name', 'tax_id', 'email', 'phone')

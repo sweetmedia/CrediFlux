@@ -174,3 +174,24 @@ def test_anonimo_no_afectado(api_client):
     resp = api_client.get('/api/loans/customers/')
     assert resp.status_code == 401
     assert resp.data.get('code') != CODIGO
+
+
+def test_financiera_sin_2fa_obligatoria_no_bloquea(api_client, dueno):
+    tenant = dueno.tenant  # el tenant de prueba es el mismo objeto en toda la sesión
+    tenant.require_2fa = False
+    tenant.save(update_fields=['require_2fa'])
+    try:
+        resp = cliente_de(api_client, dueno).get('/api/loans/customers/')
+        assert resp.status_code == 200, (resp.status_code, resp.data)
+    finally:
+        tenant.require_2fa = True
+        tenant.save(update_fields=['require_2fa'])
+
+
+def test_2fa_obligatoria_por_defecto(dueno):
+    assert dueno.tenant.require_2fa is True
+
+
+def test_require_2fa_no_se_cambia_desde_ajustes_de_la_financiera():
+    from apps.tenants.serializers import TenantUpdateSerializer
+    assert 'require_2fa' not in TenantUpdateSerializer.Meta.fields
